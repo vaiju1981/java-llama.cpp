@@ -92,11 +92,29 @@ if(NOT JNI_INCLUDE_DIRS)
     message(FATAL_ERROR "Could not determine JNI include directories")
 endif()
 
-add_library(jllama SHARED src/main/cpp/jllama.cpp src/main/cpp/server.hpp src/main/cpp/utils.hpp)
+# Build llava first
+# Add llava as an object library (must be compiled first)
+add_subdirectory(${llama.cpp_SOURCE_DIR}/examples/llava)
+
+# Create jllama shared library
+add_library(jllama SHARED 
+    src/main/cpp/jllama.cpp 
+    src/main/cpp/server.hpp 
+    src/main/cpp/utils.hpp
+    src/main/cpp/vision_server.hpp
+    src/main/cpp/vision_utils.hpp
+
+    # Include object files from llava
+    $<TARGET_OBJECTS:llava>
+)
 
 set_target_properties(jllama PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(jllama PRIVATE src/main/cpp ${JNI_INCLUDE_DIRS})
-target_link_libraries(jllama PRIVATE common llama nlohmann_json)
+target_link_libraries(jllama PRIVATE common llama llava nlohmann_json)
+
+# Ensure llava is compiled before jllama
+add_dependencies(jllama llava)
+
 target_compile_features(jllama PRIVATE cxx_std_11)
 
 target_compile_definitions(jllama PRIVATE

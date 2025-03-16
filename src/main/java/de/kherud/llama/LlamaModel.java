@@ -59,6 +59,22 @@ public class LlamaModel implements AutoCloseable {
 		LlamaOutput output = receiveCompletion(taskId);
 		return output.text;
 	}
+	
+	/**
+	 * Generate and return a whole answer with custom parameters. 
+	 * The assumption here is messages are part of the inferenceParams 
+	 * and we will apply the template to messages.
+	 *
+	 * @return an LLM response
+	 */
+	public String completeChat(InferenceParameters parameters) {
+		parameters.setStream(false);
+		String prompt = applyTemplate(parameters);
+		parameters.setPrompt(prompt);
+		int taskId = requestCompletion(parameters.toString());
+		LlamaOutput output = receiveCompletion(taskId);
+		return output.text;
+	}
 
 	/**
 	 * Generate and stream outputs with custom inference parameters. Note, that the prompt isn't preprocessed in any
@@ -67,6 +83,19 @@ public class LlamaModel implements AutoCloseable {
 	 * @return iterable LLM outputs
 	 */
 	public LlamaIterable generate(InferenceParameters parameters) {
+		return () -> new LlamaIterator(this, parameters);
+	}
+	
+	/**
+	 * Generate and stream outputs with custom inference parameters. 
+	 * The assumption here is messages are part of the inferenceParams and 
+	 * we will apply the template to messages.
+	 *
+	 * @return iterable LLM outputs
+	 */
+	public LlamaIterable generateChat(InferenceParameters parameters) {
+		String prompt = applyTemplate(parameters);
+		parameters.setPrompt(prompt);
 		return () -> new LlamaIterator(this, parameters);
 	}
 	

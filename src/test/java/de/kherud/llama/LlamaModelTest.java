@@ -1,18 +1,32 @@
 package de.kherud.llama;
 
-import java.io.*;
-import java.util.*;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Scanner;
 import java.util.regex.Pattern;
 
-import de.kherud.llama.args.LogFormat;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import de.kherud.llama.args.LogFormat;
+
 public class LlamaModelTest {
 
+	private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+	 
 	private static final String prefix = "def remove_non_ascii(s: str) -> str:\n    \"\"\" ";
 	private static final String suffix = "\n    return result\n";
 	private static final int nPredict = 10;
@@ -331,5 +345,28 @@ public class LlamaModelTest {
 				.setNPredict(nPredict)
 				.setSeed(42);
 		Assert.assertEquals(model.applyTemplate(params), "<|im_start|>system\nBook<|im_end|>\n<|im_start|>user\nWhat is the best book?<|im_end|>\n<|im_start|>assistant\nIt depends on your interests. Do you like fiction or non-fiction?<|im_end|>\n<|im_start|>assistant\n");
+	}
+	
+	
+	@Test
+	public void testChatComplete() throws JsonMappingException, JsonProcessingException {
+
+		List<Pair<String, String>> userMessages = new ArrayList<>();
+		userMessages.add(new Pair<>("user", "What is the best book?"));
+		userMessages.add(new Pair<>("assistant", "It depends on your interests. Do you like fiction or non-fiction?"));
+
+		InferenceParameters params = new InferenceParameters("A book recommendation system.")
+				.setMessages("Book", userMessages).setTemperature(0.95f).setStopStrings("\"\"\"").setNPredict(nPredict)
+				.setSeed(42);
+
+		
+		String output = model.completeChat(params);
+		String paramsJson = params.toString();
+		JsonNode jsonNode = OBJECT_MAPPER.readTree(paramsJson);
+		
+		Assert.assertEquals(jsonNode.get("prompt").asText(),
+				"<|im_start|>system\nBook<|im_end|>\n<|im_start|>user\nWhat is the best book?<|im_end|>\n<|im_start|>assistant\nIt depends on your interests. Do you like fiction or non-fiction?<|im_end|>\n<|im_start|>assistant\n");
+		Assert.assertNotNull(output); // Ensure output is not null
+		Assert.assertFalse(output.trim().isEmpty()); // Ensure output has content
 	}
 }
