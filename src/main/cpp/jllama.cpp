@@ -384,7 +384,7 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
 }
 
 JNIEXPORT void JNICALL Java_de_kherud_llama_LlamaModel_loadModel(JNIEnv *env, jobject obj, jobjectArray jparams) {
-    common_params params;
+    llama_box_params params;
 
     const jsize argc = env->GetArrayLength(jparams);
     char **argv = parse_string_array(env, jparams, argc);
@@ -392,31 +392,28 @@ JNIEXPORT void JNICALL Java_de_kherud_llama_LlamaModel_loadModel(JNIEnv *env, jo
         return;
     }
 
-    const auto parsed_params = common_params_parse(argc, argv, params, LLAMA_EXAMPLE_SERVER);
+    const auto parsed_params = llama_box_params_parse(argc, argv, params);
     free_string_array(argv, argc);
     if (!parsed_params) {
         return;
     }
 
-    SRV_INF("loading model '%s'\n", params.model.c_str());
+    SRV_INF("loading model '%s'\n", params.llm_params.model.c_str());
 
     common_init();
 
     // struct that contains llama context and inference
     auto *ctx_server = new server_context();
 
-    llama_numa_init(params.numa);
+    llama_numa_init(params.llm_params.numa);
 
-    LOG_INF("system info: n_threads = %d, n_threads_batch = %d, total_threads = %d\n", params.cpuparams.n_threads,
-            params.cpuparams_batch.n_threads, std::thread::hardware_concurrency());
+    LOG_INF("system info: n_threads = %d, n_threads_batch = %d, total_threads = %d\n", params.llm_params.cpuparams.n_threads,
+            params.llm_params.cpuparams_batch.n_threads, std::thread::hardware_concurrency());
     LOG_INF("\n");
-    LOG_INF("%s\n", common_params_get_system_info(params).c_str());
+    LOG_INF("%s\n", common_params_get_system_info(params.llm_params).c_str());
     LOG_INF("\n");
 
     std::atomic<server_state> state{SERVER_STATE_LOADING_MODEL};
-
-    // Necessary similarity of prompt for slot selection
-    ctx_server->slot_prompt_similarity = params.slot_prompt_similarity;
 
     LOG_INF("%s: loading model\n", __func__);
 
@@ -434,25 +431,25 @@ JNIEXPORT void JNICALL Java_de_kherud_llama_LlamaModel_loadModel(JNIEnv *env, jo
 
     const auto model_meta = ctx_server->model_meta();
 
-    if (!params.speculative.model.empty() || !params.speculative.hf_repo.empty()) {
-        SRV_INF("loading draft model '%s'\n", params.speculative.model.c_str());
+    if (!params.llm_params.speculative.model.empty() || !params.llm_params.speculative.hf_repo.empty()) {
+        SRV_INF("loading draft model '%s'\n", params.llm_params.speculative.model.c_str());
         auto params_dft = params;
 
-        params_dft.devices = params.speculative.devices;
-        params_dft.hf_file = params.speculative.hf_file;
-        params_dft.hf_repo = params.speculative.hf_repo;
-        params_dft.model = params.speculative.model;
-        params_dft.model_url = params.speculative.model_url;
-        params_dft.n_ctx = params.speculative.n_ctx == 0 ? params.n_ctx / params.n_parallel : params.speculative.n_ctx;
-        params_dft.n_gpu_layers = params.speculative.n_gpu_layers;
-        params_dft.n_parallel = 1;
+        params_dft.llm_params.devices = params.llm_params.speculative.devices;
+        params_dft.llm_params.hf_file = params.llm_params.speculative.hf_file;
+        params_dft.llm_params.hf_repo = params.llm_params.speculative.hf_repo;
+        params_dft.llm_params.model = params.llm_params.speculative.model;
+        params_dft.llm_params.model_url = params.llm_params.speculative.model_url;
+        params_dft.llm_params.n_ctx = params.llm_params.speculative.n_ctx == 0 ? params.llm_params.n_ctx / params.llm_params.n_parallel : params.llm_params.speculative.n_ctx;
+        params_dft.llm_params.n_gpu_layers = params.llm_params.speculative.n_gpu_layers;
+        params_dft.llm_params.n_parallel = 1;
 
-        common_init_result llama_init_dft = common_init_from_params(params_dft);
+        common_init_result llama_init_dft = common_init_from_params(params_dft.llm_params);
 
         llama_model *model_dft = llama_init_dft.model.get();
 
         if (model_dft == nullptr) {
-            SRV_ERR("failed to load draft model, '%s'\n", params.speculative.model.c_str());
+            SRV_ERR("failed to load draft model, '%s'\n", params.llm_params.speculative.model.c_str());
         }
 
         if (!common_speculative_are_compatible(ctx_server->ctx, llama_init_dft.context.get())) {

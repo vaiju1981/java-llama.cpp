@@ -25,7 +25,7 @@ set(LLAMA_BUILD_COMMON ON)
 FetchContent_Declare(
 	llama.cpp
 	GIT_REPOSITORY https://github.com/ggerganov/llama.cpp.git
-	GIT_TAG         b4889
+	GIT_TAG         b4897
 )
 FetchContent_MakeAvailable(llama.cpp)
 
@@ -101,8 +101,6 @@ add_library(jllama SHARED
     src/main/cpp/jllama.cpp 
     src/main/cpp/server.hpp 
     src/main/cpp/utils.hpp
-    src/main/cpp/vision_server.hpp
-    src/main/cpp/vision_utils.hpp
 
     # Include object files from llava
     $<TARGET_OBJECTS:llava>
