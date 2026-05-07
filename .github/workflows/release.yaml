@@ -620,6 +620,13 @@ jobs:
           server-id: github
           server-username: GITHUB_ACTOR
           server-password: GITHUB_TOKEN
+      - name: Delete old snapshot versions from GitHub Packages
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: 'net.ladenthin.llama'
+          package-type: 'maven'
+          min-versions-to-keep: 0
+        continue-on-error: true
       - name: Publish to GitHub Packages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
