@@ -10,7 +10,7 @@ on:
         required: false
         default: 'false'
       enable_cuda_build:
-        description: 'Build CUDA artifacts — slow, auto-enabled on release events. See CLAUDE.md "Optional CUDA build flag".'
+        description: 'Compile CUDA artifacts (slow — nvcc install + build). Auto-enabled on release events.'
         required: false
         default: 'false'
   release:
@@ -30,11 +30,9 @@ jobs:
 
   crosscompile-linux-x86_64-cuda:
     name: Cross-Compile manylinux_2_28 x86_64 (CUDA)
-    # Slow job (CUDA toolkit install + nvcc).  Skipped on PRs to keep the feedback
-    # loop fast.  See CLAUDE.md "Optional CUDA build flag" for the rationale and
-    # the revert path once the feedback loop is no longer the bottleneck.
-    if: github.event_name == 'release' || github.event.inputs.enable_cuda_build == 'true'
     runs-on: ubuntu-latest
+    outputs:
+      built: ${{ steps.build.outputs.built }}
     steps:
       - uses: actions/checkout@v6
       - name: Display CPU Info
@@ -46,10 +44,18 @@ jobs:
           echo "=== CPU Details from /proc/cpuinfo ==="
           cat /proc/cpuinfo
       - name: Build libraries
+        id: build
         shell: bash
         run: |
-          .github/dockcross/dockcross-manylinux_2_28-x64 .github/build_cuda_linux.sh "-DOS_NAME=Linux -DOS_ARCH=x86_64"
+          if [[ "${{ github.event_name }}" == "release" || "${{ github.event.inputs.enable_cuda_build }}" == "true" ]]; then
+            .github/dockcross/dockcross-manylinux_2_28-x64 .github/build_cuda_linux.sh "-DOS_NAME=Linux -DOS_ARCH=x86_64"
+            echo "built=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "CUDA compilation skipped — set enable_cuda_build=true or trigger a release event to build CUDA artifacts"
+            echo "built=false" >> "$GITHUB_OUTPUT"
+          fi
       - name: Upload artifacts
+        if: steps.build.outputs.built == 'true'
         uses: actions/upload-artifact@v6
         with:
           name: linux-libraries-cuda
@@ -554,13 +560,6 @@ jobs:
       - test-java-macos-arm64-metal
       - test-java-macos-arm64-no-metal
       - test-java-windows-x86_64
-    # Run even when the CUDA job was skipped (PR / non-release dispatch without
-    # enable_cuda_build), but still fail the package step if any required job
-    # actually failed or was cancelled.
-    if: |
-      always() &&
-      !contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -569,7 +568,7 @@ jobs:
           pattern: "*-libraries"
           merge-multiple: true
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
-      - if: needs.crosscompile-linux-x86_64-cuda.result == 'success'
+      - if: needs.crosscompile-linux-x86_64-cuda.outputs.built == 'true'
         uses: actions/download-artifact@v6
         with:
           name: linux-libraries-cuda
@@ -588,59 +587,31 @@ jobs:
 
   publish-snapshot:
     name: Publish Snapshot to GitHub Releases
-    # Depends only on native build + C++ test jobs — intentionally excludes the
-    # Java integration test jobs, which download large models from HuggingFace
-    # and can fail due to network issues unrelated to build correctness.
-    needs:
-      - crosscompile-linux-x86_64
-      - crosscompile-linux-aarch64
-      - crosscompile-android-aarch64
-      - build-macos-arm64-no-metal
-      - build-macos-arm64-metal
-      - build-windows-x86_64
-      - build-windows-x86
-      - test-cpp-linux-x86_64
-      - test-macos-arm64-metal-15
-    if: |
-      always() &&
-      github.event_name == 'push' &&
-      !contains(needs.*.result, 'failure') &&
-      !contains(needs.*.result, 'cancelled')
+    needs: [ package ]
+    if: github.event_name == 'push' && needs.package.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
       - uses: actions/download-artifact@v6
         with:
-          pattern: "*-libraries"
-          merge-multiple: true
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
-      - uses: actions/setup-java@v5
-        with:
-          distribution: 'zulu'
-          java-version: '8'
-      - name: Build JARs
-        run: mvn --batch-mode --no-transfer-progress -P release -Dmaven.test.skip=true -Dgpg.skip=true package
+          name: llama-jars
+          path: snapshot-jars/
       - name: Publish rolling snapshot release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
           gh release delete snapshot --yes --cleanup-tag || true
-          gh release create snapshot target/*.jar \
+          gh release create snapshot snapshot-jars/*.jar \
             --title "Snapshot Build" \
             --notes "Snapshot from ${{ github.sha }} — ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --prerelease \
             --target ${{ github.sha }}
 
   publish:
-    # Manual dispatch must set BOTH release_to_maven_central=true AND
-    # enable_cuda_build=true, otherwise the linux-libraries-cuda artifact
-    # download below would fail.  Release events always satisfy this since
-    # the CUDA job runs unconditionally on `release`.
-    if: ${{ github.event_name == 'release' || (github.event.inputs.release_to_maven_central == 'true' && github.event.inputs.enable_cuda_build == 'true') }}
-    needs: [ package ]
+    if: ${{ github.event_name == 'release' || (github.event.inputs.release_to_maven_central == 'true' && needs.crosscompile-linux-x86_64-cuda.outputs.built == 'true') }}
+    needs: [ package, crosscompile-linux-x86_64-cuda ]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -649,7 +620,8 @@ jobs:
           pattern: "*-libraries"
           merge-multiple: true
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
-      - uses: actions/download-artifact@v6
+      - if: needs.crosscompile-linux-x86_64-cuda.outputs.built == 'true'
+        uses: actions/download-artifact@v6
         with:
           name: linux-libraries-cuda
           path: ${{ github.workspace }}/src/main/resources_linux_cuda/net/ladenthin/llama/
