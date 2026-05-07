@@ -98,6 +98,18 @@ The application will search in the following order in the following locations:
 - From the **JAR**: If any of the libraries weren't found yet, the application will try to use a prebuilt shared library.
   This of course only works for the [supported platforms](#no-setup-required) .
 
+#### System Properties Reference
+
+All `net.ladenthin.llama.*` system properties are resolved by `LlamaSystemProperties`.
+
+| Property | Description |
+|---|---|
+| `net.ladenthin.llama.lib.path` | Directory containing the native `jllama` shared library. Checked first, before `java.library.path`. |
+| `net.ladenthin.llama.lib.name` | Override the native library filename (default is platform-determined, e.g. `jllama.so`). |
+| `net.ladenthin.llama.tmpdir` | Custom temporary directory used when extracting the native library from the JAR. Falls back to `java.io.tmpdir`. |
+| `net.ladenthin.llama.osinfo.architecture` | Override the OS/architecture string used to locate the bundled library inside the JAR (e.g. `Linux/x86_64`). Useful for non-standard JVM environments. |
+| `net.ladenthin.llama.test.ngl` | Number of GPU layers used during testing. Parsed by the test suite; not relevant for production use. |
+
 ## Documentation
 
 ### Example
@@ -268,6 +280,15 @@ LlamaModel.setLogger(LogFormat.TEXT, null);
 // Disable logging by passing a no-op
 LlamaModel.setLogger(null, (level, message) -> {});
 ```
+
+The `LogLevel` enum values passed to the callback correspond to the native llama.cpp log levels:
+
+| Value | Meaning |
+|---|---|
+| `DEBUG` | Verbose diagnostic output |
+| `INFO` | Informational messages about model loading and inference |
+| `WARN` | Non-fatal warnings |
+| `ERROR` | Errors that may affect inference results |
 
 ## Importing in Android
 
