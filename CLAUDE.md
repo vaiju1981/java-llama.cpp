@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9022**
+Current llama.cpp pinned version: **b9049**
 
 ## Upgrading CUDA Version
 
@@ -257,6 +257,14 @@ Also review the project `CMakeLists.txt` for build-system-level breaks (e.g. ren
 | ~b9016–b9022 | `common/reasoning-budget.cpp` | Forced token logit now set to `+INFINITY` (previously left at whatever the model computed); reasoning budget enforcement is now absolute; upstream only, no project changes required |
 | ~b9016–b9022 | `common/chat.cpp` | `thinking_start_tag` and `thinking_end_tag` now trimmed via `trim_whitespace()`; upstream only, no project changes required |
 | ~b9016–b9022 | `examples/diffusion/` | `diffusion_generate` extracted from `diffusion-cli.cpp` to new `diffusion.h`/`diffusion.cpp` static library; enum names prefixed: `ORIGIN`→`DIFFUSION_ALGORITHM_ORIGIN`, `TIMESTEP_BASED`→`DIFFUSION_TRANSFER_SCHEDULE_TIMESTEP_BASED` etc.; examples only, no project changes required |
+| ~b9022–b9049 | `include/llama.h` | New `LLAMA_STATE_SEQ_FLAGS_ON_DEVICE 2` macro added alongside existing `LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY 1`; enables on-device KV cache state save/restore without host round-trip via `llama_state_seq_get_size_ext`/`get_data_ext`/`set_data_ext`; no project call-site changes required (not used by JNI layer) |
+| ~b9022–b9049 | `src/llama-context.cpp` | State seq data format breaking change: `llama_state_seq_get_data`/`set_data` now prepend a 4-byte magic (`0xaf143cd8`) + 4-byte `seq_id` header; state data saved with ≤b9022 is **incompatible** with b9049+; internal I/O classes renamed `llama_io_write_buffer`→`llama_io_write_host`, `llama_io_read_buffer`→`llama_io_read_host`; new `llama_io_write_device`/`llama_io_read_device` classes for on-device paths; no project changes required (not called by JNI layer) |
+| ~b9022–b9049 | `ggml/include/ggml.h` | New `ggml_op_hint` enum (`GGML_HINT_DEFAULT=0`, `GGML_HINT_SRC0_IS_HADAMARD=1`) and `ggml_mul_mat_set_hint()` function added for FWHT (Fast Walsh-Hadamard Transform) support; used internally in `llama-graph.cpp` / `llama-kv-cache.cpp`; no project call-site changes required |
+| ~b9022–b9049 | `src/llama.cpp` | `llama_backend_init()` now auto-calls `ggml_backend_load_all()` if no backends are yet registered; `ggml_backend_load_all()` removed from `common_params_parser_init()` (was in `common/arg.cpp`); no project changes required — backend loading still happens correctly |
+| ~b9022–b9049 | `tools/server/server-context.cpp` | `server_prompt_checkpoint_update()` gained an `on_device` bool parameter; speculative checkpoints now use `LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY \| LLAMA_STATE_SEQ_FLAGS_ON_DEVICE`; compiled directly into jllama from upstream source — no project call-site changes required |
+| ~b9022–b9049 | `src/llama-model.cpp` | Unsupported model architecture now throws `std::runtime_error` instead of calling `GGML_ABORT`; allows callers to catch unknown-arch errors gracefully; no project changes required |
+| ~b9022–b9049 | `ggml/CMakeLists.txt` | GGML version bumped 0.10.2 → 0.11.0; no project changes required |
+| ~b9022–b9049 | `vendor/cpp-httplib/` | Updated to 0.43.3: `str2tag` converted to iterative loop (eliminates recursion stack depth risk), `res.body.reserve` now OOM-safe; upstream server header, no project changes required |
 
 ## Build Commands
 
