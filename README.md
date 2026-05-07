@@ -1,5 +1,6 @@
 ![Java 8+](https://img.shields.io/badge/Java-8%2B-informational)
 [![llama.cpp b9049](https://img.shields.io/badge/llama.cpp-%23b9049-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9049)
+[![Snapshot](https://img.shields.io/badge/snapshot-latest-informational)](https://github.com/bernardladenthin/java-llama.cpp/releases/tag/snapshot)
 
 # Java Bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp)
 
@@ -33,7 +34,7 @@ Inference of Meta's LLaMA model (and others) in pure C/C++.
 
 ## Quick Start
 
-Access this library via Maven:
+Access this library via Maven (released versions on Maven Central):
 
 ```xml
 <dependency>
@@ -44,6 +45,42 @@ Access this library via Maven:
 ```
 
 There are multiple [examples](src/test/java/examples).
+
+### Snapshot builds
+
+Every push to `master` publishes a snapshot to [GitHub Packages](https://github.com/bernardladenthin/java-llama.cpp/packages) and attaches JARs to the [snapshot release](https://github.com/bernardladenthin/java-llama.cpp/releases/tag/snapshot).
+
+To use the snapshot as a Maven dependency, add the repository and a GitHub token to your `~/.m2/settings.xml`:
+
+```xml
+<settings>
+  <servers>
+    <server>
+      <id>github-java-llama</id>
+      <username>YOUR_GITHUB_USERNAME</username>
+      <password>YOUR_GITHUB_TOKEN</password>  <!-- token needs read:packages scope -->
+    </server>
+  </servers>
+</settings>
+```
+
+Then add to your `pom.xml`:
+
+```xml
+<repositories>
+  <repository>
+    <id>github-java-llama</id>
+    <url>https://maven.pkg.github.com/bernardladenthin/java-llama.cpp</url>
+    <snapshots><enabled>true</enabled></snapshots>
+  </repository>
+</repositories>
+
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.0-SNAPSHOT</version>
+</dependency>
+```
 
 ### No Setup required
 

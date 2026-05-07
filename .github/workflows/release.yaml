@@ -586,13 +586,15 @@ jobs:
           path: target/*.jar
 
   publish-snapshot:
-    name: Publish Snapshot to GitHub Releases
+    name: Publish Snapshot to GitHub Releases and GitHub Packages
     needs: [ package ]
     if: github.event_name == 'push' && needs.package.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: write
     steps:
+      - uses: actions/checkout@v6
       - uses: actions/download-artifact@v6
         with:
           name: llama-jars
@@ -608,6 +610,26 @@ jobs:
             --notes "Snapshot from ${{ github.sha }} — ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --prerelease \
             --target ${{ github.sha }}
+      - name: Set up Maven for GitHub Packages
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '8'
+          server-id: github
+          server-username: GITHUB_ACTOR
+          server-password: GITHUB_TOKEN
+      - name: Publish to GitHub Packages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          mvn --batch-mode deploy:deploy-file \
+            -Durl=https://maven.pkg.github.com/${{ github.repository }} \
+            -DrepositoryId=github \
+            -Dfile=snapshot-jars/llama-${VERSION}.jar \
+            -DpomFile=pom.xml \
+            -Dsources=snapshot-jars/llama-${VERSION}-sources.jar \
+            -Djavadoc=snapshot-jars/llama-${VERSION}-javadoc.jar
 
   publish:
     if: ${{ github.event_name == 'release' || (github.event.inputs.release_to_maven_central == 'true' && needs.crosscompile-linux-x86_64-cuda.outputs.built == 'true') }}
