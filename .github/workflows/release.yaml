@@ -1,5 +1,7 @@
 name: Build, Test and Release
 on:
+  push:
+    branches: [ master ]
   pull_request:
   workflow_dispatch:
     inputs:
@@ -583,6 +585,32 @@ jobs:
         with:
           name: llama-jars
           path: target/*.jar
+
+  publish-snapshot:
+    name: Publish Snapshot to GitHub Releases
+    needs: [ package ]
+    if: github.event_name == 'push' && needs.package.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v6
+        with:
+          name: llama-jars
+          path: snapshot-jars/
+      - name: Publish rolling snapshot release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          gh release delete snapshot --yes --cleanup-tag || true
+          gh release create snapshot snapshot-jars/*.jar \
+            --title "Snapshot Build" \
+            --notes "Auto-generated snapshot build from commit ${{ github.sha }}.
+
+          [View workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" \
+            --prerelease \
+            --target ${{ github.sha }}
 
   publish:
     # Manual dispatch must set BOTH release_to_maven_central=true AND
