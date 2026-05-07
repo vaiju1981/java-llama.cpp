@@ -22,6 +22,8 @@ env:
   RERANKING_MODEL_NAME: "jina-reranker-v1-tiny-en-Q4_0.gguf"
   DRAFT_MODEL_URL: "https://huggingface.co/QuantFactory/AMD-Llama-135m-code-GGUF/resolve/main/AMD-Llama-135m-code.Q2_K.gguf"
   DRAFT_MODEL_NAME: "AMD-Llama-135m-code.Q2_K.gguf"
+permissions:
+  contents: read
 jobs:
 
   # ---------------------------------------------------------------------------
