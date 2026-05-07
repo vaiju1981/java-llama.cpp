@@ -588,27 +588,49 @@ jobs:
 
   publish-snapshot:
     name: Publish Snapshot to GitHub Releases
-    needs: [ package ]
-    if: github.event_name == 'push' && needs.package.result == 'success'
+    # Depends only on native build + C++ test jobs — intentionally excludes the
+    # Java integration test jobs, which download large models from HuggingFace
+    # and can fail due to network issues unrelated to build correctness.
+    needs:
+      - crosscompile-linux-x86_64
+      - crosscompile-linux-aarch64
+      - crosscompile-android-aarch64
+      - build-macos-arm64-no-metal
+      - build-macos-arm64-metal
+      - build-windows-x86_64
+      - build-windows-x86
+      - test-cpp-linux-x86_64
+      - test-macos-arm64-metal-15
+    if: |
+      always() &&
+      github.event_name == 'push' &&
+      !contains(needs.*.result, 'failure') &&
+      !contains(needs.*.result, 'cancelled')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v6
       - uses: actions/download-artifact@v6
         with:
-          name: llama-jars
-          path: snapshot-jars/
+          pattern: "*-libraries"
+          merge-multiple: true
+          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '8'
+      - name: Build JARs
+        run: mvn --batch-mode --no-transfer-progress -P release -Dmaven.test.skip=true -Dgpg.skip=true package
       - name: Publish rolling snapshot release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |
           gh release delete snapshot --yes --cleanup-tag || true
-          gh release create snapshot snapshot-jars/*.jar \
+          gh release create snapshot target/*.jar \
             --title "Snapshot Build" \
-            --notes "Auto-generated snapshot build from commit ${{ github.sha }}.
-
-          [View workflow run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})" \
+            --notes "Snapshot from ${{ github.sha }} — ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
             --prerelease \
             --target ${{ github.sha }}
 
