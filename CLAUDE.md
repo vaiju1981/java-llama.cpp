@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9049**
+Current llama.cpp pinned version: **b9071**
 
 ## Upgrading CUDA Version
 
@@ -219,6 +219,15 @@ Also review the project `CMakeLists.txt` for build-system-level breaks (e.g. ren
 | ~b9022–b9049 | `src/llama-model.cpp` | Unsupported model architecture now throws `std::runtime_error` instead of calling `GGML_ABORT`; allows callers to catch unknown-arch errors gracefully; no project changes required |
 | ~b9022–b9049 | `ggml/CMakeLists.txt` | GGML version bumped 0.10.2 → 0.11.0; no project changes required |
 | ~b9022–b9049 | `vendor/cpp-httplib/` | Updated to 0.43.3: `str2tag` converted to iterative loop (eliminates recursion stack depth risk), `res.body.reserve` now OOM-safe; upstream server header, no project changes required |
+| ~b9049–b9071 | `common/chat.h` | `contains_media()` method added to `common_chat_msg`; `to_json_oaicompat()` now forces text concatenation when message contains media markers; additive change, no project impact |
+| ~b9049–b9071 | `src/llama-arch.h/cpp` + `src/llama-hparams.h` | New `LLM_KV_ATTENTION_VALUE_SCALE` KV key and `f_attn_value_scale` hparam field added for MiMo-V2 attention value scaling; additive, no project changes required |
+| ~b9049–b9071 | `src/llama.cpp` | `llama_supports_gpu_offload()` and `llama_supports_rpc()` now auto-call `ggml_backend_load_all()` if no backends are registered; behavior fix, no project changes required |
+| ~b9049–b9071 | `src/llama-context.cpp` | `state_seq_set_data`: removed too-strict seq_id matching guard that was gated on `LLAMA_STATE_SEQ_FLAGS_PARTIAL_ONLY`; KV slot restorer now checks tensor shapes and view offsets before deciding to reallocate (avoids unnecessary realloc on shape-compatible updates); both are bug fixes, no project API changes required |
+| ~b9049–b9071 | `src/models/mimo2.cpp` | MiMo-V2 extended with MTP (Multi-Token Prediction) layer support via `nextn_predict_layers`; fused `wqkv` projection; `attention_value_scale` post-attention scaling; all internal model-loading changes, no project changes required |
+| ~b9049–b9071 | `ggml/src/ggml-sycl/` | SYCL implementations added for `CUMSUM`, `DIAG`, `FILL`, `SSM_SCAN`, `SOLVE_TRI` ops; additive, no project changes required |
+| ~b9049–b9071 | `ggml/src/ggml-cuda/out-prod.cu` | CUDA outer-product uses `cublasSgemmStridedBatched` for batched path (dps2==1, ne2>1); HIP/MUSA compat headers gain the alias; performance improvement, no project changes required |
+| ~b9049–b9071 | `tools/mtmd/` | MiniCPM-V 4.6 multimodal support added (`PROJECTOR_TYPE_MINICPMV4_6`, ViT merger graph, new tensor names); additive, no project changes required |
+| ~b9049–b9071 | `tools/server/webui/` | LLM-based conversation title generation; CSS animation `fill-mode-forwards` fixes; UI-only changes compiled into upstream server, no project changes required |
 
 ## Build Commands
 
