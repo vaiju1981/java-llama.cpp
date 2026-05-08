@@ -590,7 +590,7 @@ jobs:
   publish-snapshot:
     name: Publish Snapshot to GitHub Releases and GitHub Packages
     needs: [ package ]
-    if: github.event_name == 'push' && needs.package.result == 'success'
+    if: github.event_name != 'pull_request' && needs.package.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
