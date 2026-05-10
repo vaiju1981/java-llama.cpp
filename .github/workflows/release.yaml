@@ -348,7 +348,7 @@ jobs:
           echo ""
           echo "=== CPU Details from /proc/cpuinfo ==="
           cat /proc/cpuinfo
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           name: Linux-x86_64-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
@@ -402,7 +402,7 @@ jobs:
           echo ""
           echo "=== Processor Details ==="
           system_profiler SPHardwareDataType
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           name: macos-14-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
@@ -453,7 +453,7 @@ jobs:
           echo ""
           echo "=== Processor Details ==="
           system_profiler SPHardwareDataType
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           name: macos-15-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
@@ -507,7 +507,7 @@ jobs:
           Write-Host ""
           Write-Host "=== CPU Information (Get-ComputerInfo) ==="
           Get-ComputerInfo -Property "CsProcessors*" 2>$null || Write-Host "Get-ComputerInfo not available"
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           name: Windows-x86_64-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
@@ -565,13 +565,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           pattern: "*-libraries"
           merge-multiple: true
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
       - if: needs.crosscompile-linux-x86_64-cuda.outputs.built == 'true'
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: linux-libraries-cuda
           path: ${{ github.workspace }}/src/main/resources_linux_cuda/net/ladenthin/llama/
@@ -597,7 +597,7 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           name: llama-jars
           path: snapshot-jars/
@@ -643,13 +643,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v6
+      - uses: actions/download-artifact@v8
         with:
           pattern: "*-libraries"
           merge-multiple: true
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
       - if: needs.crosscompile-linux-x86_64-cuda.outputs.built == 'true'
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: linux-libraries-cuda
           path: ${{ github.workspace }}/src/main/resources_linux_cuda/net/ladenthin/llama/
