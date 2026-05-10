@@ -58,7 +58,7 @@ jobs:
           fi
       - name: Upload artifacts
         if: steps.build.outputs.built == 'true'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: linux-libraries-cuda
           path: ${{ github.workspace }}/src/main/resources_linux_cuda/net/ladenthin/llama/
@@ -81,7 +81,7 @@ jobs:
         run: |
           .github/dockcross/dockcross-manylinux2014-x64 .github/build.sh "-DOS_NAME=Linux -DOS_ARCH=x86_64"
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: Linux-x86_64-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
@@ -104,7 +104,7 @@ jobs:
         run: |
           .github/dockcross/dockcross-linux-arm64-lts .github/build.sh "-DOS_NAME=Linux -DOS_ARCH=aarch64"
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: Linux-aarch64-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
@@ -127,7 +127,7 @@ jobs:
         run: |
           .github/dockcross/dockcross-android-arm64 .github/build.sh "-DANDROID_PLATFORM=android-24 -DOS_NAME=Linux-Android -DOS_ARCH=aarch64"
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: Linux-Android-aarch64-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
@@ -161,7 +161,7 @@ jobs:
       - name: Run C++ unit tests
         run: ctest --test-dir build --output-on-failure
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: macos-15-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
@@ -191,7 +191,7 @@ jobs:
       - name: Run C++ unit tests
         run: ctest --test-dir build --output-on-failure
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: macos-14-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
@@ -219,7 +219,7 @@ jobs:
       - name: Run C++ unit tests
         run: ctest --test-dir build --output-on-failure
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: Windows-x86_64-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
@@ -247,7 +247,7 @@ jobs:
       - name: Run C++ unit tests
         run: ctest --test-dir build --output-on-failure
       - name: Upload artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: Windows-x86-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
@@ -321,7 +321,7 @@ jobs:
         if: always()
         run: vm_stat && sysctl hw.memsize hw.physmem
       - if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: error-log-macos-15-metal
           path: |
@@ -378,7 +378,7 @@ jobs:
         if: always()
         run: free -h
       - if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: error-log-linux-x86_64
           path: |
@@ -430,7 +430,7 @@ jobs:
         if: always()
         run: vm_stat && sysctl hw.memsize hw.physmem
       - if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: error-log-macos-14-metal
           path: |
@@ -481,7 +481,7 @@ jobs:
         if: always()
         run: vm_stat && sysctl hw.memsize hw.physmem
       - if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: error-log-macos-15-no-metal
           path: |
@@ -535,7 +535,7 @@ jobs:
         run: Get-CimInstance Win32_OperatingSystem | Select-Object FreePhysicalMemory,TotalVisibleMemorySize | Format-List
         shell: pwsh
       - if: failure()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: windows-output
           path: |
@@ -582,7 +582,7 @@ jobs:
       - name: Build JARs
         run: mvn --batch-mode --no-transfer-progress -P release -Dmaven.test.skip=true -Dgpg.skip=true package
       - name: Upload JARs
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: llama-jars
           path: target/*.jar
