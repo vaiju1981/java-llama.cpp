@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9071**
+Current llama.cpp pinned version: **b9094**
 
 ## Upgrading CUDA Version
 
@@ -228,6 +228,18 @@ Also review the project `CMakeLists.txt` for build-system-level breaks (e.g. ren
 | ~b9049–b9071 | `ggml/src/ggml-cuda/out-prod.cu` | CUDA outer-product uses `cublasSgemmStridedBatched` for batched path (dps2==1, ne2>1); HIP/MUSA compat headers gain the alias; performance improvement, no project changes required |
 | ~b9049–b9071 | `tools/mtmd/` | MiniCPM-V 4.6 multimodal support added (`PROJECTOR_TYPE_MINICPMV4_6`, ViT merger graph, new tensor names); additive, no project changes required |
 | ~b9049–b9071 | `tools/server/webui/` | LLM-based conversation title generation; CSS animation `fill-mode-forwards` fixes; UI-only changes compiled into upstream server, no project changes required |
+| ~b9071–b9094 | `ggml/src/ggml-cuda/allreduce.cu` + `allreduce.cuh` (NEW) | 2-GPU PCIe AllReduce pipeline for tensor parallelism (no NVLink required); requires Volta+ (sm70+); enabled via `GGML_CUDA_ALLREDUCE` env var (`nccl`/`internal`/`none`); compiled automatically via FetchContent, no project changes required |
+| ~b9071–b9094 | `ggml/src/ggml-cuda/snake.cu` + `snake.cuh` (NEW) | Fused CUDA Snake activation kernel (`y = x + sin(a*x)^2 * inv_b`) for BigVGAN/Vocos audio models; fuses 5-op chain `MUL→SIN→SQR→MUL→ADD` at graph level; F32/F16/BF16; compiled automatically, no project changes required |
+| ~b9071–b9094 | `ggml/src/ggml-cuda/ggml-cuda.cu` | Flash attention head size 192 (DKQ=192, DV=128) for MiMo-V2.5/V2.5-Pro/V2-Flash with GQA ratio 8/16; multi-GPU comm context refactored to `ggml_backend_cuda_comm_context` with `try_allreduce` function pointer; PCI bus IDs lowercased; compiled automatically, no project changes required |
+| ~b9071–b9094 | `ggml/src/ggml-sycl/` | Q5_K reordered memory layout + MMVQ kernel for Intel GPUs; PAD op supports non-contiguous src0; dedicated growing K/V buffer for flash attention; all internal SYCL backend, no project changes required |
+| ~b9071–b9094 | `ggml/src/ggml-hexagon/` | GATED_DELTA_NET and L2_NORM HVX-vectorized on Hexagon HTP backend; internal DSP backend, no project changes required |
+| ~b9071–b9094 | `src/models/sarvam.cpp` (NEW) | Sarvam-MoE model (`sarvamai/sarvam-30b`); reuses BailingMoeV2 arch; new vocab pre-type `LLAMA_VOCAB_PRE_TYPE_SARVAM_MOE = 51`; additive, no project changes required |
+| ~b9071–b9094 | `src/models/gemma4.cpp` | Gemma4 split gate/up experts: `ffn_gate_up_exps` now TENSOR_NOT_REQUIRED; fallback to separate `ffn_gate_exps`/`ffn_up_exps`; NVFP4 per_expert_scale folding; internal model-loading, no project changes required |
+| ~b9071–b9094 | `tools/server/server-context.h` + `server-context.cpp` | New `get_model_info()` method on `server_context`; `/v1/models` response now includes `"n_ctx"` field (value: `slot_n_ctx`); compiled from upstream sources, no JNI changes required (Java callers of model info APIs receive the new field transparently) |
+| ~b9071–b9094 | `tools/server/server-http.h` + `server.cpp` | `handlers` map moved from private to public in `server_http_context`; new `register_gcp_compat()` method exposes GCP/Vertex AI Prediction Protocol endpoint reading `AIP_MODE`/`AIP_PREDICT_ROUTE`/`AIP_HEALTH_ROUTE`/`AIP_HTTP_PORT` env vars; compiled from upstream sources, no project changes required |
+| ~b9071–b9094 | `tools/server/server-models.h` + `server.cpp` | Router child→parent model info propagation: new `CMD_CHILD_TO_ROUTER_INFO` command; `setup_child_server()` gains `const json & model_info` parameter; new `update_loaded_info()` method; `server_model_meta` gains `loaded_info` field; all internally consistent across compiled upstream sources, no project changes required |
+| ~b9071–b9094 | `common/reasoning-budget.cpp` | Forced token logit no longer set to `+INFINITY`; only competing tokens set to `-INFINITY`; internal sampler behavior change, no project changes required |
+| ~b9071–b9094 | `tools/server/webui/` | Settings registry refactored (`settings-config.ts`/`settings-fields.ts`/`settings-sections.ts` merged into `settings-registry.ts`); MCP route `#/settings/mcp` → `#/mcp-servers`; settings route `/settings/chat/[section]` → `/settings/[[section]]`; UI-only, no project changes required |
 
 ## Build Commands
 
