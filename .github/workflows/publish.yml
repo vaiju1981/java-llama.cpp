@@ -373,6 +373,12 @@ jobs:
           echo "${{ github.workspace }}/core.%e.%p" | sudo tee /proc/sys/kernel/core_pattern
       - name: Run tests
         run: mvn --no-transfer-progress test
+      - uses: actions/upload-artifact@v7
+        if: success()
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/jacoco.xml
+          if-no-files-found: ignore
       - name: Memory after tests
         if: always()
         run: free -h
@@ -586,9 +592,37 @@ jobs:
           name: llama-jars
           path: target/*.jar
 
+  report:
+    name: Report
+    needs: [package]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with: { java-version: '8', distribution: zulu }
+      - uses: actions/download-artifact@v8
+        with: { name: jacoco-report, path: target/site/jacoco/ }
+        continue-on-error: true
+      - uses: advanced-security/maven-dependency-submission-action@v5
+      - name: Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          file: target/site/jacoco/jacoco.xml
+          format: jacoco
+        continue-on-error: true
+      - name: Codecov
+        uses: codecov/codecov-action@v6
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: target/site/jacoco/jacoco.xml
+        continue-on-error: true
+
   publish-snapshot:
     name: Publish Snapshot to Central
-    needs: [ package ]
+    needs: [report]
     if: >-
       (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
       github.event_name == 'workflow_dispatch'
@@ -624,7 +658,7 @@ jobs:
   publish-release:
     name: Publish Release to Central
     if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.release_to_maven_central == 'true'
-    needs: [ package, crosscompile-linux-x86_64-cuda ]
+    needs: [report, crosscompile-linux-x86_64-cuda]
     runs-on: ubuntu-latest
     environment: maven-central
     steps:
@@ -672,20 +706,3 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: release-assets/*
-
-  post-publish:
-    name: Post-Publish
-    needs: [package, publish-snapshot, publish-release]
-    if: >-
-      always() &&
-      needs.package.result == 'success' &&
-      (needs.publish-snapshot.result == 'success' ||
-       needs.publish-release.result == 'success')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-java@v5
-        with: { java-version: '8', distribution: zulu }
-      - uses: advanced-security/maven-dependency-submission-action@v5
