@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9094**
+Current llama.cpp pinned version: **b9102**
 
 ## Upgrading CUDA Version
 
@@ -240,6 +240,15 @@ Also review the project `CMakeLists.txt` for build-system-level breaks (e.g. ren
 | ~b9071–b9094 | `tools/server/server-models.h` + `server.cpp` | Router child→parent model info propagation: new `CMD_CHILD_TO_ROUTER_INFO` command; `setup_child_server()` gains `const json & model_info` parameter; new `update_loaded_info()` method; `server_model_meta` gains `loaded_info` field; all internally consistent across compiled upstream sources, no project changes required |
 | ~b9071–b9094 | `common/reasoning-budget.cpp` | Forced token logit no longer set to `+INFINITY`; only competing tokens set to `-INFINITY`; internal sampler behavior change, no project changes required |
 | ~b9071–b9094 | `tools/server/webui/` | Settings registry refactored (`settings-config.ts`/`settings-fields.ts`/`settings-sections.ts` merged into `settings-registry.ts`); MCP route `#/settings/mcp` → `#/mcp-servers`; settings route `/settings/chat/[section]` → `/settings/[[section]]`; UI-only, no project changes required |
+| ~b9094–b9102 | `ggml/src/ggml-cuda/allreduce.cu` + `allreduce.cuh` | Internal CUDA AllReduce pipeline refactored with `ggml_cuda_ar_pipeline` struct; `ggml_cuda_ar_pipeline_init(devices, n_devices)` / `_free` / `_allreduce` APIs; supports 2-GPU PCIe AllReduce without NCCL (Volta+ / sm70+); chunked kernel path (small tensors) vs copy-engine path (large tensors); `GGML_CUDA_ALLREDUCE` env = `nccl`/`internal`/`none`; env tuning vars `GGML_CUDA_AR_COPY_THRESHOLD` / `GGML_CUDA_AR_COPY_CHUNK_BYTES` / `GGML_CUDA_AR_BF16_THRESHOLD`; HIP/MUSA builds return nullptr stub; compiled automatically via FetchContent, no project changes required |
+| ~b9094–b9102 | `ggml/src/ggml-cuda/ggml-cuda.cu` | `GGML_LOG_WARN_ONCE` macro added; `ggml_backend_cuda_comm_context` gains `try_allreduce` fn pointer and `ar_pipeline`; three dispatch fns: `try_allreduce_nccl`, `try_allreduce_internal`, `try_allreduce_butterfly`; init chain: `comm_init_nccl` → `comm_init_internal` → `comm_init_none`; platform default Linux→NCCL, Windows→internal; no project changes required |
+| ~b9094–b9102 | `ggml/src/ggml-sycl/ggml-sycl.cpp` + `im2col.cpp` + `im2col.hpp` | New `ggml_sycl_im2col_3d` function; `GGML_OP_IM2COL_3D` now supported on Intel GPU via SYCL; 2D im2col kernel rewritten with tile-based `IC_KH_KW` thread decomposition; new `SYCL_IM2COL_BLOCK_SIZE 256`; additive, no project changes required |
+| ~b9094–b9102 | `ggml/CMakeLists.txt` | GGML version patch bumped 0.11.0 → 0.11.1; no project changes required |
+| ~b9094–b9102 | `common/sampling.cpp` | Bug fix in `common_sampler_sample`: `set_logits` now called at the top before backend-sampling check; backend sampling token-selection now scans all of `cur_p.data` to find matching token (instead of artificial 1-element array), fixing `cur_p.selected` for downstream `n_probs`; post-sampling probabilities now work correctly with backend sampling |
+| ~b9094–b9102 | `tools/server/server-context.cpp` | `need_logits` renamed to `need_pre_sample_logits`; only set when `n_probs > 0 && !post_sampling_probs`; backend sampling now works with `post_sampling_probs`; 0.0-probability tokens filtered from `result.probs`; compiled from upstream, no project JNI changes required |
+| ~b9094–b9102 | `src/llama-model.cpp` | `n_vocab` loading moved from `llama_model_base::load_hparams()` to per-model `load_arch_hparams()` (e.g. `src/models/deepseek2.cpp`, `src/models/llama.cpp`); internal model-loading refactor, no project changes required |
+| ~b9094–b9102 | `src/llama-model.cpp` | `ggml/src/ggml-virtgpu/ggml-backend-device.cpp` gains `#include <mutex>` for `std::once_flag`; internal backend fix, no project changes required |
+| ~b9094–b9102 | `vendor/cpp-httplib/httplib.cpp` + `httplib.h` | Security fix: chunk-size parsing replaced `strtoul` with manual hex-digit scanning to prevent overflow and reject invalid chunk extensions; version bumped to 0.43.4; compiled automatically, no project changes required |
 
 ## Build Commands
 
