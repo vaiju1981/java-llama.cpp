@@ -665,6 +665,8 @@ jobs:
       (needs.publish-snapshot.result == 'success' ||
        needs.publish-release.result == 'success')
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-java@v5
