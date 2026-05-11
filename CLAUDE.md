@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9102**
+Current llama.cpp pinned version: **b9103**
 
 ## Upgrading CUDA Version
 
@@ -249,6 +249,7 @@ Also review the project `CMakeLists.txt` for build-system-level breaks (e.g. ren
 | ~b9094–b9102 | `src/llama-model.cpp` | `n_vocab` loading moved from `llama_model_base::load_hparams()` to per-model `load_arch_hparams()` (e.g. `src/models/deepseek2.cpp`, `src/models/llama.cpp`); internal model-loading refactor, no project changes required |
 | ~b9094–b9102 | `src/llama-model.cpp` | `ggml/src/ggml-virtgpu/ggml-backend-device.cpp` gains `#include <mutex>` for `std::once_flag`; internal backend fix, no project changes required |
 | ~b9094–b9102 | `vendor/cpp-httplib/httplib.cpp` + `httplib.h` | Security fix: chunk-size parsing replaced `strtoul` with manual hex-digit scanning to prevent overflow and reject invalid chunk extensions; version bumped to 0.43.4; compiled automatically, no project changes required |
+| ~b9102–b9103 | `vendor/cpp-httplib/httplib.cpp` + `httplib.h` | cpp-httplib bumped to v0.44.0: (1) RFC 9110 §5.5 compliance — header field values are no longer percent-decoded by the recipient in `parse_header`; `Location`/`Referer` special-casing removed; callers that need URI-component decoding must call `decode_uri_component()` explicitly; (2) `ThreadPool` constructor is now exception-safe — if thread creation fails partway through, already-started workers are signalled to exit and joined before rethrowing, preventing `std::terminate` from joinable threads in the destructor; compiled automatically, no project changes required |
 
 ## Build Commands
 
