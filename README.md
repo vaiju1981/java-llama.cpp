@@ -1,5 +1,6 @@
 ![Java 8+](https://img.shields.io/badge/Java-8%2B-informational)
 [![llama.cpp b9106](https://img.shields.io/badge/llama.cpp-%23b9106-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9106)
+[![Maven Central](https://img.shields.io/maven-central/v/net.ladenthin/llama)](https://central.sonatype.com/artifact/net.ladenthin/llama)
 [![Snapshot](https://img.shields.io/badge/snapshot-latest-informational)](https://github.com/bernardladenthin/java-llama.cpp/releases/tag/snapshot)
 
 # Java Bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp)
