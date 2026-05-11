@@ -2,20 +2,36 @@ package net.ladenthin.llama;
 
 import java.util.Objects;
 
+/**
+ * A generic immutable key-value pair.
+ *
+ * @param <K> the key type
+ * @param <V> the value type
+ */
 public class Pair<K, V> {
 
 	private final K key;
 	private final V value;
-	
+
+	/**
+	 * @param key   the key
+	 * @param value the value
+	 */
 	public Pair(K key, V value) {
 		this.key = key;
 		this.value = value;
 	}
-	
+
+	/**
+	 * @return the key
+	 */
 	public K getKey() {
 		return key;
 	}
-	
+
+	/**
+	 * @return the value
+	 */
 	public V getValue() {
 		return value;
 	}

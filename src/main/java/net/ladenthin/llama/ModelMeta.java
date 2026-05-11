@@ -20,12 +20,16 @@ public final class ModelMeta {
         this.node = node;
     }
 
-    /** Vocabulary type identifier (e.g. SPM = 2, BPE = 1). */
+    /**
+     * @return vocabulary type identifier (e.g. SPM = 2, BPE = 1)
+     */
     public int getVocabType() {
         return node.path("vocab_type").asInt(0);
     }
 
-    /** Total number of tokens in the model vocabulary. */
+    /**
+     * @return total number of tokens in the model vocabulary
+     */
     public int getNVocab() {
         return node.path("n_vocab").asInt(0);
     }

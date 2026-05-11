@@ -57,6 +57,11 @@ public final class InferenceParameters extends JsonParameters {
 	private static final String PARAM_REASONING_FORMAT = "reasoning_format";
 	private static final String PARAM_REASONING_BUDGET_TOKENS = "reasoning_budget_tokens";
 
+	/**
+	 * Creates inference parameters with the given prompt.
+	 *
+	 * @param prompt the prompt to start generation with
+	 */
 	public InferenceParameters(String prompt) {
 		// we always need a prompt
 		setPrompt(prompt);
