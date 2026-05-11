@@ -34,6 +34,13 @@
 		<url>https://github.com/bernardladenthin/java-llama.cpp/tree/master</url>
 	</scm>
 
+	<distributionManagement>
+		<snapshotRepository>
+			<id>central</id>
+			<url>https://central.sonatype.com/repository/maven-snapshots/</url>
+		</snapshotRepository>
+	</distributionManagement>
+
 	<properties>
 		<jna.version>5.18.1</jna.version>
 		<junit.version>4.13.2</junit.version>
