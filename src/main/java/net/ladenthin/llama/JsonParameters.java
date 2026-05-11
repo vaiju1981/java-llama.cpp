@@ -16,6 +16,7 @@ abstract class JsonParameters {
 	// The JNI code for a proper Java-typed data object is comparatively too complex and hard to maintain.
 	final Map<String, String> parameters = new HashMap<>();
 
+	/** Serializer for converting Java values to JSON-safe strings. */
 	protected final ParameterJsonSerializer serializer = new ParameterJsonSerializer();
 
 	@Override

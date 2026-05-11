@@ -200,6 +200,10 @@ public class LlamaModel implements AutoCloseable {
 	public String applyTemplate(InferenceParameters parameters) {
 		return applyTemplate(parameters.toString());
 	}
+	/**
+	 * @param parametersJson JSON-serialized inference parameters
+	 * @return the formatted chat template string
+	 */
 	public native String applyTemplate(String parametersJson);
 
 	/**
