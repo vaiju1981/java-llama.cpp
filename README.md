@@ -1,7 +1,7 @@
 ![Java 8+](https://img.shields.io/badge/Java-8%2B-informational)
 [![llama.cpp b9106](https://img.shields.io/badge/llama.cpp-%23b9106-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9106)
 [![Maven Central](https://img.shields.io/maven-central/v/net.ladenthin/llama)](https://central.sonatype.com/artifact/net.ladenthin/llama)
-[![Snapshot](https://img.shields.io/badge/snapshot-latest-informational)](https://github.com/bernardladenthin/java-llama.cpp/releases/tag/snapshot)
+[![Snapshot](https://img.shields.io/badge/snapshot-latest-informational)](https://central.sonatype.com/repository/maven-snapshots/net/ladenthin/llama/)
 
 # Java Bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp)
 
@@ -49,39 +49,28 @@ There are multiple [examples](src/test/java/examples).
 
 ### Snapshot builds
 
-Every push to `master` publishes a snapshot to [GitHub Packages](https://github.com/bernardladenthin/java-llama.cpp/packages) and attaches JARs to the [snapshot release](https://github.com/bernardladenthin/java-llama.cpp/releases/tag/snapshot).
+Every push to `main` publishes a snapshot to the [Sonatype Central snapshot repository](https://central.sonatype.com/repository/maven-snapshots/net/ladenthin/llama/).
 
-To use the snapshot as a Maven dependency, add the repository and a GitHub token to your `~/.m2/settings.xml`:
-
-```xml
-<settings>
-  <servers>
-    <server>
-      <id>github-java-llama</id>
-      <username>YOUR_GITHUB_USERNAME</username>
-      <password>YOUR_GITHUB_TOKEN</password>  <!-- token needs read:packages scope -->
-    </server>
-  </servers>
-</settings>
-```
-
-Then add to your `pom.xml`:
+To use the latest snapshot, add the repository and dependency to your `pom.xml`:
 
 ```xml
 <repositories>
   <repository>
-    <id>github-java-llama</id>
-    <url>https://maven.pkg.github.com/bernardladenthin/java-llama.cpp</url>
+    <id>sonatype-snapshots</id>
+    <url>https://central.sonatype.com/repository/maven-snapshots/</url>
     <snapshots><enabled>true</enabled></snapshots>
+    <releases><enabled>false</enabled></releases>
   </repository>
 </repositories>
 
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.0-SNAPSHOT</version>
+    <version>5.0.1-SNAPSHOT</version>
 </dependency>
 ```
+
+No credentials are required — the repository is publicly readable.
 
 ### No Setup required
 
