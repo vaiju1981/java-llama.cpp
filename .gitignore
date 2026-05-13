@@ -34,6 +34,7 @@ replay_pid*
 
 models/*.gguf
 src/main/cpp/de_kherud_llama_*.h
+src/main/cpp/net_ladenthin_llama_*.h
 src/main/resources_cuda_linux/
 src/main/resources/**/*.so
 src/main/resources/**/*.dylib
