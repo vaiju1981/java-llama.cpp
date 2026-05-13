@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9106**
+Current llama.cpp pinned version: **b9134**
 
 ## Upgrading CUDA Version
 
@@ -253,6 +253,12 @@ Also review the project `CMakeLists.txt` for build-system-level breaks (e.g. ren
 | ~b9103–b9106 | `ggml/src/ggml-vulkan/ggml-vulkan.cpp` + Vulkan shaders | Vulkan flash attention refactored: `pipeline_flash_attn_f32_f16` changed from a per-type array of maps to a single map; mixed K/V quant types (e.g. Q4_0 K + F16 V) now supported on all Vulkan FA paths (scalar, cm1, cm2) rather than coopmat2 only; per-type SPIR-V variants replaced by two generic modules (`flash_attn_f32_f16` and `flash_attn_f32_f16_int8`) that select K/V type at runtime via `FaTypeK`/`FaTypeV` spec constants; new `flash_attn_dequant.glsl` contains aliased SSBO views and an uber `dequantize4()` switch; the K/V type mismatch guard removed from `ggml_backend_vk_device_supports_op`; internal Vulkan backend refactor, no project changes required |
 | ~b9103–b9106 | `ggml/src/ggml-cuda/argsort.cu` | Added `#include <cuda/iterator>` for CCCL ≥ 3.1 strided-iterator path; internal CUDA backend, no project changes required |
 | ~b9103–b9106 | `convert_hf_to_gguf.py` | Mistral Medium 3.5 mmproj support: `n_embd_text` now reads `"dim"` key instead of `"hidden_dim"`; negative `img_break_tok_id` placeholders resolved from `tekken.json` or `tokenizer.json`; conversion tool only, no project changes required |
+| ~b9106–b9134 | `common/arg.cpp` | CLI option `--spec-draft-ctx-size` / `-cd` / `--ctx-size-draft` REMOVED — throws `std::invalid_argument` at parse time; `ModelParameters.setCtxSizeDraft()` removed; no replacement (context size now managed internally by speculative engine) |
+| ~b9106–b9134 | `common/arg.cpp` | CLI option `--spec-draft-replace` / `--spec-replace` REMOVED — throws `std::invalid_argument` at parse time; no corresponding Java method existed |
+| ~b9106–b9134 | `common/speculative.h` | Full redesign: `common_speculative_type` enum values renamed `DRAFT`&#x2192;`DRAFT_SIMPLE`, `EAGLE3`&#x2192;`DRAFT_EAGLE3`; `common_params_speculative.type` (single enum) &#x2192; `.types` (vector); `common_speculative_n_max()` / `common_speculative_n_min()` REMOVED; new `common_speculative_init(params, n_seq)` no longer takes ctx; new `common_speculative_begin(spec, seq_id, prompt)`, `common_speculative_draft(spec)`, `common_speculative_accept(spec, seq_id, n)`, `common_speculative_process(spec, batch)` signatures; `common_speculative_draft_params` struct added; server sources compiled directly, no project JNI changes required |
+| ~b9106–b9134 | `common/common.h` | New `common_prompt_checkpoint` struct (contains `data_tgt` + `data_dft`) replaces the old `server_prompt_checkpoint` in `server-task.h`; compiled from upstream server sources, no project JNI changes required |
+| ~b9106–b9134 | `tools/server/server-task.cpp` | `task_params::to_json()` renamed field `"speculative.type"` &#x2192; `"speculative.types"` (now serialises the vector); test `SlotParamsToJson.SpeculativeFields_Present` updated accordingly |
+| ~b9106–b9134 | `include/llama.h` | New `LLAMA_STATE_SEQ_FLAGS_NONE = 0` macro added; additive, no project changes required |
 
 ## Build Commands
 
