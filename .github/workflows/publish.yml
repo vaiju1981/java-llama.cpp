@@ -496,7 +496,7 @@ jobs:
           if-no-files-found: warn
 
   test-java-windows-x86_64:
-    name: Java Tests Windows 2025 x86_64
+    name: Java Tests Windows 2025 x86_64 (VS 2026)
     needs: build-windows-x86_64
     runs-on: windows-2025-vs2026
     steps:
