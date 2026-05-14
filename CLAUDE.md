@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9145**
+Current llama.cpp pinned version: **b9150**
 
 ## Upgrading CUDA Version
 
@@ -265,6 +265,9 @@ Also review the project `CMakeLists.txt` for build-system-level breaks (e.g. ren
 | ~b9134–b9145 | `ggml/src/ggml-cuda/allreduce.cu` | AllReduce accumulation now routed through `float` intermediate for precision (avoids BF16 truncation); internal CUDA backend, no project changes required |
 | ~b9134–b9145 | `ggml/src/ggml-hexagon/` | `GGML_UNARY_OP_TANH` added to Hexagon HTP backend; internal DSP backend, no project changes required |
 | ~b9134–b9145 | `ggml/src/ggml-webgpu/ggml-webgpu-shader-lib.hpp` | `use_subgroup_matrix` condition now also checks `sg_mat_k > 0 && sg_mat_n > 0` and alignment; prevents crash on devices reporting subgroup matrix support with zero k/n; internal WebGPU backend, no project changes required |
+| ~b9145–b9150 | `ggml/src/ggml-vulkan/ggml-vulkan.cpp` | Bug fix: `mul_mat_l_int[i]` / `mul_mat_m_int[i]` / `mul_mat_s_int[i]` / `mul_mat_id_l_int[i]` / `mul_mat_id_m_int[i]` / `mul_mat_id_s_int[i]` were unconditionally set to `true` instead of mirroring the actual device pipeline capabilities from `mul_mat_l[i]` etc.; now properly initialized; internal Vulkan backend bug fix, no project changes required |
+| ~b9145–b9150 | `src/unicode.cpp` | New `unicode_regex_split_custom_qwen35()` function registered for the Qwen 3.5 tokenizer regex pattern; uses `[\p{L}\p{M}]+` letter-plus-combining-mark runs vs. Qwen2's `\p{L}+`; additive internal tokenizer change, no project changes required |
+| ~b9145–b9150 | `ggml/src/ggml-cpu/ggml-cpu-riscv64-spacemit/` | SpaceMIT RISC-V IME backend major refactor: IME2 kernels, expanded quantization (Q2_K, Q3_K, Q6_K, Q8_0, Q5_0, Q5_1, Q5_K, MXFP4), TCM (Tightly Coupled Memory) pool; new source files `ime2_kernels.cpp`, `ime_env.cpp`, `repack.cpp`, `rvv_kernels.cpp`, `spine_mem_pool.cpp`; guarded by `GGML_CPU_RISCV64_SPACEMIT` build flag; no project changes required |
 
 ## Build Commands
 
