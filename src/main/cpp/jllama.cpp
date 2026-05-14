@@ -666,8 +666,7 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_loadModel(JNIEnv *env
 
     llama_numa_init(params.numa);
 
-    LOG_INF("build_info: %s\n", llama_build_info());
-    LOG_INF("%s\n", common_params_get_system_info(params).c_str());
+    common_params_print_info(params);
 
     // Resolve the auto sentinel before loading the model.
     if (params.n_parallel <= N_PARALLEL_AUTO) {
