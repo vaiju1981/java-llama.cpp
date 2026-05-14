@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9150**
+Current llama.cpp pinned version: **b9151**
 
 ## Upgrading CUDA Version
 
@@ -268,6 +268,13 @@ Also review the project `CMakeLists.txt` for build-system-level breaks (e.g. ren
 | ~b9145–b9150 | `ggml/src/ggml-vulkan/ggml-vulkan.cpp` | Bug fix: `mul_mat_l_int[i]` / `mul_mat_m_int[i]` / `mul_mat_s_int[i]` / `mul_mat_id_l_int[i]` / `mul_mat_id_m_int[i]` / `mul_mat_id_s_int[i]` were unconditionally set to `true` instead of mirroring the actual device pipeline capabilities from `mul_mat_l[i]` etc.; now properly initialized; internal Vulkan backend bug fix, no project changes required |
 | ~b9145–b9150 | `src/unicode.cpp` | New `unicode_regex_split_custom_qwen35()` function registered for the Qwen 3.5 tokenizer regex pattern; uses `[\p{L}\p{M}]+` letter-plus-combining-mark runs vs. Qwen2's `\p{L}+`; additive internal tokenizer change, no project changes required |
 | ~b9145–b9150 | `ggml/src/ggml-cpu/ggml-cpu-riscv64-spacemit/` | SpaceMIT RISC-V IME backend major refactor: IME2 kernels, expanded quantization (Q2_K, Q3_K, Q6_K, Q8_0, Q5_0, Q5_1, Q5_K, MXFP4), TCM (Tightly Coupled Memory) pool; new source files `ime2_kernels.cpp`, `ime_env.cpp`, `repack.cpp`, `rvv_kernels.cpp`, `spine_mem_pool.cpp`; guarded by `GGML_CPU_RISCV64_SPACEMIT` build flag; no project changes required |
+| ~b9150–b9151 | `common/log.h` | New `LOG_TRC` macro added at `LOG_LEVEL_TRACE = 4` (between INFO=3 and DEBUG=5); `LOG_LEVEL_DEBUG` bumped from 4 to 5; new `LOG_TRCV` verbosity variant; additive, no project changes required |
+| ~b9150–b9151 | `common/common.h` + `common/common.cpp` | New `common_params_print_info(const common_params &)` function: prints verbosity level, per-device memory (name, total, free), and system info at `LOG_INF` level; replaces the two-line pattern `LOG_INF("build_info: %s\n", llama_build_info()); LOG_INF("%s\n", common_params_get_system_info(params).c_str());` — updated in `jllama.cpp` |
+| ~b9150–b9151 | `common/common.cpp` | `common_init()` now unconditionally calls `common_log_set_prefix(…, true)` and `common_log_set_timestamps(…, true)` before setting the log callback; log output will always include prefix and timestamps unless explicitly disabled with `--no-log-prefix` / `--no-log-timestamps` |
+| ~b9150–b9151 | `common/arg.cpp` | `--log-prefix` and `--log-timestamps` now also accept negated forms `--no-log-prefix` / `--no-log-timestamps` (lambda receives a `bool value`); backing env vars renamed `LLAMA_LOG_PREFIX` → `LLAMA_ARG_LOG_PREFIX` and `LLAMA_LOG_TIMESTAMPS` → `LLAMA_ARG_LOG_TIMESTAMPS`; Java layer does not expose these, so no project changes required |
+| ~b9150–b9151 | `tools/server/server-common.h` | New `SLT_TRC` and `SRV_TRC` macros (emit at `LOG_TRC` level); additive, no project changes required |
+| ~b9150–b9151 | `tools/server/server-context.cpp` | New `server_slot::t_print_last` field + `print_timings_tg()` / `print_timings_pp()` methods: emit periodic in-flight token-generation and prompt-processing throughput to `SLT_INF` (throttled to ≥100 decoded tokens and ≥3 s interval); `server_context_impl` constructor now calls `mtmd_helper_log_set` unconditionally (was guarded by `!is_resume`); many `SLT_INF`/`SRV_WRN` downgraded to `SLT_TRC`/`SRV_INF`; compiled from upstream, no project JNI changes required |
+| ~b9150–b9151 | `tools/server/server-task.cpp` | Several `SRV_WRN` calls downgraded to `SRV_INF`; one `SRV_WRN` upgraded to `SRV_ERR` for failed state restore; compiled from upstream, no project changes required |
 
 ## Build Commands
 
