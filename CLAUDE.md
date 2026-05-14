@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9134**
+Current llama.cpp pinned version: **b9145**
 
 ## Upgrading CUDA Version
 
@@ -259,6 +259,12 @@ Also review the project `CMakeLists.txt` for build-system-level breaks (e.g. ren
 | ~b9106–b9134 | `common/common.h` | New `common_prompt_checkpoint` struct (contains `data_tgt` + `data_dft`) replaces the old `server_prompt_checkpoint` in `server-task.h`; compiled from upstream server sources, no project JNI changes required |
 | ~b9106–b9134 | `tools/server/server-task.cpp` | `task_params::to_json()` renamed field `"speculative.type"` &#x2192; `"speculative.types"` (now serialises the vector); test `SlotParamsToJson.SpeculativeFields_Present` updated accordingly |
 | ~b9106–b9134 | `include/llama.h` | New `LLAMA_STATE_SEQ_FLAGS_NONE = 0` macro added; additive, no project changes required |
+| ~b9134–b9145 | `tools/server/server-common.cpp` | New `continue_final_message` boolean request field in `oaicompat_chat_params_parse`; vLLM/transformers-compatible alias for the prefill-assistant heuristic — when `true`, the last assistant message is extended without appending an end-of-turn token; mutually exclusive with `add_generation_prompt=true` (throws 400); compiled from upstream server sources; `InferenceParameters.setContinueFinalMessage(boolean)` added |
+| ~b9134–b9145 | `ggml/src/ggml-sycl/` | Level Zero API integration for SYCL device memory allocation (`GGML_SYCL_SUPPORT_LEVEL_ZERO` build option, `GGML_SYCL_ENABLE_LEVEL_ZERO` runtime env); reduces system RAM usage on Intel dGPUs; internal SYCL backend, no project changes required |
+| ~b9134–b9145 | `ggml/src/ggml-opencl/` | Q5_0 and Q5_1 MoE GEMM/GEMV kernels added for Adreno (Qualcomm) GPUs; internal OpenCL backend, no project changes required |
+| ~b9134–b9145 | `ggml/src/ggml-cuda/allreduce.cu` | AllReduce accumulation now routed through `float` intermediate for precision (avoids BF16 truncation); internal CUDA backend, no project changes required |
+| ~b9134–b9145 | `ggml/src/ggml-hexagon/` | `GGML_UNARY_OP_TANH` added to Hexagon HTP backend; internal DSP backend, no project changes required |
+| ~b9134–b9145 | `ggml/src/ggml-webgpu/ggml-webgpu-shader-lib.hpp` | `use_subgroup_matrix` condition now also checks `sg_mat_k > 0 && sg_mat_n > 0` and alignment; prevents crash on devices reporting subgroup matrix support with zero k/n; internal WebGPU backend, no project changes required |
 
 ## Build Commands
 
