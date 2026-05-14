@@ -292,6 +292,18 @@ public class InferenceParametersTest {
 		assertEquals("-1", params.parameters.get("reasoning_budget_tokens"));
 	}
 
+	@Test
+	public void testSetContinueFinalMessageTrue() {
+		InferenceParameters params = new InferenceParameters("").setContinueFinalMessage(true);
+		assertEquals("true", params.parameters.get("continue_final_message"));
+	}
+
+	@Test
+	public void testSetContinueFinalMessageFalse() {
+		InferenceParameters params = new InferenceParameters("").setContinueFinalMessage(false);
+		assertEquals("false", params.parameters.get("continue_final_message"));
+	}
+
 	// -------------------------------------------------------------------------
 	// MiroStat
 	// -------------------------------------------------------------------------

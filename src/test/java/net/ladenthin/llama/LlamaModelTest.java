@@ -926,7 +926,6 @@ public class LlamaModelTest {
 						.setModel(TestConstants.MODEL_PATH)
 						.setModelDraft(TestConstants.DRAFT_MODEL_PATH)
 						.setCtxSize(128)
-						.setCtxSizeDraft(128)
 						.setDraftMax(8)
 						.setDraftMin(1)
 						.setGpuLayers(gpuLayers)

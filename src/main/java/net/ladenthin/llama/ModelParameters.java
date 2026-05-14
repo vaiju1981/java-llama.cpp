@@ -1264,17 +1264,6 @@ public final class ModelParameters extends CliParameters {
     }
 
     /**
-     * Set the size of the prompt context for the draft model.
-     *
-     * @param ctxSizeDraft the prompt context size for the draft model
-     * @return this builder
-     */
-    public ModelParameters setCtxSizeDraft(int ctxSizeDraft) {
-        parameters.put("--spec-draft-ctx-size", String.valueOf(ctxSizeDraft));
-        return this;
-    }
-
-    /**
      * Set the comma-separated list of devices to use for offloading the draft model.
      *
      * @param deviceDraft comma-separated list of devices for offloading the draft model

@@ -898,12 +898,6 @@ public class ModelParametersExtendedTest {
     }
 
     @Test
-    public void testSetCtxSizeDraft() {
-        ModelParameters p = new ModelParameters().setCtxSizeDraft(512);
-        assertEquals("512", p.parameters.get("--spec-draft-ctx-size"));
-    }
-
-    @Test
     public void testSetDeviceDraft() {
         ModelParameters p = new ModelParameters().setDeviceDraft("cuda0");
         assertEquals("cuda0", p.parameters.get("--spec-draft-device"));

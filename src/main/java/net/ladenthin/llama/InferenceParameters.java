@@ -56,6 +56,7 @@ public final class InferenceParameters extends JsonParameters {
 	private static final String PARAM_TOP_N_SIGMA = "top_n_sigma";
 	private static final String PARAM_REASONING_FORMAT = "reasoning_format";
 	private static final String PARAM_REASONING_BUDGET_TOKENS = "reasoning_budget_tokens";
+	private static final String PARAM_CONTINUE_FINAL_MESSAGE = "continue_final_message";
 
 	/**
 	 * Creates inference parameters with the given prompt.
@@ -590,6 +591,20 @@ public final class InferenceParameters extends JsonParameters {
 	 */
 	public InferenceParameters setReasoningBudgetTokens(int budgetTokens) {
 		parameters.put(PARAM_REASONING_BUDGET_TOKENS, String.valueOf(budgetTokens));
+		return this;
+	}
+
+	/**
+	 * Continue the final assistant message rather than starting a new one (vLLM/transformers compatible alias).
+	 * When {@code true}, {@code add_generation_prompt} is implicitly set to {@code false} and the last
+	 * assistant message in the conversation is extended without appending an end-of-turn token.
+	 * Mutually exclusive with {@code add_generation_prompt=true}.
+	 *
+	 * @param continueFinalMessage {@code true} to continue the last assistant message
+	 * @return this builder
+	 */
+	public InferenceParameters setContinueFinalMessage(boolean continueFinalMessage) {
+		parameters.put(PARAM_CONTINUE_FINAL_MESSAGE, String.valueOf(continueFinalMessage));
 		return this;
 	}
 
