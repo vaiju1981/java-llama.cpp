@@ -3,6 +3,8 @@
 [![Maven Central](https://img.shields.io/maven-central/v/net.ladenthin/llama)](https://central.sonatype.com/artifact/net.ladenthin/llama)
 [![Snapshot](https://img.shields.io/badge/snapshot-latest-informational)](https://central.sonatype.com/repository/maven-snapshots/net/ladenthin/llama/)
 
+> **Forked from** [kherud/java-llama.cpp](https://github.com/kherud/java-llama.cpp): many thanks to [@kherud](https://github.com/kherud) for the great work!
+
 # Java Bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp)
 
 Inference of Meta's LLaMA model (and others) in pure C/C++.
