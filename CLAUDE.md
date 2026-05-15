@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9151**
+Current llama.cpp pinned version: **b9172**
 
 ## Upgrading CUDA Version
 
@@ -275,6 +275,12 @@ Also review the project `CMakeLists.txt` for build-system-level breaks (e.g. ren
 | ~b9150–b9151 | `tools/server/server-common.h` | New `SLT_TRC` and `SRV_TRC` macros (emit at `LOG_TRC` level); additive, no project changes required |
 | ~b9150–b9151 | `tools/server/server-context.cpp` | New `server_slot::t_print_last` field + `print_timings_tg()` / `print_timings_pp()` methods: emit periodic in-flight token-generation and prompt-processing throughput to `SLT_INF` (throttled to ≥100 decoded tokens and ≥3 s interval); `server_context_impl` constructor now calls `mtmd_helper_log_set` unconditionally (was guarded by `!is_resume`); many `SLT_INF`/`SRV_WRN` downgraded to `SLT_TRC`/`SRV_INF`; compiled from upstream, no project JNI changes required |
 | ~b9150–b9151 | `tools/server/server-task.cpp` | Several `SRV_WRN` calls downgraded to `SRV_INF`; one `SRV_WRN` upgraded to `SRV_ERR` for failed state restore; compiled from upstream, no project changes required |
+| ~b9151–b9172 | `tools/mtmd/clip.h` | `clip_has_whisper_encoder()` removed from public API; not referenced by project — no changes required |
+| ~b9151–b9172 | `tools/server/CMakeLists.txt` + `scripts/webui-download.cmake` (new) | WebUI assets no longer committed (`tools/server/public/` gitignored); provisioned at build time via HF bucket (`LLAMA_USE_PREBUILT_WEBUI=ON` default) or built from source (`LLAMA_BUILD_WEBUI`); project sets `LLAMA_BUILD_WEBUI=OFF CACHE BOOL "" FORCE` before FetchContent to skip asset download |
+| ~b9151–b9172 | `common/common.h` | `common_params::webui` default made conditional on `LLAMA_WEBUI_DEFAULT_ENABLED` macro (falls back to `true` when undefined); compiled server sources unaffected |
+| ~b9151–b9172 | `common/reasoning-budget.cpp` | `common_reasoning_budget_clone` rewritten to use `llama_sampler_init` properly; pure bug fix, no API change, no project changes required |
+| ~b9151–b9172 | `ggml/src/ggml-cuda/fattn-mma-f16.cuh` + `mma.cuh` | AMD RDNA3 WMMA flash attention support; new `DATA_LAYOUT_I_MAJOR_SCRAMBLED`, `tile<16,16,half2,I_MAJOR_SCRAMBLED>`, extended config tables; internal CUDA backend, no project changes required |
+| ~b9151–b9172 | `tools/server/server-chat.cpp` | Non-function Responses API tools now silently skipped (`continue`) instead of throwing; server behavior fix, no Java API change required |
 
 ## Build Commands
 

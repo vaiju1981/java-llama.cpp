@@ -104,10 +104,11 @@ endif()
 set(GGML_FMA     ON  CACHE BOOL "" FORCE)
 set(GGML_F16C    ON  CACHE BOOL "" FORCE)
 set(GGML_AVX512  OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_WEBUI OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
 	llama.cpp
 	GIT_REPOSITORY https://github.com/ggerganov/llama.cpp.git
-	GIT_TAG        b9151
+	GIT_TAG        b9172
 )
 FetchContent_MakeAvailable(llama.cpp)
 

@@ -1,5 +1,5 @@
 ![Java 8+](https://img.shields.io/badge/Java-8%2B-informational)
-[![llama.cpp b9151](https://img.shields.io/badge/llama.cpp-%23b9151-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9151)
+[![llama.cpp b9172](https://img.shields.io/badge/llama.cpp-%23b9172-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9172)
 [![Maven Central](https://img.shields.io/maven-central/v/net.ladenthin/llama)](https://central.sonatype.com/artifact/net.ladenthin/llama)
 [![Snapshot](https://img.shields.io/badge/snapshot-latest-informational)](https://central.sonatype.com/repository/maven-snapshots/net/ladenthin/llama/)
 
