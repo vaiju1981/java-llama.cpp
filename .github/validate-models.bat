@@ -4,7 +4,7 @@ REM GGUF files start with magic bytes: 0x47 0x47 0x55 0x46 ("GGUF")
 
 setlocal enabledelayedexpansion
 
-set "MODELS=models\codellama-7b.Q2_K.gguf" "models\jina-reranker-v1-tiny-en-Q4_0.gguf" "models\AMD-Llama-135m-code.Q2_K.gguf"
+set "MODELS=models\codellama-7b.Q2_K.gguf" "models\jina-reranker-v1-tiny-en-Q4_0.gguf" "models\AMD-Llama-135m-code.Q2_K.gguf" "models\Qwen3-0.6B-Q4_K_M.gguf"
 
 echo Validating model files...
 for %%M in (%MODELS%) do (

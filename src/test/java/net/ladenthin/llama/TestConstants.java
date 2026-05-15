@@ -13,4 +13,7 @@ class TestConstants {
 	/** Path to the draft model used for speculative decoding tests. */
 	static final String DRAFT_MODEL_PATH = "models/AMD-Llama-135m-code.Q2_K.gguf";
 
+	/** Path to the Qwen3 thinking model used for reasoning budget tests. */
+	static final String REASONING_MODEL_PATH = "models/Qwen3-0.6B-Q4_K_M.gguf";
+
 }

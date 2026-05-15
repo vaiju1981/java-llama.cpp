@@ -21,6 +21,8 @@ env:
   RERANKING_MODEL_NAME: "jina-reranker-v1-tiny-en-Q4_0.gguf"
   DRAFT_MODEL_URL: "https://huggingface.co/QuantFactory/AMD-Llama-135m-code-GGUF/resolve/main/AMD-Llama-135m-code.Q2_K.gguf"
   DRAFT_MODEL_NAME: "AMD-Llama-135m-code.Q2_K.gguf"
+  REASONING_MODEL_URL: "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf"
+  REASONING_MODEL_NAME: "Qwen3-0.6B-Q4_K_M.gguf"
 permissions:
   contents: read
 jobs:
@@ -308,6 +310,8 @@ jobs:
         run: curl -L --fail ${RERANKING_MODEL_URL} --create-dirs -o models/${RERANKING_MODEL_NAME}
       - name: Download draft model
         run: curl -L --fail ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
+      - name: Download reasoning model
+        run: curl -L --fail ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -357,6 +361,8 @@ jobs:
         run: curl -L --fail ${RERANKING_MODEL_URL} --create-dirs -o models/${RERANKING_MODEL_NAME}
       - name: Download draft model
         run: curl -L --fail ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
+      - name: Download reasoning model
+        run: curl -L --fail ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -417,6 +423,8 @@ jobs:
         run: curl -L --fail ${RERANKING_MODEL_URL} --create-dirs -o models/${RERANKING_MODEL_NAME}
       - name: Download draft model
         run: curl -L --fail ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
+      - name: Download reasoning model
+        run: curl -L --fail ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -468,6 +476,8 @@ jobs:
         run: curl -L --fail ${RERANKING_MODEL_URL} --create-dirs -o models/${RERANKING_MODEL_NAME}
       - name: Download draft model
         run: curl -L --fail ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
+      - name: Download reasoning model
+        run: curl -L --fail ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -522,6 +532,8 @@ jobs:
         run: curl -L --fail $env:RERANKING_MODEL_URL --create-dirs -o models/$env:RERANKING_MODEL_NAME
       - name: Download draft model
         run: curl -L --fail $env:DRAFT_MODEL_URL --create-dirs -o models/$env:DRAFT_MODEL_NAME
+      - name: Download reasoning model
+        run: curl -L --fail $env:REASONING_MODEL_URL --create-dirs -o models/$env:REASONING_MODEL_NAME
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
