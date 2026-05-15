@@ -120,6 +120,7 @@ public class ReasoningBudgetTest {
      * <p>This assertion will start <b>failing</b> once the llama.cpp bug is fixed —
      * that is the signal to remove this test and enable
      * {@link #testReasoningBudgetZero_expectedBehavior_suppressesThinking}.
+     * Tracked in <a href="https://github.com/ggml-org/llama.cpp/pull/23116">llama.cpp PR #23116</a>.
      */
     @Test
     public void testReasoningBudgetZero_parameterAccepted_thinkingNotSuppressed() {
@@ -169,6 +170,7 @@ public class ReasoningBudgetTest {
      * <p>Once this fix is applied: remove {@code @Ignore}, confirm this test passes,
      * and remove
      * {@link #testReasoningBudgetZero_parameterAccepted_thinkingNotSuppressed}.
+     * Tracked in <a href="https://github.com/ggml-org/llama.cpp/pull/23116">llama.cpp PR #23116</a>.
      */
     @Ignore("llama.cpp bug: per-request reasoning_budget_tokens is overwritten by model default " +
             "in oaicompat_chat_params_parse (server-common.cpp). " +
