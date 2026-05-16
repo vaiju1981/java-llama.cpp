@@ -13,7 +13,10 @@
 [![Snapshot](https://img.shields.io/badge/snapshot-latest-informational)](https://central.sonatype.com/repository/maven-snapshots/net/ladenthin/llama/)  
 
 **License:**  
-[![License](https://img.shields.io/badge/License-Apache%202.0-orange)](./LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-orange)](./LICENSE)  
+
+**Community:**  
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12862/badge)](https://www.bestpractices.dev/projects/12862)
 
 > **Forked from** [kherud/java-llama.cpp](https://github.com/kherud/java-llama.cpp): many thanks to [@kherud](https://github.com/kherud) for the great work!
 
