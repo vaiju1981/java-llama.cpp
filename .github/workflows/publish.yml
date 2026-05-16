@@ -28,11 +28,25 @@ permissions:
 jobs:
 
   # ---------------------------------------------------------------------------
+  # Start gate — single cancellable abort window before the pipeline starts.
+  # The wait duration lives in the `startgate` GitHub Environment (Settings →
+  # Environments → startgate → Wait timer).
+  # ---------------------------------------------------------------------------
+
+  startgate:
+    name: Start gate (abort window)
+    runs-on: ubuntu-latest
+    environment: startgate
+    steps:
+      - run: echo "Start gate elapsed — proceeding with pipeline."
+
+  # ---------------------------------------------------------------------------
   # Cross-compile jobs (Docker / dockcross) — produce release artifacts, no testing
   # ---------------------------------------------------------------------------
 
   crosscompile-linux-x86_64-cuda:
     name: Cross-Compile manylinux_2_28 x86_64 (CUDA)
+    needs: startgate
     runs-on: ubuntu-latest
     outputs:
       built: ${{ steps.build.outputs.built }}
@@ -66,6 +80,7 @@ jobs:
 
   crosscompile-linux-x86_64:
     name: Cross-Compile manylinux2014 x86_64
+    needs: startgate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -89,6 +104,7 @@ jobs:
 
   crosscompile-linux-aarch64:
     name: Cross-Compile Linux aarch64 (LTS)
+    needs: startgate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -112,6 +128,7 @@ jobs:
 
   crosscompile-android-aarch64:
     name: Cross-Compile Android aarch64
+    needs: startgate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -139,6 +156,7 @@ jobs:
 
   build-macos-arm64-no-metal:
     name: Build and Test macOS 15 arm64 (no Metal)
+    needs: startgate
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v6
@@ -169,6 +187,7 @@ jobs:
 
   build-macos-arm64-metal:
     name: Build and Test macOS 14 arm64 (Metal)
+    needs: startgate
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v6
@@ -199,6 +218,7 @@ jobs:
 
   build-windows-x86_64:
     name: Build and Test Windows 2025 x86_64 (VS 2026)
+    needs: startgate
     runs-on: windows-2025-vs2026
     steps:
       - uses: actions/checkout@v6
@@ -227,6 +247,7 @@ jobs:
 
   build-windows-x86:
     name: Build and Test Windows 2025 x86 (VS 2026)
+    needs: startgate
     runs-on: windows-2025-vs2026
     steps:
       - uses: actions/checkout@v6
@@ -259,6 +280,7 @@ jobs:
 
   test-cpp-linux-x86_64:
     name: C++ Tests Ubuntu Latest x86_64
+    needs: startgate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -282,6 +304,7 @@ jobs:
 
   test-macos-arm64-metal-15:
     name: Build and Test macOS 15 arm64 (Metal)
+    needs: startgate
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v6
