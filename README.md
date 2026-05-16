@@ -1,7 +1,22 @@
-![Java 8+](https://img.shields.io/badge/Java-8%2B-informational)
-[![llama.cpp b9172](https://img.shields.io/badge/llama.cpp-%23b9172-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9172)
-[![Maven Central](https://img.shields.io/maven-central/v/net.ladenthin/llama)](https://central.sonatype.com/artifact/net.ladenthin/llama)
-[![Snapshot](https://img.shields.io/badge/snapshot-latest-informational)](https://central.sonatype.com/repository/maven-snapshots/net/ladenthin/llama/)
+**Build:**  
+![Java 8+](https://img.shields.io/badge/Java-8%2B-informational)  
+[![llama.cpp b9172](https://img.shields.io/badge/llama.cpp-%23b9172-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9172)  
+[![Publish](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/publish.yml/badge.svg)](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/publish.yml)  
+[![CodeQL](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/codeql.yml/badge.svg)](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/codeql.yml)  
+
+**Coverage:**  
+[![Coverage Status](https://coveralls.io/repos/github/bernardladenthin/java-llama.cpp/badge.svg?branch=main)](https://coveralls.io/github/bernardladenthin/java-llama.cpp?branch=main)  
+[![codecov](https://codecov.io/gh/bernardladenthin/java-llama.cpp/graph/badge.svg)](https://codecov.io/gh/bernardladenthin/java-llama.cpp)  
+
+**Package:**  
+[![Maven Central](https://img.shields.io/maven-central/v/net.ladenthin/llama)](https://central.sonatype.com/artifact/net.ladenthin/llama)  
+[![Snapshot](https://img.shields.io/badge/snapshot-latest-informational)](https://central.sonatype.com/repository/maven-snapshots/net/ladenthin/llama/)  
+
+**License:**  
+[![License](https://img.shields.io/badge/License-Apache%202.0-orange)](./LICENSE)  
+
+**Community:**  
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12862/badge)](https://www.bestpractices.dev/projects/12862)
 
 > **Forked from** [kherud/java-llama.cpp](https://github.com/kherud/java-llama.cpp): many thanks to [@kherud](https://github.com/kherud) for the great work!
 
