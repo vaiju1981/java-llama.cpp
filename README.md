@@ -13,14 +13,13 @@
 [![Snapshot](https://img.shields.io/badge/snapshot-latest-informational)](https://central.sonatype.com/repository/maven-snapshots/net/ladenthin/llama/)  
 
 **License:**  
-[![License](https://img.shields.io/badge/License-Apache%202.0-orange)](./LICENSE)  
+[![License](https://img.shields.io/badge/License-MIT-yellow)](./LICENSE)  
 
 **Community:**  
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12862/badge)](https://www.bestpractices.dev/projects/12862)
 
-> **Forked from** [kherud/java-llama.cpp](https://github.com/kherud/java-llama.cpp): many thanks to [@kherud](https://github.com/kherud) for the great work!
-
 # Java Bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp)
+> **Forked from** [kherud/java-llama.cpp](https://github.com/kherud/java-llama.cpp): many thanks to [@kherud](https://github.com/kherud) for the great work!
 
 Inference of Meta's LLaMA model (and others) in pure C/C++.
 
