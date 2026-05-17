@@ -1,3 +1,10 @@
+/*
+ * SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+ * SPDX-FileCopyrightText: 2023-2025 Konstantin Heurer
+ *
+ * SPDX-License-Identifier: MIT
+ */
+
 #if defined(_MSC_VER) && defined(_M_IX86)
 #include <windows.h>
 
