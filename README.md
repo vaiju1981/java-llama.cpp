@@ -1,5 +1,6 @@
 **Build:**  
 ![Java 11+](https://img.shields.io/badge/Java-11%2B-informational)  
+![JUnit](https://img.shields.io/badge/tested%20with-JUnit4-yellow)  
 [![llama.cpp b9172](https://img.shields.io/badge/llama.cpp-%23b9172-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9172)  
 [![Publish](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/publish.yml/badge.svg)](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/publish.yml)  
 [![CodeQL](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/codeql.yml/badge.svg)](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/codeql.yml)  
@@ -14,7 +15,18 @@ Only `streambuffer` runs PIT (with a 100% mutation-coverage gate).
 Do not add a PIT badge here unless PIT is wired into pom.xml + CI.
 -->
 
+**Quality:**  
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=bernardladenthin_java-llama.cpp&metric=alert_status)](https://sonarcloud.io/dashboard?id=bernardladenthin_java-llama.cpp)  
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=bernardladenthin_java-llama.cpp&metric=code_smells)](https://sonarcloud.io/dashboard?id=bernardladenthin_java-llama.cpp)  
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=bernardladenthin_java-llama.cpp&metric=security_rating)](https://sonarcloud.io/dashboard?id=bernardladenthin_java-llama.cpp)  
+
 **Security:**  
+<!--
+Coverity Scan is not configured for this repository.
+Only `streambuffer` is registered (project 5453). To enable here, register
+the project at https://scan.coverity.com/ and add a badge using the assigned
+ID: [![Coverity Scan Build Status](https://scan.coverity.com/projects/<ID>/badge.svg)](https://scan.coverity.com/projects/<ID>)
+-->
 [![Known Vulnerabilities](https://snyk.io/test/github/bernardladenthin/java-llama.cpp/badge.svg?targetFile=pom.xml)](https://snyk.io/test/github/bernardladenthin/java-llama.cpp?targetFile=pom.xml)  
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fbernardladenthin%2Fjava-llama.cpp.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fbernardladenthin%2Fjava-llama.cpp?ref=badge_shield)  
 [![Dependencies](https://img.shields.io/librariesio/github/bernardladenthin/java-llama.cpp)](https://libraries.io/github/bernardladenthin/java-llama.cpp)  
@@ -31,6 +43,7 @@ Do not add a PIT badge here unless PIT is wired into pom.xml + CI.
 
 **Community:**  
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12862/badge)](https://www.bestpractices.dev/projects/12862)  
+[![Contribute with Gitpod](https://img.shields.io/badge/Contribute%20with-Gitpod-908a85?logo=gitpod)](https://gitpod.io/#https://github.com/bernardladenthin/java-llama.cpp)  
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/bernardladenthin/java-llama.cpp/badge)](https://scorecard.dev/viewer/?uri=github.com/bernardladenthin/java-llama.cpp)  
 [![Dependabot](https://img.shields.io/badge/Dependabot-enabled-success?logo=dependabot)](./.github/dependabot.yml)  
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)  
@@ -40,7 +53,9 @@ Do not add a PIT badge here unless PIT is wired into pom.xml + CI.
 [![Maintained?](https://isitmaintained.com/badge/resolution/bernardladenthin/java-llama.cpp.svg)](https://isitmaintained.com/project/bernardladenthin/java-llama.cpp)  
 [![Issues](https://img.shields.io/github/issues/bernardladenthin/java-llama.cpp)](https://github.com/bernardladenthin/java-llama.cpp/issues)  
 [![Pull Requests](https://img.shields.io/github/issues-pr/bernardladenthin/java-llama.cpp)](https://github.com/bernardladenthin/java-llama.cpp/pulls)  
-[![GitHub Stars](https://img.shields.io/github/stars/bernardladenthin/java-llama.cpp?style=social)](https://github.com/bernardladenthin/java-llama.cpp/stargazers)
+[![GitHub Stars](https://img.shields.io/github/stars/bernardladenthin/java-llama.cpp?style=social)](https://github.com/bernardladenthin/java-llama.cpp/stargazers)  
+[![Treeware](https://img.shields.io/badge/dynamic/json?color=brightgreen&label=Treeware&query=%24.total&url=https%3A%2F%2Fpublic.offset.earth%2Fusers%2Ftreeware%2Ftrees)](https://treeware.earth)  
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/badges/StandWithUkraine.svg)](https://stand-with-ukraine.pp.ua)
 
 # Java Bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp)
 > **Forked from** [kherud/java-llama.cpp](https://github.com/kherud/java-llama.cpp): many thanks to [@kherud](https://github.com/kherud) for the great work!
