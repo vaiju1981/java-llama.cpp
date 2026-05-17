@@ -2,144 +2,74 @@
 
 Thank you for your interest in contributing! This document explains how to build the project, file issues, submit pull requests, and what we expect from contributors.
 
-## Table of Contents
+## How to build and run
 
-1. [How to Build and Run](#how-to-build-and-run)
-2. [Filing Issues](#filing-issues)
-3. [Pull Request Workflow](#pull-request-workflow)
-4. [Coding Standards](#coding-standards)
-5. [Test Policy](#test-policy)
-6. [Communication Channels](#communication-channels)
-7. [License of Contributions](#license-of-contributions)
-
----
-
-## How to Build and Run
-
-### Prerequisites
-
-- Java 11 or later
-- Maven 3.x
-- CMake 3.22 or later
-- A C++17-capable compiler (GCC, Clang, or MSVC)
-
-### Java Layer (Maven)
+Prerequisites: Java 11+, Maven 3.x, CMake 3.22+, and a C++17-capable compiler.
 
 ```bash
-# Compile Java sources and generate JNI headers (required before CMake build)
-mvn compile
-
-# Run all tests (requires a pre-built native library and model files in place)
+mvn compile                          # generate JNI headers
+cmake -B build && cmake --build build --config Release
 mvn test
-
-# Run a single test
-mvn test -Dtest=LlamaModelTest#testGenerate
-
-# Package a JAR
 mvn package
 ```
 
-### Native Library (CMake)
+See [README.md](README.md) for installation, Android, GPU (CUDA/Metal/Vulkan), and runtime usage. See [CLAUDE.md](CLAUDE.md) for the full maintainer guide (upstream-llama.cpp upgrade procedure, native helper architecture, per-version breaking-change table).
 
-Run `mvn compile` first to generate the JNI headers, then:
+## Reporting issues
 
-```bash
-# CPU-only build
-cmake -B build
-cmake --build build --config Release
+- Bugs, feature requests, and questions: <https://github.com/bernardladenthin/java-llama.cpp/issues>
+- **Security vulnerabilities must not be filed on the public issue tracker.** See [SECURITY.md](SECURITY.md) for the private reporting channel.
 
-# With CUDA support (Linux)
-cmake -B build -DGGML_CUDA=ON
-cmake --build build --config Release
+When reporting a bug, include: OS and architecture, `java -version` output, the llama.cpp build tag the library was compiled against, a minimal reproduction (model, parameters, code), and the full stack trace.
 
-# With Metal support (macOS)
-cmake -B build -DLLAMA_METAL=ON
-cmake --build build --config Release
+## Pull request workflow
 
-# With model-download support (libcurl)
-cmake -B build -DLLAMA_CURL=ON
-cmake --build build --config Release
-```
+1. Fork the repository and create a feature branch from `main`.
+2. Make your changes, including tests (see [Test policy](#test-policy)).
+3. Open a pull request against `bernardladenthin/java-llama.cpp:main`.
+4. Ensure CI is green (build, tests, CodeQL, Claude Code review).
+5. Respond to review comments by pushing follow-up commits to the same branch — **do not force-push** while a PR is under review; it discards inline-comment context. Force-push is acceptable only to rebase a stale branch onto `main` immediately before merge, after review is approved.
+6. A maintainer merges once approved and CI is green.
 
-Built libraries are placed under `src/main/resources/net/ladenthin/llama/{OS}/{ARCH}/`.
+## Coding standards
 
-### C++ Unit Tests (no JVM or model file required)
+Follow the conventions documented in [CLAUDE.md](CLAUDE.md): native helper file split (`json_helpers.hpp` vs `jni_helpers.hpp`), include-order rule for upstream server headers, Javadoc HTML-entity table, and the upstream-llama.cpp upgrade procedure. Java targets 11+. C++ must be C++17-clean. Format C++ with `clang-format -i src/main/cpp/*.cpp src/main/cpp/*.hpp` before committing.
 
-```bash
-cmake -B build -DBUILD_TESTING=ON
-cmake --build build --config Release -j$(nproc)
-ctest --test-dir build --output-on-failure
-```
+## Test policy
 
-### Code Formatting
+Every new feature or behaviour change MUST include automated tests; bug fixes SHOULD include a regression test.
 
-```bash
-# Format C++ source files
-clang-format -i src/main/cpp/*.cpp src/main/cpp/*.hpp
-```
+- Java tests: JUnit 4, under `src/test/java/net/ladenthin/llama/` and `src/test/java/examples/`. Require a model file (see CI configs for the HuggingFace download).
+- C++ unit tests: GoogleTest, under `src/test/cpp/` (`test_json_helpers.cpp`, `test_jni_helpers.cpp`, `test_server.cpp`, `test_utils.cpp`). No JVM or model file required.
+- Coverage is reported via JaCoCo and pushed to Coveralls and Codecov on every CI run; new code must not regress coverage on critical paths.
 
----
+## Commit message convention
 
-## Filing Issues
+Use [Conventional Commits](https://www.conventionalcommits.org/) prefixes:
 
-Please use the GitHub issue tracker:
+- `feat:` — new user-facing feature
+- `fix:` — bug fix
+- `chore:` — maintenance, dependency bumps, version bumps
+- `docs:` — documentation only
+- `ci:` — CI / workflow changes
+- `refactor:` — code restructuring without behaviour change
+- `test:` — test additions or fixes
 
-- **Bug reports, feature requests, questions:** https://github.com/bernardladenthin/java-llama.cpp/issues
+Scopes are optional (e.g. `fix(publish): quote gate job names`). Keep the subject line under 72 characters.
 
-Before opening an issue, search existing issues to avoid duplicates. When reporting a bug, include:
+## Communication channels
 
-- Operating system and architecture
-- Java version (`java -version`)
-- llama.cpp build tag the library was compiled against
-- A minimal reproduction case (model name, parameters, code snippet)
-- Full stack trace or error output
+- GitHub Issues — <https://github.com/bernardladenthin/java-llama.cpp/issues>
+- GitHub Security Advisories — <https://github.com/bernardladenthin/java-llama.cpp/security/advisories/new>
 
----
+## Code of Conduct
 
-## Pull Request Workflow
+This project adopts the Contributor Covenant. See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
-1. **Fork** the repository on GitHub.
-2. Create a **feature branch** from `main`:
-   ```bash
-   git checkout main
-   git pull origin main
-   git checkout -b feat/my-feature
-   ```
-3. Make your changes, including tests (see [Test Policy](#test-policy)).
-4. Push the branch to your fork and open a **Pull Request** against `bernardladenthin/java-llama.cpp:main`.
-5. Describe what the PR changes and why; link any related issue (`Closes #NNN`).
-6. Respond to review comments and push follow-up commits to the same branch.
-7. A maintainer will merge once the PR is approved and CI is green.
+## Releasing
 
----
+Maintainer-facing release procedure: see [docs/RELEASE.md](docs/RELEASE.md).
 
-## Coding Standards
-
-- Follow the conventions documented in [CLAUDE.md](CLAUDE.md) — it describes the project architecture, include-order rules, helper-file split (`json_helpers.hpp` vs `jni_helpers.hpp`), and Javadoc HTML-entity conventions.
-- Java code targets Java 11+.
-- C++ code must be compatible with C++17 and compile cleanly with the project's CMake configuration.
-- Format C++ files with `clang-format` before committing (see command above).
-- Use HTML entities in Javadoc for operators and symbols outside ASCII (see CLAUDE.md for the full table).
-
----
-
-## Test Policy
-
-> Every new feature or behavior change MUST include automated tests. Pull requests that add or change functionality without corresponding tests will be asked to add tests before merge. Bug fixes SHOULD include a regression test.
-
-- **Java tests** live in `src/test/java/net/ladenthin/llama/` and `src/test/java/examples/`.
-- **C++ unit tests** (no JVM required) live in `src/test/cpp/`. Add pure-data transforms to `test_json_helpers.cpp`, JNI bridge helpers to `test_jni_helpers.cpp`, and upstream result types to `test_server.cpp`.
-- Tests must pass locally before opening a PR. CI also runs them automatically on push and on pull requests.
-
----
-
-## Communication Channels
-
-- **GitHub Issues** — bug reports and feature requests: https://github.com/bernardladenthin/java-llama.cpp/issues
-- **GitHub Discussions** — general questions and ideas (if enabled on the repository).
-
----
-
-## License of Contributions
+## License of contributions
 
 By submitting a pull request you agree that your contribution is made available under the **MIT License** — the same license that governs this repository (see [LICENSE](LICENSE)).
