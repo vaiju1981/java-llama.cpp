@@ -142,4 +142,4 @@ Before opening an issue, search existing issues to avoid duplicates. When report
 
 ## License of Contributions
 
-By submitting a pull request you agree that your contribution is made available under the **MIT License** — the same license that governs this repository (see [LICENSE.md](LICENSE.md)).
+By submitting a pull request you agree that your contribution is made available under the **MIT License** — the same license that governs this repository (see [LICENSE](LICENSE)).
