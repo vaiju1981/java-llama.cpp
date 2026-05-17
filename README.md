@@ -8,15 +8,28 @@
 [![Coverage Status](https://coveralls.io/repos/github/bernardladenthin/java-llama.cpp/badge.svg?branch=main)](https://coveralls.io/github/bernardladenthin/java-llama.cpp?branch=main)  
 [![codecov](https://codecov.io/gh/bernardladenthin/java-llama.cpp/graph/badge.svg)](https://codecov.io/gh/bernardladenthin/java-llama.cpp)  
 
+**Security:**  
+[![Known Vulnerabilities](https://snyk.io/test/github/bernardladenthin/java-llama.cpp/badge.svg?targetFile=pom.xml)](https://snyk.io/test/github/bernardladenthin/java-llama.cpp?targetFile=pom.xml)  
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fbernardladenthin%2Fjava-llama.cpp.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fbernardladenthin%2Fjava-llama.cpp?ref=badge_shield)  
+[![Dependencies](https://img.shields.io/librariesio/github/bernardladenthin/java-llama.cpp)](https://libraries.io/github/bernardladenthin/java-llama.cpp)  
+
 **Package:**  
 [![Maven Central](https://img.shields.io/maven-central/v/net.ladenthin/llama)](https://central.sonatype.com/artifact/net.ladenthin/llama)  
 [![Snapshot](https://img.shields.io/badge/snapshot-latest-informational)](https://central.sonatype.com/repository/maven-snapshots/net/ladenthin/llama/)  
+![Release Date](https://img.shields.io/github/release-date/bernardladenthin/java-llama.cpp)  
+![Last Commit](https://img.shields.io/github/last-commit/bernardladenthin/java-llama.cpp)  
 
 **License:**  
 [![License](https://img.shields.io/badge/License-MIT-yellow)](./LICENSE)  
 
 **Community:**  
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12862/badge)](https://www.bestpractices.dev/projects/12862)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12862/badge)](https://www.bestpractices.dev/projects/12862)  
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/bernardladenthin/java-llama.cpp/badge)](https://scorecard.dev/viewer/?uri=github.com/bernardladenthin/java-llama.cpp)  
+[![Dependabot](https://img.shields.io/badge/Dependabot-enabled-success?logo=dependabot)](./.github/dependabot.yml)  
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)  
+[![Keep a Changelog](https://img.shields.io/badge/changelog-Keep%20a%20Changelog-blue)](https://keepachangelog.com/en/1.1.0/)  
+[![SemVer](https://img.shields.io/badge/SemVer-2.0.0-blue)](https://semver.org/spec/v2.0.0.html)  
+[![REUSE](https://api.reuse.software/badge/github.com/bernardladenthin/java-llama.cpp)](https://api.reuse.software/info/github.com/bernardladenthin/java-llama.cpp)
 
 # Java Bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp)
 > **Forked from** [kherud/java-llama.cpp](https://github.com/kherud/java-llama.cpp): many thanks to [@kherud](https://github.com/kherud) for the great work!
