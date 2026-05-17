@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: java-llama.cpp
+authors:
+  - family-names: Ladenthin
+    given-names: Bernard
+    email: bernard.ladenthin@gmail.com
+repository-code: "https://github.com/bernardladenthin/java-llama.cpp"
+license: MIT
+type: software

@@ -1,42 +1,55 @@
 # Security Policy
 
-## Supported Versions
+## Supported versions
 
-Only the most recent release of the `5.x` series receives security fixes. Older major versions are not actively maintained.
+Security fixes target the most recent release of the `5.x` series. The `5.x` series is the first to be published under the `net.ladenthin:llama` Maven coordinates; releases `1.x` through `4.2.0` were authored by the pre-fork upstream (`kherud/java-llama.cpp`) and are not maintained here.
 
 | Version | Supported |
 |---------|-----------|
-| 5.x (latest) | Yes |
-| < 5.0 | No |
+| 5.x (latest published on Maven Central) | Yes |
+| < 5.0 | No (see upstream `kherud/java-llama.cpp`) |
 
-## Reporting a Vulnerability
+## Reporting a vulnerability — primary channel
 
-**Please do not report security vulnerabilities through public GitHub issues.**
+Please use GitHub's private vulnerability reporting form:
 
-### Primary channel — GitHub Private Vulnerability Reporting
+<https://github.com/bernardladenthin/java-llama.cpp/security/advisories/new>
 
-Use GitHub's built-in private vulnerability reporting:
+This channel is private and visible only to repository maintainers.
 
-https://github.com/bernardladenthin/java-llama.cpp/security/advisories/new
+## Reporting a vulnerability — fallback
 
-This channel is private and visible only to maintainers. It is the preferred method.
+If you cannot use the GitHub advisory form, email the maintainer:
 
-### Secondary channel — maintainer email
+**bernard.ladenthin@gmail.com**
 
-If you cannot use the GitHub advisory form, you may contact the maintainer by email. The address associated with recent commits is listed in the git log (`git log --format='%ae' -1`). Note that this address is **unconfirmed** as a monitored security contact — GitHub Private Vulnerability Reporting above is preferred.
+PGP / signed email is not required but is welcome; the public key can be requested in your first message.
 
 ## Response SLA
 
-We aim to acknowledge vulnerability reports within 14 days of receipt and to provide a remediation timeline within 30 days.
+- Acknowledgement: within **14 days** of receipt.
+- Initial remediation timeline (fix ETA or rejection rationale): within **30 days** of receipt.
 
-## Disclosure Policy
+## Coordinated disclosure
 
-We follow **coordinated disclosure**:
+Default embargo: **90 days** from the date the report is acknowledged, or until a fix is published and a GitHub Security Advisory is issued — whichever comes first. The embargo may be shortened or extended by mutual agreement with the reporter; please keep details private until the embargo lifts.
 
-1. Reporter submits the vulnerability privately.
-2. Maintainers confirm and assess severity.
-3. A fix is developed and a release date is agreed with the reporter.
-4. The fix is released and a GitHub Security Advisory is published simultaneously.
-5. The reporter may disclose publicly after the fix is released (or after an agreed embargo period, typically 90 days from report, whichever comes first).
+## Scope
 
-We ask reporters to keep vulnerability details **under embargo** until a fix has been released.
+**In scope:**
+
+- The Java API surface (`net.ladenthin.llama.*`).
+- The project's JNI layer (`src/main/cpp/jllama.cpp`, `utils.hpp`, `json_helpers.hpp`, `jni_helpers.hpp`).
+- The project's native build glue (`CMakeLists.txt`, `.github/build_*.sh`, dockcross scripts) — including issues that result in unsafe linkage, missing hardening flags, or supply-chain risk in our build pipeline.
+- Maven Central artefact integrity (signing, publishing workflow).
+
+**Out of scope:**
+
+- Vulnerabilities in upstream [`ggml-org/llama.cpp`](https://github.com/ggml-org/llama.cpp) (the native engine) or its dependencies (GGML backends, cpp-httplib, etc.). Please report those upstream; if the upstream fix requires a corresponding update here, file a follow-up issue once the upstream advisory is published.
+- Vulnerabilities in third-party model weights or training data.
+- Vulnerabilities in user-supplied prompts or model configuration.
+
+## Security update notifications
+
+- **Watch** the repository (Watch &gt; Custom &gt; Security alerts) to receive GitHub Security Advisories as they are published.
+- **Subscribe to Releases** to be notified when a new Maven Central artefact is published with security fixes.

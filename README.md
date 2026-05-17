@@ -1,5 +1,6 @@
 **Build:**  
-![Java 8+](https://img.shields.io/badge/Java-8%2B-informational)  
+![Java 11+](https://img.shields.io/badge/Java-11%2B-informational)  
+![JUnit](https://img.shields.io/badge/tested%20with-JUnit4-yellow)  
 [![llama.cpp b9172](https://img.shields.io/badge/llama.cpp-%23b9172-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9172)  
 [![Publish](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/publish.yml/badge.svg)](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/publish.yml)  
 [![CodeQL](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/codeql.yml/badge.svg)](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/codeql.yml)  
@@ -7,16 +8,53 @@
 **Coverage:**  
 [![Coverage Status](https://coveralls.io/repos/github/bernardladenthin/java-llama.cpp/badge.svg?branch=main)](https://coveralls.io/github/bernardladenthin/java-llama.cpp?branch=main)  
 [![codecov](https://codecov.io/gh/bernardladenthin/java-llama.cpp/graph/badge.svg)](https://codecov.io/gh/bernardladenthin/java-llama.cpp)  
+[![JaCoCo](https://img.shields.io/codecov/c/github/bernardladenthin/java-llama.cpp?label=JaCoCo&logo=java)](https://codecov.io/gh/bernardladenthin/java-llama.cpp)  
+<!--
+PIT mutation testing is not configured for this repository.
+Do not add a PIT badge here unless PIT is wired into pom.xml + CI.
+-->
+
+**Quality:**  
+[![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=bernardladenthin_java-llama.cpp&metric=alert_status)](https://sonarcloud.io/dashboard?id=bernardladenthin_java-llama.cpp)  
+[![Code Smells](https://sonarcloud.io/api/project_badges/measure?project=bernardladenthin_java-llama.cpp&metric=code_smells)](https://sonarcloud.io/dashboard?id=bernardladenthin_java-llama.cpp)  
+[![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=bernardladenthin_java-llama.cpp&metric=security_rating)](https://sonarcloud.io/dashboard?id=bernardladenthin_java-llama.cpp)  
+
+**Security:**  
+<!--
+Coverity Scan is not configured for this repository.
+To enable, register the project at https://scan.coverity.com/ and add a badge
+using the assigned ID:
+[![Coverity Scan Build Status](https://scan.coverity.com/projects/<ID>/badge.svg)](https://scan.coverity.com/projects/<ID>)
+-->
+[![Known Vulnerabilities](https://snyk.io/test/github/bernardladenthin/java-llama.cpp/badge.svg?targetFile=pom.xml)](https://snyk.io/test/github/bernardladenthin/java-llama.cpp?targetFile=pom.xml)  
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fbernardladenthin%2Fjava-llama.cpp.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fbernardladenthin%2Fjava-llama.cpp?ref=badge_shield)  
+[![Dependencies](https://img.shields.io/librariesio/github/bernardladenthin/java-llama.cpp)](https://libraries.io/github/bernardladenthin/java-llama.cpp)  
+[![OSV-Scanner](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/osv-scanner.yml/badge.svg)](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/osv-scanner.yml)  
 
 **Package:**  
 [![Maven Central](https://img.shields.io/maven-central/v/net.ladenthin/llama)](https://central.sonatype.com/artifact/net.ladenthin/llama)  
 [![Snapshot](https://img.shields.io/badge/snapshot-latest-informational)](https://central.sonatype.com/repository/maven-snapshots/net/ladenthin/llama/)  
+![Release Date](https://img.shields.io/github/release-date/bernardladenthin/java-llama.cpp)  
+![Last Commit](https://img.shields.io/github/last-commit/bernardladenthin/java-llama.cpp)  
 
 **License:**  
 [![License](https://img.shields.io/badge/License-MIT-yellow)](./LICENSE)  
 
 **Community:**  
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12862/badge)](https://www.bestpractices.dev/projects/12862)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/12862/badge)](https://www.bestpractices.dev/projects/12862)  
+[![Contribute with Gitpod](https://img.shields.io/badge/Contribute%20with-Gitpod-908a85?logo=gitpod)](https://gitpod.io/#https://github.com/bernardladenthin/java-llama.cpp)  
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/bernardladenthin/java-llama.cpp/badge)](https://scorecard.dev/viewer/?uri=github.com/bernardladenthin/java-llama.cpp)  
+[![Dependabot](https://img.shields.io/badge/Dependabot-enabled-success?logo=dependabot)](./.github/dependabot.yml)  
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)  
+[![Keep a Changelog](https://img.shields.io/badge/changelog-Keep%20a%20Changelog-blue)](https://keepachangelog.com/en/1.1.0/)  
+[![SemVer](https://img.shields.io/badge/SemVer-2.0.0-blue)](https://semver.org/spec/v2.0.0.html)  
+[![REUSE](https://api.reuse.software/badge/github.com/bernardladenthin/java-llama.cpp)](https://api.reuse.software/info/github.com/bernardladenthin/java-llama.cpp)  
+[![Maintained?](https://isitmaintained.com/badge/resolution/bernardladenthin/java-llama.cpp.svg)](https://isitmaintained.com/project/bernardladenthin/java-llama.cpp)  
+[![Issues](https://img.shields.io/github/issues/bernardladenthin/java-llama.cpp)](https://github.com/bernardladenthin/java-llama.cpp/issues)  
+[![Pull Requests](https://img.shields.io/github/issues-pr/bernardladenthin/java-llama.cpp)](https://github.com/bernardladenthin/java-llama.cpp/pulls)  
+[![GitHub Stars](https://img.shields.io/github/stars/bernardladenthin/java-llama.cpp?style=social)](https://github.com/bernardladenthin/java-llama.cpp/stargazers)  
+[![Treeware](https://img.shields.io/badge/dynamic/json?color=brightgreen&label=Treeware&query=%24.total&url=https%3A%2F%2Fpublic.offset.earth%2Fusers%2Ftreeware%2Ftrees)](https://treeware.earth)  
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/badges/StandWithUkraine.svg)](https://stand-with-ukraine.pp.ua)
 
 # Java Bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp)
 > **Forked from** [kherud/java-llama.cpp](https://github.com/kherud/java-llama.cpp): many thanks to [@kherud](https://github.com/kherud) for the great work!
