@@ -54,7 +54,7 @@ First release of the fork under the `net.ladenthin:llama` Maven coordinates. ~10
 - First publish to Maven Central under `net.ladenthin:llama`.
 - Pre-built native libraries for Linux (x86-64, aarch64), macOS (x86-64, arm64), and Windows (x86-64, x86).
 - Java API surface: `LlamaModel`, `ModelParameters`, `InferenceParameters`, `LlamaIterator` / `LlamaIterable` for streaming, chat completion (`chatComplete`, `generateChat`, `chatCompleteText`), embeddings, reranking, infilling, raw JSON endpoint handlers, slot management (`saveSlot`, `restoreSlot`, `eraseSlot`), and `getModelMeta()`.
-- `chatComplete()` for OpenAI-compatible chat completions, re-implemented from scratch based on a patch by @vaiju1981 (PR #61; see `CHAT_INTEGRATION_SUMMARY.md`).
+- `chatComplete()` for OpenAI-compatible chat completions, re-implemented from scratch based on a patch by @vaiju1981 (PR #61; see `docs/history/CHAT_INTEGRATION_SUMMARY.md`).
 - `mmproj`, reasoning-budget, sigma, and sleep-idle parameters added to `ModelParameters`.
 - JaCoCo code-coverage reporting integrated with Coveralls and Codecov (PR #124).
 - CodeQL static-analysis workflow on push, PR, and a weekly schedule.
@@ -69,7 +69,7 @@ First release of the fork under the `net.ladenthin:llama` Maven coordinates. ~10
 ### Changed
 - Migrated Maven group and artifact from `de.kherud:java-llama.cpp` to `net.ladenthin:llama` (PR #101).
 - Migrated Maven Central publishing from OSSRH (Legacy) to the Sonatype Central Publisher Portal.
-- Deleted the hand-ported `server.hpp` fork (~3,780 lines) and linked the upstream `llama.cpp` server source files directly into `jllama`. ~4,100 C++ lines removed in total; future upstream upgrades become a CMake version bump. **The Java API is unchanged.** See `REFACTORING.md`.
+- Deleted the hand-ported `server.hpp` fork (~3,780 lines) and linked the upstream `llama.cpp` server source files directly into `jllama`. ~4,100 C++ lines removed in total; future upstream upgrades become a CMake version bump. **The Java API is unchanged.** See `docs/history/REFACTORING.md`.
 - Compiled upstream server-context / queue / task / models directly into jllama (PR #96).
 - Unified CI into a single `publish.yml` workflow with cross-compilation, testing, coverage, and release stages.
 - Upgraded CUDA from 12.1 to 13.2 (PR #50).
@@ -86,7 +86,7 @@ First release of the fork under the `net.ladenthin:llama` Maven coordinates. ~10
 Releases `1.1.1` through `4.2.0` were authored by [@kherud](https://github.com/kherud) on the upstream repository. The full upstream release notes are at
 <https://github.com/kherud/java-llama.cpp/releases>. The fork's baseline is upstream commit `49be664` (tagged `v4.2.0`, 2025-06-20).
 
-For an architecture-level diff between the pre-fork baseline (`49be664`) and the first 5.0.0 candidate (`24918e4`), see [`49be664_24918e4.md`](49be664_24918e4.md). For the server-fork-deletion refactor that culminated in 5.0.0, see [`REFACTORING.md`](REFACTORING.md). For the chat-completion integration that landed in 5.0.0, see [`CHAT_INTEGRATION_SUMMARY.md`](CHAT_INTEGRATION_SUMMARY.md).
+For an architecture-level diff between the pre-fork baseline (`49be664`) and the first 5.0.0 candidate (`24918e4`), see [`docs/history/49be664_24918e4.md`](docs/history/49be664_24918e4.md). For the server-fork-deletion refactor that culminated in 5.0.0, see [`docs/history/REFACTORING.md`](docs/history/REFACTORING.md). For the chat-completion integration that landed in 5.0.0, see [`docs/history/CHAT_INTEGRATION_SUMMARY.md`](docs/history/CHAT_INTEGRATION_SUMMARY.md).
 
 [Unreleased]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.1...HEAD
 [5.0.1]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.0...v5.0.1
