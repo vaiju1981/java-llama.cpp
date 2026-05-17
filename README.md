@@ -7,11 +7,18 @@
 **Coverage:**  
 [![Coverage Status](https://coveralls.io/repos/github/bernardladenthin/java-llama.cpp/badge.svg?branch=main)](https://coveralls.io/github/bernardladenthin/java-llama.cpp?branch=main)  
 [![codecov](https://codecov.io/gh/bernardladenthin/java-llama.cpp/graph/badge.svg)](https://codecov.io/gh/bernardladenthin/java-llama.cpp)  
+[![JaCoCo](https://img.shields.io/codecov/c/github/bernardladenthin/java-llama.cpp?label=JaCoCo&logo=java)](https://codecov.io/gh/bernardladenthin/java-llama.cpp)  
+<!--
+PIT mutation testing is not configured for this repository.
+Only `streambuffer` runs PIT (with a 100% mutation-coverage gate).
+Do not add a PIT badge here unless PIT is wired into pom.xml + CI.
+-->
 
 **Security:**  
 [![Known Vulnerabilities](https://snyk.io/test/github/bernardladenthin/java-llama.cpp/badge.svg?targetFile=pom.xml)](https://snyk.io/test/github/bernardladenthin/java-llama.cpp?targetFile=pom.xml)  
 [![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fbernardladenthin%2Fjava-llama.cpp.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fbernardladenthin%2Fjava-llama.cpp?ref=badge_shield)  
 [![Dependencies](https://img.shields.io/librariesio/github/bernardladenthin/java-llama.cpp)](https://libraries.io/github/bernardladenthin/java-llama.cpp)  
+[![OSV-Scanner](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/osv-scanner.yml/badge.svg)](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/osv-scanner.yml)  
 
 **Package:**  
 [![Maven Central](https://img.shields.io/maven-central/v/net.ladenthin/llama)](https://central.sonatype.com/artifact/net.ladenthin/llama)  
@@ -29,7 +36,11 @@
 [![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)  
 [![Keep a Changelog](https://img.shields.io/badge/changelog-Keep%20a%20Changelog-blue)](https://keepachangelog.com/en/1.1.0/)  
 [![SemVer](https://img.shields.io/badge/SemVer-2.0.0-blue)](https://semver.org/spec/v2.0.0.html)  
-[![REUSE](https://api.reuse.software/badge/github.com/bernardladenthin/java-llama.cpp)](https://api.reuse.software/info/github.com/bernardladenthin/java-llama.cpp)
+[![REUSE](https://api.reuse.software/badge/github.com/bernardladenthin/java-llama.cpp)](https://api.reuse.software/info/github.com/bernardladenthin/java-llama.cpp)  
+[![Maintained?](https://isitmaintained.com/badge/resolution/bernardladenthin/java-llama.cpp.svg)](https://isitmaintained.com/project/bernardladenthin/java-llama.cpp)  
+[![Issues](https://img.shields.io/github/issues/bernardladenthin/java-llama.cpp)](https://github.com/bernardladenthin/java-llama.cpp/issues)  
+[![Pull Requests](https://img.shields.io/github/issues-pr/bernardladenthin/java-llama.cpp)](https://github.com/bernardladenthin/java-llama.cpp/pulls)  
+[![GitHub Stars](https://img.shields.io/github/stars/bernardladenthin/java-llama.cpp?style=social)](https://github.com/bernardladenthin/java-llama.cpp/stargazers)
 
 # Java Bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp)
 > **Forked from** [kherud/java-llama.cpp](https://github.com/kherud/java-llama.cpp): many thanks to [@kherud](https://github.com/kherud) for the great work!
