@@ -10,15 +10,6 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
-    inputs:
-      release_to_maven_central:
-        description: 'Release to Maven Central (true/false)'
-        required: false
-        default: 'false'
-      enable_cuda_build:
-        description: 'Compile CUDA artifacts (slow — nvcc install + build). Auto-enabled on tag pushes.'
-        required: false
-        default: 'false'
 env:
   JAVA_VERSION: '21'
   MODEL_URL: "https://huggingface.co/TheBloke/CodeLlama-7B-GGUF/resolve/main/codellama-7b.Q2_K.gguf"
@@ -54,8 +45,6 @@ jobs:
     name: Cross-Compile manylinux_2_28 x86_64 (CUDA)
     needs: startgate
     runs-on: ubuntu-latest
-    outputs:
-      built: ${{ steps.build.outputs.built }}
     steps:
       - uses: actions/checkout@v6
       - name: Display CPU Info
@@ -67,18 +56,10 @@ jobs:
           echo "=== CPU Details from /proc/cpuinfo ==="
           cat /proc/cpuinfo
       - name: Build libraries
-        id: build
         shell: bash
         run: |
-          if [[ "${{ startsWith(github.ref, 'refs/tags/v') }}" == "true" || "${{ github.event.inputs.enable_cuda_build }}" == "true" ]]; then
-            .github/dockcross/dockcross-manylinux_2_28-x64 .github/build_cuda_linux.sh "-DOS_NAME=Linux -DOS_ARCH=x86_64"
-            echo "built=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "CUDA compilation skipped — set enable_cuda_build=true or trigger a release event to build CUDA artifacts"
-            echo "built=false" >> "$GITHUB_OUTPUT"
-          fi
+          .github/dockcross/dockcross-manylinux_2_28-x64 .github/build_cuda_linux.sh "-DOS_NAME=Linux -DOS_ARCH=x86_64"
       - name: Upload artifacts
-        if: steps.build.outputs.built == 'true'
         uses: actions/upload-artifact@v7
         with:
           name: linux-libraries-cuda
@@ -616,8 +597,7 @@ jobs:
           pattern: "*-libraries"
           merge-multiple: true
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
-      - if: needs.crosscompile-linux-x86_64-cuda.outputs.built == 'true'
-        uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v8
         with:
           name: linux-libraries-cuda
           path: ${{ github.workspace }}/src/main/resources_linux_cuda/net/ladenthin/llama/
@@ -626,7 +606,7 @@ jobs:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
       - name: Build JARs
-        run: mvn --batch-mode --no-transfer-progress -P release -Dmaven.test.skip=true -Dgpg.skip=true package
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda -Dmaven.test.skip=true -Dgpg.skip=true package
       - name: Upload JARs
         uses: actions/upload-artifact@v7
         with:
@@ -681,17 +661,62 @@ jobs:
       - name: Confirm tag ref
         run: echo "Confirmed on tag ${{ github.ref }}"
 
+  publish-snapshot:
+    name: Publish Snapshot to Central
+    needs: [check-snapshot, crosscompile-linux-x86_64-cuda]
+    if: needs.check-snapshot.result == 'success'
+    runs-on: ubuntu-latest
+    environment: maven-central
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: "*-libraries"
+          merge-multiple: true
+          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: linux-libraries-cuda
+          path: ${{ github.workspace }}/src/main/resources_linux_cuda/net/ladenthin/llama/
+      - name: Set up Maven Central Repository
+        uses: actions/setup-java@v5
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          server-id: central
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
+      - name: Publish snapshot
+        run: mvn --batch-mode -P release,cuda -Dmaven.test.skip=true deploy
+        env:
+          MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      - name: Collect signed artifacts
+        run: |
+          mkdir -p signed-snapshot-assets
+          cp target/*.jar signed-snapshot-assets/ 2>/dev/null || true
+          cp target/*.jar.asc signed-snapshot-assets/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v7
+        with:
+          name: signed-snapshot-assets
+          path: signed-snapshot-assets/
+
   github-snapshot:
     name: Update Snapshot Pre-release on GitHub
-    needs: [check-snapshot]
-    if: needs.check-snapshot.result == 'success'
+    needs: [publish-snapshot]
+    if: needs.publish-snapshot.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/download-artifact@v8
         with:
-          name: llama-jars
+          name: signed-snapshot-assets
           path: snapshot-assets/
       - name: Update snapshot pre-release
         env:
@@ -707,42 +732,9 @@ jobs:
             --repo ${{ github.repository }} \
             --clobber
 
-  publish-snapshot:
-    name: Publish Snapshot to Central
-    needs: [github-snapshot, check-snapshot]
-    if: needs.check-snapshot.result == 'success'
-    runs-on: ubuntu-latest
-    environment: maven-central
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v8
-        with:
-          name: llama-jars
-          path: snapshot-jars/
-      - uses: actions/setup-java@v5
-        with:
-          java-version: ${{ env.JAVA_VERSION }}
-          distribution: temurin
-          server-id: central
-          server-username: MAVEN_USERNAME
-          server-password: MAVEN_PASSWORD
-      - name: Deploy snapshot
-        run: |
-          VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          mvn --batch-mode deploy:deploy-file \
-            -Durl=https://central.sonatype.com/repository/maven-snapshots \
-            -DrepositoryId=central \
-            -Dfile=snapshot-jars/llama-${VERSION}.jar \
-            -DpomFile=pom.xml \
-            -Dsources=snapshot-jars/llama-${VERSION}-sources.jar \
-            -Djavadoc=snapshot-jars/llama-${VERSION}-javadoc.jar
-        env:
-          MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
-          MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
-
   publish-release:
     name: Publish Release to Central
-    if: needs.check-tag.result == 'success' && github.event.inputs.release_to_maven_central == 'true'
+    if: needs.check-tag.result == 'success'
     needs: [check-tag, crosscompile-linux-x86_64-cuda]
     runs-on: ubuntu-latest
     environment: maven-central
@@ -755,8 +747,7 @@ jobs:
           pattern: "*-libraries"
           merge-multiple: true
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
-      - if: needs.crosscompile-linux-x86_64-cuda.outputs.built == 'true'
-        uses: actions/download-artifact@v8
+      - uses: actions/download-artifact@v8
         with:
           name: linux-libraries-cuda
           path: ${{ github.workspace }}/src/main/resources_linux_cuda/net/ladenthin/llama/
@@ -771,7 +762,7 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
       - name: Publish release
-        run: mvn --batch-mode -P release -Dmaven.test.skip=true deploy
+        run: mvn --batch-mode -P release,cuda -Dmaven.test.skip=true deploy
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
