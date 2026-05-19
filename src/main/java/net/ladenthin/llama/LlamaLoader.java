@@ -35,6 +35,8 @@ class LlamaLoader {
 
 	private static boolean extracted = false;
 	private static final LlamaSystemProperties systemProperties = new LlamaSystemProperties();
+	private static final NativeLibraryPermissionSetter permissionSetter =
+			new NativeLibraryPermissionSetter(System.err);
 
 	/**
 	 * Loads the llama and jllama shared libraries
@@ -191,9 +193,7 @@ class LlamaLoader {
 			}
 
 			// Set executable (x) flag to enable Java to load the native library
-			extractedFilePath.toFile().setReadable(true);
-			extractedFilePath.toFile().setWritable(true, true);
-			extractedFilePath.toFile().setExecutable(true);
+			permissionSetter.apply(extractedFilePath.toFile());
 
 			// Check whether the contents are properly copied from the resource folder
 			try (InputStream nativeIn = LlamaLoader.class.getResourceAsStream(nativeLibraryFilePath);
