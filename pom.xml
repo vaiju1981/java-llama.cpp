@@ -73,6 +73,29 @@ SPDX-License-Identifier: MIT
 			<artifactId>jackson-databind</artifactId>
 			<version>2.21.3</version>
 		</dependency>
+		<!-- Required by OSInfo (vendored from xerial/sqlite-jdbc) for log emission. -->
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+			<version>2.0.18</version>
+		</dependency>
+		<!-- Default SLF4J binding shipped with this library. Runtime scope: not
+		     required on the compile classpath, only loaded at JVM startup. -->
+		<dependency>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-classic</artifactId>
+			<version>1.5.32</version>
+			<scope>runtime</scope>
+		</dependency>
+		<!-- @IgnoreJRERequirement marker used by OSInfo (vendored from xerial/sqlite-jdbc)
+		     on a few methods that touch APIs unavailable on Android. Retention=CLASS, so
+		     the dep is compile-only (provided scope). -->
+		<dependency>
+			<groupId>org.codehaus.mojo</groupId>
+			<artifactId>animal-sniffer-annotations</artifactId>
+			<version>1.27</version>
+			<scope>provided</scope>
+		</dependency>
 	</dependencies>
 
 	<build>
