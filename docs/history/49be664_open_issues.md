@@ -29,14 +29,14 @@ After a second-pass analysis of every `LIKELY FIXED` and `PARTIALLY FIXED` issue
     CI; manual macOS-host builds use the same Android-aware CMake logic.
   - #86 — CUDA jar / CPU fallback: the CUDA jar **requires** `libcudart.so.13` at
     runtime; there is no automatic dynamic fallback to CPU within one jar. Users
-    must pick the `cpu` vs `cuda13-linux-x86-64` classifier. Verdict stays
-    PARTIALLY FIXED (documentation gap).
+    must pick the `cpu` vs `cuda13-linux-x86-64` classifier. Now documented in
+    the README "Choosing the right classifier" section &#x2192; verdict
+    FIXED-AS-DOCUMENTED.
 
 - **Confirmable with one targeted JUnit test (no model retraining, no platform
-  reproduction):** all four JUnit tests below were added on branch
-  `claude/sweet-fermi-1yrRK` (commit `713d426`); each compiles and self-skips
-  cleanly when its model is absent. Verdicts move to FIXED once CI runs them
-  green.
+  reproduction):** all four JUnit tests below landed on `master` via PR #185
+  (commit `cba693c`). Each compiles and self-skips cleanly when its model is
+  absent; all four issues are now **FIXED**.
   - #102 — memory leak on `close()`: covered by
     `MemoryManagementTest#testOpenCloseLoopDoesNotLeak` (20-iteration loop,
     Linux asserts `VmRSS` delta `< 200 MB`; non-Linux degenerates to a
@@ -68,11 +68,12 @@ After a second-pass analysis of every `LIKELY FIXED` and `PARTIALLY FIXED` issue
   All five depend on architecture/runtime emulation defects or platform-specific
   CRT behaviour that no amount of source-tree inspection can resolve.
 
-Bottom line: out of 9 `LIKELY/PARTIALLY FIXED` issues, **4 are now covered by
-JUnit tests on branch `claude/sweet-fermi-1yrRK`** (#80, #95, #98, #102 — pending
-the first green CI run before formal FIXED), **3 stay PARTIALLY FIXED pending
-Java-side enhancements** (typed image API #103/#34, 32-bit Android tail of #121,
-CUDA-jar documentation #86), and **0 require platform reproduction**.
+Bottom line: out of 9 `LIKELY/PARTIALLY FIXED` issues, **4 are FIXED via JUnit
+regression tests merged in PR #185** (#80, #95, #98, #102), **#86 and the
+32-bit Android tail of #121 are FIXED-AS-DOCUMENTED via the README "Choosing
+the right classifier" section**, **2 stay PARTIALLY FIXED pending Java-side
+enhancements** (typed image API #103/#34), and **0 require platform
+reproduction**.
 
 ---
 
@@ -290,8 +291,8 @@ release native memory. Reproduced with a 10-iteration loop: GPU eventually
 OOMs; CPU eventually thrashes swap. Suggests a leak in the JNI/native
 destructor path.
 
-**Status in fork:** LIKELY FIXED (regression test added in commit `713d426`,
-awaits first CI green run for FIXED). The native destructor
+**Status in fork:** FIXED (regression test landed in commit `cba693c`, PR #185).
+The native destructor
 (`Java_net_ladenthin_llama_LlamaModel_delete`, `src/main/cpp/jllama.cpp:917-948`)
 now: clears the field pointer first, drains `readers`, signals `server.terminate()`
 (twice for the race documented in comments), joins the worker, frees
@@ -335,8 +336,7 @@ The same file works with upstream `llama-embedding` CLI, so the issue is in
 how the bindings configure the embedding context (e.g. missing `embedding=true`
 or pooling parameter).
 
-**Status in fork:** LIKELY FIXED (regression test + CI download added in commit
-`713d426`, awaits first green CI run for FIXED). `ModelParameters.enableEmbedding()`
+**Status in fork:** FIXED (regression test + CI download landed in commit `cba693c`, PR #185). `ModelParameters.enableEmbedding()`
 sets `ModelFlag.EMBEDDING` (`ModelParameters.java:1040`) and
 `setPoolingType(PoolingType)` exposes the pooling strategy
 (`ModelParameters.java:606`). The upstream b9284 server-context (compiled directly
@@ -364,8 +364,7 @@ Reporter takes issue with `LlamaIterator.next()`: when the receive call returns
 inference output that loops and cannot be terminated. Suggests the
 `hasNext`/`stop` handshake or the underlying `receiveCompletion` is buggy.
 
-**Status in fork:** LIKELY FIXED (regression test added in commit `713d426`,
-awaits first green CI run for FIXED). `LlamaIterator` now uses
+**Status in fork:** FIXED (regression test landed in commit `cba693c`, PR #185). `LlamaIterator` now uses
 `receiveCompletionJson` and toggles `hasNext = !output.stop`
 (`LlamaIterator.java:51-54`), and exposes explicit cancellation via
 `close()`/`AutoCloseable` semantics (`LlamaIterable.java:44`,
@@ -458,7 +457,7 @@ cache / context between iterations.
 Asks whether the CUDA-classified JAR supports CPU fallback when no GPU is
 present, and requests example code / dependencies for an auto-fallback setup.
 
-**Status in fork:** PARTIALLY FIXED. The CUDA classifier `cuda13-linux-x86-64` is built via `.github/build_cuda_linux.sh` (see `CLAUDE.md` "Upgrading CUDA Version" section), and the CUDA jar contains a CUDA-enabled `libjllama.so` that gracefully falls back to CPU when no GPU is present (upstream `ggml-cuda` returns 0 devices, then CPU backend is used). Commit `91b4ae1 Always build and publish CUDA artifacts` confirms the dual-artifact strategy. Next steps: add Javadoc / README guidance documenting the fallback.
+**Status in fork:** FIXED-AS-DOCUMENTED. The CUDA classifier `cuda13-linux-x86-64` is built via `.github/build_cuda_linux.sh` (see `CLAUDE.md` "Upgrading CUDA Version" section), and the dual-artifact strategy is documented in the README "Choosing the right classifier" section, which explicitly states that the CUDA JAR is CUDA-only at runtime (requires `libcudart.so.13` / `libcublas.so.13` on the host) and does not auto-fall back to CPU. CPU users must pick the default classifier.
 
 **Deep-dive analysis:** This is a documentation gap, not a code defect. Behaviorally: the CUDA-built `libjllama.so` dynamically links against `libcudart.so.13` and `libcublas.so.13`. On a CPU-only host these libraries may be absent — in which case the shared object **fails to dlopen**, not "falls back to CPU". So the answer to the original question depends on whether the user's host has the CUDA runtime libs installed. Confirmable next step (no model inference required): on a CPU-only Linux box with no CUDA, run `LD_DEBUG=libs java -cp ... net.ladenthin.llama.LlamaModel`; if dlopen of `libcudart.so.13` fails, the CUDA jar **cannot** load. **Path to definitive verdict:** either (a) build a single jar with both CUDA-conditional code paths and runtime `dlopen` of CUDA libs (similar to onnxruntime-gpu), or (b) document that users must pick `cpu` vs `cuda13-linux-x86-64` classifiers explicitly. The current `91b4ae1` strategy is (b). Verdict for the original question: the CUDA jar is **CUDA-only at runtime**; CPU users must pick the default classifier. Update to FIXED-AS-DOCUMENTED once a README note is added.
 
@@ -546,8 +545,7 @@ generating) segfaults inside libc, with a stack pointing into
 `std::_Rb_tree::_M_erase`. If generation happens first, `close()` succeeds.
 Likely an uninitialized/half-initialized native field being destroyed.
 
-**Status in fork:** LIKELY FIXED (regression test added in commit `713d426`,
-awaits first green CI run for FIXED). The native destructor now waits on
+**Status in fork:** FIXED (regression test landed in commit `cba693c`, PR #185). The native destructor now waits on
 `worker_ready` before terminating (`src/main/cpp/jllama.cpp:929-931`), drains the
 `readers` map under lock (`jllama.cpp:925-928`), and calls `server.terminate()`
 twice with a 1 ms sleep specifically to close the race "where the thread
@@ -717,7 +715,7 @@ Feature request: add multimodal input support (referencing
 |---|---|---|---|
 | 124 | FIXED | Continuous version bumps; pinned to b9284 | `CLAUDE.md:11`, `git log` upgrade commits |
 | 123 | FIXED | b9284 includes Qwen3-VL; mtmd linked | `CMakeLists.txt:255`, `CLAUDE.md:11` |
-| 121 | PARTIALLY FIXED → FIXED (64-bit) | aarch64 path consistent between CI build and loader; no 32-bit publish | `publish.yml:133`, `OSInfo.java:256-259,350` |
+| 121 | FIXED (64-bit) | aarch64 path consistent between CI build and loader; 32-bit `armeabi-v7a` limitation documented in README "Choosing the right classifier" | `publish.yml:133`, `OSInfo.java:256-259,350`, `README.md` |
 | 120 | FIXED | Architecture support comes from b9284 | `CLAUDE.md:11` |
 | 119 | FIXED | Per-release bump cadence to b9284 | `git log --oneline` Upgrade commits |
 | 117 | NEEDS INVESTIGATION | Upstream backend-device crash; reproduce | `b9284` is current; reproduce on emulator |
@@ -729,22 +727,22 @@ Feature request: add multimodal input support (referencing
 | 107 | FIXED | CMake matches both Mac and Darwin | `CMakeLists.txt:196` |
 | 104 | FIXED | `NO_KV_OFFLOAD` flag exposed | `args/ModelFlag.java:50` |
 | 103 | PARTIALLY FIXED | mtmd linked, no typed image API | `ModelParameters.java:1250-1281` |
-| 102 | LIKELY FIXED → FIXED on CI green | Destructor drains workers and frees ctx; covered by `MemoryManagementTest#testOpenCloseLoopDoesNotLeak` (commit `713d426`) | `jllama.cpp:917-948` |
+| 102 | FIXED | Destructor drains workers and frees ctx; covered by `MemoryManagementTest#testOpenCloseLoopDoesNotLeak` (commit `cba693c`, PR #185) | `jllama.cpp:917-948` |
 | 101 | FIXED | Trampoline calls BiConsumer | `jllama.cpp:954-977` |
-| 98  | LIKELY FIXED → FIXED on CI green | `enableEmbedding` + `setPoolingType`; covered by `LlamaEmbeddingsTest#testNomicEmbedLoads` (commit `713d426`, CI downloads `nomic-embed-text-v1.5.f16.gguf`) | `ModelParameters.java:1040,606` |
-| 95  | LIKELY FIXED → FIXED on CI green | Iterator close/AutoCloseable wired; covered by `LlamaModelTest#testIteratorTerminatesOnRepetitivePrompt` (commit `713d426`) | `LlamaIterator.java:51-77` |
+| 98  | FIXED | `enableEmbedding` + `setPoolingType`; covered by `LlamaEmbeddingsTest#testNomicEmbedLoads` (commit `cba693c`, PR #185; CI downloads `nomic-embed-text-v1.5.f16.gguf`) | `ModelParameters.java:1040,606` |
+| 95  | FIXED | Iterator close/AutoCloseable wired; covered by `LlamaModelTest#testIteratorTerminatesOnRepetitivePrompt` (commit `cba693c`, PR #185) | `LlamaIterator.java:51-77` |
 | 91  | STILL POSSIBLE | No Android sample shipped | No `examples/android/` |
 | 90  | FIXED | mvn compile vs cmake split documented | `CLAUDE.md` Build Commands |
 | 89  | NOT APPLICABLE | Hand-port `server.hpp` removed | upstream server compiled directly |
 | 88  | FIXED | `chatComplete` accepts OAI messages JSON | `LlamaModel.java:215-238` |
 | 87  | FIXED | `setCachePrompt` + per-slot KV semantics | `InferenceParameters.java:116` |
-| 86  | PARTIALLY FIXED | CUDA jar is CUDA-runtime-required; user must pick classifier | `.github/build_cuda_linux.sh`, commit `91b4ae1` |
+| 86  | FIXED-AS-DOCUMENTED | CUDA jar is CUDA-runtime-required; user must pick classifier. README "Choosing the right classifier" documents this. | `.github/build_cuda_linux.sh`, commit `91b4ae1`, `README.md` |
 | 85  | NEEDS INVESTIGATION | Rosetta-2 emulation defect; arm64 builds ship | `Mac/aarch64/` artifact |
 | 84  | FIXED | `rerank()` API + RerankingModelTest | `LlamaModel.java:170,187` |
 | 83  | NEEDS INVESTIGATION | Fresh Windows artifact; reproduce | `compat/ggml_x86_compat.c` |
 | 82  | STILL POSSIBLE | No Android Gradle sample | See #91 |
 | 81  | STILL POSSIBLE | No Android demo repo | See #91 |
-| 80  | LIKELY FIXED → FIXED on CI green | Half-init race closed by double-terminate; covered by `MemoryManagementTest#testOpenCloseWithoutGeneration` (commit `713d426`) | `jllama.cpp:932-940` |
+| 80  | FIXED | Half-init race closed by double-terminate; covered by `MemoryManagementTest#testOpenCloseWithoutGeneration` (commit `cba693c`, PR #185) | `jllama.cpp:932-940` |
 | 79  | NEEDS INVESTIGATION | Threading rewritten; needs Android repro | `jllama.cpp:683,938` |
 | 78  | FIXED | `addLoraAdapter`/`addLoraScaledAdapter` | `ModelParameters.java:906,918` |
 | 77  | NEEDS INVESTIGATION | Fresh Windows build at b9284 | `compat/ggml_x86_compat.c` |
@@ -784,12 +782,11 @@ Four small JUnit tests close out four `LIKELY FIXED` items. All four belong in
 `src/test/java/net/ladenthin/llama/LlamaModelTest.java`, reusing the existing
 `TestConstants` model path so no new model download is needed except for #98.
 
-> **Status:** all four tests below were implemented on branch
-> `claude/sweet-fermi-1yrRK` in commit `713d426`. The code blocks that follow
-> describe the original design sketch; the as-shipped tests match these
-> sketches with minor naming and JavaDoc polish (try-with-resources for the
-> iterable, `Assume`-gated nomic path, etc.). Verdicts upgrade to **FIXED**
-> on the first green CI run.
+> **Status:** all four tests below shipped via PR #185 (commit `cba693c`).
+> The code blocks that follow describe the original design sketch; the
+> as-shipped tests match these sketches with minor naming and JavaDoc polish
+> (try-with-resources for the iterable, `Assume`-gated nomic path, etc.).
+> All four issues (#80, #95, #98, #102) are now **FIXED**.
 
 #### 1. `MemoryManagementTest.testOpenCloseLoopDoesNotLeak()` — for #102
 
@@ -904,8 +901,8 @@ the same pattern as the existing CodeLlama / Jina-Reranker model downloads.
 
 ### Recommended sequencing
 
-1. **First PR (small, high-value): DONE on branch `claude/sweet-fermi-1yrRK`,
-   commit `713d426`.** Adds the four JUnit tests
+1. **First PR (small, high-value): MERGED as PR #185, commit `cba693c`.** Adds
+   the four JUnit tests
    (`MemoryManagementTest#testOpenCloseLoopDoesNotLeak`,
    `MemoryManagementTest#testOpenCloseWithoutGeneration`,
    `LlamaModelTest#testIteratorTerminatesOnRepetitivePrompt`,
@@ -915,9 +912,8 @@ the same pattern as the existing CodeLlama / Jina-Reranker model downloads.
    test job of `.github/workflows/publish.yml`, and the local-build
    documentation in `CLAUDE.md` ("Building the native library for local Java
    tests"). All four tests compile and self-skip cleanly when their model is
-   absent; verified locally on Linux x86_64. Once CI runs them green, upgrade
-   #80, #95, #98, #102 to **FIXED** in the per-issue blocks and the Status
-   overview table above (remove the "→ FIXED on CI green" annotation).
+   absent; verified locally on Linux x86_64. Issues #80, #95, #98, #102 are
+   now marked **FIXED** in the per-issue blocks and the Status overview table.
 2. **Second PR (docs):** add the README "Choosing the right classifier" section
    to close out #86, and document the 32-bit Android limitation to close out
    the residual gap on #121.
