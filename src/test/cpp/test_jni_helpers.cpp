@@ -166,6 +166,47 @@ TEST(JllamaContextReaders, Erase_MapBecomesEmpty) {
     EXPECT_TRUE(ctx.readers.empty());
 }
 
+TEST(EraseReader, RemovesExistingEntry) {
+    jllama_context ctx;
+    {
+        std::lock_guard<std::mutex> lk(ctx.readers_mutex);
+        ctx.readers.emplace(11, nullptr);
+    }
+    erase_reader(&ctx, 11);
+    std::lock_guard<std::mutex> lk(ctx.readers_mutex);
+    EXPECT_TRUE(ctx.readers.empty());
+}
+
+TEST(EraseReader, MissingIdIsNoOp) {
+    jllama_context ctx;
+    {
+        std::lock_guard<std::mutex> lk(ctx.readers_mutex);
+        ctx.readers.emplace(1, nullptr);
+        ctx.readers.emplace(2, nullptr);
+    }
+    erase_reader(&ctx, 99); // not present — must not throw or modify state
+    std::lock_guard<std::mutex> lk(ctx.readers_mutex);
+    EXPECT_EQ(ctx.readers.size(), 2u);
+    EXPECT_TRUE(ctx.readers.count(1));
+    EXPECT_TRUE(ctx.readers.count(2));
+}
+
+TEST(EraseReader, OnlyRemovesGivenId) {
+    jllama_context ctx;
+    {
+        std::lock_guard<std::mutex> lk(ctx.readers_mutex);
+        ctx.readers.emplace(5, nullptr);
+        ctx.readers.emplace(6, nullptr);
+        ctx.readers.emplace(7, nullptr);
+    }
+    erase_reader(&ctx, 6);
+    std::lock_guard<std::mutex> lk(ctx.readers_mutex);
+    EXPECT_EQ(ctx.readers.size(), 2u);
+    EXPECT_TRUE(ctx.readers.count(5));
+    EXPECT_FALSE(ctx.readers.count(6));
+    EXPECT_TRUE(ctx.readers.count(7));
+}
+
 TEST(JllamaContextReaders, MultipleTaskIds_IndependentSlots) {
     // Erase one task id while others remain — models cancelCompletion
     // mid-stream without disturbing other active streaming tasks.
@@ -220,6 +261,22 @@ TEST_F(MockJniFixture, GetJllamaContext_ReturnsWrapperNotInnerServer) {
     EXPECT_EQ(result, &fake_ctx);
     // Note: &fake_ctx.server == &fake_ctx because server is the first value member;
     // the type-level distinction (jllama_context* vs server_context*) is sufficient.
+}
+
+// ============================================================
+// require_embedding_support
+// ============================================================
+
+TEST_F(MockJniFixture, RequireEmbeddingSupport_Enabled_ReturnsTrueNoThrow) {
+    EXPECT_TRUE(require_embedding_support(env, true, dummy_class));
+    EXPECT_FALSE(g_throw_called);
+}
+
+TEST_F(MockJniFixture, RequireEmbeddingSupport_Disabled_ReturnsFalseAndThrows) {
+    EXPECT_FALSE(require_embedding_support(env, false, dummy_class));
+    EXPECT_TRUE(g_throw_called);
+    EXPECT_NE(g_throw_message.find("embedding support"), std::string::npos);
+    EXPECT_NE(g_throw_message.find("setEmbedding"), std::string::npos);
 }
 
 // ============================================================
