@@ -214,6 +214,226 @@ public class LlamaModelTest {
 		Assert.assertNotNull("Model must be functional after autoclosed iterator", result);
 	}
 
+	/**
+	 * Regression: {@link LlamaIterator#close()} must be idempotent. Calling it
+	 * after natural completion (the iterator already drained to its stop token)
+	 * and calling it twice on an already-cancelled iterator must not throw and
+	 * must not affect subsequent inference.
+	 */
+	@Test
+	public void testIteratorCloseIdempotent() {
+		InferenceParameters params = new InferenceParameters(prefix).setNPredict(3);
+
+		// Case A: drain to natural stop, then close()
+		LlamaIterable a = model.generate(params);
+		for (LlamaOutput ignored : a) {
+			// drain
+		}
+		a.close();
+		a.close(); // second close still a no-op
+
+		// Case B: cancel mid-stream, then close()
+		LlamaIterator b = model.generate(params).iterator();
+		if (b.hasNext()) b.next();
+		b.cancel();
+		b.close();
+		b.close();
+
+		// Model must still be usable
+		Assert.assertNotNull(model.complete(new InferenceParameters(prefix).setNPredict(3)));
+	}
+
+	/**
+	 * Regression: {@link LlamaModel#complete(InferenceParameters, CancellationToken)}
+	 * must return when {@link CancellationToken#cancel()} is invoked from another
+	 * thread, returning whatever text was generated up to that point without
+	 * throwing. Cancellation is cooperative — the loop checks the flag at token
+	 * boundaries — so the budget here is "much less than full n_predict completion
+	 * would take", not instantaneous.
+	 */
+	@Test
+	public void testCompleteWithCancellationToken() throws Exception {
+		InferenceParameters params = new InferenceParameters(prefix).setNPredict(512);
+		CancellationToken token = new CancellationToken();
+
+		Thread canceller = new Thread(() -> {
+			try {
+				Thread.sleep(200);
+			} catch (InterruptedException ignored) {
+			}
+			token.cancel();
+		});
+
+		long start = System.currentTimeMillis();
+		canceller.start();
+		String partial = model.complete(params, token);
+		long elapsed = System.currentTimeMillis() - start;
+		canceller.join();
+
+		// 512 tokens on CPU would take many tens of seconds; cancellation should bring
+		// this well under that. Tolerate ~10s for the in-flight token to finish.
+		Assert.assertTrue("complete should return within 30s of cancel, took " + elapsed + "ms",
+				elapsed < 30000);
+		Assert.assertNotNull(partial);
+		// Token is reset on return so it can be reused.
+		Assert.assertFalse("token should be reset after call returns", token.isCancelled());
+
+		// Model is still usable
+		Assert.assertNotNull(model.complete(new InferenceParameters(prefix).setNPredict(3)));
+	}
+
+	/**
+	 * Regression: {@link LlamaModel#completeAsync(InferenceParameters)} must
+	 * complete with the same text {@link LlamaModel#complete(InferenceParameters)}
+	 * would have produced, on a background thread.
+	 */
+	@Test
+	public void testCompleteAsync() throws Exception {
+		InferenceParameters params = new InferenceParameters(prefix).setNPredict(8).setSeed(42);
+		String sync = model.complete(new InferenceParameters(prefix).setNPredict(8).setSeed(42));
+		String async = model.completeAsync(params).get(30, java.util.concurrent.TimeUnit.SECONDS);
+		Assert.assertEquals(sync, async);
+	}
+
+	/**
+	 * Regression: cancelling the future from {@link LlamaModel#completeAsync(InferenceParameters, CancellationToken)}
+	 * must not leak the underlying inference loop or destabilise the model. The
+	 * worker thread keeps running until the next token boundary, then returns;
+	 * future.cancel(true) only flips the future's state, the whenComplete handler
+	 * flips the token, and the cooperative loop unwinds shortly after.
+	 */
+	@Test
+	public void testCompleteAsyncCancelPropagates() throws Exception {
+		InferenceParameters params = new InferenceParameters(prefix).setNPredict(512);
+		CancellationToken token = new CancellationToken();
+		java.util.concurrent.CompletableFuture<String> future = model.completeAsync(params, token);
+
+		Thread.sleep(200);
+		future.cancel(true);
+		Assert.assertTrue("future should report cancelled", future.isCancelled());
+
+		// Give the cooperative cancel time to unwind the worker thread before the
+		// next call. Polling the model state directly is racy; sleeping a generous
+		// interval (one token + cancel propagation) is sufficient on CPU.
+		Thread.sleep(5000);
+
+		// Model is still usable
+		Assert.assertNotNull(model.complete(new InferenceParameters(prefix).setNPredict(3)));
+	}
+
+	/**
+	 * Regression: {@link Session} must accumulate user/assistant turns across
+	 * multiple {@link Session#send(String)} calls and expose them via
+	 * {@link Session#getMessages()}. Save/restore round-trip is exercised
+	 * separately in slot save/restore tests.
+	 */
+	@Test
+	public void testSessionMultiTurn() {
+		try (Session session = new Session(model, 0, "You are a terse assistant.",
+				params -> params.setNPredict(8).setSeed(1))) {
+			String r1 = session.send("Say hi.");
+			Assert.assertNotNull(r1);
+			String r2 = session.send("Say bye.");
+			Assert.assertNotNull(r2);
+
+			java.util.List<ChatMessage> msgs = session.getMessages();
+			// system + user + assistant + user + assistant
+			Assert.assertEquals(5, msgs.size());
+			Assert.assertEquals("system", msgs.get(0).getRole());
+			Assert.assertEquals("user", msgs.get(1).getRole());
+			Assert.assertEquals("Say hi.", msgs.get(1).getContent());
+			Assert.assertEquals("assistant", msgs.get(2).getRole());
+			Assert.assertEquals("user", msgs.get(3).getRole());
+			Assert.assertEquals("Say bye.", msgs.get(3).getContent());
+			Assert.assertEquals("assistant", msgs.get(4).getRole());
+		}
+	}
+
+	/**
+	 * Regression: {@link LlamaModel#chat(ChatRequest)} returns a typed
+	 * {@link ChatResponse} with usage / timings populated and at least one
+	 * choice carrying assistant content.
+	 */
+	@Test
+	public void testTypedChat() {
+		ChatRequest req = new ChatRequest()
+				.addMessage("user", "Say hi in one word.")
+				.setInferenceCustomizer(p -> p.setNPredict(8).setSeed(1));
+		ChatResponse r = model.chat(req);
+		Assert.assertNotNull(r);
+		Assert.assertFalse(r.getChoices().isEmpty());
+		Assert.assertNotNull(r.getFirstMessage());
+		Assert.assertTrue(r.getUsage().getTotalTokens() > 0);
+	}
+
+	/**
+	 * Regression: {@link LlamaModel#chatWithTools(ChatRequest, java.util.Map)}
+	 * runs at least one round and returns a final {@link ChatResponse} even when
+	 * no tools are triggered. CodeLlama-7B is not a tool-trained model, so this
+	 * primarily exercises the loop contract; tool wiring is unit-tested in
+	 * ChatResponseTest.
+	 */
+	@Test
+	public void testChatWithToolsLoopShortCircuits() {
+		ToolDefinition echo = new ToolDefinition("echo", "Echo a string",
+				"{\"type\":\"object\",\"properties\":{\"s\":{\"type\":\"string\"}},\"required\":[\"s\"]}");
+		ChatRequest req = new ChatRequest()
+				.addMessage("user", "Hello.")
+				.addTool(echo)
+				.setMaxToolRounds(2)
+				.setInferenceCustomizer(p -> p.setNPredict(8).setSeed(1));
+		java.util.Map<String, ToolHandler> handlers = new java.util.HashMap<>();
+		handlers.put("echo", args -> args);
+		ChatResponse r = model.chatWithTools(req, handlers);
+		Assert.assertNotNull(r);
+		Assert.assertFalse(r.getChoices().isEmpty());
+	}
+
+	/**
+	 * Regression: {@link LlamaModel#completeBatch(java.util.List)} returns results in
+	 * the same order as the input list, with one non-null text per request. The shared
+	 * test model is single-slot, so this primarily exercises the parallel dispatch and
+	 * order-preservation contract, not actual parallel throughput.
+	 */
+	@Test
+	public void testCompleteBatch() {
+		java.util.List<InferenceParameters> requests = java.util.Arrays.asList(
+				new InferenceParameters(prefix).setNPredict(3).setSeed(1),
+				new InferenceParameters(prefix).setNPredict(3).setSeed(2),
+				new InferenceParameters(prefix).setNPredict(3).setSeed(3));
+		java.util.List<String> results = model.completeBatch(requests);
+		Assert.assertEquals(3, results.size());
+		for (String r : results) {
+			Assert.assertNotNull(r);
+		}
+	}
+
+	@Test
+	public void testCompleteBatchWithStats() {
+		java.util.List<InferenceParameters> requests = java.util.Arrays.asList(
+				new InferenceParameters(prefix).setNPredict(3).setSeed(1),
+				new InferenceParameters(prefix).setNPredict(3).setSeed(2));
+		java.util.List<CompletionResult> results = model.completeBatchWithStats(requests);
+		Assert.assertEquals(2, results.size());
+		for (CompletionResult r : results) {
+			Assert.assertNotNull(r);
+			Assert.assertTrue("expected non-zero total tokens, got " + r.getUsage().getTotalTokens(),
+					r.getUsage().getTotalTokens() > 0);
+		}
+	}
+
+	@Test
+	public void testChatBatch() {
+		java.util.List<ChatRequest> requests = java.util.Arrays.asList(
+				new ChatRequest().addMessage("user", "Say hi.").setInferenceCustomizer(p -> p.setNPredict(4).setSeed(1)),
+				new ChatRequest().addMessage("user", "Say bye.").setInferenceCustomizer(p -> p.setNPredict(4).setSeed(2)));
+		java.util.List<ChatResponse> results = model.chatBatch(requests);
+		Assert.assertEquals(2, results.size());
+		for (ChatResponse r : results) {
+			Assert.assertFalse(r.getChoices().isEmpty());
+		}
+	}
+
 	@Test
 	public void testEmbedding() {
 		float[] embedding = model.embed(prefix);

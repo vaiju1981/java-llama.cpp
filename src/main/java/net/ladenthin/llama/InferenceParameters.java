@@ -48,6 +48,7 @@ public final class InferenceParameters extends JsonParameters {
 	private static final String PARAM_N_PROBS = "n_probs";
 	private static final String PARAM_MIN_KEEP = "min_keep";
 	private static final String PARAM_GRAMMAR = "grammar";
+	private static final String PARAM_JSON_SCHEMA = "json_schema";
 	private static final String PARAM_PENALTY_PROMPT = "penalty_prompt";
 	private static final String PARAM_IGNORE_EOS = "ignore_eos";
 	private static final String PARAM_LOGIT_BIAS = "logit_bias";
@@ -339,6 +340,22 @@ public final class InferenceParameters extends JsonParameters {
 	}
 
 	/**
+	 * Constrain generation to a JSON Schema for the duration of this request. The native
+	 * server converts the schema to a GBNF grammar internally; the schema string is passed
+	 * verbatim and must be valid JSON Schema.
+	 * <p>
+	 * Per-request equivalent of {@link ModelParameters#setJsonSchema(String)}, which is
+	 * applied once at model load time.
+	 *
+	 * @param schema JSON Schema as a JSON-encoded string (e.g. {@code "{\"type\":\"object\"...}"})
+	 * @return this builder
+	 */
+	public InferenceParameters setJsonSchema(String schema) {
+		parameters.put(PARAM_JSON_SCHEMA, schema);
+		return this;
+	}
+
+	/**
 	 * Override which part of the prompt is penalized for repetition.
 	 * E.g. if original prompt is "Alice: Hello!" and penaltyPrompt is "Hello!", only the latter will be penalized if
 	 * repeated. See <a href="https://github.com/ggerganov/llama.cpp/pull/3727">pull request 3727</a> for more details.
@@ -534,6 +551,43 @@ public final class InferenceParameters extends JsonParameters {
      */
     public InferenceParameters setMessages(String systemMessage, List<Pair<String, String>> messages) {
         parameters.put(PARAM_MESSAGES, serializer.buildMessages(systemMessage, messages).toString());
+        return this;
+    }
+
+    /**
+     * Set the {@code messages} array directly from a pre-built JSON string. Use this
+     * for the typed chat API (see {@link ChatRequest#buildMessagesJson()}) when the
+     * conversation includes tool-call / tool-result turns that {@link #setMessages}
+     * does not support.
+     *
+     * @param messagesJson the JSON array, e.g. {@code [{"role":"user","content":"hi"}]}
+     * @return this builder
+     */
+    public InferenceParameters setMessagesJson(String messagesJson) {
+        parameters.put(PARAM_MESSAGES, messagesJson);
+        return this;
+    }
+
+    /**
+     * Set the OAI-style {@code tools} array directly from a pre-built JSON string.
+     * Pairs with {@link ChatRequest#buildToolsJson()} to enable tool calling.
+     *
+     * @param toolsJson the JSON array, e.g. {@code [{"type":"function","function":{...}}]}
+     * @return this builder
+     */
+    public InferenceParameters setToolsJson(String toolsJson) {
+        parameters.put("tools", toolsJson);
+        return this;
+    }
+
+    /**
+     * Set the OAI-style {@code tool_choice} hint.
+     *
+     * @param toolChoice the hint string (typically {@code "auto"}, {@code "none"}, or {@code "required"})
+     * @return this builder
+     */
+    public InferenceParameters setToolChoice(String toolChoice) {
+        parameters.put("tool_choice", toJsonString(toolChoice));
         return this;
     }
 

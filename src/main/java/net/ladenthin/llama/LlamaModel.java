@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 
 /**
@@ -58,6 +59,24 @@ public class LlamaModel implements AutoCloseable {
 	}
 
 	/**
+	 * Load the model and forward progress updates to {@code progress}. The callback is
+	 * invoked synchronously on the constructor thread by the native loader and may
+	 * return {@code false} to abort the load (in which case this constructor throws
+	 * {@link LlamaException}).
+	 *
+	 * @param parameters the set of options
+	 * @param progress   load progress sink; {@code null} disables the callback
+	 * @throws LlamaException if loading fails or the callback aborts
+	 */
+	public LlamaModel(ModelParameters parameters, LoadProgressCallback progress) {
+		if (progress == null) {
+			loadModel(parameters.toArray());
+		} else {
+			loadModelWithProgress(parameters.toArray(), progress);
+		}
+	}
+
+	/**
 	 * Generate and return a whole answer with custom parameters. Note, that the prompt isn't preprocessed in any
 	 * way, nothing like "User: ", "###Instruction", etc. is added.
 	 *
@@ -72,8 +91,223 @@ public class LlamaModel implements AutoCloseable {
 	}
 
 	/**
+	 * Typed variant of {@link #complete(InferenceParameters)} that surfaces per-completion
+	 * {@link Usage}, {@link Timings}, {@link TokenLogprob} entries, and {@link StopReason}.
+	 * <p>
+	 * Logprobs are populated only when {@link InferenceParameters#setNProbs(int)} is &gt; 0.
+	 * The raw native JSON is preserved on {@link CompletionResult#getRawJson()}.
+	 *
+	 * @param parameters the inference configuration
+	 * @return a populated {@link CompletionResult}
+	 */
+	public CompletionResult completeWithStats(InferenceParameters parameters) {
+		parameters.setStream(false);
+		int taskId = requestCompletion(parameters.toString());
+		String json = receiveCompletionJson(taskId);
+		return completionParser.parseCompletionResult(json);
+	}
+
+	/**
+	 * Cancellable variant of {@link #complete(InferenceParameters)}. Runs in streaming mode
+	 * internally so the inference loop can observe a {@link CancellationToken#cancel()} call
+	 * from another thread and return early with whatever text was accumulated so far.
+	 * <p>
+	 * The token is rebound to this call (any prior {@code cancel} state is cleared on entry).
+	 * On return &mdash; whether by natural stop or cancellation &mdash; the token is unbound.
+	 * </p>
+	 *
+	 * @param parameters the inference configuration (its {@code stream} flag will be set to true)
+	 * @param token cancellation handle; {@link CancellationToken#cancel()} aborts the loop
+	 * @return the text generated up to the point of stop or cancellation
+	 */
+	/**
+	 * Dispatch a list of completion requests in parallel and return the generated texts
+	 * in the same order. Each request is sent immediately; the native scheduler dispatches
+	 * tasks across whatever slot count {@link ModelParameters#setParallel(int)} was
+	 * configured with. With a default single-slot model the requests still run, but
+	 * sequentially.
+	 *
+	 * @param requests the list of inference parameter blocks (must be distinct instances)
+	 * @return the generated texts in input order
+	 */
+	public java.util.List<String> completeBatch(java.util.List<InferenceParameters> requests) {
+		java.util.List<CompletableFuture<String>> futures = new java.util.ArrayList<CompletableFuture<String>>(requests.size());
+		for (InferenceParameters req : requests) {
+			futures.add(completeAsync(req));
+		}
+		java.util.List<String> out = new java.util.ArrayList<String>(futures.size());
+		for (CompletableFuture<String> f : futures) {
+			out.add(f.join());
+		}
+		return out;
+	}
+
+	/**
+	 * Like {@link #completeBatch(java.util.List)} but each result carries
+	 * {@link CompletionResult}'s typed Usage, Timings, logprobs, and stop reason.
+	 *
+	 * @param requests the list of inference parameter blocks (must be distinct instances)
+	 * @return parsed completion results in input order
+	 */
+	public java.util.List<CompletionResult> completeBatchWithStats(java.util.List<InferenceParameters> requests) {
+		java.util.List<CompletableFuture<CompletionResult>> futures = new java.util.ArrayList<CompletableFuture<CompletionResult>>(requests.size());
+		for (final InferenceParameters req : requests) {
+			futures.add(CompletableFuture.supplyAsync(() -> completeWithStats(req)));
+		}
+		java.util.List<CompletionResult> out = new java.util.ArrayList<CompletionResult>(futures.size());
+		for (CompletableFuture<CompletionResult> f : futures) {
+			out.add(f.join());
+		}
+		return out;
+	}
+
+	/**
+	 * Dispatch a list of typed chat requests in parallel and return the parsed responses
+	 * in the same order. Requires {@link ModelParameters#setParallel(int)} &gt; 1 for
+	 * actual parallelism; otherwise the calls run sequentially on the single slot.
+	 *
+	 * @param requests the typed chat requests (must be distinct instances)
+	 * @return parsed responses in input order
+	 */
+	public java.util.List<ChatResponse> chatBatch(java.util.List<ChatRequest> requests) {
+		java.util.List<CompletableFuture<ChatResponse>> futures = new java.util.ArrayList<CompletableFuture<ChatResponse>>(requests.size());
+		for (final ChatRequest req : requests) {
+			futures.add(CompletableFuture.supplyAsync(() -> chat(req)));
+		}
+		java.util.List<ChatResponse> out = new java.util.ArrayList<ChatResponse>(futures.size());
+		for (CompletableFuture<ChatResponse> f : futures) {
+			out.add(f.join());
+		}
+		return out;
+	}
+
+	/**
+	 * Reactive-streams variant of {@link #generate(InferenceParameters)}. Returns a
+	 * {@link org.reactivestreams.Publisher} of {@link LlamaOutput} tokens. Each subscriber
+	 * triggers a fresh streaming inference on a dedicated background thread; backpressure
+	 * is honoured via the Reactive Streams {@code request(n)} protocol. Use
+	 * {@link org.reactivestreams.Subscription#cancel()} to stop the inference early.
+	 *
+	 * @param parameters the inference configuration
+	 * @return a single-subscriber {@link org.reactivestreams.Publisher} of tokens
+	 */
+	public LlamaPublisher streamPublisher(InferenceParameters parameters) {
+		return new LlamaPublisher(this, parameters, false);
+	}
+
+	/**
+	 * Reactive-streams variant of {@link #generateChat(InferenceParameters)}.
+	 *
+	 * @param parameters the inference parameters including messages
+	 * @return a single-subscriber {@link org.reactivestreams.Publisher} of tokens
+	 */
+	public LlamaPublisher streamChatPublisher(InferenceParameters parameters) {
+		return new LlamaPublisher(this, parameters, true);
+	}
+
+	/**
+	 * Asynchronous variant of {@link #complete(InferenceParameters)}. Runs the inference on
+	 * the common {@link java.util.concurrent.ForkJoinPool} so it does not block the calling
+	 * thread. The native worker thread inside the JNI context still serializes the actual
+	 * model work &mdash; this wrapper only moves the blocking Java call off the caller.
+	 *
+	 * @param parameters the inference configuration
+	 * @return a future completed with the generated text
+	 */
+	public CompletableFuture<String> completeAsync(InferenceParameters parameters) {
+		return CompletableFuture.supplyAsync(() -> complete(parameters));
+	}
+
+	/**
+	 * Cancellable async variant. The returned future is wired to the supplied
+	 * {@link CancellationToken}: calling {@code future.cancel(true)} also invokes
+	 * {@link CancellationToken#cancel()} so the inference loop returns early.
+	 *
+	 * @param parameters the inference configuration
+	 * @param token cancellation handle bound to the underlying inference loop
+	 * @return a future completed with whatever text was generated up to the point of stop or cancellation
+	 */
+	public CompletableFuture<String> completeAsync(InferenceParameters parameters, CancellationToken token) {
+		CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> complete(parameters, token));
+		future.whenComplete((result, ex) -> {
+			if (ex instanceof java.util.concurrent.CancellationException) {
+				token.cancel();
+			}
+		});
+		return future;
+	}
+
+	/**
+	 * Asynchronous variant of {@link #chatComplete(InferenceParameters)}.
+	 *
+	 * @param parameters the inference parameters including messages
+	 * @return a future completed with the raw OAI-format JSON response
+	 */
+	public CompletableFuture<String> chatCompleteAsync(InferenceParameters parameters) {
+		return CompletableFuture.supplyAsync(() -> chatComplete(parameters));
+	}
+
+	/**
+	 * Asynchronous variant of {@link #chatCompleteText(InferenceParameters)}.
+	 *
+	 * @param parameters the inference parameters including messages
+	 * @return a future completed with the assistant's reply text
+	 */
+	public CompletableFuture<String> chatCompleteTextAsync(InferenceParameters parameters) {
+		return CompletableFuture.supplyAsync(() -> chatCompleteText(parameters));
+	}
+
+	/**
+	 * Cancellable variant of {@link #complete(InferenceParameters)}. Runs in streaming mode
+	 * internally so the inference loop can observe a {@link CancellationToken#cancel()} call
+	 * from another thread between token boundaries and return early with whatever text was
+	 * accumulated so far.
+	 *
+	 * @param parameters the inference configuration (its {@code stream} flag is set to {@code true})
+	 * @param token cancellation handle observed at each token boundary
+	 * @return the text generated up to the point of stop or cancellation
+	 */
+	public String complete(InferenceParameters parameters, CancellationToken token) {
+		token.reset();
+		parameters.setStream(true);
+		int taskId = requestCompletion(parameters.toString());
+		StringBuilder sb = new StringBuilder();
+		try {
+			while (true) {
+				if (token.isCancelled()) {
+					// Best-effort native release. Safe to call here because we are not
+					// concurrently inside receiveCompletionJson — the cooperative cancel
+					// flag stopped the loop at a token boundary.
+					cancelCompletion(taskId);
+					break;
+				}
+				String json = receiveCompletionJson(taskId);
+				LlamaOutput out = completionParser.parse(json);
+				sb.append(out.text);
+				if (out.stop) {
+					break;
+				}
+			}
+		} finally {
+			token.reset();
+		}
+		return sb.toString();
+	}
+
+	/**
 	 * Generate and stream outputs with custom inference parameters. Note, that the prompt isn't preprocessed in any
 	 * way, nothing like "User: ", "###Instruction", etc. is added.
+	 *
+	 * <p>The returned {@link LlamaIterable} implements {@link AutoCloseable}. Wrap it in a
+	 * try-with-resources block to guarantee the native task slot is released even when the
+	 * consumer exits the loop early:
+	 * <pre>{@code
+	 * try (LlamaIterable it = model.generate(params)) {
+	 *     for (LlamaOutput out : it) {
+	 *         if (shouldStop(out)) break;   // close() cancels the native task automatically
+	 *     }
+	 * }
+	 * }</pre>
 	 *
 	 * @param parameters the inference configuration
 	 * @return iterable LLM outputs
@@ -142,6 +376,8 @@ public class LlamaModel implements AutoCloseable {
 	native byte[] decodeBytes(int[] tokens);
 
 	private native void loadModel(String... parameters) throws LlamaException;
+
+	private native void loadModelWithProgress(String[] parameters, LoadProgressCallback callback) throws LlamaException;
 
 	private native void delete();
 	
@@ -253,6 +489,75 @@ public class LlamaModel implements AutoCloseable {
 	}
 
 	/**
+	 * Typed chat completion: serialize a {@link ChatRequest} (with optional tools), call
+	 * the native chat endpoint, and return a parsed {@link ChatResponse} carrying typed
+	 * {@link Usage}, {@link Timings}, and {@link ChatChoice} list.
+	 *
+	 * @param request the typed request (messages + optional tools)
+	 * @return the parsed typed response
+	 */
+	public ChatResponse chat(ChatRequest request) {
+		InferenceParameters params = new InferenceParameters("")
+				.setMessagesJson(request.buildMessagesJson());
+		String toolsJson = request.buildToolsJson();
+		if (toolsJson != null) {
+			params.setToolsJson(toolsJson);
+			if (request.getToolChoice() != null) {
+				params.setToolChoice(request.getToolChoice());
+			}
+			params.setUseChatTemplate(true);
+		}
+		request.applyCustomizer(params);
+		String raw = chatComplete(params);
+		return chatParser.parseResponse(raw);
+	}
+
+	/**
+	 * Tool-calling agent loop. Repeatedly calls {@link #chat(ChatRequest)}; on each
+	 * response that includes {@code tool_calls}, invokes the matching {@link ToolHandler}
+	 * for every call, appends the assistant turn and tool-result turns to the request's
+	 * message list, and loops until either the model responds without tool calls or the
+	 * round cap from {@link ChatRequest#getMaxToolRounds()} is reached.
+	 * <p>
+	 * Handler exceptions are caught and reported back to the model as
+	 * {@code {"error":"..."}} tool results so the loop can continue. Unknown tool names
+	 * produce {@code {"error":"unknown tool: <name>"}}.
+	 * </p>
+	 *
+	 * @param request  the typed request; must declare tools that the model can call
+	 * @param handlers map from tool name to handler
+	 * @return the final {@link ChatResponse} when the model stops issuing tool calls
+	 *         (or the last response when the round cap is hit)
+	 */
+	public ChatResponse chatWithTools(ChatRequest request, java.util.Map<String, ToolHandler> handlers) {
+		ChatResponse last = null;
+		for (int round = 0; round < request.getMaxToolRounds(); round++) {
+			last = chat(request);
+			ChatMessage assistant = last.getFirstMessage();
+			if (assistant == null || assistant.getToolCalls().isEmpty()) {
+				return last;
+			}
+			request.addMessage(assistant);
+			for (ToolCall call : assistant.getToolCalls()) {
+				ToolHandler handler = handlers.get(call.getName());
+				String result;
+				if (handler == null) {
+					result = "{\"error\":\"unknown tool: " + call.getName() + "\"}";
+				} else {
+					try {
+						result = handler.invoke(call.getArgumentsJson());
+					} catch (Exception e) {
+						result = "{\"error\":" + net.ladenthin.llama.json.ChatResponseParser.OBJECT_MAPPER.valueToTree(
+								e.getClass().getSimpleName() + ": " + e.getMessage()) + "}";
+					}
+				}
+				request.addMessage(ChatMessage.toolResult(call.getId(), result));
+			}
+		}
+		return last;
+	}
+
+	/**
 	 * Stream an OpenAI-compatible chat completion token by token. The parameters must contain a
 	 * "messages" array in the standard OpenAI chat format. The model's chat template is automatically applied.
 	 * <p>
@@ -348,6 +653,67 @@ public class LlamaModel implements AutoCloseable {
 
 	private static final com.fasterxml.jackson.databind.ObjectMapper OBJECT_MAPPER =
 			new com.fasterxml.jackson.databind.ObjectMapper();
+
+	/**
+	 * Run {@link #complete(InferenceParameters)} constrained to the supplied JSON Schema
+	 * and deserialize the result into an instance of {@code type}. The schema is applied
+	 * via {@link InferenceParameters#setJsonSchema(String)} for the duration of this call;
+	 * the supplied {@code parameters} object is mutated.
+	 * <p>
+	 * Callers are responsible for producing a JSON Schema that matches the target type;
+	 * this project intentionally does not pull in a schema-from-POJO generator. Use the
+	 * single-argument overload {@link #completeAsJson(Class, InferenceParameters)} when
+	 * the schema has already been set on {@code parameters}.
+	 *
+	 * @param type       the target POJO class for Jackson deserialization
+	 * @param schema     JSON Schema string applied via {@code setJsonSchema}
+	 * @param parameters inference parameters (will be mutated to include the schema)
+	 * @param <T>        target type
+	 * @return parsed POJO of type {@code T}
+	 * @throws LlamaException when the response is not valid JSON for the target type
+	 */
+	public <T> T completeAsJson(Class<T> type, String schema, InferenceParameters parameters) throws LlamaException {
+		parameters.setJsonSchema(schema);
+		return completeAsJson(type, parameters);
+	}
+
+	/**
+	 * Run {@link #complete(InferenceParameters)} and deserialize the result as JSON into
+	 * {@code type}. The {@code parameters} object should already have a JSON Schema set
+	 * via {@link InferenceParameters#setJsonSchema(String)} or a grammar via
+	 * {@link InferenceParameters#setGrammar(String)} — otherwise the model output is
+	 * unlikely to parse.
+	 *
+	 * @param type       the target POJO class for Jackson deserialization
+	 * @param parameters inference parameters (schema/grammar already set by the caller)
+	 * @param <T>        target type
+	 * @return parsed POJO of type {@code T}
+	 * @throws LlamaException when the response is not valid JSON for the target type
+	 */
+	public <T> T completeAsJson(Class<T> type, InferenceParameters parameters) throws LlamaException {
+		String raw = complete(parameters);
+		try {
+			return OBJECT_MAPPER.readValue(raw, type);
+		} catch (java.io.IOException e) {
+			throw new LlamaException("Failed to parse completion as " + type.getSimpleName() + ": " + e.getMessage());
+		}
+	}
+
+	/**
+	 * Typed accessor for {@link #getMetrics()}. Parses the raw JSON into a
+	 * {@link ServerMetrics} view that exposes cumulative {@link Usage} and
+	 * {@link Timings}, slot counts, and a passthrough to the underlying JSON.
+	 *
+	 * @return parsed {@link ServerMetrics}
+	 * @throws LlamaException if the native call fails or the response cannot be parsed
+	 */
+	public ServerMetrics getMetricsTyped() throws LlamaException {
+		try {
+			return new ServerMetrics(OBJECT_MAPPER.readTree(getMetrics()));
+		} catch (java.io.IOException e) {
+			throw new LlamaException("Failed to parse server metrics JSON: " + e.getMessage());
+		}
+	}
 
 	/**
 	 * Returns model metadata with typed accessors for vocab, context, embedding,
