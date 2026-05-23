@@ -37,13 +37,21 @@ import static org.junit.Assert.assertTrue;
  * files explicitly). See {@code .github/workflows/publish.yml} env vars
  * {@code VISION_MODEL_URL} / {@code VISION_MMPROJ_URL} / {@code VISION_IMAGE_URL}.</p>
  *
+ * <p><b>Image source:</b> the CI default is
+ * <a href="https://commons.wikimedia.org/wiki/File:20200601_135745_Flowers_and_Bees.jpg">
+ * {@code File:20200601_135745_Flowers_and_Bees.jpg}</a> on Wikimedia Commons
+ * by Bernard Ladenthin (the project copyright holder); published there under
+ * CC-BY-4.0 and additionally granted under MIT to this project by the same
+ * author. Any image the test machine can reach works at runtime &#x2014; the
+ * URL is just an env var.</p>
+ *
  * <p>Closes issues #103 and #34.</p>
  */
 @ClaudeGenerated(
-        purpose = "End-to-end vision regression: real vision GGUF + mmproj + CC0 image fed through " +
-                  "the typed ChatMessage(role, List<ContentPart>) API; asserts non-empty reply to "
-                + "prove the OAI multipart content round-trips through the upstream mtmd pipeline. "
-                + "Closes #103 / #34."
+        purpose = "End-to-end vision regression: real vision GGUF + mmproj + author-licensed (MIT) "
+                + "test image fed through the typed ChatMessage(role, List<ContentPart>) API; "
+                + "asserts non-empty reply to prove the OAI multipart content round-trips through "
+                + "the upstream mtmd pipeline. Closes #103 / #34."
 )
 public class MultimodalIntegrationTest {
 

@@ -26,7 +26,7 @@ OPTIONAL_MODELS=(
 )
 
 OPTIONAL_IMAGES=(
-  "models/Red_Apple.jpg"
+  "models/20200601_135745_Flowers_and_Bees.jpg"
 )
 
 validate_gguf() {

@@ -939,8 +939,9 @@ the same pattern as the existing CodeLlama / Jina-Reranker model downloads.
    `InferenceParameters.setMessages(List<ChatMessage>)`) plus a
    `MultimodalIntegrationTest` gated on `net.ladenthin.llama.vision.model`,
    `.vision.mmproj`, and `.vision.image` system properties. CI in
-   `publish.yml` downloads a small vision model + mmproj + a CC0 / PD
-   image and passes the paths on the `mvn test` command line.
+   `publish.yml` downloads a small vision model + mmproj + an author-
+   licensed (MIT-granted) test image from Wikimedia Commons and passes
+   the paths on the `mvn test` command line.
 4. **Fourth PR (CI):** add an Android emulator job to formally close #121 and
    #50.
 
