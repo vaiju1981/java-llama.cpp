@@ -57,7 +57,7 @@ public class SessionConcurrencyTest {
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
         model = new LlamaModel(
                 new ModelParameters()
-                        .setCtxSize(512)
+                        .setCtxSize(4096)
                         .setModel(TestConstants.MODEL_PATH)
                         .setGpuLayers(gpuLayers)
                         .setFit(false)
