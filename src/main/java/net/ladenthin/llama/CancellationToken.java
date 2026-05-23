@@ -26,11 +26,18 @@ package net.ladenthin.llama;
  * </ol>
  * <p>
  * The reader-backed buffer is intentionally <em>not</em> freed by
- * {@link #cancel()} — that was the use-after-free root cause of the previous
- * mid-token attempt (a concurrent {@code rd-&gt;next()} held a raw pointer into
- * the erased {@code unique_ptr}). The new path only enqueues a cancel message
- * and leaves the reader alive; the normal stop-result code path in
- * {@code receiveCompletionJson} cleans it up.
+ * {@link #cancel()} &#x2014; that was the use-after-free root cause of the
+ * previous mid-token attempt (a concurrent {@code rd-&gt;next()} held a raw
+ * pointer into the erased {@code unique_ptr}). The native {@code queueCancel}
+ * primitive posts the {@code SERVER_TASK_TYPE_CANCEL} task to the upstream
+ * queue directly and does <em>not</em> touch the reader's
+ * {@code waiting_task_ids} registration. That ordering is critical: removing
+ * the registration would cause the worker's later {@code send()} of the slot's
+ * stop result to be silently dropped, which would in turn leave the inference
+ * thread's polling {@code recv_with_timeout} loop spinning forever (this was
+ * observed as a CI hang after the first attempt at §2.10). The reader is
+ * cleaned up by the normal stop-result code path in
+ * {@code receiveCompletionJson} once the natural stop arrives.
  * </p>
  * <p>
  * A token may be reused across calls but must be used by only one inference at a

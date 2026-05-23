@@ -996,19 +996,34 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_cancelCompletion(JNIE
 }
 
 // Post a SERVER_TASK_TYPE_CANCEL message to the upstream task queue without
-// freeing the reader. Safe to call from any thread: server_response_reader::stop()
-// posts via server_queue (internally mutex-locked) and only flips an internal
-// boolean; it does NOT destroy the reader. A concurrently-blocked rd->next() on
-// another thread will observe the cancel naturally via its results queue. The
-// reader is later removed from jctx->readers by the normal stop-result code path
-// in receiveCompletionJson (line ~826). stop() is idempotent, so subsequent
-// erase_reader() destructor calls are safe.
+// touching the reader's waiting_task_ids registration. Safe to call from any
+// thread: server_queue::post is mutex-locked internally and we only touch
+// jctx->readers under readers_mutex.
+//
+// Why NOT call reader->stop() here: stop() ALSO calls
+// queue_results.remove_waiting_task_ids(id_tasks). If the inference thread is
+// concurrently blocked inside rd->next() -> queue_results.recv_with_timeout()
+// polling for this same task id, removing it from waiting_task_ids causes the
+// worker's later send() of the slot's stop result to be silently dropped (see
+// server-queue.cpp server_response::send line ~319, which iterates
+// waiting_task_ids and returns without enqueueing if the id is missing). recv
+// then never wakes up, the polling loop spins on its 1 s timeout forever, and
+// the JVM hangs. The HTTP server path can call stop() safely only because by
+// then its request handler has already returned and nothing is recv-ing.
+//
+// Posting CANCEL directly through the reader's public queue_tasks reference
+// keeps the waiting-task-id alive so the slot's natural stop result reaches
+// rd->next(). The Java receive loop sees out.stop=true and exits, at which
+// point receiveCompletionJson erases the reader on the inference thread (see
+// the is_stop() branch around line 826).
 JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_queueCancel(JNIEnv *env, jobject obj, jint id_task) {
     REQUIRE_SERVER_CONTEXT();
     std::lock_guard<std::mutex> lk(jctx->readers_mutex);
     auto it = jctx->readers.find(id_task);
     if (it != jctx->readers.end() && it->second) {
-        it->second->stop();
+        server_task task(SERVER_TASK_TYPE_CANCEL);
+        task.id_target = id_task;
+        it->second->queue_tasks.post(std::move(task), /*front=*/true);
     }
 }
 
