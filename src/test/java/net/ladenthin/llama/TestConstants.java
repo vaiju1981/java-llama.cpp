@@ -45,10 +45,20 @@ class TestConstants {
 	static final String PROP_VISION_MMPROJ_PATH = LlamaSystemProperties.PREFIX + ".vision.mmproj";
 
 	/**
-	 * System property holding a path to a CC0 / public-domain image used as the
-	 * visual prompt in {@code MultimodalIntegrationTest}. A small Wikimedia
-	 * Commons image is the CI default; any png/jpeg/webp/gif works locally.
+	 * System property holding a path to an image used as the visual prompt in
+	 * {@code MultimodalIntegrationTest}. When unset the test falls back to
+	 * {@link #DEFAULT_VISION_IMAGE_PATH}, which points at a small image
+	 * committed under {@code src/test/resources/images/}. Any png/jpeg/webp/gif
+	 * works; the matching extension drives MIME detection in
+	 * {@code ContentPart.imageFile(Path)}.
 	 */
 	static final String PROP_VISION_IMAGE_PATH = LlamaSystemProperties.PREFIX + ".vision.image";
+
+	/**
+	 * Path used by {@code MultimodalIntegrationTest} when
+	 * {@link #PROP_VISION_IMAGE_PATH} is unset. Points at the committed test
+	 * resource so the test needs no network access for the visual prompt.
+	 */
+	static final String DEFAULT_VISION_IMAGE_PATH = "src/test/resources/images/test-image.jpg";
 
 }

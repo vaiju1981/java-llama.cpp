@@ -64,7 +64,13 @@ public class MultimodalIntegrationTest {
     public static void setup() {
         modelPath  = System.getProperty(TestConstants.PROP_VISION_MODEL_PATH);
         mmprojPath = System.getProperty(TestConstants.PROP_VISION_MMPROJ_PATH);
-        imagePath  = System.getProperty(TestConstants.PROP_VISION_IMAGE_PATH);
+        // Image path falls back to the committed test resource when the
+        // -D property is unset, so the test works on local dev checkouts
+        // without any extra wiring. The model / mmproj remain externally
+        // staged because their combined size (~600 MB) is too large to
+        // commit.
+        imagePath  = System.getProperty(TestConstants.PROP_VISION_IMAGE_PATH,
+                TestConstants.DEFAULT_VISION_IMAGE_PATH);
 
         Assume.assumeTrue(
                 "Vision model path not set (-D" + TestConstants.PROP_VISION_MODEL_PATH + "=...)",
@@ -72,9 +78,6 @@ public class MultimodalIntegrationTest {
         Assume.assumeTrue(
                 "Vision mmproj path not set (-D" + TestConstants.PROP_VISION_MMPROJ_PATH + "=...)",
                 mmprojPath != null && !mmprojPath.isEmpty());
-        Assume.assumeTrue(
-                "Vision image path not set (-D" + TestConstants.PROP_VISION_IMAGE_PATH + "=...)",
-                imagePath != null && !imagePath.isEmpty());
 
         Assume.assumeTrue("Vision model file missing: " + modelPath,
                 new File(modelPath).exists());

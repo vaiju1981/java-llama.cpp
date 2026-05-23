@@ -30,16 +30,11 @@ env:
   VISION_MODEL_NAME: "SmolVLM-500M-Instruct-Q8_0.gguf"
   VISION_MMPROJ_URL: "https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
   VISION_MMPROJ_NAME: "mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
-  # Small test image used by MultimodalIntegrationTest. The original photo is
-  # File:20200601_135745_Flowers_and_Bees.jpg on Wikimedia Commons by
-  # Bernard Ladenthin (the project copyright holder), licensed there as
-  # CC-BY-4.0 but granted MIT for use in this project by the same author
-  # (see commit message + SPDX header on .github/workflows/publish.yml).
-  # We fetch a 640px-wide thumbnail via Special:FilePath (~80 KB) so CI
-  # bandwidth stays bounded; the on-disk filename keeps the original stem
-  # for traceability back to the Commons file.
-  VISION_IMAGE_URL: "https://commons.wikimedia.org/wiki/Special:FilePath/20200601_135745_Flowers_and_Bees.jpg?width=640"
-  VISION_IMAGE_NAME: "20200601_135745_Flowers_and_Bees.jpg"
+  # Test image used by MultimodalIntegrationTest is committed to the repo
+  # at src/test/resources/images/test-image.jpg (see the README in that
+  # directory for licensing). No download step is needed; CI just points
+  # mvn test at the committed path.
+  VISION_IMAGE_PATH: "src/test/resources/images/test-image.jpg"
 permissions:
   contents: read
 jobs:
@@ -415,8 +410,6 @@ jobs:
         run: curl -L --fail ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
       - name: Download vision mmproj
         run: curl -L --fail ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
-      - name: Download MIT-granted test image (by project author, see env block)
-        run: curl -L --fail -A "java-llama.cpp-ci/1.0" "${VISION_IMAGE_URL}" --create-dirs -o models/${VISION_IMAGE_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -437,7 +430,7 @@ jobs:
             -Dnet.ladenthin.llama.nomic.path=models/${NOMIC_EMBED_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
-            -Dnet.ladenthin.llama.vision.image=models/${VISION_IMAGE_NAME}
+            -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH}
       - uses: actions/upload-artifact@v7
         if: success()
         with:
@@ -488,8 +481,6 @@ jobs:
         run: curl -L --fail ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
       - name: Download vision mmproj
         run: curl -L --fail ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
-      - name: Download MIT-granted test image (by project author, see env block)
-        run: curl -L --fail -A "java-llama.cpp-ci/1.0" "${VISION_IMAGE_URL}" --create-dirs -o models/${VISION_IMAGE_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -507,7 +498,7 @@ jobs:
           mvn --no-transfer-progress -Dnet.ladenthin.llama.test.ngl=0 test \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
-            -Dnet.ladenthin.llama.vision.image=models/${VISION_IMAGE_NAME}
+            -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH}
       - name: Memory after tests
         if: always()
         run: vm_stat && sysctl hw.memsize hw.physmem
@@ -551,8 +542,6 @@ jobs:
         run: curl -L --fail ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
       - name: Download vision mmproj
         run: curl -L --fail ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
-      - name: Download MIT-granted test image (by project author, see env block)
-        run: curl -L --fail -A "java-llama.cpp-ci/1.0" "${VISION_IMAGE_URL}" --create-dirs -o models/${VISION_IMAGE_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -570,7 +559,7 @@ jobs:
           mvn --no-transfer-progress test \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
-            -Dnet.ladenthin.llama.vision.image=models/${VISION_IMAGE_NAME}
+            -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH}
       - name: Memory after tests
         if: always()
         run: vm_stat && sysctl hw.memsize hw.physmem
@@ -617,8 +606,6 @@ jobs:
         run: curl -L --fail $env:VISION_MODEL_URL --create-dirs -o models/$env:VISION_MODEL_NAME
       - name: Download vision mmproj
         run: curl -L --fail $env:VISION_MMPROJ_URL --create-dirs -o models/$env:VISION_MMPROJ_NAME
-      - name: Download MIT-granted test image (by project author, see env block)
-        run: curl -L --fail -A "java-llama.cpp-ci/1.0" $env:VISION_IMAGE_URL --create-dirs -o models/$env:VISION_IMAGE_NAME
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -635,7 +622,7 @@ jobs:
           mvn --no-transfer-progress test `
             "-Dnet.ladenthin.llama.vision.model=models/$env:VISION_MODEL_NAME" `
             "-Dnet.ladenthin.llama.vision.mmproj=models/$env:VISION_MMPROJ_NAME" `
-            "-Dnet.ladenthin.llama.vision.image=models/$env:VISION_IMAGE_NAME"
+            "-Dnet.ladenthin.llama.vision.image=$env:VISION_IMAGE_PATH"
       - name: Memory after tests
         if: always()
         run: Get-CimInstance Win32_OperatingSystem | Select-Object FreePhysicalMemory,TotalVisibleMemorySize | Format-List

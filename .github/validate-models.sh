@@ -17,16 +17,14 @@ MODELS=(
   "models/Qwen3-0.6B-Q4_K_M.gguf"
 )
 
-# Optional GGUFs and image, validated only when present so jobs that do not
-# download them (e.g. cross-compile smoke runs) still pass.
+# Optional GGUFs validated only when present so jobs that do not download
+# them (e.g. cross-compile smoke runs) still pass. The vision test image is
+# committed to src/test/resources/images/test-image.jpg and is not validated
+# here — its presence is asserted directly by MultimodalIntegrationTest.
 OPTIONAL_MODELS=(
   "models/nomic-embed-text-v1.5.f16.gguf"
   "models/SmolVLM-500M-Instruct-Q8_0.gguf"
   "models/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
-)
-
-OPTIONAL_IMAGES=(
-  "models/20200601_135745_Flowers_and_Bees.jpg"
 )
 
 validate_gguf() {
@@ -56,41 +54,12 @@ validate_gguf() {
   echo "✓ $model ($(numfmt --to=iec-i --suffix=B $size 2>/dev/null || echo $size bytes))"
 }
 
-validate_image() {
-  local img="$1"
-  if [[ ! -f "$img" ]]; then
-    echo "- $img (optional, skipped: not present)"
-    return
-  fi
-  local size
-  size=$(stat -f%z "$img" 2>/dev/null || stat -c%s "$img" 2>/dev/null)
-  if [[ $size -lt 100 ]]; then
-    echo "ERROR: Image file too small (likely an HTML error page): $img (size: $size bytes)"
-    exit 1
-  fi
-  # Accept JPEG (FF D8 FF), PNG (89 50 4E 47), WebP RIFF (52 49 46 46), GIF (47 49 46 38)
-  local magic
-  magic=$(xxd -p -l 4 "$img")
-  case "$magic" in
-    ffd8ff*|89504e47|52494646|47494638)
-      echo "✓ $img ($(numfmt --to=iec-i --suffix=B $size 2>/dev/null || echo $size bytes))"
-      ;;
-    *)
-      echo "ERROR: Unrecognised image magic in $img (got: $magic)"
-      exit 1
-      ;;
-  esac
-}
-
 echo "Validating model files..."
 for model in "${MODELS[@]}"; do
   validate_gguf "$model" required
 done
 for model in "${OPTIONAL_MODELS[@]}"; do
   validate_gguf "$model" optional
-done
-for img in "${OPTIONAL_IMAGES[@]}"; do
-  validate_image "$img"
 done
 
 echo "All models validated successfully!"
