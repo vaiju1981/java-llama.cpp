@@ -370,8 +370,11 @@ jobs:
           name: error-log-macos-15-metal
           path: |
             ${{ github.workspace }}/hs_err_pid*.log
+            ${{ github.workspace }}/*.hprof
             ${{ github.workspace }}/target/surefire-reports/*.dump
             ${{ github.workspace }}/target/surefire-reports/*.dumpstream
+            ${{ github.workspace }}/target/surefire-reports/*.txt
+            ${{ github.workspace }}/target/surefire-reports/TEST-*.xml
           if-no-files-found: warn
 
   # ---------------------------------------------------------------------------
@@ -447,8 +450,11 @@ jobs:
           path: |
             ${{ github.workspace }}/hs_err_pid*.log
             ${{ github.workspace }}/core.*
+            ${{ github.workspace }}/*.hprof
             ${{ github.workspace }}/target/surefire-reports/*.dump
             ${{ github.workspace }}/target/surefire-reports/*.dumpstream
+            ${{ github.workspace }}/target/surefire-reports/*.txt
+            ${{ github.workspace }}/target/surefire-reports/TEST-*.xml
           if-no-files-found: warn
 
   test-java-macos-arm64-metal:
@@ -508,8 +514,11 @@ jobs:
           name: error-log-macos-14-metal
           path: |
             ${{ github.workspace }}/hs_err_pid*.log
+            ${{ github.workspace }}/*.hprof
             ${{ github.workspace }}/target/surefire-reports/*.dump
             ${{ github.workspace }}/target/surefire-reports/*.dumpstream
+            ${{ github.workspace }}/target/surefire-reports/*.txt
+            ${{ github.workspace }}/target/surefire-reports/TEST-*.xml
           if-no-files-found: warn
 
   test-java-macos-arm64-no-metal:
@@ -569,8 +578,11 @@ jobs:
           name: error-log-macos-15-no-metal
           path: |
             ${{ github.workspace }}/hs_err_pid*.log
+            ${{ github.workspace }}/*.hprof
             ${{ github.workspace }}/target/surefire-reports/*.dump
             ${{ github.workspace }}/target/surefire-reports/*.dumpstream
+            ${{ github.workspace }}/target/surefire-reports/*.txt
+            ${{ github.workspace }}/target/surefire-reports/TEST-*.xml
           if-no-files-found: warn
 
   test-java-windows-x86_64:
@@ -617,6 +629,23 @@ jobs:
       - name: Memory before tests
         run: Get-CimInstance Win32_OperatingSystem | Select-Object FreePhysicalMemory,TotalVisibleMemorySize | Format-List
         shell: pwsh
+      - name: Enable WER LocalDumps for java.exe
+        # Windows Error Reporting writes minidumps when java.exe (or any other
+        # registered process) crashes via __fastfail / abort / unhandled SEH.
+        # We use it as the Windows analogue of Linux core dumps so that a JVM
+        # crash inside the JNI layer leaves us a real native callstack instead
+        # of just surefire's "VM terminated without saying goodbye" line.
+        # DumpType=2 == MiniDumpWithFullMemory; the workspace dumps/ folder is
+        # globbed by the failure-upload step below.
+        shell: pwsh
+        run: |
+          $key = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\java.exe'
+          New-Item -Path $key -Force | Out-Null
+          New-Item -Path "${{ github.workspace }}\dumps" -ItemType Directory -Force | Out-Null
+          New-ItemProperty -Path $key -Name 'DumpFolder' -Value "${{ github.workspace }}\dumps" -PropertyType ExpandString -Force | Out-Null
+          New-ItemProperty -Path $key -Name 'DumpType'   -Value 2 -PropertyType DWord -Force | Out-Null
+          New-ItemProperty -Path $key -Name 'DumpCount'  -Value 5 -PropertyType DWord -Force | Out-Null
+          Get-ItemProperty -Path $key | Format-List
       - name: Run tests
         run: |
           mvn --no-transfer-progress test `
@@ -633,8 +662,12 @@ jobs:
           name: windows-output
           path: |
             ${{ github.workspace }}\hs_err_pid*.log
+            ${{ github.workspace }}\*.hprof
+            ${{ github.workspace }}\dumps\*.dmp
             ${{ github.workspace }}\target\surefire-reports\*.dump
             ${{ github.workspace }}\target\surefire-reports\*.dumpstream
+            ${{ github.workspace }}\target\surefire-reports\*.txt
+            ${{ github.workspace }}\target\surefire-reports\TEST-*.xml
             ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/**/*
           if-no-files-found: warn
 
