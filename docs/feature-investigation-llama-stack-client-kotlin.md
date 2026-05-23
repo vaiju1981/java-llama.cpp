@@ -62,8 +62,44 @@ branch unless noted.
 
 ### 2.1 Multimodal image input (mtmd) — **L**
 
-**Status: OPEN.** `ModelParameters.setMmproj` already wires the projector; no
-typed Java image API yet. Same gap as issues #103 / #34.
+**Status: SHIPPED (typed Java surface).** The original L-effort scope assumed
+new JNI plumbing was required, but on inspection the upstream OAI chat path
+(`oaicompat_chat_params_parse` in `server-common.cpp`) already detects
+`{"type":"image_url","image_url":{"url":"data:..."}}` blocks and routes them
+through the compiled-in `mtmd` pipeline, and the project's
+`handleChatCompletions` JNI method forwards the request JSON intact. Only the
+Java-side convenience to emit the multipart-array `content` was missing.
+
+This pass adds:
+- **`ContentPart`** value type (`TEXT` / `IMAGE_URL`) with static factories
+  `text(...)`, `imageUrl(...)`, `imageBytes(byte[], mime)`, and
+  `imageFile(Path)` (auto-detects png/jpeg/webp/gif from the extension and
+  base64-encodes into a `data:` URI).
+- **`ChatMessage(String role, List<ContentPart> parts)`** constructor plus
+  `userMultimodal(ContentPart...)` factory, `getParts()`, and `hasParts()`.
+  The legacy `ChatMessage(role, content)` ctor and existing serializer path
+  are unchanged.
+- **`InferenceParameters.setMessages(List<ChatMessage>)`** overload that
+  routes through a new `ParameterJsonSerializer.buildMessages(List<ChatMessage>)`
+  emitting array-form `content` only when a message has parts.
+- 25 unit tests in `ContentPartTest` and `MultimodalMessagesTest` cover the
+  factory contracts, the parts/legacy split, and the OAI multipart JSON shape;
+  the 123 existing `ChatMessage` / `InferenceParameters` /
+  `ParameterJsonSerializer` tests still pass.
+
+A multimodal call from Java now looks like:
+```java
+LlamaModel model = new LlamaModel(new ModelParameters()
+    .setModel("vision-model.gguf")
+    .setMmproj("vision-projector.gguf"));
+String reply = model.chatCompleteText(new InferenceParameters("")
+    .setMessages(java.util.Collections.singletonList(
+        ChatMessage.userMultimodal(
+            ContentPart.text("What is in this image?"),
+            ContentPart.imageFile(java.nio.file.Paths.get("photo.jpg"))))));
+```
+
+Zero new JNI symbols; zero risk to existing text-only chat callers.
 
 **Gap.** Upstream llama.cpp ships `mtmd` (vision + audio for some models) and
 the compiled-in server already pulls it in via `mtmd.h` / `mtmd-helper.h`. No

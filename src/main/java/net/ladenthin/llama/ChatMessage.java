@@ -4,6 +4,7 @@
 
 package net.ladenthin.llama;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -17,6 +18,13 @@ import java.util.List;
  * {@link #getToolCalls()} list. Tool-result turns have role {@code "tool"}, the tool's
  * output as content, and {@link #getToolCallId()} pointing back at the originating call.
  * </p>
+ * <p>
+ * Multimodal turns carry a non-null {@link #getParts()} list of {@link ContentPart}s
+ * (text and image references). When parts are present they take precedence over
+ * {@link #getContent()} during serialization; the upstream OAI chat path
+ * (see {@link InferenceParameters#setMessages(java.util.List)}) emits an array-form
+ * {@code content} field that the compiled-in {@code mtmd} pipeline understands.
+ * </p>
  */
 public final class ChatMessage {
 
@@ -24,6 +32,7 @@ public final class ChatMessage {
     private final String content;
     private final String toolCallId;
     private final List<ToolCall> toolCalls;
+    private final List<ContentPart> parts;
 
     /**
      * Plain user/assistant/system message.
@@ -32,7 +41,7 @@ public final class ChatMessage {
      * @param content the message text
      */
     public ChatMessage(String role, String content) {
-        this(role, content, null, Collections.<ToolCall>emptyList());
+        this(role, content, null, Collections.<ToolCall>emptyList(), null);
     }
 
     /**
@@ -44,10 +53,49 @@ public final class ChatMessage {
      * @param toolCalls  for assistant tool-call turns, the list of calls; empty otherwise
      */
     public ChatMessage(String role, String content, String toolCallId, List<ToolCall> toolCalls) {
+        this(role, content, toolCallId, toolCalls, null);
+    }
+
+    /**
+     * Multimodal constructor: build a message whose content is a list of
+     * {@link ContentPart}s (text and/or image references). The {@link #getContent()}
+     * accessor returns the concatenation of the text parts for legacy callers that
+     * cannot consume the array form.
+     *
+     * @param role  the message role
+     * @param parts ordered list of content parts (must not be {@code null} or empty)
+     */
+    public ChatMessage(String role, List<ContentPart> parts) {
+        this(role, concatText(parts), null, Collections.<ToolCall>emptyList(),
+             Collections.unmodifiableList(new java.util.ArrayList<ContentPart>(requireNonEmpty(parts))));
+    }
+
+    private ChatMessage(String role, String content, String toolCallId,
+                        List<ToolCall> toolCalls, List<ContentPart> parts) {
         this.role = role;
         this.content = content;
         this.toolCallId = toolCallId;
         this.toolCalls = toolCalls == null ? Collections.<ToolCall>emptyList() : toolCalls;
+        this.parts = parts;
+    }
+
+    private static List<ContentPart> requireNonEmpty(List<ContentPart> parts) {
+        if (parts == null || parts.isEmpty()) {
+            throw new IllegalArgumentException("parts must not be null or empty");
+        }
+        return parts;
+    }
+
+    private static String concatText(List<ContentPart> parts) {
+        if (parts == null) return "";
+        StringBuilder sb = new StringBuilder();
+        for (ContentPart p : parts) {
+            if (p.getType() == ContentPart.Type.TEXT) {
+                if (sb.length() > 0) sb.append('\n');
+                sb.append(p.getText());
+            }
+        }
+        return sb.toString();
     }
 
     /**
@@ -70,6 +118,17 @@ public final class ChatMessage {
      */
     public static ChatMessage assistantToolCalls(String content, List<ToolCall> toolCalls) {
         return new ChatMessage("assistant", content == null ? "" : content, null, toolCalls);
+    }
+
+    /**
+     * Convenience factory for a {@code "user"} turn mixing text and one or more
+     * images. Equivalent to {@code new ChatMessage("user", parts)}.
+     *
+     * @param parts ordered text and image parts; at least one is required
+     * @return a multimodal user message
+     */
+    public static ChatMessage userMultimodal(ContentPart... parts) {
+        return new ChatMessage("user", Arrays.asList(parts));
     }
 
     /**
@@ -102,6 +161,24 @@ public final class ChatMessage {
      */
     public List<ToolCall> getToolCalls() {
         return toolCalls;
+    }
+
+    /**
+     * Multimodal content parts accessor.
+     * @return an unmodifiable list of text and image parts, or {@code null} for
+     *         legacy text-only messages built via {@link #ChatMessage(String, String)}
+     */
+    public List<ContentPart> getParts() {
+        return parts;
+    }
+
+    /**
+     * Whether this message carries multimodal parts (i.e. was constructed via
+     * {@link #ChatMessage(String, List)} or {@link #userMultimodal(ContentPart...)}).
+     * @return {@code true} when {@link #getParts()} is non-null
+     */
+    public boolean hasParts() {
+        return parts != null;
     }
 
     @Override

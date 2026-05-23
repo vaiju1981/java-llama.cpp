@@ -10,6 +10,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.ladenthin.llama.ChatMessage;
+import net.ladenthin.llama.ContentPart;
 import net.ladenthin.llama.Pair;
 import net.ladenthin.llama.args.Sampler;
 
@@ -93,6 +95,45 @@ public class ParameterJsonSerializer {
             ObjectNode msg = OBJECT_MAPPER.createObjectNode();
             msg.put("role", role);
             msg.put("content", content);
+            arr.add(msg);
+        }
+        return arr;
+    }
+
+    /**
+     * Multimodal-capable variant of {@link #buildMessages(String, List)}. Accepts
+     * {@link ChatMessage} objects directly so messages with non-null
+     * {@link ChatMessage#getParts()} can be serialized as the OAI-compatible
+     * array-form {@code content} the upstream {@code mtmd} pipeline expects.
+     * Plain text messages still emit the legacy string-form {@code content}.
+     *
+     * @param messages messages in order; must not be {@code null}
+     * @return a Jackson {@link ArrayNode} ready for the {@code messages} request field
+     */
+    public ArrayNode buildMessages(List<ChatMessage> messages) {
+        ArrayNode arr = OBJECT_MAPPER.createArrayNode();
+        for (ChatMessage message : messages) {
+            ObjectNode msg = OBJECT_MAPPER.createObjectNode();
+            msg.put("role", message.getRole());
+            if (message.hasParts()) {
+                ArrayNode parts = OBJECT_MAPPER.createArrayNode();
+                for (ContentPart p : message.getParts()) {
+                    ObjectNode part = OBJECT_MAPPER.createObjectNode();
+                    if (p.getType() == ContentPart.Type.TEXT) {
+                        part.put("type", "text");
+                        part.put("text", p.getText());
+                    } else {
+                        part.put("type", "image_url");
+                        ObjectNode imageUrl = OBJECT_MAPPER.createObjectNode();
+                        imageUrl.put("url", p.getImageUrl());
+                        part.set("image_url", imageUrl);
+                    }
+                    parts.add(part);
+                }
+                msg.set("content", parts);
+            } else {
+                msg.put("content", message.getContent());
+            }
             arr.add(msg);
         }
         return arr;
