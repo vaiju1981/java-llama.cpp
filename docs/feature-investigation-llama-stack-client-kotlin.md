@@ -205,11 +205,16 @@ parse server-wide metrics. Per-completion `Usage`/`Timings` land in
 
 ### 2.6 `Session` helper (multi-turn) — **S–M**
 
-**Status: PARTIAL** (PR #188, commit `e4f531c`). `Session` ships as an
-`AutoCloseable` wrapper with `send(...)`, `stream(...)`,
-`commitStreamedReply(...)`, `save(Path)` / `restore(Path)`, and an
-optional `InferenceParameters` customizer. Single-thread only in this
-pass — per-session locking is the remaining M-effort follow-up.
+**Status: SHIPPED.** Initial `AutoCloseable` wrapper with `send(...)`,
+`stream(...)`, `commitStreamedReply(...)`, `save(Path)` / `restore(Path)`,
+and an optional `InferenceParameters` customizer landed in PR #188
+(commit `e4f531c`). Per-session locking landed as the M-effort
+follow-up: every public `Session` method is now serialized on a private
+intrinsic lock, and `stream(...)` sets a "streaming in progress" guard
+that causes `send(...)`, a second `stream(...)`, `save(...)`, and
+`restore(...)` to fail-fast with `IllegalStateException` until
+`commitStreamedReply(...)` clears it. Covered by
+`SessionConcurrencyTest`.
 
 **Gap.** Slots exist as a low-level primitive. Kotlin offers
 "agents/sessions/turns" with persistence and resume.
