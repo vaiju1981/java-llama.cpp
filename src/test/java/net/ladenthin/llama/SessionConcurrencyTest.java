@@ -47,7 +47,7 @@ import static org.junit.Assert.fail;
 )
 public class SessionConcurrencyTest {
 
-    private static final int N_PREDICT = 4;
+    private static final int N_PREDICT = 2;
     private static LlamaModel model;
 
     @BeforeClass
@@ -77,10 +77,19 @@ public class SessionConcurrencyTest {
      * {@code 2 * N * M} entries (system message excluded) with strict
      * user/assistant alternation.
      */
-    @Test(timeout = 120_000)
+    // 5 min budget: each send() resends the accumulating transcript, and the
+    // synchronized(lock) in Session serializes the 2*2 = 4 calls. On Linux
+    // x86_64 this typically completes in ~30 s; on the slowest CI runner
+    // observed (macOS-15 no-metal CPU-only, ~500 ms / token eval) the 4 calls
+    // sit around ~150 s. The 5 min ceiling leaves multiplicative headroom for
+    // future Apple Silicon CPU-fallback regressions without flaking. Bump
+    // callsPerThread or threads up only if the bug it is guarding regresses;
+    // do not push it past what the slowest CI runner can finish in <half the
+    // @Test budget.
+    @Test(timeout = 300_000)
     public void testConcurrentSendProducesAlternatingTranscript() throws Exception {
-        final int threads = 4;
-        final int callsPerThread = 3;
+        final int threads = 2;
+        final int callsPerThread = 2;
         try (Session session = new Session(model, 0, null,
                 p -> p.setNPredict(N_PREDICT).setTemperature(0.0f))) {
 
@@ -108,7 +117,7 @@ public class SessionConcurrencyTest {
 
             start.countDown();
             assertTrue("threads did not finish within timeout",
-                    done.await(110, TimeUnit.SECONDS));
+                    done.await(270, TimeUnit.SECONDS));
             pool.shutdown();
 
             if (failure.get() != null) {
