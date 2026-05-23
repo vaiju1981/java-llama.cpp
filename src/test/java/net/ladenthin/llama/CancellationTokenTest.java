@@ -53,4 +53,14 @@ public class CancellationTokenTest {
         t.cancel();
         assertTrue(t.isCancelled());
     }
+
+    @Test
+    public void cancelWithoutRegistrationDoesNotThrow() {
+        // No model registered -> no queueCancel attempted, no NPE. The cooperative
+        // flag is still flipped. This is the path taken when cancel() races a
+        // not-yet-started complete(...) call.
+        CancellationToken t = new CancellationToken();
+        t.cancel();
+        assertTrue(t.isCancelled());
+    }
 }

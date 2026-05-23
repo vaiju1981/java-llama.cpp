@@ -271,14 +271,17 @@ public class LlamaModel implements AutoCloseable {
 		token.reset();
 		parameters.setStream(true);
 		int taskId = requestCompletion(parameters.toString());
+		token.register(this, taskId);
 		StringBuilder sb = new StringBuilder();
 		try {
 			while (true) {
 				if (token.isCancelled()) {
-					// Best-effort native release. Safe to call here because we are not
-					// concurrently inside receiveCompletionJson — the cooperative cancel
-					// flag stopped the loop at a token boundary.
-					cancelCompletion(taskId);
+					// Cooperative branch: cancel() may have flipped the flag before the
+					// register() call landed, so the cross-thread queueCancel could have
+					// no-op'd. Posting one here from the loop thread itself guarantees
+					// the upstream worker sees the cancel even in that race. The reader
+					// is not freed; the natural stop-result path cleans it up.
+					queueCancel(taskId);
 					break;
 				}
 				String json = receiveCompletionJson(taskId);
@@ -289,6 +292,7 @@ public class LlamaModel implements AutoCloseable {
 				}
 			}
 		} finally {
+			token.unregister();
 			token.reset();
 		}
 		return sb.toString();
@@ -372,6 +376,8 @@ public class LlamaModel implements AutoCloseable {
 	native String receiveCompletionJson(int taskId) throws LlamaException;
 
 	native void cancelCompletion(int taskId);
+
+	native void queueCancel(int taskId);
 
 	native byte[] decodeBytes(int[] tokens);
 

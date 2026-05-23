@@ -995,6 +995,23 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_cancelCompletion(JNIE
     erase_reader(jctx, id_task);
 }
 
+// Post a SERVER_TASK_TYPE_CANCEL message to the upstream task queue without
+// freeing the reader. Safe to call from any thread: server_response_reader::stop()
+// posts via server_queue (internally mutex-locked) and only flips an internal
+// boolean; it does NOT destroy the reader. A concurrently-blocked rd->next() on
+// another thread will observe the cancel naturally via its results queue. The
+// reader is later removed from jctx->readers by the normal stop-result code path
+// in receiveCompletionJson (line ~826). stop() is idempotent, so subsequent
+// erase_reader() destructor calls are safe.
+JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_queueCancel(JNIEnv *env, jobject obj, jint id_task) {
+    REQUIRE_SERVER_CONTEXT();
+    std::lock_guard<std::mutex> lk(jctx->readers_mutex);
+    auto it = jctx->readers.find(id_task);
+    if (it != jctx->readers.end() && it->second) {
+        it->second->stop();
+    }
+}
+
 JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_setLogger(JNIEnv *env, jclass clazz, jobject log_format,
                                                                  jobject jcallback) {
     if (o_log_callback != nullptr) {

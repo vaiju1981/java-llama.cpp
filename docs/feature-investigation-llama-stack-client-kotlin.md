@@ -309,16 +309,26 @@ per-token probabilities are not surfaced.
 
 ### 2.10 Cancellation token / abort for blocking calls — **S**
 
-**Status: SHIPPED — cooperative only** (PR #188, commits `ad66e3a` +
-`e3b9043`). `CancellationToken.cancel()` sets a `volatile` flag observed
-between tokens by the inference loop in
-`LlamaModel.complete(InferenceParameters, CancellationToken)`. Effective
-latency is one token interval (the loop checks at each token boundary).
-Immediate cancel (requiring a new server-side stop-task JNI primitive)
-is the remaining M-effort follow-up. The initial impl tried to abort
-mid-token via a cross-thread JNI call; that race was the root cause of
-a `std::system_error` JVM abort in CI and was reverted to the safe
-cooperative path.
+**Status: SHIPPED.** Cooperative layer landed in PR #188 (commits
+`ad66e3a` + `e3b9043`); the M-effort immediate-cancel follow-up landed
+on top via a new `queueCancel(int taskId)` JNI primitive that posts a
+`SERVER_TASK_TYPE_CANCEL` to the upstream `server_queue` (mutex-locked
+internally, safe from any thread) and leaves the
+`server_response_reader` alive. The worker thread observes the cancel
+on its next slot iteration and releases the slot, which causes the
+in-flight `rd->next()` to return a stop result naturally; the normal
+stop-result path in `receiveCompletionJson` then cleans up the reader.
+`CancellationToken.cancel()` calls `queueCancel(taskId)` whenever the
+token is bound to a live task; if cancel races a not-yet-bound
+inference, the cooperative flag still aborts the loop at the next
+boundary and the loop itself posts the cancel from the inference
+thread.
+
+The previous mid-token attempt eagerly erased the reader's
+`unique_ptr` from `jctx->readers` (use-after-free against a concurrent
+`rd->next()` holding a raw pointer) and caused `std::system_error` JVM
+aborts in CI. The new design never frees the reader on the cancelling
+thread, which closes that race.
 
 **Gap.** A blocking `complete(...)` cannot be aborted from another thread.
 
