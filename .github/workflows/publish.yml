@@ -22,6 +22,20 @@ env:
   REASONING_MODEL_NAME: "Qwen3-0.6B-Q4_K_M.gguf"
   NOMIC_EMBED_MODEL_URL: "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.f16.gguf"
   NOMIC_EMBED_MODEL_NAME: "nomic-embed-text-v1.5.f16.gguf"
+  # Vision model + mmproj for MultimodalIntegrationTest (issues #103 / #34).
+  # SmolVLM-500M is the smallest community vision GGUF that loads reliably
+  # under the upstream mtmd pipeline. Total download ~600 MB across model
+  # plus mmproj; matches the existing per-test-job download budget.
+  VISION_MODEL_URL: "https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/SmolVLM-500M-Instruct-Q8_0.gguf"
+  VISION_MODEL_NAME: "SmolVLM-500M-Instruct-Q8_0.gguf"
+  VISION_MMPROJ_URL: "https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
+  VISION_MMPROJ_NAME: "mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
+  # Small CC0 / public-domain test image from Wikimedia Commons. A simple
+  # subject (red apple, ~12 KB) so a 500M vision model has a fair chance of
+  # producing recognisable output; the test only asserts a non-empty reply
+  # so model accuracy is not the gating signal.
+  VISION_IMAGE_URL: "https://upload.wikimedia.org/wikipedia/commons/1/15/Red_Apple.jpg"
+  VISION_IMAGE_NAME: "Red_Apple.jpg"
 permissions:
   contents: read
 jobs:
@@ -393,6 +407,12 @@ jobs:
         run: curl -L --fail ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
       - name: Download nomic embedding model (issue #98 regression)
         run: curl -L --fail ${NOMIC_EMBED_MODEL_URL} --create-dirs -o models/${NOMIC_EMBED_MODEL_NAME}
+      - name: Download vision model (issues #103 / #34)
+        run: curl -L --fail ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
+      - name: Download vision mmproj
+        run: curl -L --fail ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
+      - name: Download CC0 / public-domain test image
+        run: curl -L --fail -A "java-llama.cpp-ci/1.0" "${VISION_IMAGE_URL}" --create-dirs -o models/${VISION_IMAGE_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -408,7 +428,12 @@ jobs:
           ulimit -c unlimited
           echo "${{ github.workspace }}/core.%e.%p" | sudo tee /proc/sys/kernel/core_pattern
       - name: Run tests
-        run: mvn --no-transfer-progress test -Dnet.ladenthin.llama.nomic.path=models/${NOMIC_EMBED_MODEL_NAME}
+        run: |
+          mvn --no-transfer-progress test \
+            -Dnet.ladenthin.llama.nomic.path=models/${NOMIC_EMBED_MODEL_NAME} \
+            -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
+            -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
+            -Dnet.ladenthin.llama.vision.image=models/${VISION_IMAGE_NAME}
       - uses: actions/upload-artifact@v7
         if: success()
         with:
@@ -455,6 +480,12 @@ jobs:
         run: curl -L --fail ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
       - name: Download reasoning model
         run: curl -L --fail ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
+      - name: Download vision model (issues #103 / #34)
+        run: curl -L --fail ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
+      - name: Download vision mmproj
+        run: curl -L --fail ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
+      - name: Download CC0 / public-domain test image
+        run: curl -L --fail -A "java-llama.cpp-ci/1.0" "${VISION_IMAGE_URL}" --create-dirs -o models/${VISION_IMAGE_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -468,7 +499,11 @@ jobs:
       - name: Enable core dumps
         run: ulimit -c unlimited
       - name: Run tests
-        run: mvn --no-transfer-progress -Dnet.ladenthin.llama.test.ngl=0 test
+        run: |
+          mvn --no-transfer-progress -Dnet.ladenthin.llama.test.ngl=0 test \
+            -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
+            -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
+            -Dnet.ladenthin.llama.vision.image=models/${VISION_IMAGE_NAME}
       - name: Memory after tests
         if: always()
         run: vm_stat && sysctl hw.memsize hw.physmem
@@ -508,6 +543,12 @@ jobs:
         run: curl -L --fail ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
       - name: Download reasoning model
         run: curl -L --fail ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
+      - name: Download vision model (issues #103 / #34)
+        run: curl -L --fail ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
+      - name: Download vision mmproj
+        run: curl -L --fail ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
+      - name: Download CC0 / public-domain test image
+        run: curl -L --fail -A "java-llama.cpp-ci/1.0" "${VISION_IMAGE_URL}" --create-dirs -o models/${VISION_IMAGE_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -521,7 +562,11 @@ jobs:
       - name: Enable core dumps
         run: ulimit -c unlimited
       - name: Run tests
-        run: mvn --no-transfer-progress test
+        run: |
+          mvn --no-transfer-progress test \
+            -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
+            -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
+            -Dnet.ladenthin.llama.vision.image=models/${VISION_IMAGE_NAME}
       - name: Memory after tests
         if: always()
         run: vm_stat && sysctl hw.memsize hw.physmem
@@ -564,6 +609,12 @@ jobs:
         run: curl -L --fail $env:DRAFT_MODEL_URL --create-dirs -o models/$env:DRAFT_MODEL_NAME
       - name: Download reasoning model
         run: curl -L --fail $env:REASONING_MODEL_URL --create-dirs -o models/$env:REASONING_MODEL_NAME
+      - name: Download vision model (issues #103 / #34)
+        run: curl -L --fail $env:VISION_MODEL_URL --create-dirs -o models/$env:VISION_MODEL_NAME
+      - name: Download vision mmproj
+        run: curl -L --fail $env:VISION_MMPROJ_URL --create-dirs -o models/$env:VISION_MMPROJ_NAME
+      - name: Download CC0 / public-domain test image
+        run: curl -L --fail -A "java-llama.cpp-ci/1.0" $env:VISION_IMAGE_URL --create-dirs -o models/$env:VISION_IMAGE_NAME
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -576,7 +627,11 @@ jobs:
         run: Get-CimInstance Win32_OperatingSystem | Select-Object FreePhysicalMemory,TotalVisibleMemorySize | Format-List
         shell: pwsh
       - name: Run tests
-        run: mvn --no-transfer-progress test
+        run: |
+          mvn --no-transfer-progress test `
+            "-Dnet.ladenthin.llama.vision.model=models/$env:VISION_MODEL_NAME" `
+            "-Dnet.ladenthin.llama.vision.mmproj=models/$env:VISION_MMPROJ_NAME" `
+            "-Dnet.ladenthin.llama.vision.image=models/$env:VISION_IMAGE_NAME"
       - name: Memory after tests
         if: always()
         run: Get-CimInstance Win32_OperatingSystem | Select-Object FreePhysicalMemory,TotalVisibleMemorySize | Format-List
