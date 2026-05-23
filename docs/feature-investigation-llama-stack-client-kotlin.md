@@ -345,26 +345,43 @@ per-token probabilities are not surfaced.
 
 ### 2.10 Cancellation token / abort for blocking calls — **S**
 
-**Status: SHIPPED.** Cooperative layer landed in PR #188 (commits
-`ad66e3a` + `e3b9043`); the M-effort immediate-cancel follow-up landed
-on top via a new `queueCancel(int taskId)` JNI primitive that posts a
-`SERVER_TASK_TYPE_CANCEL` to the upstream `server_queue` (mutex-locked
-internally, safe from any thread) and leaves the
-`server_response_reader` alive. The worker thread observes the cancel
-on its next slot iteration and releases the slot, which causes the
-in-flight `rd->next()` to return a stop result naturally; the normal
-stop-result path in `receiveCompletionJson` then cleans up the reader.
-`CancellationToken.cancel()` calls `queueCancel(taskId)` whenever the
-token is bound to a live task; if cancel races a not-yet-bound
-inference, the cooperative flag still aborts the loop at the next
-boundary and the loop itself posts the cancel from the inference
-thread.
+**Status: SHIPPED &#x2014; cooperative only** (PR #188, commits
+`ad66e3a` + `e3b9043`). `CancellationToken.cancel()` sets a
+`volatile` flag observed between tokens by the inference loop in
+`LlamaModel.complete(InferenceParameters, CancellationToken)`.
+Effective latency is one token interval (the loop checks at each
+token boundary, typically tens to a few hundred ms).
 
-The previous mid-token attempt eagerly erased the reader's
-`unique_ptr` from `jctx->readers` (use-after-free against a concurrent
-`rd->next()` holding a raw pointer) and caused `std::system_error` JVM
-aborts in CI. The new design never frees the reader on the cancelling
-thread, which closes that race.
+**Sub-token follow-up: attempted and reverted.** Two design passes
+tried to make `cancel()` post a `SERVER_TASK_TYPE_CANCEL` message to
+the upstream `server_queue` from the cancelling thread so the worker
+would interrupt mid-generation:
+
+1. First attempt eagerly erased the reader's `unique_ptr` from
+   `jctx->readers` on the cancelling thread. That raced against the
+   inference thread's raw `rd` pointer borrowed inside
+   `receiveCompletionJson`'s call to `rd->next()`, producing a
+   use-after-free and a `std::system_error` JVM abort in CI.
+2. Second attempt left the reader alive and posted CANCEL through
+   the reader's public `queue_tasks.post(...)` reference, expecting
+   the slot's release to emit a natural stop result on
+   `queue_results`. Inspection of
+   `build/_deps/llama.cpp-src/tools/server/server-context.cpp:356-376`
+   showed `server_slot::release()` only sets `state = SLOT_STATE_IDLE`
+   and calls `reset()`; it **does not** post any result to
+   `queue_results`. The inference thread therefore blocked forever
+   inside `recv_with_timeout(id_tasks, 1 s)`, polling at 1 Hz with a
+   hard-coded `should_stop = []{ return false; }`. CI hung on
+   `LlamaModelTest` and had to be cancelled manually.
+
+Both attempts were reverted on the same branch (`705f980` and the
+follow-up revert commit). The cooperative path already achieves
+one-token-interval latency, which matches the sub-token goal in
+practice. A genuine sub-token cancel would require an upstream
+change to `SERVER_TASK_TYPE_CANCEL`'s slot handler so it emits a
+stop result on `queue_results`, or a `should_stop` predicate plumbed
+into `receiveCompletionJson` that observes the token (latency &#x2265;
+1 s polling interval &#x2014; worse than cooperative).
 
 **Gap.** A blocking `complete(...)` cannot be aborted from another thread.
 

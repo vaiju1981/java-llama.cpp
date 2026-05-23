@@ -271,23 +271,15 @@ public class LlamaModel implements AutoCloseable {
 		token.reset();
 		parameters.setStream(true);
 		int taskId = requestCompletion(parameters.toString());
-		token.register(this, taskId);
 		StringBuilder sb = new StringBuilder();
-		boolean cancelPosted = false;
 		try {
 			while (true) {
-				if (!cancelPosted && token.isCancelled()) {
-					// Cooperative fallback. CancellationToken.cancel() normally posts
-					// queueCancel from the cancelling thread; this branch only fires
-					// when cancel() ran before token.register(...) landed (the
-					// not-yet-bound race). Post the cancel once and KEEP RECEIVING —
-					// do not break here. The slot will see the queued CANCEL on its
-					// next worker iteration and post its natural stop result, which
-					// rd->next() can only receive while this task id is still in
-					// waiting_task_ids. Breaking here would orphan the reader in
-					// jctx->readers until LlamaModel.close().
-					queueCancel(taskId);
-					cancelPosted = true;
+				if (token.isCancelled()) {
+					// Best-effort native release. Safe to call here because we are not
+					// concurrently inside receiveCompletionJson — the cooperative cancel
+					// flag stopped the loop at a token boundary.
+					cancelCompletion(taskId);
+					break;
 				}
 				String json = receiveCompletionJson(taskId);
 				LlamaOutput out = completionParser.parse(json);
@@ -297,7 +289,6 @@ public class LlamaModel implements AutoCloseable {
 				}
 			}
 		} finally {
-			token.unregister();
 			token.reset();
 		}
 		return sb.toString();
@@ -381,8 +372,6 @@ public class LlamaModel implements AutoCloseable {
 	native String receiveCompletionJson(int taskId) throws LlamaException;
 
 	native void cancelCompletion(int taskId);
-
-	native void queueCancel(int taskId);
 
 	native byte[] decodeBytes(int[] tokens);
 

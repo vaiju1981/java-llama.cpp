@@ -93,13 +93,6 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_releaseTask(JNIEnv *,
 
 /*
  * Class:     net_ladenthin_llama_LlamaModel
- * Method:    queueCancel
- * Signature: (I)V
- */
-JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_queueCancel(JNIEnv *, jobject, jint);
-
-/*
- * Class:     net_ladenthin_llama_LlamaModel
  * Method:    jsonSchemaToGrammarBytes
  * Signature: (Ljava/lang/String;)[B
  */
