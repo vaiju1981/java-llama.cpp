@@ -36,7 +36,7 @@ T-shirt sizes:
 | Reactive Streams `Publisher<LlamaOutput>` token stream   | ✅ (§2.3) |
 | `completeBatch` / `chatBatch` parallel dispatch          | ✅ (§2.4) |
 | Typed `Usage` / `Timings` / `CompletionResult`           | ✅ (§2.5) |
-| `Session` helper (single-threaded)                       | ✅ (§2.6) |
+| `Session` helper (thread-safe per instance)              | ✅ (§2.6) |
 | `AutoCloseable` iterator + cancel polish                 | ✅ (§2.7) |
 | Per-request `setJsonSchema` + `completeAsJson<T>`        | ✅ (§2.8) |
 | Typed `TokenLogprob` in `LlamaOutput`                    | ✅ (§2.9) |
@@ -410,6 +410,17 @@ web frameworks.
 | HTTP client conveniences (retries, proxy, timeouts) | N/A for in-process JNI. |
 
 ## 4. Suggested rollout order
+
+> **Historical note (kept for context).** All ten items below are now
+> SHIPPED &#x2014; the original §2.1 / §2.2 / §2.5 / §2.7 / §2.3 / §2.4 /
+> §2.8 / §2.9 / §2.6 / §2.10 sequence was delivered across PR #188 and
+> PR #189. §2.10 ships **cooperative only**; the M-effort sub-token
+> follow-up was attempted twice and reverted (see the postmortem in the
+> §2.10 entry above for why). §2.1 ended up much smaller than the
+> original L estimate once the upstream OAI chat path was found to
+> already accept `image_url` blocks. This section is preserved so the
+> original effort estimates can be compared against what actually
+> shipped; it is no longer a roadmap.
 
 1. **§2.1 Multimodal (L)** — biggest capability gap, isolated subsystem.
 2. **§2.2 Typed Chat model + tool calling (M)** — foundational; other

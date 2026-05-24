@@ -190,8 +190,10 @@ vs. total, whether the file is the weights file, whether it is a download or
 disk load) via a `Consumer<LLamaLoadProgress>` callback passed to the
 `LlamaModel` constructor. Intended for showing a progress bar to end users.
 
-**Status in fork:** FIXED in PR #188 (commit `70df324`). New
-`LoadProgressCallback` functional interface (single method
+**Status in fork:** FIXED in PR #188 (commit `70df324`), with a
+**follow-up symbol-export fix in PR #189 (commit `36d8862`) that the
+original feature needed to actually be callable** on Linux/macOS.
+New `LoadProgressCallback` functional interface (single method
 `boolean onProgress(float progress)`; return `false` to abort).
 New constructor overload
 `LlamaModel(ModelParameters, LoadProgressCallback)` plumbs the
@@ -206,6 +208,22 @@ Callback fires synchronously on the loader thread with progress in
 bytes, weights vs download flag) is NOT exposed — only the float —
 because `llama_model_params.progress_callback` itself only emits the
 float; richer fields would require an upstream API change.
+
+**Subtle issue resolved by PR #189 `36d8862`.** The PR #188 implementation
+forgot to add the `loadModelWithProgress` forward declaration to
+`src/main/cpp/jllama.h`. The `jllama.cpp` translation unit `#include`s only
+that header (not the freshly-generated `net_ladenthin_llama_LlamaModel.h`
+that `javac -h` writes during `mvn compile`), so the C++ compiler treated
+the function definition as a regular C++ function and emitted a name-mangled
+symbol (`_Z57Java_..._loadModelWithProgress...`). The JVM looked up the
+plain unmangled name and threw
+`UnsatisfiedLinkError: 'void net.ladenthin.llama.LlamaModel.loadModelWithProgress(...)'`
+the first time `LoadProgressCallbackTest#receivesProgressUpdates` exercised
+the code path. Adding the seven-line forward declaration in `jllama.h`
+restored `extern "C"` linkage and the test now passes
+(`LoadProgressCallbackTest: Tests run: 3, Failures: 0, Errors: 0` on the
+current CI run). The neighbouring plain `loadModel` symbol was unaffected
+because its declaration was already in `jllama.h`.
 
 ---
 
