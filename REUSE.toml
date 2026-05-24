@@ -13,9 +13,13 @@ path = [
     "CLAUDE_TEST_GENERATION_PROMPT.md",
     "models/README.md",
     "docs/RELEASE.md",
+    "docs/feature-investigation-llama-stack-client-kotlin.md",
     "docs/history/49be664_24918e4.md",
+    "docs/history/49be664_open_issues.md",
+    "docs/history/49be664_open_issues_comments.md",
     "docs/history/CHAT_INTEGRATION_SUMMARY.md",
     "docs/history/REFACTORING.md",
+    "src/test/resources/images/README.md",
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".github/ISSUE_TEMPLATE/bug_report.md",
     ".github/ISSUE_TEMPLATE/feature_request.md",
@@ -68,6 +72,12 @@ SPDX-FileCopyrightText = [
     "2023-2025 Konstantin Herud",
     "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>",
 ]
+SPDX-License-Identifier = "MIT"
+
+# Test image (binary, cannot carry inline SPDX)
+[[annotations]]
+path = "src/test/resources/images/test-image.jpg"
+SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
 SPDX-License-Identifier = "MIT"
 
 # JNI header files from Oracle (GPL-2.0-only WITH Classpath-exception-2.0)
