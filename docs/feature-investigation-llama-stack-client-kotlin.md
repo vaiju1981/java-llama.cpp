@@ -36,7 +36,7 @@ T-shirt sizes:
 | Reactive Streams `Publisher<LlamaOutput>` token stream   | ✅ (§2.3) |
 | `completeBatch` / `chatBatch` parallel dispatch          | ✅ (§2.4) |
 | Typed `Usage` / `Timings` / `CompletionResult`           | ✅ (§2.5) |
-| `Session` helper (single-threaded)                       | ✅ (§2.6) |
+| `Session` helper (thread-safe per instance)              | ✅ (§2.6) |
 | `AutoCloseable` iterator + cancel polish                 | ✅ (§2.7) |
 | Per-request `setJsonSchema` + `completeAsJson<T>`        | ✅ (§2.8) |
 | Typed `TokenLogprob` in `LlamaOutput`                    | ✅ (§2.9) |
@@ -62,8 +62,44 @@ branch unless noted.
 
 ### 2.1 Multimodal image input (mtmd) — **L**
 
-**Status: OPEN.** `ModelParameters.setMmproj` already wires the projector; no
-typed Java image API yet. Same gap as issues #103 / #34.
+**Status: SHIPPED (typed Java surface).** The original L-effort scope assumed
+new JNI plumbing was required, but on inspection the upstream OAI chat path
+(`oaicompat_chat_params_parse` in `server-common.cpp`) already detects
+`{"type":"image_url","image_url":{"url":"data:..."}}` blocks and routes them
+through the compiled-in `mtmd` pipeline, and the project's
+`handleChatCompletions` JNI method forwards the request JSON intact. Only the
+Java-side convenience to emit the multipart-array `content` was missing.
+
+This pass adds:
+- **`ContentPart`** value type (`TEXT` / `IMAGE_URL`) with static factories
+  `text(...)`, `imageUrl(...)`, `imageBytes(byte[], mime)`, and
+  `imageFile(Path)` (auto-detects png/jpeg/webp/gif from the extension and
+  base64-encodes into a `data:` URI).
+- **`ChatMessage(String role, List<ContentPart> parts)`** constructor plus
+  `userMultimodal(ContentPart...)` factory, `getParts()`, and `hasParts()`.
+  The legacy `ChatMessage(role, content)` ctor and existing serializer path
+  are unchanged.
+- **`InferenceParameters.setMessages(List<ChatMessage>)`** overload that
+  routes through a new `ParameterJsonSerializer.buildMessages(List<ChatMessage>)`
+  emitting array-form `content` only when a message has parts.
+- 25 unit tests in `ContentPartTest` and `MultimodalMessagesTest` cover the
+  factory contracts, the parts/legacy split, and the OAI multipart JSON shape;
+  the 123 existing `ChatMessage` / `InferenceParameters` /
+  `ParameterJsonSerializer` tests still pass.
+
+A multimodal call from Java now looks like:
+```java
+LlamaModel model = new LlamaModel(new ModelParameters()
+    .setModel("vision-model.gguf")
+    .setMmproj("vision-projector.gguf"));
+String reply = model.chatCompleteText(new InferenceParameters("")
+    .setMessages(java.util.Collections.singletonList(
+        ChatMessage.userMultimodal(
+            ContentPart.text("What is in this image?"),
+            ContentPart.imageFile(java.nio.file.Paths.get("photo.jpg"))))));
+```
+
+Zero new JNI symbols; zero risk to existing text-only chat callers.
 
 **Gap.** Upstream llama.cpp ships `mtmd` (vision + audio for some models) and
 the compiled-in server already pulls it in via `mtmd.h` / `mtmd-helper.h`. No
@@ -205,11 +241,16 @@ parse server-wide metrics. Per-completion `Usage`/`Timings` land in
 
 ### 2.6 `Session` helper (multi-turn) — **S–M**
 
-**Status: PARTIAL** (PR #188, commit `e4f531c`). `Session` ships as an
-`AutoCloseable` wrapper with `send(...)`, `stream(...)`,
-`commitStreamedReply(...)`, `save(Path)` / `restore(Path)`, and an
-optional `InferenceParameters` customizer. Single-thread only in this
-pass — per-session locking is the remaining M-effort follow-up.
+**Status: SHIPPED.** Initial `AutoCloseable` wrapper with `send(...)`,
+`stream(...)`, `commitStreamedReply(...)`, `save(Path)` / `restore(Path)`,
+and an optional `InferenceParameters` customizer landed in PR #188
+(commit `e4f531c`). Per-session locking landed as the M-effort
+follow-up: every public `Session` method is now serialized on a private
+intrinsic lock, and `stream(...)` sets a "streaming in progress" guard
+that causes `send(...)`, a second `stream(...)`, `save(...)`, and
+`restore(...)` to fail-fast with `IllegalStateException` until
+`commitStreamedReply(...)` clears it. Covered by
+`SessionConcurrencyTest`.
 
 **Gap.** Slots exist as a low-level primitive. Kotlin offers
 "agents/sessions/turns" with persistence and resume.
@@ -304,16 +345,43 @@ per-token probabilities are not surfaced.
 
 ### 2.10 Cancellation token / abort for blocking calls — **S**
 
-**Status: SHIPPED — cooperative only** (PR #188, commits `ad66e3a` +
-`e3b9043`). `CancellationToken.cancel()` sets a `volatile` flag observed
-between tokens by the inference loop in
-`LlamaModel.complete(InferenceParameters, CancellationToken)`. Effective
-latency is one token interval (the loop checks at each token boundary).
-Immediate cancel (requiring a new server-side stop-task JNI primitive)
-is the remaining M-effort follow-up. The initial impl tried to abort
-mid-token via a cross-thread JNI call; that race was the root cause of
-a `std::system_error` JVM abort in CI and was reverted to the safe
-cooperative path.
+**Status: SHIPPED &#x2014; cooperative only** (PR #188, commits
+`ad66e3a` + `e3b9043`). `CancellationToken.cancel()` sets a
+`volatile` flag observed between tokens by the inference loop in
+`LlamaModel.complete(InferenceParameters, CancellationToken)`.
+Effective latency is one token interval (the loop checks at each
+token boundary, typically tens to a few hundred ms).
+
+**Sub-token follow-up: attempted and reverted.** Two design passes
+tried to make `cancel()` post a `SERVER_TASK_TYPE_CANCEL` message to
+the upstream `server_queue` from the cancelling thread so the worker
+would interrupt mid-generation:
+
+1. First attempt eagerly erased the reader's `unique_ptr` from
+   `jctx->readers` on the cancelling thread. That raced against the
+   inference thread's raw `rd` pointer borrowed inside
+   `receiveCompletionJson`'s call to `rd->next()`, producing a
+   use-after-free and a `std::system_error` JVM abort in CI.
+2. Second attempt left the reader alive and posted CANCEL through
+   the reader's public `queue_tasks.post(...)` reference, expecting
+   the slot's release to emit a natural stop result on
+   `queue_results`. Inspection of
+   `build/_deps/llama.cpp-src/tools/server/server-context.cpp:356-376`
+   showed `server_slot::release()` only sets `state = SLOT_STATE_IDLE`
+   and calls `reset()`; it **does not** post any result to
+   `queue_results`. The inference thread therefore blocked forever
+   inside `recv_with_timeout(id_tasks, 1 s)`, polling at 1 Hz with a
+   hard-coded `should_stop = []{ return false; }`. CI hung on
+   `LlamaModelTest` and had to be cancelled manually.
+
+Both attempts were reverted on the same branch (`705f980` and the
+follow-up revert commit). The cooperative path already achieves
+one-token-interval latency, which matches the sub-token goal in
+practice. A genuine sub-token cancel would require an upstream
+change to `SERVER_TASK_TYPE_CANCEL`'s slot handler so it emits a
+stop result on `queue_results`, or a `should_stop` predicate plumbed
+into `receiveCompletionJson` that observes the token (latency &#x2265;
+1 s polling interval &#x2014; worse than cooperative).
 
 **Gap.** A blocking `complete(...)` cannot be aborted from another thread.
 
@@ -342,6 +410,17 @@ web frameworks.
 | HTTP client conveniences (retries, proxy, timeouts) | N/A for in-process JNI. |
 
 ## 4. Suggested rollout order
+
+> **Historical note (kept for context).** All ten items below are now
+> SHIPPED &#x2014; the original §2.1 / §2.2 / §2.5 / §2.7 / §2.3 / §2.4 /
+> §2.8 / §2.9 / §2.6 / §2.10 sequence was delivered across PR #188 and
+> PR #189. §2.10 ships **cooperative only**; the M-effort sub-token
+> follow-up was attempted twice and reverted (see the postmortem in the
+> §2.10 entry above for why). §2.1 ended up much smaller than the
+> original L estimate once the upstream OAI chat path was found to
+> already accept `image_url` blocks. This section is preserved so the
+> original effort estimates can be compared against what actually
+> shipped; it is no longer a roadmap.
 
 1. **§2.1 Multimodal (L)** — biggest capability gap, isolated subsystem.
 2. **§2.2 Typed Chat model + tool calling (M)** — foundational; other

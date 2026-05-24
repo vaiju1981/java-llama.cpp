@@ -22,6 +22,19 @@ env:
   REASONING_MODEL_NAME: "Qwen3-0.6B-Q4_K_M.gguf"
   NOMIC_EMBED_MODEL_URL: "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.f16.gguf"
   NOMIC_EMBED_MODEL_NAME: "nomic-embed-text-v1.5.f16.gguf"
+  # Vision model + mmproj for MultimodalIntegrationTest (issues #103 / #34).
+  # SmolVLM-500M is the smallest community vision GGUF that loads reliably
+  # under the upstream mtmd pipeline. Total download ~600 MB across model
+  # plus mmproj; matches the existing per-test-job download budget.
+  VISION_MODEL_URL: "https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/SmolVLM-500M-Instruct-Q8_0.gguf"
+  VISION_MODEL_NAME: "SmolVLM-500M-Instruct-Q8_0.gguf"
+  VISION_MMPROJ_URL: "https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
+  VISION_MMPROJ_NAME: "mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
+  # Test image used by MultimodalIntegrationTest is committed to the repo
+  # at src/test/resources/images/test-image.jpg (see the README in that
+  # directory for licensing). No download step is needed; CI just points
+  # mvn test at the committed path.
+  VISION_IMAGE_PATH: "src/test/resources/images/test-image.jpg"
 permissions:
   contents: read
 jobs:
@@ -307,7 +320,7 @@ jobs:
       - name: Run C++ unit tests
         run: ctest --test-dir build --output-on-failure
 
-  test-macos-arm64-metal-15:
+  build-macos-arm64-metal-15:
     name: Build and Test macOS 15 arm64 (Metal)
     needs: startgate
     runs-on: macos-15
@@ -332,34 +345,11 @@ jobs:
           .github/build.sh -DLLAMA_METAL_EMBED_LIBRARY=ON -DGGML_NATIVE=OFF -DBUILD_TESTING=ON
       - name: Run C++ unit tests
         run: ctest --test-dir build --output-on-failure
-      - name: Download text generation model
-        run: curl -L --fail ${MODEL_URL} --create-dirs -o models/${MODEL_NAME}
-      - name: Download reranking model
-        run: curl -L --fail ${RERANKING_MODEL_URL} --create-dirs -o models/${RERANKING_MODEL_NAME}
-      - name: Download draft model
-        run: curl -L --fail ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
-      - name: Download reasoning model
-        run: curl -L --fail ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
-      - name: List files in models directory
-        run: ls -l models/
-      - name: Validate model files
-        run: bash .github/validate-models.sh
-      - name: Enable core dumps
-        run: ulimit -c unlimited
-      - name: Run Java tests
-        run: mvn --no-transfer-progress test
-      - name: Memory after tests
-        if: always()
-        run: vm_stat && sysctl hw.memsize hw.physmem
-      - if: failure()
+      - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: error-log-macos-15-metal
-          path: |
-            ${{ github.workspace }}/hs_err_pid*.log
-            ${{ github.workspace }}/target/surefire-reports/*.dump
-            ${{ github.workspace }}/target/surefire-reports/*.dumpstream
-          if-no-files-found: warn
+          name: macos-15-metal-libraries
+          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
 
   # ---------------------------------------------------------------------------
   # Java test jobs — download release artifact, run mvn test
@@ -393,6 +383,10 @@ jobs:
         run: curl -L --fail ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
       - name: Download nomic embedding model (issue #98 regression)
         run: curl -L --fail ${NOMIC_EMBED_MODEL_URL} --create-dirs -o models/${NOMIC_EMBED_MODEL_NAME}
+      - name: Download vision model (issues #103 / #34)
+        run: curl -L --fail ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
+      - name: Download vision mmproj
+        run: curl -L --fail ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -408,7 +402,12 @@ jobs:
           ulimit -c unlimited
           echo "${{ github.workspace }}/core.%e.%p" | sudo tee /proc/sys/kernel/core_pattern
       - name: Run tests
-        run: mvn --no-transfer-progress test -Dnet.ladenthin.llama.nomic.path=models/${NOMIC_EMBED_MODEL_NAME}
+        run: |
+          mvn --no-transfer-progress test \
+            -Dnet.ladenthin.llama.nomic.path=models/${NOMIC_EMBED_MODEL_NAME} \
+            -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
+            -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
+            -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH}
       - uses: actions/upload-artifact@v7
         if: success()
         with:
@@ -425,8 +424,11 @@ jobs:
           path: |
             ${{ github.workspace }}/hs_err_pid*.log
             ${{ github.workspace }}/core.*
+            ${{ github.workspace }}/*.hprof
             ${{ github.workspace }}/target/surefire-reports/*.dump
             ${{ github.workspace }}/target/surefire-reports/*.dumpstream
+            ${{ github.workspace }}/target/surefire-reports/*.txt
+            ${{ github.workspace }}/target/surefire-reports/TEST-*.xml
           if-no-files-found: warn
 
   test-java-macos-arm64-metal:
@@ -455,6 +457,10 @@ jobs:
         run: curl -L --fail ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
       - name: Download reasoning model
         run: curl -L --fail ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
+      - name: Download vision model (issues #103 / #34)
+        run: curl -L --fail ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
+      - name: Download vision mmproj
+        run: curl -L --fail ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -468,7 +474,11 @@ jobs:
       - name: Enable core dumps
         run: ulimit -c unlimited
       - name: Run tests
-        run: mvn --no-transfer-progress -Dnet.ladenthin.llama.test.ngl=0 test
+        run: |
+          mvn --no-transfer-progress -Dnet.ladenthin.llama.test.ngl=0 test \
+            -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
+            -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
+            -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH}
       - name: Memory after tests
         if: always()
         run: vm_stat && sysctl hw.memsize hw.physmem
@@ -478,8 +488,11 @@ jobs:
           name: error-log-macos-14-metal
           path: |
             ${{ github.workspace }}/hs_err_pid*.log
+            ${{ github.workspace }}/*.hprof
             ${{ github.workspace }}/target/surefire-reports/*.dump
             ${{ github.workspace }}/target/surefire-reports/*.dumpstream
+            ${{ github.workspace }}/target/surefire-reports/*.txt
+            ${{ github.workspace }}/target/surefire-reports/TEST-*.xml
           if-no-files-found: warn
 
   test-java-macos-arm64-no-metal:
@@ -508,6 +521,10 @@ jobs:
         run: curl -L --fail ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
       - name: Download reasoning model
         run: curl -L --fail ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
+      - name: Download vision model (issues #103 / #34)
+        run: curl -L --fail ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
+      - name: Download vision mmproj
+        run: curl -L --fail ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -521,7 +538,11 @@ jobs:
       - name: Enable core dumps
         run: ulimit -c unlimited
       - name: Run tests
-        run: mvn --no-transfer-progress test
+        run: |
+          mvn --no-transfer-progress test \
+            -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
+            -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
+            -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH}
       - name: Memory after tests
         if: always()
         run: vm_stat && sysctl hw.memsize hw.physmem
@@ -531,8 +552,75 @@ jobs:
           name: error-log-macos-15-no-metal
           path: |
             ${{ github.workspace }}/hs_err_pid*.log
+            ${{ github.workspace }}/*.hprof
             ${{ github.workspace }}/target/surefire-reports/*.dump
             ${{ github.workspace }}/target/surefire-reports/*.dumpstream
+            ${{ github.workspace }}/target/surefire-reports/*.txt
+            ${{ github.workspace }}/target/surefire-reports/TEST-*.xml
+          if-no-files-found: warn
+
+  test-java-macos-arm64-metal-15:
+    name: Java Tests macOS 15 arm64 (Metal)
+    needs: build-macos-arm64-metal-15
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v6
+      - name: Display CPU Info
+        shell: bash
+        run: |
+          echo "=== CPU Information ==="
+          sysctl hw.model hw.cachelinesize hw.cpufrequency hw.cachesize hw.physicalcpu hw.logicalcpu hw.packages hw.memsize hw.ncpu 2>/dev/null || true
+          echo ""
+          echo "=== Processor Details ==="
+          system_profiler SPHardwareDataType
+      - uses: actions/download-artifact@v8
+        with:
+          name: macos-15-metal-libraries
+          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+      - name: Download text generation model
+        run: curl -L --fail ${MODEL_URL} --create-dirs -o models/${MODEL_NAME}
+      - name: Download reranking model
+        run: curl -L --fail ${RERANKING_MODEL_URL} --create-dirs -o models/${RERANKING_MODEL_NAME}
+      - name: Download draft model
+        run: curl -L --fail ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
+      - name: Download reasoning model
+        run: curl -L --fail ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
+      - name: Download vision model (issues #103 / #34)
+        run: curl -L --fail ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
+      - name: Download vision mmproj
+        run: curl -L --fail ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
+      - name: List files in models directory
+        run: ls -l models/
+      - name: Validate model files
+        run: bash .github/validate-models.sh
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Memory before tests
+        run: vm_stat && sysctl hw.memsize hw.physmem
+      - name: Enable core dumps
+        run: ulimit -c unlimited
+      - name: Run tests
+        run: |
+          mvn --no-transfer-progress test \
+            -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
+            -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
+            -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH}
+      - name: Memory after tests
+        if: always()
+        run: vm_stat && sysctl hw.memsize hw.physmem
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: error-log-macos-15-metal
+          path: |
+            ${{ github.workspace }}/hs_err_pid*.log
+            ${{ github.workspace }}/*.hprof
+            ${{ github.workspace }}/target/surefire-reports/*.dump
+            ${{ github.workspace }}/target/surefire-reports/*.dumpstream
+            ${{ github.workspace }}/target/surefire-reports/*.txt
+            ${{ github.workspace }}/target/surefire-reports/TEST-*.xml
           if-no-files-found: warn
 
   test-java-windows-x86_64:
@@ -564,6 +652,10 @@ jobs:
         run: curl -L --fail $env:DRAFT_MODEL_URL --create-dirs -o models/$env:DRAFT_MODEL_NAME
       - name: Download reasoning model
         run: curl -L --fail $env:REASONING_MODEL_URL --create-dirs -o models/$env:REASONING_MODEL_NAME
+      - name: Download vision model (issues #103 / #34)
+        run: curl -L --fail $env:VISION_MODEL_URL --create-dirs -o models/$env:VISION_MODEL_NAME
+      - name: Download vision mmproj
+        run: curl -L --fail $env:VISION_MMPROJ_URL --create-dirs -o models/$env:VISION_MMPROJ_NAME
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -575,8 +667,29 @@ jobs:
       - name: Memory before tests
         run: Get-CimInstance Win32_OperatingSystem | Select-Object FreePhysicalMemory,TotalVisibleMemorySize | Format-List
         shell: pwsh
+      - name: Enable WER LocalDumps for java.exe
+        # Windows Error Reporting writes minidumps when java.exe (or any other
+        # registered process) crashes via __fastfail / abort / unhandled SEH.
+        # We use it as the Windows analogue of Linux core dumps so that a JVM
+        # crash inside the JNI layer leaves us a real native callstack instead
+        # of just surefire's "VM terminated without saying goodbye" line.
+        # DumpType=2 == MiniDumpWithFullMemory; the workspace dumps/ folder is
+        # globbed by the failure-upload step below.
+        shell: pwsh
+        run: |
+          $key = 'HKLM:\SOFTWARE\Microsoft\Windows\Windows Error Reporting\LocalDumps\java.exe'
+          New-Item -Path $key -Force | Out-Null
+          New-Item -Path "${{ github.workspace }}\dumps" -ItemType Directory -Force | Out-Null
+          New-ItemProperty -Path $key -Name 'DumpFolder' -Value "${{ github.workspace }}\dumps" -PropertyType ExpandString -Force | Out-Null
+          New-ItemProperty -Path $key -Name 'DumpType'   -Value 2 -PropertyType DWord -Force | Out-Null
+          New-ItemProperty -Path $key -Name 'DumpCount'  -Value 5 -PropertyType DWord -Force | Out-Null
+          Get-ItemProperty -Path $key | Format-List
       - name: Run tests
-        run: mvn --no-transfer-progress test
+        run: |
+          mvn --no-transfer-progress test `
+            "-Dnet.ladenthin.llama.vision.model=models/$env:VISION_MODEL_NAME" `
+            "-Dnet.ladenthin.llama.vision.mmproj=models/$env:VISION_MMPROJ_NAME" `
+            "-Dnet.ladenthin.llama.vision.image=$env:VISION_IMAGE_PATH"
       - name: Memory after tests
         if: always()
         run: Get-CimInstance Win32_OperatingSystem | Select-Object FreePhysicalMemory,TotalVisibleMemorySize | Format-List
@@ -587,8 +700,12 @@ jobs:
           name: windows-output
           path: |
             ${{ github.workspace }}\hs_err_pid*.log
+            ${{ github.workspace }}\*.hprof
+            ${{ github.workspace }}\dumps\*.dmp
             ${{ github.workspace }}\target\surefire-reports\*.dump
             ${{ github.workspace }}\target\surefire-reports\*.dumpstream
+            ${{ github.workspace }}\target\surefire-reports\*.txt
+            ${{ github.workspace }}\target\surefire-reports\TEST-*.xml
             ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/**/*
           if-no-files-found: warn
 
@@ -605,10 +722,11 @@ jobs:
       - crosscompile-android-aarch64-opencl
       - build-windows-x86
       - test-cpp-linux-x86_64
-      - test-macos-arm64-metal-15
+      - build-macos-arm64-metal-15
       - test-java-linux-x86_64
       - test-java-macos-arm64-metal
       - test-java-macos-arm64-no-metal
+      - test-java-macos-arm64-metal-15
       - test-java-windows-x86_64
     runs-on: ubuntu-latest
     steps:

@@ -16,6 +16,18 @@ package net.ladenthin.llama;
  * another thread is blocked inside it.
  * </p>
  * <p>
+ * <b>Implementation note on sub-token cancel.</b> An earlier follow-up tried to make
+ * {@link #cancel()} post a {@code SERVER_TASK_TYPE_CANCEL} message to the upstream
+ * server queue from the cancelling thread (the "queueCancel" path). That approach
+ * was reverted because the upstream {@code server_slot::release()} called when the
+ * worker processes a CANCEL does <em>not</em> emit a stop result on
+ * {@code queue_results}, so the inference thread blocked inside
+ * {@code server_response_reader::next()} would poll forever and the JVM would hang
+ * (observed as a Linux CI lockup in {@code LlamaModelTest}). The cooperative path
+ * shipped here already achieves one-token-interval latency, which matches the
+ * sub-token goal in practice, so no further sub-token machinery is wired.
+ * </p>
+ * <p>
  * A token may be reused across calls. {@link #cancel()} and {@link #isCancelled()} are
  * safe to invoke concurrently with the inference loop.
  * </p>

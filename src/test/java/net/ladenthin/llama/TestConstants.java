@@ -33,4 +33,32 @@ class TestConstants {
 	/** Expected embedding dimension of nomic-embed-text-v1.5 (hidden size = 768). */
 	static final int NOMIC_EMBED_DIM = 768;
 
+	/**
+	 * System property holding a path to a vision-capable model GGUF. Consumed by
+	 * {@code MultimodalIntegrationTest} (closes #103 / #34). The CI default is the
+	 * SmolVLM-500M Q8_0 GGUF; the test self-skips when the property is unset or
+	 * the file is missing.
+	 */
+	static final String PROP_VISION_MODEL_PATH = LlamaSystemProperties.PREFIX + ".vision.model";
+
+	/** System property holding a path to the matching mmproj GGUF for the vision model. */
+	static final String PROP_VISION_MMPROJ_PATH = LlamaSystemProperties.PREFIX + ".vision.mmproj";
+
+	/**
+	 * System property holding a path to an image used as the visual prompt in
+	 * {@code MultimodalIntegrationTest}. When unset the test falls back to
+	 * {@link #DEFAULT_VISION_IMAGE_PATH}, which points at a small image
+	 * committed under {@code src/test/resources/images/}. Any png/jpeg/webp/gif
+	 * works; the matching extension drives MIME detection in
+	 * {@code ContentPart.imageFile(Path)}.
+	 */
+	static final String PROP_VISION_IMAGE_PATH = LlamaSystemProperties.PREFIX + ".vision.image";
+
+	/**
+	 * Path used by {@code MultimodalIntegrationTest} when
+	 * {@link #PROP_VISION_IMAGE_PATH} is unset. Points at the committed test
+	 * resource so the test needs no network access for the visual prompt.
+	 */
+	static final String DEFAULT_VISION_IMAGE_PATH = "src/test/resources/images/test-image.jpg";
+
 }

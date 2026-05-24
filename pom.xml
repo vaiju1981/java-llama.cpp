@@ -269,6 +269,35 @@ SPDX-License-Identifier: MIT
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+				<!--
+				  Surefire is configured here only to control native-crash diagnostics:
+				  - argLine inherits jacoco's @{argLine} (so the jacoco runtime agent stays
+				    attached) and appends -XX:ErrorFile so the JVM crash log (hs_err_pid<pid>.log)
+				    always lands in the project basedir, which is the same directory the CI
+				    upload-artifact globs (${{ github.workspace }}/hs_err_pid*.log).
+				  - HeapDumpOnOutOfMemoryError + HeapDumpPath catch OOMs that would otherwise
+				    just print a stack and exit.
+				  - The version is pinned to the same release Maven would otherwise auto-select
+				    (visible in CI error logs as 3.5.4), so we don't drift independently of
+				    Maven's plugin-defaults bump.
+				-->
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>3.5.4</version>
+				<configuration>
+					<argLine>@{argLine} -XX:ErrorFile=hs_err_pid%p.log -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=.</argLine>
+					<!--
+					  Capture each test class's stdout/stderr into
+					  target/surefire-reports/<class>-output.txt. When a native crash
+					  takes down the forked JVM, this file is the ONLY record of
+					  which @Test method was last running (without it the surefire
+					  *.txt summary just says "VM terminated", which we already saw
+					  in CI without telling us which test was on fire).
+					-->
+					<redirectTestOutputToFile>true</redirectTestOutputToFile>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 

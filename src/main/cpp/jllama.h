@@ -72,6 +72,13 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_loadModel(JNIEnv *, j
 
 /*
  * Class:     net_ladenthin_llama_LlamaModel
+ * Method:    loadModelWithProgress
+ * Signature: ([Ljava/lang/String;Lnet/ladenthin/llama/LoadProgressCallback;)V
+ */
+JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_loadModelWithProgress(JNIEnv *, jobject, jobjectArray, jobject);
+
+/*
+ * Class:     net_ladenthin_llama_LlamaModel
  * Method:    delete
  * Signature: ()V
  */

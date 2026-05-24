@@ -555,6 +555,28 @@ public final class InferenceParameters extends JsonParameters {
     }
 
     /**
+     * Multimodal-capable variant. Accepts {@link ChatMessage} objects so messages
+     * with non-null {@link ChatMessage#getParts()} are serialized as OAI array-form
+     * {@code content} (text + image_url parts). Plain text messages emit the legacy
+     * string-form {@code content}, so this overload is also a drop-in replacement
+     * for the {@code List&lt;Pair&gt;} variant when callers prefer the typed
+     * {@link ChatMessage} surface.
+     * <p>
+     * Image parts require the model to have a multimodal projector loaded via
+     * {@link ModelParameters#setMmproj(String)}. The upstream OAI chat parser
+     * routes {@code image_url} blocks through the compiled-in {@code mtmd}
+     * pipeline; no additional JNI configuration is needed on the Java side.
+     * </p>
+     *
+     * @param messages ordered messages, including any {@code "system"} prelude
+     * @return this builder
+     */
+    public InferenceParameters setMessages(List<ChatMessage> messages) {
+        parameters.put(PARAM_MESSAGES, serializer.buildMessages(messages).toString());
+        return this;
+    }
+
+    /**
      * Set the {@code messages} array directly from a pre-built JSON string. Use this
      * for the typed chat API (see {@link ChatRequest#buildMessagesJson()}) when the
      * conversation includes tool-call / tool-result turns that {@link #setMessages}

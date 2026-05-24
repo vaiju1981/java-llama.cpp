@@ -17,8 +17,14 @@ import java.util.function.Consumer;
  * {@link #restore(String)}, which delegate to {@link LlamaModel#saveSlot(int, String)}
  * and {@link LlamaModel#restoreSlot(int, String)}.
  * <p>
- * This wrapper is intentionally not thread-safe; callers must serialize access to a
- * single {@code Session} instance. Concurrency support is a follow-up (M-effort) item.
+ * Thread-safety: all public methods are serialized on a private intrinsic lock, so
+ * concurrent {@link #send(String)} calls from multiple threads produce a well-formed
+ * transcript with strict user/assistant alternation. {@link #stream(String)} sets a
+ * "streaming in progress" flag and returns the iterator without holding the lock;
+ * while that flag is set, {@link #send(String)}, a second {@link #stream(String)},
+ * {@link #save(String)}, and {@link #restore(String)} fail-fast with
+ * {@link IllegalStateException} until the caller invokes
+ * {@link #commitStreamedReply(String)}.
  * </p>
  */
 public final class Session implements AutoCloseable {
@@ -28,6 +34,8 @@ public final class Session implements AutoCloseable {
     private final String systemMessage;
     private final List<Pair<String, String>> turns = new ArrayList<Pair<String, String>>();
     private final Consumer<InferenceParameters> paramsCustomizer;
+    private final Object lock = new Object();
+    private boolean streamingActive;
 
     /**
      * Create a session bound to a specific slot id, with an optional system prompt
@@ -65,11 +73,22 @@ public final class Session implements AutoCloseable {
      * @return the assistant's reply text
      */
     public String send(String userMessage) {
-        turns.add(new Pair<String, String>("user", userMessage));
-        InferenceParameters params = buildParams();
-        String reply = model.chatCompleteText(params);
-        turns.add(new Pair<String, String>("assistant", reply));
-        return reply;
+        synchronized (lock) {
+            if (streamingActive) {
+                throw new IllegalStateException(
+                        "stream in progress; call commitStreamedReply(...) before send(...)");
+            }
+            turns.add(new Pair<String, String>("user", userMessage));
+            InferenceParameters params = buildParams();
+            try {
+                String reply = model.chatCompleteText(params);
+                turns.add(new Pair<String, String>("assistant", reply));
+                return reply;
+            } catch (RuntimeException e) {
+                turns.remove(turns.size() - 1);
+                throw e;
+            }
+        }
     }
 
     /**
@@ -82,8 +101,21 @@ public final class Session implements AutoCloseable {
      * @return a {@link LlamaIterable} that yields assistant reply chunks
      */
     public LlamaIterable stream(String userMessage) {
-        turns.add(new Pair<String, String>("user", userMessage));
-        return model.generateChat(buildParams());
+        synchronized (lock) {
+            if (streamingActive) {
+                throw new IllegalStateException(
+                        "stream in progress; call commitStreamedReply(...) before stream(...)");
+            }
+            turns.add(new Pair<String, String>("user", userMessage));
+            try {
+                LlamaIterable iterable = model.generateChat(buildParams());
+                streamingActive = true;
+                return iterable;
+            } catch (RuntimeException e) {
+                turns.remove(turns.size() - 1);
+                throw e;
+            }
+        }
     }
 
     /**
@@ -93,7 +125,14 @@ public final class Session implements AutoCloseable {
      * @param assistantText the assistant text accumulated from a prior {@link #stream(String)} call
      */
     public void commitStreamedReply(String assistantText) {
-        turns.add(new Pair<String, String>("assistant", assistantText));
+        synchronized (lock) {
+            if (!streamingActive) {
+                throw new IllegalStateException(
+                        "no stream in progress; call stream(...) first");
+            }
+            turns.add(new Pair<String, String>("assistant", assistantText));
+            streamingActive = false;
+        }
     }
 
     /**
@@ -103,7 +142,13 @@ public final class Session implements AutoCloseable {
      * @return the JSON response from the native save action
      */
     public String save(String filepath) {
-        return model.saveSlot(slotId, filepath);
+        synchronized (lock) {
+            if (streamingActive) {
+                throw new IllegalStateException(
+                        "stream in progress; call commitStreamedReply(...) before save(...)");
+            }
+            return model.saveSlot(slotId, filepath);
+        }
     }
 
     /**
@@ -113,7 +158,13 @@ public final class Session implements AutoCloseable {
      * @return the JSON response from the native restore action
      */
     public String restore(String filepath) {
-        return model.restoreSlot(slotId, filepath);
+        synchronized (lock) {
+            if (streamingActive) {
+                throw new IllegalStateException(
+                        "stream in progress; call commitStreamedReply(...) before restore(...)");
+            }
+            return model.restoreSlot(slotId, filepath);
+        }
     }
 
     /**
@@ -121,20 +172,24 @@ public final class Session implements AutoCloseable {
      * @return the accumulated transcript so far, in order, including the system message if any
      */
     public List<ChatMessage> getMessages() {
-        List<ChatMessage> out = new ArrayList<ChatMessage>(turns.size() + 1);
-        if (systemMessage != null && !systemMessage.isEmpty()) {
-            out.add(new ChatMessage("system", systemMessage));
+        synchronized (lock) {
+            List<ChatMessage> out = new ArrayList<ChatMessage>(turns.size() + 1);
+            if (systemMessage != null && !systemMessage.isEmpty()) {
+                out.add(new ChatMessage("system", systemMessage));
+            }
+            for (Pair<String, String> p : turns) {
+                out.add(new ChatMessage(p.getKey(), p.getValue()));
+            }
+            return Collections.unmodifiableList(out);
         }
-        for (Pair<String, String> p : turns) {
-            out.add(new ChatMessage(p.getKey(), p.getValue()));
-        }
-        return Collections.unmodifiableList(out);
     }
 
     /** Erase the bound slot's KV cache. Does not modify the in-memory transcript. */
     @Override
     public void close() {
-        model.eraseSlot(slotId);
+        synchronized (lock) {
+            model.eraseSlot(slotId);
+        }
     }
 
     private InferenceParameters buildParams() {
