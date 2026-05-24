@@ -492,12 +492,25 @@ property so CI can skip them cleanly when the GGUF is not downloaded:
 | Property | Default test that uses it | Model |
 |----------|---------------------------|-------|
 | `net.ladenthin.llama.nomic.path` | `LlamaEmbeddingsTest#testNomicEmbedLoads` | `nomic-embed-text-v1.5.f16.gguf` (issue #98 regression) |
+| `net.ladenthin.llama.vision.model` | `MultimodalIntegrationTest` (closes #103 / #34) | `SmolVLM-500M-Instruct-Q8_0.gguf` (any vision-capable GGUF works) |
+| `net.ladenthin.llama.vision.mmproj` | `MultimodalIntegrationTest` | matching mmproj for the vision model, e.g. `mmproj-SmolVLM-500M-Instruct-Q8_0.gguf` |
+| `net.ladenthin.llama.vision.image` | `MultimodalIntegrationTest` | committed default `src/test/resources/images/test-image.jpg`; override to any png/jpeg/webp/gif on disk |
 
 Run those tests by setting the property:
 ```bash
 mvn test -Dtest=LlamaEmbeddingsTest#testNomicEmbedLoads \
          -Dnet.ladenthin.llama.nomic.path=models/nomic-embed-text-v1.5.f16.gguf
+mvn test -Dtest=MultimodalIntegrationTest \
+         -Dnet.ladenthin.llama.vision.model=models/SmolVLM-500M-Instruct-Q8_0.gguf \
+         -Dnet.ladenthin.llama.vision.mmproj=models/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf
+# The vision.image property defaults to src/test/resources/images/test-image.jpg
+# (a CC-BY-4.0 / MIT-granted photo of flowers and bees by the project author);
+# override only if you want to test a different image.
 ```
+
+`MultimodalIntegrationTest` self-skips when any of the three vision properties
+points at a missing path, so a partial setup (just the vision model + the
+committed image, no mmproj) lets the test class load without erroring.
 
 **Restricted-network environments.** Some hosts (e.g. ephemeral remote
 execution sandboxes) block outbound traffic to `huggingface.co`. In that
