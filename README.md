@@ -518,3 +518,4 @@ The system's updated C++ runtime will be used instead, resolving the crash.
 
 - [LLaMAndroid](https://github.com/Rattlyy/LLaMAndroid/tree/main/app) — Android app demonstrating usage of llama.cpp bindings.
 - [llama-stack-client-kotlin](https://github.com/ogx-ai/llama-stack-client-kotlin) — Kotlin client for the Llama Stack API.
+- [llama.cpp-android-tutorial](https://github.com/JackZeng0208/llama.cpp-android-tutorial) — Step-by-step tutorial for running llama.cpp on Android.
