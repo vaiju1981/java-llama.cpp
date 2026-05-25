@@ -104,13 +104,17 @@ endif()
 set(GGML_FMA     ON  CACHE BOOL "" FORCE)
 set(GGML_F16C    ON  CACHE BOOL "" FORCE)
 set(GGML_AVX512  OFF CACHE BOOL "" FORCE)
-set(LLAMA_BUILD_WEBUI OFF CACHE BOOL "" FORCE)
+# b9305 removed the top-level LLAMA_BUILD_WEBUI -> LLAMA_BUILD_UI shim; set the
+# new name directly. (The old name no longer forwards at top level; the shim
+# survives in tools/ui/CMakeLists.txt but that subdir is not configured in
+# FetchContent mode, so the old setting would be inert anyway.)
+set(LLAMA_BUILD_UI OFF CACHE BOOL "" FORCE)
 # b9284 flipped LLAMA_BUILD_APP default to ON; we don't build the unified binary
 set(LLAMA_BUILD_APP OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
 	llama.cpp
 	GIT_REPOSITORY https://github.com/ggerganov/llama.cpp.git
-	GIT_TAG        b9297
+	GIT_TAG        b9305
 )
 FetchContent_MakeAvailable(llama.cpp)
 
