@@ -12,16 +12,17 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.AfterClass;
-import org.junit.Assume;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Timeout;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Per-Session thread-safety follow-up to PR #188 (§2.6 of the
@@ -50,10 +51,9 @@ public class SessionConcurrencyTest {
     private static final int N_PREDICT = 2;
     private static LlamaModel model;
 
-    @BeforeClass
+    @BeforeAll
     public static void setup() {
-        Assume.assumeTrue("Model file not found, skipping SessionConcurrencyTest",
-                new File(TestConstants.MODEL_PATH).exists());
+        Assumptions.assumeTrue(new File(TestConstants.MODEL_PATH).exists(), "Model file not found, skipping SessionConcurrencyTest");
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
         model = new LlamaModel(
                 new ModelParameters()
@@ -64,7 +64,7 @@ public class SessionConcurrencyTest {
         );
     }
 
-    @AfterClass
+    @AfterAll
     public static void tearDown() {
         if (model != null) {
             model.close();
@@ -86,7 +86,8 @@ public class SessionConcurrencyTest {
     // callsPerThread or threads up only if the bug it is guarding regresses;
     // do not push it past what the slowest CI runner can finish in <half the
     // @Test budget.
-    @Test(timeout = 300_000)
+    @Timeout(value = 300_000, unit = TimeUnit.MILLISECONDS)
+    @Test
     public void testConcurrentSendProducesAlternatingTranscript() throws Exception {
         final int threads = 2;
         final int callsPerThread = 2;
@@ -116,8 +117,7 @@ public class SessionConcurrencyTest {
             }
 
             start.countDown();
-            assertTrue("threads did not finish within timeout",
-                    done.await(270, TimeUnit.SECONDS));
+            assertTrue(done.await(270, TimeUnit.SECONDS), "threads did not finish within timeout");
             pool.shutdown();
 
             if (failure.get() != null) {
@@ -125,12 +125,10 @@ public class SessionConcurrencyTest {
             }
 
             List<ChatMessage> messages = session.getMessages();
-            assertEquals("transcript must contain 2 entries per send()",
-                    2 * threads * callsPerThread, messages.size());
+            assertEquals(2 * threads * callsPerThread, messages.size(), "transcript must contain 2 entries per send()");
             for (int i = 0; i < messages.size(); i++) {
                 String expectedRole = (i % 2 == 0) ? "user" : "assistant";
-                assertEquals("role mismatch at index " + i,
-                        expectedRole, messages.get(i).getRole());
+                assertEquals(expectedRole, messages.get(i).getRole(), "role mismatch at index " + i);
             }
         }
     }
@@ -142,7 +140,8 @@ public class SessionConcurrencyTest {
      * {@link Session#commitStreamedReply(String)} clears the guard and the next
      * {@link Session#send(String)} succeeds.
      */
-    @Test(timeout = 120_000)
+    @Timeout(value = 120_000, unit = TimeUnit.MILLISECONDS)
+    @Test
     public void testStreamGuardBlocksOtherOperationsUntilCommit() throws Exception {
         try (Session session = new Session(model, 1, null,
                 p -> p.setNPredict(N_PREDICT).setTemperature(0.0f))) {
@@ -175,8 +174,7 @@ public class SessionConcurrencyTest {
                     // ok
                 }
 
-                assertEquals("transcript must not be mutated by failed calls",
-                        before, session.getMessages().size());
+                assertEquals(before, session.getMessages().size(), "transcript must not be mutated by failed calls");
 
                 StringBuilder reply = new StringBuilder();
                 for (LlamaOutput out : stream) {
@@ -185,8 +183,7 @@ public class SessionConcurrencyTest {
                 session.commitStreamedReply(reply.toString());
 
                 List<ChatMessage> messages = session.getMessages();
-                assertEquals("last message must be the committed assistant reply",
-                        "assistant", messages.get(messages.size() - 1).getRole());
+                assertEquals("assistant", messages.get(messages.size() - 1).getRole(), "last message must be the committed assistant reply");
                 assertEquals(reply.toString(),
                         messages.get(messages.size() - 1).getContent());
 
@@ -200,7 +197,8 @@ public class SessionConcurrencyTest {
      * Calling {@link Session#commitStreamedReply(String)} without a preceding
      * {@link Session#stream(String)} must throw and must not mutate the transcript.
      */
-    @Test(timeout = 30_000)
+    @Timeout(value = 30_000, unit = TimeUnit.MILLISECONDS)
+    @Test
     public void testCommitStreamedReplyWithoutStreamThrows() {
         try (Session session = new Session(model, 2, null)) {
             int before = session.getMessages().size();
@@ -219,7 +217,8 @@ public class SessionConcurrencyTest {
      * Guards against the synchronization wrapper accidentally double-appending or
      * dropping turns.
      */
-    @Test(timeout = 60_000)
+    @Timeout(value = 60_000, unit = TimeUnit.MILLISECONDS)
+    @Test
     public void testSequentialSendsAlternateRoles() {
         try (Session session = new Session(model, 3, null,
                 p -> p.setNPredict(N_PREDICT).setTemperature(0.0f))) {

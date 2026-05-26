@@ -5,10 +5,10 @@
 package net.ladenthin.llama;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ClaudeGenerated(
         purpose = "Verify ServerMetrics typed getters map all fields emitted by server_task_result_metrics::to_json, "

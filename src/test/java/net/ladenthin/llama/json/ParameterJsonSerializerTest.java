@@ -10,7 +10,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.ladenthin.llama.Pair;
 import net.ladenthin.llama.args.Sampler;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -18,7 +18,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for {@link ParameterJsonSerializer}.
@@ -115,10 +115,10 @@ public class ParameterJsonSerializerTest {
         assertEquals("line1\nline2\t\"quoted\"", arr.get(0).path("content").asText());
     }
 
-    @Test(expected = IllegalArgumentException.class)
+    @Test
     public void testBuildMessages_invalidRole_throws() {
         List<Pair<String, String>> msgs = Collections.singletonList(new Pair<>("system", "oops"));
-        serializer.buildMessages(null, msgs);
+        assertThrows(IllegalArgumentException.class, () -> serializer.buildMessages(null, msgs));
     }
 
     @Test
@@ -311,7 +311,7 @@ public class ParameterJsonSerializerTest {
     public void testBuildRawValueObject_numberValue() {
         Map<String, String> map = Collections.singletonMap("temperature", "0.7");
         ObjectNode node = serializer.buildRawValueObject(map);
-        assertEquals(0.7, node.path("temperature").asDouble(), 0.001);
+        assertEquals(node.path("temperature").asDouble(), 0.001, 0.7);
     }
 
     @Test

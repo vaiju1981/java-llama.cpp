@@ -9,11 +9,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.ladenthin.llama.LlamaOutput;
 import net.ladenthin.llama.StopReason;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.Map;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for {@link CompletionResponseParser}.
@@ -204,7 +204,7 @@ public class CompletionResponseParserTest {
         JsonNode node = MAPPER.readTree(json);
         Map<String, Float> probs = parser.parseProbabilities(node);
         assertEquals(1, probs.size());
-        assertTrue("only outer token 'A' should be present", probs.containsKey("A"));
-        assertFalse("inner top_probs token 'B' must not appear", probs.containsKey("B"));
+        assertTrue(probs.containsKey("A"), "only outer token 'A' should be present");
+        assertFalse(probs.containsKey("B"), "inner top_probs token 'B' must not appear");
     }
 }

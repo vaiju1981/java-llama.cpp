@@ -10,9 +10,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import static org.junit.Assert.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 @ClaudeGenerated(
         purpose = "Verify that LlamaOutput correctly stores text, the probability map, stop flag, " +
@@ -127,7 +127,7 @@ public class LlamaOutputTest {
 	public void testProbabilitiesAbsentWhenNoProbsKey() {
 		String json = "{\"content\":\"hi\",\"stop\":true,\"stop_type\":\"eos\"}";
 		LlamaOutput output = parser.parse(json);
-		assertTrue("No completion_probabilities key → empty map", output.probabilities.isEmpty());
+		assertTrue(output.probabilities.isEmpty(), "No completion_probabilities key → empty map");
 	}
 
 	@Test
