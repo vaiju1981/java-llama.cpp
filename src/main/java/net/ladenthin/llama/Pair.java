@@ -19,6 +19,8 @@ public class Pair<K, V> {
 	private final V value;
 
 	/**
+	 * Creates a new immutable pair of the given key and value.
+	 *
 	 * @param key   the key
 	 * @param value the value
 	 */
@@ -28,6 +30,8 @@ public class Pair<K, V> {
 	}
 
 	/**
+	 * Returns the key of this pair.
+	 *
 	 * @return the key
 	 */
 	public K getKey() {
@@ -35,6 +39,8 @@ public class Pair<K, V> {
 	}
 
 	/**
+	 * Returns the value of this pair.
+	 *
 	 * @return the value
 	 */
 	public V getValue() {

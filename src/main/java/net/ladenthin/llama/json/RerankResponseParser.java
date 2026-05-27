@@ -31,6 +31,10 @@ import java.util.List;
  */
 public class RerankResponseParser {
 
+    /** Creates a new {@link RerankResponseParser}. */
+    public RerankResponseParser() {
+    }
+
     /** Shared Jackson mapper; thread-safe and reused across all instances. */
     public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 

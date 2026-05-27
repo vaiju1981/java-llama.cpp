@@ -10,9 +10,13 @@ package net.ladenthin.llama;
  */
 public enum LogLevel {
 
+    /** Verbose debug output. */
     DEBUG,
+    /** Informational messages. */
     INFO,
+    /** Recoverable problems. */
     WARN,
+    /** Errors that prevent normal operation. */
     ERROR
 
 }

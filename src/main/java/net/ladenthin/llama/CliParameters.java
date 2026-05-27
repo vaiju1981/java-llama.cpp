@@ -63,6 +63,14 @@ abstract class CliParameters {
         return builder.toString();
     }
 
+    /**
+     * Returns the accumulated parameters as a C-style {@code argv} array.
+     *
+     * <p>The first element is a placeholder for the program name, followed by alternating
+     * argument keys and values (values are omitted for flag-style arguments).
+     *
+     * @return a fresh argv array suitable for passing to a native CLI parser
+     */
     public String[] toArray() {
         List<String> result = new ArrayList<>();
         result.add(""); // c args contain the program name as the first argument, so we add an empty entry

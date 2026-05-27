@@ -44,6 +44,10 @@ import java.util.List;
  */
 public class ChatResponseParser {
 
+    /** Creates a new {@link ChatResponseParser}. */
+    public ChatResponseParser() {
+    }
+
     /** Shared Jackson mapper; thread-safe and reused across all instances. */
     public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 

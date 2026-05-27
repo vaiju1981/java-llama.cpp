@@ -18,11 +18,14 @@ public final class ModelParameters extends CliParameters {
 
     private static final String ARG_FIT = "--fit";
     static final String ARG_POOLING = "--pooling";
+    /** CLI value enabling {@code --fit} (automatic device-memory fitting). */
     public static final String FIT_ON = "on";
+    /** CLI value disabling {@code --fit}. */
     public static final String FIT_OFF = "off";
     /** Mirrors the llama.cpp default: {@code fit_params = true}. */
     public static final String DEFAULT_FIT_VALUE = FIT_ON;
 
+    /** Creates a new {@link ModelParameters} with {@code --fit=on} preset. */
     public ModelParameters() {
         parameters.put(ARG_FIT, DEFAULT_FIT_VALUE);
     }

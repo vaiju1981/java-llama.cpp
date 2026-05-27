@@ -91,15 +91,28 @@ import org.slf4j.LoggerFactory;
  * @author leo
  */
 public class OSInfo {
+
+    /** Creates a new {@link OSInfo}. */
+    public OSInfo() {
+    }
+
+    /** Process runner used by {@link #getHardwareName()} and related probes. */
     protected static ProcessRunner processRunner = new ProcessRunner();
     private static final HashMap<String, String> archMapping = new HashMap<>();
 
+    /** Folder name for 32-bit x86. */
     public static final String X86 = "x86";
+    /** Folder name for 64-bit x86 (a.k.a. AMD64). */
     public static final String X86_64 = "x86_64";
+    /** Folder name for 32-bit Itanium. */
     public static final String IA64_32 = "ia64_32";
+    /** Folder name for 64-bit Itanium. */
     public static final String IA64 = "ia64";
+    /** Folder name for 32-bit PowerPC. */
     public static final String PPC = "ppc";
+    /** Folder name for 64-bit PowerPC. */
     public static final String PPC64 = "ppc64";
+    /** Folder name for 64-bit RISC-V. */
     public static final String RISCV64 = "riscv64";
 
     static {
@@ -144,6 +157,15 @@ public class OSInfo {
         archMapping.put(RISCV64, RISCV64);
     }
 
+    /**
+     * Command-line entry point that prints the detected OS/architecture info.
+     *
+     * <p>Supports {@code --os} to print the OS folder name, {@code --arch} to print the
+     * architecture folder name; with no arguments it prints the combined native-library
+     * folder path.
+     *
+     * @param args command-line arguments
+     */
     public static void main(String[] args) {
         if (args.length >= 1) {
             if ("--os".equals(args[0])) {
@@ -158,14 +180,30 @@ public class OSInfo {
         System.out.print(getNativeLibFolderPathForCurrentOS());
     }
 
+    /**
+     * Returns the relative folder path used to locate the native library for the current OS.
+     *
+     * @return a path of the form {@code "<os>/<arch>"}
+     */
     public static String getNativeLibFolderPathForCurrentOS() {
         return getOSName() + "/" + getArchName();
     }
 
+    /**
+     * Returns the canonical OS folder name for the running JVM (e.g. {@code "Linux"},
+     * {@code "Mac"}, {@code "Windows"}).
+     *
+     * @return the canonical OS folder name
+     */
     public static String getOSName() {
         return translateOSNameToFolderName(System.getProperty("os.name"));
     }
 
+    /**
+     * Returns {@code true} if the current runtime is Android (including Termux).
+     *
+     * @return {@code true} when running on an Android-based system
+     */
     public static boolean isAndroid() {
         return isAndroidRuntime() || isAndroidTermux() || isRunningAndroid();
     }
@@ -184,10 +222,20 @@ public class OSInfo {
         return android64GLES.exists() || androidGLES.exists();
     }
 
+    /**
+     * Returns {@code true} when {@code java.runtime.name} indicates an Android runtime.
+     *
+     * @return {@code true} if the JVM identifies itself as Android
+     */
     public static boolean isAndroidRuntime() {
         return System.getProperty("java.runtime.name", "").toLowerCase().contains("android");
     }
 
+    /**
+     * Returns {@code true} when running under Termux on Android (detected via {@code uname -o}).
+     *
+     * @return {@code true} if running on Termux/Android
+     */
     public static boolean isAndroidTermux() {
         try {
             return processRunner.runAndWaitFor("uname -o").toLowerCase().contains("android");
@@ -199,6 +247,12 @@ public class OSInfo {
         }
     }
 
+    /**
+     * Returns {@code true} when the current system is using the musl C library
+     * (e.g. Alpine Linux). Should not reach this code path on Android.
+     *
+     * @return {@code true} if musl is detected on the system
+     */
     // Should not reach this code path on Android.
     @IgnoreJRERequirement
     public static boolean isMusl() {
@@ -322,6 +376,15 @@ public class OSInfo {
         return "arm";
     }
 
+    /**
+     * Returns the canonical architecture folder name for the running JVM
+     * (e.g. {@code "x86_64"}, {@code "aarch64"}, {@code "armv7"}).
+     *
+     * <p>The {@code net.ladenthin.llama.osinfo.architecture} system property overrides
+     * autodetection when set.
+     *
+     * @return the canonical architecture folder name
+     */
     public static String getArchName() {
         String override = System.getProperty("net.ladenthin.llama.osinfo.architecture");
         if (override != null) {

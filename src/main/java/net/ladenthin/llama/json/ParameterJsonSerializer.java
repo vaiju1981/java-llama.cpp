@@ -36,6 +36,10 @@ import java.util.Map;
  */
 public class ParameterJsonSerializer {
 
+    /** Creates a new {@link ParameterJsonSerializer}. */
+    public ParameterJsonSerializer() {
+    }
+
     /** Shared Jackson mapper; thread-safe and reused across all instances. */
     public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 

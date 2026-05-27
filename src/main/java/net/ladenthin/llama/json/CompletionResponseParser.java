@@ -56,6 +56,10 @@ import java.util.Map;
  */
 public class CompletionResponseParser {
 
+    /** Creates a new {@link CompletionResponseParser}. */
+    public CompletionResponseParser() {
+    }
+
     /** Shared Jackson mapper; thread-safe and reused across all instances. */
     public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 

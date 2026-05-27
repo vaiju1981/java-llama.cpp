@@ -442,6 +442,8 @@ public class LlamaModel implements AutoCloseable {
 		return applyTemplate(parameters.toString());
 	}
 	/**
+	 * Native bridge that applies the chat template to a JSON-serialized parameter blob.
+	 *
 	 * @param parametersJson JSON-serialized inference parameters
 	 * @return the formatted chat template string
 	 */
