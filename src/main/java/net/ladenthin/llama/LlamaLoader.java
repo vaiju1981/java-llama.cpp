@@ -48,7 +48,7 @@ class LlamaLoader {
             String nativeDirName = getNativeResourcePath();
             String tempFolder = getTempDir().getAbsolutePath();
             System.out.println(nativeDirName);
-            Path metalFilePath = extractFile(nativeDirName, "ggml-metal.metal", tempFolder, false);
+            Path metalFilePath = extractFile(nativeDirName, "ggml-metal.metal", tempFolder);
             if (metalFilePath == null) {
                 System.err.println("'ggml-metal.metal' not found");
             }
@@ -161,7 +161,7 @@ class LlamaLoader {
     }
 
     @Nullable
-    private static Path extractFile(String sourceDirectory, String fileName, String targetDirectory, boolean addUuid) {
+    private static Path extractFile(String sourceDirectory, String fileName, String targetDirectory) {
         String nativeLibraryFilePath = sourceDirectory + "/" + fileName;
 
         Path extractedFilePath = Paths.get(targetDirectory, fileName);
@@ -208,7 +208,7 @@ class LlamaLoader {
      */
     private static boolean extractAndLoadLibraryFile(
             String libFolderForCurrentOS, String libraryFileName, String targetFolder) {
-        Path path = extractFile(libFolderForCurrentOS, libraryFileName, targetFolder, true);
+        Path path = extractFile(libFolderForCurrentOS, libraryFileName, targetFolder);
         if (path == null) {
             return false;
         }

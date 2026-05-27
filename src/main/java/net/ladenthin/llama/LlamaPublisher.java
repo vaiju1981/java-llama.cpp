@@ -65,7 +65,6 @@ public final class LlamaPublisher implements Publisher<LlamaOutput> {
         private final AtomicBoolean cancelled = new AtomicBoolean(false);
         private final AtomicBoolean started = new AtomicBoolean(false);
         private final Object monitor = new Object();
-        private Thread worker;
 
         LlamaSubscription(LlamaIterable iterable, Subscriber<? super LlamaOutput> subscriber) {
             this.iterable = iterable;
@@ -74,7 +73,7 @@ public final class LlamaPublisher implements Publisher<LlamaOutput> {
 
         void start() {
             if (!started.compareAndSet(false, true)) return;
-            worker = new Thread(this::pump, "LlamaPublisher-emitter");
+            Thread worker = new Thread(this::pump, "LlamaPublisher-emitter");
             worker.setDaemon(true);
             worker.start();
         }
