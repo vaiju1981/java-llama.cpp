@@ -158,11 +158,79 @@ SPDX-License-Identifier: MIT
 	</dependencies>
 
 	<build>
+		<pluginManagement>
+			<plugins>
+				<plugin>
+					<groupId>com.github.spotbugs</groupId>
+					<artifactId>spotbugs-maven-plugin</artifactId>
+					<version>${spotbugs.version}</version>
+				</plugin>
+				<plugin>
+					<groupId>com.vmlens</groupId>
+					<artifactId>vmlens-maven-plugin</artifactId>
+					<version>${vmlens.version}</version>
+				</plugin>
+				<plugin>
+					<groupId>io.github.git-commit-id</groupId>
+					<artifactId>git-commit-id-maven-plugin</artifactId>
+					<version>10.0.0</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-compiler-plugin</artifactId>
+					<version>3.15.0</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-gpg-plugin</artifactId>
+					<version>3.2.8</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-jar-plugin</artifactId>
+					<version>3.5.0</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-javadoc-plugin</artifactId>
+					<version>3.12.0</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-resources-plugin</artifactId>
+					<version>3.5.0</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-source-plugin</artifactId>
+					<version>3.4.0</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-surefire-plugin</artifactId>
+					<version>3.5.5</version>
+				</plugin>
+				<plugin>
+					<groupId>org.codehaus.mojo</groupId>
+					<artifactId>exec-maven-plugin</artifactId>
+					<version>3.6.3</version>
+				</plugin>
+				<plugin>
+					<groupId>org.jacoco</groupId>
+					<artifactId>jacoco-maven-plugin</artifactId>
+					<version>0.8.14</version>
+				</plugin>
+				<plugin>
+					<groupId>org.sonatype.central</groupId>
+					<artifactId>central-publishing-maven-plugin</artifactId>
+					<version>0.10.0</version>
+				</plugin>
+			</plugins>
+		</pluginManagement>
 		<plugins>
 			<plugin>
 				<groupId>io.github.git-commit-id</groupId>
 				<artifactId>git-commit-id-maven-plugin</artifactId>
-				<version>10.0.0</version>
 				<executions>
 					<execution>
 						<id>get-git-properties</id>
@@ -182,7 +250,6 @@ SPDX-License-Identifier: MIT
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.15.0</version>
 				<configuration>
 					<source>1.8</source>
 					<target>1.8</target>
@@ -244,7 +311,6 @@ SPDX-License-Identifier: MIT
 			</plugin>
 			<plugin>
 				<artifactId>maven-resources-plugin</artifactId>
-				<version>3.5.0</version>
 				<executions>
 					<!-- Copy custom cuda libs to the output directory -->
 					<execution>
@@ -293,7 +359,6 @@ SPDX-License-Identifier: MIT
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-source-plugin</artifactId>
-				<version>3.4.0</version>
 				<executions>
 					<execution>
 						<id>attach-sources</id>
@@ -306,7 +371,6 @@ SPDX-License-Identifier: MIT
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>3.12.0</version>
 				<configuration>
 					<source>1.8</source>
 					<failOnError>true</failOnError>
@@ -325,7 +389,6 @@ SPDX-License-Identifier: MIT
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.14</version>
 				<executions>
 					<execution>
 						<id>prepare-agent</id>
@@ -357,7 +420,6 @@ SPDX-License-Identifier: MIT
 				-->
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>3.5.5</version>
 				<configuration>
 					<argLine>@{argLine} -XX:ErrorFile=hs_err_pid%p.log -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=.</argLine>
 					<!--
@@ -374,7 +436,6 @@ SPDX-License-Identifier: MIT
 			<plugin>
 				<groupId>com.github.spotbugs</groupId>
 				<artifactId>spotbugs-maven-plugin</artifactId>
-				<version>${spotbugs.version}</version>
 				<configuration>
 					<effort>Default</effort>
 					<threshold>Default</threshold>
@@ -407,7 +468,6 @@ SPDX-License-Identifier: MIT
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>exec-maven-plugin</artifactId>
-				<version>3.6.3</version>
 				<configuration>
 					<mainClass>org.openjdk.jmh.Main</mainClass>
 					<classpathScope>test</classpathScope>
@@ -444,7 +504,6 @@ SPDX-License-Identifier: MIT
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-gpg-plugin</artifactId>
-						<version>3.2.8</version>
 						<executions>
 							<execution>
 								<id>sign-artifacts</id>
@@ -464,7 +523,6 @@ SPDX-License-Identifier: MIT
 					<plugin>
 						<groupId>org.sonatype.central</groupId>
 						<artifactId>central-publishing-maven-plugin</artifactId>
-						<version>0.10.0</version>
 						<extensions>true</extensions>
 						<configuration>
 							<publishingServerId>central</publishingServerId>
@@ -483,7 +541,6 @@ SPDX-License-Identifier: MIT
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-jar-plugin</artifactId>
-						<version>3.5.0</version>
 						<executions>
 							<!-- Pick class files AND libs from custom output
 							directory -->
@@ -512,7 +569,6 @@ SPDX-License-Identifier: MIT
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-jar-plugin</artifactId>
-						<version>3.5.0</version>
 						<executions>
 							<!-- Pick class files AND libs from custom output
 							directory -->
@@ -548,7 +604,6 @@ SPDX-License-Identifier: MIT
 					<plugin>
 						<groupId>com.vmlens</groupId>
 						<artifactId>vmlens-maven-plugin</artifactId>
-						<version>${vmlens.version}</version>
 						<configuration>
 							<!--
 								Lincheck generates its own TestThreadExecution class on the fly.
