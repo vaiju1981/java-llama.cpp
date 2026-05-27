@@ -39,7 +39,7 @@ class LlamaLoader {
     /**
      * Loads the llama and jllama shared libraries
      */
-    static synchronized void initialize() throws UnsatisfiedLinkError {
+    static synchronized void initialize() {
         // only cleanup before the first extract
         if (!extracted) {
             cleanup();
