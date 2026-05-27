@@ -52,9 +52,9 @@ abstract class CliParameters {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        for (String key : parameters.keySet()) {
-            String value = parameters.get(key);
-            builder.append(key).append(" ");
+        for (Map.Entry<String, @Nullable String> entry : parameters.entrySet()) {
+            builder.append(entry.getKey()).append(" ");
+            String value = entry.getValue();
             if (value != null) {
                 builder.append(value).append(" ");
             }
@@ -73,9 +73,9 @@ abstract class CliParameters {
     public String[] toArray() {
         List<String> result = new ArrayList<>();
         result.add(""); // c args contain the program name as the first argument, so we add an empty entry
-        for (String key : parameters.keySet()) {
-            result.add(key);
-            String value = parameters.get(key);
+        for (Map.Entry<String, @Nullable String> entry : parameters.entrySet()) {
+            result.add(entry.getKey());
+            String value = entry.getValue();
             if (value != null) {
                 result.add(value);
             }
