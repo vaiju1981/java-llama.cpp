@@ -9,4 +9,14 @@ SPDX-License-Identifier: MIT
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="https://github.com/spotbugs/filter/3.0.0 https://raw.githubusercontent.com/spotbugs/spotbugs/4.8.6/spotbugs/etc/findbugsfilter.xsd">
 
+    <!--
+        OSInfo is vendored verbatim from xerial/sqlite-jdbc (originally @author leo).
+        See SPDX-FileCopyrightText header in src/main/java/net/ladenthin/llama/OSInfo.java.
+        Excluding the class (and its inner classes) from spotbugs analysis since
+        upstream fixes should land in xerial/sqlite-jdbc rather than be patched here.
+    -->
+    <Match>
+        <Class name="~net\.ladenthin\.llama\.OSInfo(\$.*)?"/>
+    </Match>
+
 </FindBugsFilter>
