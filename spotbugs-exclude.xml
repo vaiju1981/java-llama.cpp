@@ -35,4 +35,26 @@ SPDX-License-Identifier: MIT
         <Bug pattern="COMMAND_INJECTION"/>
     </Match>
 
+    <!--
+        LlamaModel deliberately wraps low-level Jackson IOException into the
+        project's LlamaException (a RuntimeException subclass) at three JSON-parsing
+        boundary methods: completeAsJson, getMetricsTyped, getModelMeta. This is the
+        intended public-API design — IOException is an implementation detail of the
+        JSON parser, not something callers of a JNI bridge should be forced to handle.
+        The exception cause is already chained through so the original stack trace
+        is preserved (see f8c11b0). Spotbugs flags this as
+        EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS because the resulting RuntimeException
+        leaves no compile-time hint that an I/O failure happened; we accept that
+        tradeoff at these three boundary points.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.LlamaModel"/>
+        <Bug pattern="EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS"/>
+        <Or>
+            <Method name="completeAsJson"/>
+            <Method name="getMetricsTyped"/>
+            <Method name="getModelMeta"/>
+        </Or>
+    </Match>
+
 </FindBugsFilter>
