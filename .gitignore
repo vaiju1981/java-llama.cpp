@@ -50,5 +50,5 @@ src/test/resources/**/*.gbnf
 **/*.lastModified
 src/main/cpp/llama.cpp/
 
-# jqwik test runner state (generated locally on `mvn test`)
-.jqwik-database
+# jcstress / jqwik test outputs (generated in repo root)
+/.jqwik-database
