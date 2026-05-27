@@ -6,6 +6,8 @@ package net.ladenthin.llama;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.ReentrantLock;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
@@ -64,7 +66,8 @@ public final class LlamaPublisher implements Publisher<LlamaOutput> {
         private final AtomicLong demand = new AtomicLong(0);
         private final AtomicBoolean cancelled = new AtomicBoolean(false);
         private final AtomicBoolean started = new AtomicBoolean(false);
-        private final Object monitor = new Object();
+        private final ReentrantLock lock = new ReentrantLock();
+        private final Condition demandOrCancel = lock.newCondition();
 
         LlamaSubscription(LlamaIterable iterable, Subscriber<? super LlamaOutput> subscriber) {
             this.iterable = iterable;
@@ -93,8 +96,11 @@ public final class LlamaPublisher implements Publisher<LlamaOutput> {
                 if (next < 0) next = Long.MAX_VALUE;
                 if (demand.compareAndSet(cur, next)) break;
             }
-            synchronized (monitor) {
-                monitor.notifyAll();
+            lock.lock();
+            try {
+                demandOrCancel.signalAll();
+            } finally {
+                lock.unlock();
             }
         }
 
@@ -106,8 +112,11 @@ public final class LlamaPublisher implements Publisher<LlamaOutput> {
                 } catch (Throwable ignored) {
                     // best-effort
                 }
-                synchronized (monitor) {
-                    monitor.notifyAll();
+                lock.lock();
+                try {
+                    demandOrCancel.signalAll();
+                } finally {
+                    lock.unlock();
                 }
             }
         }
@@ -118,16 +127,19 @@ public final class LlamaPublisher implements Publisher<LlamaOutput> {
                 while (!cancelled.get() && iterator.hasNext()) {
                     // Wait for demand.
                     while (demand.get() == 0 && !cancelled.get()) {
-                        synchronized (monitor) {
+                        lock.lock();
+                        try {
                             if (demand.get() == 0 && !cancelled.get()) {
                                 try {
-                                    monitor.wait();
+                                    demandOrCancel.await();
                                 } catch (InterruptedException e) {
                                     Thread.currentThread().interrupt();
                                     cancel();
                                     return;
                                 }
                             }
+                        } finally {
+                            lock.unlock();
                         }
                     }
                     if (cancelled.get()) return;
