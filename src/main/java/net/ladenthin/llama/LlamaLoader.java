@@ -241,7 +241,7 @@ class LlamaLoader {
     }
 
     static String getNativeResourcePath() {
-        String packagePath = LlamaLoader.class.getPackage().getName().replace(".", "/");
+        String packagePath = LlamaLoader.class.getPackage().getName().replace('.', '/');
         return String.format("/%s/%s", packagePath, OSInfo.getNativeLibFolderPathForCurrentOS());
     }
 

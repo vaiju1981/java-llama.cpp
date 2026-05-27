@@ -310,7 +310,7 @@ public final class ModelParameters extends CliParameters {
             for (int i = 0; i < samplers.length; i++) {
                 builder.append(samplers[i].getArgValue());
                 if (i < samplers.length - 1) {
-                    builder.append(";");
+                    builder.append(';');
                 }
             }
             parameters.put("--samplers", builder.toString());

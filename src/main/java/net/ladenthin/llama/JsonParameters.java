@@ -34,11 +34,11 @@ abstract class JsonParameters {
             String value = entry.getValue();
             builder.append("\t\"").append(key).append("\": ").append(value);
             if (i++ < parameters.size() - 1) {
-                builder.append(",");
+                builder.append(',');
             }
-            builder.append("\n");
+            builder.append('\n');
         }
-        builder.append("}");
+        builder.append('}');
         return builder.toString();
     }
 

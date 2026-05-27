@@ -53,10 +53,10 @@ abstract class CliParameters {
     public String toString() {
         StringBuilder builder = new StringBuilder();
         for (Map.Entry<String, @Nullable String> entry : parameters.entrySet()) {
-            builder.append(entry.getKey()).append(" ");
+            builder.append(entry.getKey()).append(' ');
             String value = entry.getValue();
             if (value != null) {
-                builder.append(value).append(" ");
+                builder.append(value).append(' ');
             }
         }
         return builder.toString();
