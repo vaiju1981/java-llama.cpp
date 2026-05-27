@@ -58,6 +58,37 @@ SPDX-License-Identifier: MIT
     </Match>
 
     <!--
+        ModelParameters intentionally types each enum-valued fluent setter
+        to its specific enum (CacheType, MiroStat, NumaStrategy,
+        ReasoningFormat, RopeScalingType, GpuSplitMode) rather than the
+        shared CliArg interface that those enums all implement. The narrow
+        type is the API contract:
+
+          params.setMirostat(MiroStat.V1)             accepted
+          params.setMirostat(NumaStrategy.DISTRIBUTE) rejected by compiler
+
+        If we widened to CliArg as spotbugs OCP suggests, the second call
+        would silently compile and emit a nonsense CLI value that the
+        native code would reject at runtime. IDE autocomplete
+        also relies on the narrow type to surface the right enum
+        constants. Same design-intent rationale as the STT and EXS
+        suppressions above.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.ModelParameters"/>
+        <Bug pattern="OCP_OVERLY_CONCRETE_PARAMETER"/>
+        <Or>
+            <Method name="setCacheTypeK"/>
+            <Method name="setCacheTypeV"/>
+            <Method name="setMirostat"/>
+            <Method name="setNuma"/>
+            <Method name="setReasoningFormat"/>
+            <Method name="setRopeScaling"/>
+            <Method name="setSplitMode"/>
+        </Or>
+    </Match>
+
+    <!--
         InferenceParameters and ModelParameters are fluent builders whose
         parameters field is a Map<String, String> serving as the CLI / JSON
         wire-format passed across JNI to nlohmann/json. Every setter
