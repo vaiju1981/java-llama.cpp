@@ -69,7 +69,11 @@ class LlamaLoader {
     }
 
     static boolean shouldCleanPath(Path path) {
-        String fileName = path.getFileName().toString();
+        Path fileNamePath = path.getFileName();
+        if (fileNamePath == null) {
+            return false;
+        }
+        String fileName = fileNamePath.toString();
         return fileName.startsWith("jllama") || fileName.startsWith("llama");
     }
 
