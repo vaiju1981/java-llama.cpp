@@ -10,4 +10,8 @@ class LlamaException extends RuntimeException {
     public LlamaException(String message) {
         super(message);
     }
+
+    public LlamaException(String message, Throwable cause) {
+        super(message, cause);
+    }
 }

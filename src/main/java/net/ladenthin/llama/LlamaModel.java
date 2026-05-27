@@ -698,7 +698,8 @@ public class LlamaModel implements AutoCloseable {
         try {
             return OBJECT_MAPPER.readValue(raw, type);
         } catch (java.io.IOException e) {
-            throw new LlamaException("Failed to parse completion as " + type.getSimpleName() + ": " + e.getMessage());
+            throw new LlamaException(
+                    "Failed to parse completion as " + type.getSimpleName() + ": " + e.getMessage(), e);
         }
     }
 
@@ -714,7 +715,7 @@ public class LlamaModel implements AutoCloseable {
         try {
             return new ServerMetrics(OBJECT_MAPPER.readTree(getMetrics()));
         } catch (java.io.IOException e) {
-            throw new LlamaException("Failed to parse server metrics JSON: " + e.getMessage());
+            throw new LlamaException("Failed to parse server metrics JSON: " + e.getMessage(), e);
         }
     }
 
@@ -734,7 +735,7 @@ public class LlamaModel implements AutoCloseable {
         try {
             return new ModelMeta(OBJECT_MAPPER.readTree(getModelMetaJson()));
         } catch (java.io.IOException e) {
-            throw new LlamaException("Failed to parse model meta JSON: " + e.getMessage());
+            throw new LlamaException("Failed to parse model meta JSON: " + e.getMessage(), e);
         }
     }
 
