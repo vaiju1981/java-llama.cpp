@@ -134,6 +134,29 @@ SPDX-License-Identifier: MIT
     </Match>
 
     <!--
+        LlamaIterator and LlamaModel form a deliberate producer/consumer
+        cycle: LlamaModel.generate(...) returns a LlamaIterable that
+        yields LlamaIterator instances; each LlamaIterator calls back
+        into LlamaModel to fetch the next token via the native bridge.
+        This is the standard shape of a streaming iterator that drives
+        a backend (java.util.Iterator semantics require it). The static
+        class cycle is a side effect of the Iterator/Iterable API
+        contract, not a design defect.
+
+        Breaking the static cycle with an interface (e.g. a TokenSource
+        that LlamaModel implements and LlamaIterator depends on) would
+        add a fake abstraction with one implementer and no decoupling
+        value; the runtime coupling is identical either way.
+    -->
+    <Match>
+        <Or>
+            <Class name="net.ladenthin.llama.LlamaIterator"/>
+            <Class name="net.ladenthin.llama.LlamaModel"/>
+        </Or>
+        <Bug pattern="FCCD_FIND_CLASS_CIRCULAR_DEPENDENCY"/>
+    </Match>
+
+    <!--
         Session is a thin non-owning wrapper around a LlamaModel: one LlamaModel
         wraps a native llama.cpp context that is intentionally shared across
         multiple Session instances (one per slot id). The model owns native
