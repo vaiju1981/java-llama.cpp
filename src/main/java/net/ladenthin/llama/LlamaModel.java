@@ -366,6 +366,26 @@ public class LlamaModel implements AutoCloseable {
         delete();
     }
 
+    /**
+     * Declared {@code final} and empty to defeat the finalizer-attack vector
+     * on partially-constructed instances when one of the load-throwing
+     * constructors aborts &mdash; see SpotBugs {@code CT_CONSTRUCTOR_THROW}.
+     * Subclassing this class is still permitted (e.g. for test doubles), but
+     * no subclass can override this no-op finalizer to capture a reference to
+     * a half-built model.
+     * <p>
+     * {@link Object#finalize()} is deprecated since JDK 9 and marked for
+     * removal, but is still present in JDK 21 (the current build JDK). When
+     * the language eventually removes the mechanism this override can be
+     * deleted, since the attack vector disappears together with finalization.
+     * </p>
+     */
+    @SuppressWarnings({"deprecation", "removal"})
+    @Override
+    protected final void finalize() {
+        // no-op
+    }
+
     // don't overload native methods since the C++ function names get nasty
     native int requestCompletion(String params) throws LlamaException;
 
