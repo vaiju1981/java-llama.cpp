@@ -423,7 +423,7 @@ public class LlamaModel implements AutoCloseable {
     public LlamaOutput rerank(String query, String... documents) {
         String json = handleRerank(query, documents);
         List<Pair<String, Float>> results = rerankParser.parse(json);
-        Map<String, Float> probabilities = new HashMap<>();
+        Map<String, Float> probabilities = new HashMap<>(results.size());
         for (Pair<String, Float> pair : results) {
             probabilities.put(pair.getKey(), pair.getValue());
         }

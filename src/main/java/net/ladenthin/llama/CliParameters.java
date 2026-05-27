@@ -71,7 +71,8 @@ abstract class CliParameters {
      * @return a fresh argv array suitable for passing to a native CLI parser
      */
     public String[] toArray() {
-        List<String> result = new ArrayList<>();
+        // upper bound: 1 program-name slot + 2 entries (key, value) per parameter
+        List<String> result = new ArrayList<>(1 + parameters.size() * 2);
         result.add(""); // c args contain the program name as the first argument, so we add an empty entry
         for (Map.Entry<String, @Nullable String> entry : parameters.entrySet()) {
             result.add(entry.getKey());
