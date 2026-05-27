@@ -127,10 +127,10 @@ public class LlamaModel implements AutoCloseable {
      * configured with. With a default single-slot model the requests still run, but
      * sequentially.
      *
-     * @param requests the list of inference parameter blocks (must be distinct instances)
+     * @param requests the inference parameter blocks (must be distinct instances)
      * @return the generated texts in input order
      */
-    public java.util.List<String> completeBatch(java.util.List<InferenceParameters> requests) {
+    public java.util.List<String> completeBatch(java.util.Collection<InferenceParameters> requests) {
         java.util.List<CompletableFuture<String>> futures =
                 new java.util.ArrayList<CompletableFuture<String>>(requests.size());
         for (InferenceParameters req : requests) {
@@ -144,13 +144,13 @@ public class LlamaModel implements AutoCloseable {
     }
 
     /**
-     * Like {@link #completeBatch(java.util.List)} but each result carries
+     * Like {@link #completeBatch(java.util.Collection)} but each result carries
      * {@link CompletionResult}'s typed Usage, Timings, logprobs, and stop reason.
      *
-     * @param requests the list of inference parameter blocks (must be distinct instances)
+     * @param requests the inference parameter blocks (must be distinct instances)
      * @return parsed completion results in input order
      */
-    public java.util.List<CompletionResult> completeBatchWithStats(java.util.List<InferenceParameters> requests) {
+    public java.util.List<CompletionResult> completeBatchWithStats(java.util.Collection<InferenceParameters> requests) {
         java.util.List<CompletableFuture<CompletionResult>> futures =
                 new java.util.ArrayList<CompletableFuture<CompletionResult>>(requests.size());
         for (final InferenceParameters req : requests) {
@@ -171,7 +171,7 @@ public class LlamaModel implements AutoCloseable {
      * @param requests the typed chat requests (must be distinct instances)
      * @return parsed responses in input order
      */
-    public java.util.List<ChatResponse> chatBatch(java.util.List<ChatRequest> requests) {
+    public java.util.List<ChatResponse> chatBatch(java.util.Collection<ChatRequest> requests) {
         java.util.List<CompletableFuture<ChatResponse>> futures =
                 new java.util.ArrayList<CompletableFuture<ChatResponse>>(requests.size());
         for (final ChatRequest req : requests) {
