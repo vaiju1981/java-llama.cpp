@@ -49,3 +49,6 @@ src/test/resources/**/*.gbnf
 **/*.etag
 **/*.lastModified
 src/main/cpp/llama.cpp/
+
+# jqwik test runner state (generated locally on `mvn test`)
+.jqwik-database
