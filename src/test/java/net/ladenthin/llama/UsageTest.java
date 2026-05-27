@@ -4,14 +4,12 @@
 
 package net.ladenthin.llama;
 
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 
-@ClaudeGenerated(
-        purpose = "Verify Usage records prompt/completion totals correctly and derives totalTokens."
-)
+import org.junit.jupiter.api.Test;
+
+@ClaudeGenerated(purpose = "Verify Usage records prompt/completion totals correctly and derives totalTokens.")
 public class UsageTest {
 
     @Test

@@ -4,25 +4,23 @@
 
 package net.ladenthin.llama;
 
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.Test;
-import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.junit.jupiter.api.Assertions.fail;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Test;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 @ClaudeGenerated(
         purpose = "Verify LlamaPublisher honours Reactive Streams contracts: backpressure via request(n), "
-                + "stops on cancel, signals onError for invalid demand, and rejects a second subscriber."
-)
+                + "stops on cancel, signals onError for invalid demand, and rejects a second subscriber.")
 public class LlamaPublisherTest {
 
     /**
@@ -47,11 +45,14 @@ public class LlamaPublisherTest {
             AtomicInteger received = new AtomicInteger();
 
             pub.subscribe(new Subscriber<LlamaOutput>() {
-                @Override public void onSubscribe(Subscription s) {
+                @Override
+                public void onSubscribe(Subscription s) {
                     subRef.set(s);
                     s.request(2); // initial demand
                 }
-                @Override public void onNext(LlamaOutput o) {
+
+                @Override
+                public void onNext(LlamaOutput o) {
                     int n = received.incrementAndGet();
                     if (n == 2) {
                         // Verify backpressure: with demand=0 we should pause until next request.
@@ -63,8 +64,16 @@ public class LlamaPublisherTest {
                         done.countDown();
                     }
                 }
-                @Override public void onError(Throwable t) { done.countDown(); }
-                @Override public void onComplete() { done.countDown(); }
+
+                @Override
+                public void onError(Throwable t) {
+                    done.countDown();
+                }
+
+                @Override
+                public void onComplete() {
+                    done.countDown();
+                }
             });
 
             assertTrue(done.await(30, TimeUnit.SECONDS), "subscriber did not terminate in 30s");
@@ -91,10 +100,23 @@ public class LlamaPublisherTest {
 
             CountDownLatch first = new CountDownLatch(1);
             pub.subscribe(new Subscriber<LlamaOutput>() {
-                @Override public void onSubscribe(Subscription s) { s.request(Long.MAX_VALUE); }
-                @Override public void onNext(LlamaOutput o) { }
-                @Override public void onError(Throwable t) { first.countDown(); }
-                @Override public void onComplete() { first.countDown(); }
+                @Override
+                public void onSubscribe(Subscription s) {
+                    s.request(Long.MAX_VALUE);
+                }
+
+                @Override
+                public void onNext(LlamaOutput o) {}
+
+                @Override
+                public void onError(Throwable t) {
+                    first.countDown();
+                }
+
+                @Override
+                public void onComplete() {
+                    first.countDown();
+                }
             });
             assertTrue(first.await(30, TimeUnit.SECONDS));
 
@@ -102,10 +124,22 @@ public class LlamaPublisherTest {
             AtomicReference<Throwable> err = new AtomicReference<>();
             CountDownLatch second = new CountDownLatch(1);
             pub.subscribe(new Subscriber<LlamaOutput>() {
-                @Override public void onSubscribe(Subscription s) { }
-                @Override public void onNext(LlamaOutput o) { }
-                @Override public void onError(Throwable t) { err.set(t); second.countDown(); }
-                @Override public void onComplete() { second.countDown(); }
+                @Override
+                public void onSubscribe(Subscription s) {}
+
+                @Override
+                public void onNext(LlamaOutput o) {}
+
+                @Override
+                public void onError(Throwable t) {
+                    err.set(t);
+                    second.countDown();
+                }
+
+                @Override
+                public void onComplete() {
+                    second.countDown();
+                }
             });
             assertTrue(second.await(5, TimeUnit.SECONDS));
             assertNotNull(err.get(), "expected onError on second subscribe");
@@ -130,10 +164,24 @@ public class LlamaPublisherTest {
             AtomicReference<Throwable> err = new AtomicReference<>();
             CountDownLatch done = new CountDownLatch(1);
             pub.subscribe(new Subscriber<LlamaOutput>() {
-                @Override public void onSubscribe(Subscription s) { s.request(0); }
-                @Override public void onNext(LlamaOutput o) { }
-                @Override public void onError(Throwable t) { err.set(t); done.countDown(); }
-                @Override public void onComplete() { done.countDown(); }
+                @Override
+                public void onSubscribe(Subscription s) {
+                    s.request(0);
+                }
+
+                @Override
+                public void onNext(LlamaOutput o) {}
+
+                @Override
+                public void onError(Throwable t) {
+                    err.set(t);
+                    done.countDown();
+                }
+
+                @Override
+                public void onComplete() {
+                    done.countDown();
+                }
             });
             assertTrue(done.await(10, TimeUnit.SECONDS));
             assertNotNull(err.get(), "expected onError for request(0)");

@@ -4,18 +4,17 @@
 
 package net.ladenthin.llama;
 
-import net.ladenthin.llama.json.CompletionResponseParser;
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import net.ladenthin.llama.json.CompletionResponseParser;
+import org.junit.jupiter.api.Test;
+
 @ClaudeGenerated(
         purpose = "Verify CompletionResponseParser.parseCompletionResult maps the non-OAI completion JSON "
                 + "(content + tokens_evaluated/predicted + timings + completion_probabilities + stop_type) "
-                + "into a typed CompletionResult, and handles malformed input gracefully."
-)
+                + "into a typed CompletionResult, and handles malformed input gracefully.")
 public class CompletionResultTest {
 
     private final CompletionResponseParser parser = new CompletionResponseParser();
@@ -34,7 +33,7 @@ public class CompletionResultTest {
         CompletionResult r = parser.parseCompletionResult(json);
         assertEquals("hello world", r.getText());
         assertEquals(12L, r.getUsage().getPromptTokens());
-        assertEquals(5L,  r.getUsage().getCompletionTokens());
+        assertEquals(5L, r.getUsage().getCompletionTokens());
         assertEquals(17L, r.getUsage().getTotalTokens());
         assertEquals(12, r.getTimings().getPromptN());
         assertEquals(3, r.getTimings().getCacheN());
@@ -65,7 +64,7 @@ public class CompletionResultTest {
     public void stopReasonLimit() {
         CompletionResult r = parser.parseCompletionResult(
                 "{\"content\":\"\",\"stop\":true,\"stop_type\":\"limit\",\"truncated\":true,"
-                + "\"tokens_evaluated\":1,\"tokens_predicted\":10}");
+                        + "\"tokens_evaluated\":1,\"tokens_predicted\":10}");
         assertEquals(StopReason.MAX_TOKENS, r.getStopReason());
         assertEquals(10L, r.getUsage().getCompletionTokens());
     }

@@ -7,17 +7,16 @@ package net.ladenthin.llama.json;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import net.ladenthin.llama.ChatChoice;
 import net.ladenthin.llama.ChatMessage;
 import net.ladenthin.llama.ChatResponse;
 import net.ladenthin.llama.Timings;
 import net.ladenthin.llama.ToolCall;
 import net.ladenthin.llama.Usage;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Pure JSON transforms for OAI-compatible chat completion responses.
@@ -45,8 +44,7 @@ import java.util.List;
 public class ChatResponseParser {
 
     /** Creates a new {@link ChatResponseParser}. */
-    public ChatResponseParser() {
-    }
+    public ChatResponseParser() {}
 
     /** Shared Jackson mapper; thread-safe and reused across all instances. */
     public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -78,7 +76,11 @@ public class ChatResponseParser {
      * @return the reasoning content string, or {@code ""} if absent
      */
     public String extractChoiceReasoningContent(JsonNode node) {
-        return node.path("choices").path(0).path("message").path("reasoning_content").asText("");
+        return node.path("choices")
+                .path(0)
+                .path("message")
+                .path("reasoning_content")
+                .asText("");
     }
 
     /**
@@ -154,11 +156,8 @@ public class ChatResponseParser {
             Timings timings = Timings.fromJson(node.path("timings"));
             return new ChatResponse(id, choices, usage, timings, json);
         } catch (IOException e) {
-            return new ChatResponse("",
-                    Collections.<ChatChoice>emptyList(),
-                    new Usage(0L, 0L),
-                    Timings.fromJson(null),
-                    json);
+            return new ChatResponse(
+                    "", Collections.<ChatChoice>emptyList(), new Usage(0L, 0L), Timings.fromJson(null), json);
         }
     }
 

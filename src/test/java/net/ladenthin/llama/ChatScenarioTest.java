@@ -5,17 +5,17 @@
 
 package net.ladenthin.llama;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
-
 import net.ladenthin.llama.args.PoolingType;
 import net.ladenthin.llama.json.ChatResponseParser;
 import net.ladenthin.llama.json.CompletionResponseParser;
 import org.junit.jupiter.api.AfterAll;
-import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -41,10 +41,9 @@ import org.junit.jupiter.api.Test;
  * </ul>
  */
 @ClaudeGenerated(
-        purpose = "Complex chat scenarios: raw JSON endpoint structure, streaming/blocking consistency, " +
-                  "stop strings, grammar constraints, multi-turn conversations, unicode/special-char " +
-                  "message content, back-to-back calls, and all JSON-in/JSON-out endpoint variants."
-)
+        purpose = "Complex chat scenarios: raw JSON endpoint structure, streaming/blocking consistency, "
+                + "stop strings, grammar constraints, multi-turn conversations, unicode/special-char "
+                + "message content, back-to-back calls, and all JSON-in/JSON-out endpoint variants.")
 public class ChatScenarioTest {
 
     private static final int N_PREDICT = 10;
@@ -55,19 +54,18 @@ public class ChatScenarioTest {
 
     @BeforeAll
     public static void setup() {
-        Assumptions.assumeTrue(new File(TestConstants.MODEL_PATH).exists(), "Model file not found, skipping ChatScenarioTest");
+        Assumptions.assumeTrue(
+                new File(TestConstants.MODEL_PATH).exists(), "Model file not found, skipping ChatScenarioTest");
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
-        model = new LlamaModel(
-                new ModelParameters()
-                        .setCtxSize(512)
-                        .setModel(TestConstants.MODEL_PATH)
-                        .setGpuLayers(gpuLayers)
-                        .setFit(false)
-                        .enableEmbedding()
-                        // MEAN pooling is required for OAI-compatible embedding format;
-                        // the default 'none' pooling is not OAI-compatible.
-                        .setPoolingType(PoolingType.MEAN)
-        );
+        model = new LlamaModel(new ModelParameters()
+                .setCtxSize(512)
+                .setModel(TestConstants.MODEL_PATH)
+                .setGpuLayers(gpuLayers)
+                .setFit(false)
+                .enableEmbedding()
+                // MEAN pooling is required for OAI-compatible embedding format;
+                // the default 'none' pooling is not OAI-compatible.
+                .setPoolingType(PoolingType.MEAN));
     }
 
     @AfterAll
@@ -104,7 +102,9 @@ public class ChatScenarioTest {
         assertTrue(response.contains("\"choices\""), "OAI chat response must contain 'choices'");
         assertTrue(response.contains("\"message\""), "OAI chat response must contain 'message'");
         assertTrue(response.contains("\"content\""), "OAI chat response must contain 'content'");
-        assertTrue(response.contains("\"assistant\"") || response.contains("assistant"), "OAI chat response must have assistant role");
+        assertTrue(
+                response.contains("\"assistant\"") || response.contains("assistant"),
+                "OAI chat response must have assistant role");
     }
 
     /**
@@ -157,8 +157,8 @@ public class ChatScenarioTest {
      */
     @Test
     public void testHandleChatCompletionsDirect() {
-        String json = "{\"messages\": [{\"role\": \"user\", \"content\": \"Say yes.\"}], " +
-                "\"n_predict\": " + N_PREDICT + ", \"seed\": 42, \"temperature\": 0.0, \"stream\": false}";
+        String json = "{\"messages\": [{\"role\": \"user\", \"content\": \"Say yes.\"}], " + "\"n_predict\": "
+                + N_PREDICT + ", \"seed\": 42, \"temperature\": 0.0, \"stream\": false}";
 
         String response = model.handleChatCompletions(json);
 
@@ -288,7 +288,9 @@ public class ChatScenarioTest {
 
         assertNotNull(stJson, "Stop-string response must not be null");
         // Content with stop should be shorter (or at most equal)
-        assertTrue(stContent.length() <= unContent.length(), "Content with stop string must not exceed unconstrained content length");
+        assertTrue(
+                stContent.length() <= unContent.length(),
+                "Content with stop string must not exceed unconstrained content length");
         // The stopped content must not contain "4" (the stop string itself is excluded)
         assertFalse(stContent.contains("4"), "Content stopped at '4' must not contain '4'");
     }
@@ -462,10 +464,9 @@ public class ChatScenarioTest {
         String prefix = "def greet(name):\n    \"\"\" ";
         String suffix = "\n    return greeting\n";
 
-        String json = "{\"input_prefix\": " + jsonStr(prefix) +
-                ", \"input_suffix\": " + jsonStr(suffix) +
-                ", \"n_predict\": " + N_PREDICT +
-                ", \"seed\": 42, \"temperature\": 0.0}";
+        String json = "{\"input_prefix\": " + jsonStr(prefix) + ", \"input_suffix\": "
+                + jsonStr(suffix) + ", \"n_predict\": "
+                + N_PREDICT + ", \"seed\": 42, \"temperature\": 0.0}";
 
         String response = model.handleInfill(json);
 
@@ -494,8 +495,8 @@ public class ChatScenarioTest {
             response = model.handleEmbeddings(json, true);
         } catch (LlamaException e) {
             // If the model's pooling type is incompatible with OAI format, skip.
-            Assumptions.assumeTrue(false, "Skipping OAI-compat embeddings (pooling type not supported): "
-                    + e.getMessage());
+            Assumptions.assumeTrue(
+                    false, "Skipping OAI-compat embeddings (pooling type not supported): " + e.getMessage());
             return; // unreachable, but satisfies the compiler
         }
         assertNotNull(response, "OAI-compat embeddings must not be null");
@@ -527,18 +528,20 @@ public class ChatScenarioTest {
     public void testHandleTokenizeWithSpecialTokens() {
         String content = "Hello world";
 
-        String withSpecial    = model.handleTokenize(content, true,  false);
+        String withSpecial = model.handleTokenize(content, true, false);
         String withoutSpecial = model.handleTokenize(content, false, false);
 
         assertNotNull(withSpecial);
         assertNotNull(withoutSpecial);
         assertTrue(withSpecial.contains("\"tokens\""), "Both responses must contain 'tokens'");
 
-        int countWith    = tokenCount(withSpecial);
+        int countWith = tokenCount(withSpecial);
         int countWithout = tokenCount(withoutSpecial);
 
-        assertTrue(countWith >= countWithout, "addSpecial=true should produce at least as many tokens as addSpecial=false " +
-                "(got " + countWith + " vs " + countWithout + ")");
+        assertTrue(
+                countWith >= countWithout,
+                "addSpecial=true should produce at least as many tokens as addSpecial=false " + "(got " + countWith
+                        + " vs " + countWithout + ")");
     }
 
     // ------------------------------------------------------------------
@@ -562,7 +565,9 @@ public class ChatScenarioTest {
         // Extract the detokenized text (simple search for content field value)
         String detokenized = completionParser.parse(response).text;
         // The tokenizer typically prepends a space; check the meaningful content
-        assertTrue(detokenized.contains("Hello") && detokenized.contains("world"), "Detokenized text should contain original content (got: '" + detokenized + "')");
+        assertTrue(
+                detokenized.contains("Hello") && detokenized.contains("world"),
+                "Detokenized text should contain original content (got: '" + detokenized + "')");
     }
 
     // ------------------------------------------------------------------
@@ -679,8 +684,7 @@ public class ChatScenarioTest {
     /** Count elements in the {@code "tokens"} array of a tokenize response. */
     private static int tokenCount(String json) {
         try {
-            com.fasterxml.jackson.databind.JsonNode node =
-                    CompletionResponseParser.OBJECT_MAPPER.readTree(json);
+            com.fasterxml.jackson.databind.JsonNode node = CompletionResponseParser.OBJECT_MAPPER.readTree(json);
             com.fasterxml.jackson.databind.JsonNode arr = node.path("tokens");
             return arr.isArray() ? arr.size() : 0;
         } catch (Exception e) {

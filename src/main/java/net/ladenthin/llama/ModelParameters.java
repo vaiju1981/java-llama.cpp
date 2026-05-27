@@ -1102,7 +1102,8 @@ public final class ModelParameters extends CliParameters {
      * @return this builder
      */
     public ModelParameters setChatTemplateKwargs(java.util.Map<String, String> kwargs) {
-        parameters.put("--chat-template-kwargs", serializer.buildRawValueObject(kwargs).toString());
+        parameters.put(
+                "--chat-template-kwargs", serializer.buildRawValueObject(kwargs).toString());
         return this;
     }
 
@@ -1426,5 +1427,4 @@ public final class ModelParameters extends CliParameters {
     public boolean isDefault(String key) {
         return !parameters.containsKey("--" + key);
     }
-
 }

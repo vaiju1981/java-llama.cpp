@@ -35,8 +35,13 @@ public final class CompletionResult {
      * @param stopReason the parsed stop reason
      * @param rawJson    the raw native JSON string
      */
-    public CompletionResult(String text, Usage usage, Timings timings,
-                            List<TokenLogprob> logprobs, StopReason stopReason, String rawJson) {
+    public CompletionResult(
+            String text,
+            Usage usage,
+            Timings timings,
+            List<TokenLogprob> logprobs,
+            StopReason stopReason,
+            String rawJson) {
         this.text = text;
         this.usage = usage;
         this.timings = timings;

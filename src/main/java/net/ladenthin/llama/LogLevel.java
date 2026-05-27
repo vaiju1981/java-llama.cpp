@@ -18,5 +18,4 @@ public enum LogLevel {
     WARN,
     /** Errors that prevent normal operation. */
     ERROR
-
 }

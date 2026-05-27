@@ -80,7 +80,6 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.stream.Stream;
-
 import org.codehaus.mojo.animal_sniffer.IgnoreJRERequirement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -93,11 +92,11 @@ import org.slf4j.LoggerFactory;
 public class OSInfo {
 
     /** Creates a new {@link OSInfo}. */
-    public OSInfo() {
-    }
+    public OSInfo() {}
 
     /** Process runner used by {@link #getHardwareName()} and related probes. */
     protected static ProcessRunner processRunner = new ProcessRunner();
+
     private static final HashMap<String, String> archMapping = new HashMap<>();
 
     /** Folder name for 32-bit x86. */
@@ -258,9 +257,8 @@ public class OSInfo {
     public static boolean isMusl() {
         Path mapFilesDir = Paths.get("/proc/self/map_files");
         try (Stream<Path> dirStream = Files.list(mapFilesDir)) {
-            return dirStream
-                    .map(OSInfo::toRealPathOrEmpty)
-                    .anyMatch(s -> s.toLowerCase().contains("musl"));
+            return dirStream.map(OSInfo::toRealPathOrEmpty).anyMatch(s -> s.toLowerCase()
+                    .contains("musl"));
         } catch (Exception ignored) {
             // fall back to checking for alpine linux in the event we're using an older kernel which
             // may not fail the above check

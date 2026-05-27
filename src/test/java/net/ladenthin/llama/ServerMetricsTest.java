@@ -4,16 +4,15 @@
 
 package net.ladenthin.llama;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.Test;
+
 @ClaudeGenerated(
         purpose = "Verify ServerMetrics typed getters map all fields emitted by server_task_result_metrics::to_json, "
-                + "including cumulative Usage and derived cumulative Timings."
-)
+                + "including cumulative Usage and derived cumulative Timings.")
 public class ServerMetricsTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -22,14 +21,13 @@ public class ServerMetricsTest {
         return new ServerMetrics(MAPPER.readTree(json));
     }
 
-    private static final String SAMPLE =
-            "{\"idle\":2,\"processing\":1,\"deferred\":3,\"t_start\":1234567890,"
-                    + "\"n_prompt_tokens_processed_total\":100,\"t_prompt_processing_total\":50,"
-                    + "\"n_tokens_predicted_total\":200,\"t_tokens_generation_total\":80,"
-                    + "\"n_prompt_tokens_processed\":10,\"t_prompt_processing\":5,"
-                    + "\"n_tokens_predicted\":20,\"t_tokens_generation\":8,"
-                    + "\"n_decode_total\":300,\"n_busy_slots_total\":4,\"n_tokens_max\":4096,"
-                    + "\"slots\":[{\"id\":0},{\"id\":1}]}";
+    private static final String SAMPLE = "{\"idle\":2,\"processing\":1,\"deferred\":3,\"t_start\":1234567890,"
+            + "\"n_prompt_tokens_processed_total\":100,\"t_prompt_processing_total\":50,"
+            + "\"n_tokens_predicted_total\":200,\"t_tokens_generation_total\":80,"
+            + "\"n_prompt_tokens_processed\":10,\"t_prompt_processing\":5,"
+            + "\"n_tokens_predicted\":20,\"t_tokens_generation\":8,"
+            + "\"n_decode_total\":300,\"n_busy_slots_total\":4,\"n_tokens_max\":4096,"
+            + "\"slots\":[{\"id\":0},{\"id\":1}]}";
 
     @Test
     public void slotCountsAndTimestamp() throws Exception {

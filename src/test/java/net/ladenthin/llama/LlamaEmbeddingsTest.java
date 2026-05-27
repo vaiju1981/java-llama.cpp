@@ -5,13 +5,13 @@
 
 package net.ladenthin.llama;
 
-import net.ladenthin.llama.args.PoolingType;
-import org.junit.jupiter.api.AfterEach;
 import static org.junit.jupiter.api.Assertions.*;
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import net.ladenthin.llama.args.PoolingType;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Test;
 
 /**
  * Integration tests for {@link LlamaModel#embed(String)} across the pooling types that
@@ -38,10 +38,9 @@ import java.io.File;
  * between the two.
  */
 @ClaudeGenerated(
-        purpose = "Verify that LlamaModel.embed() returns a correctly-sized float[] for every " +
-                  "pooling type that is applicable to decoder-only embedding models, and that " +
-                  "UNSPECIFIED (= model default) behaves the same way as MEAN for CodeLlama."
-)
+        purpose = "Verify that LlamaModel.embed() returns a correctly-sized float[] for every "
+                + "pooling type that is applicable to decoder-only embedding models, and that "
+                + "UNSPECIFIED (= model default) behaves the same way as MEAN for CodeLlama.")
 public class LlamaEmbeddingsTest {
 
     /** Expected embedding dimension for codellama-7b (hidden size = 4 096). */
@@ -64,17 +63,17 @@ public class LlamaEmbeddingsTest {
     // -------------------------------------------------------------------------
 
     private LlamaModel openModel(PoolingType type) {
-        Assumptions.assumeTrue(new File(TestConstants.MODEL_PATH).exists(), "Model file not found, skipping " + getClass().getSimpleName());
+        Assumptions.assumeTrue(
+                new File(TestConstants.MODEL_PATH).exists(),
+                "Model file not found, skipping " + getClass().getSimpleName());
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
-        return new LlamaModel(
-                new ModelParameters()
-                        .setModel(TestConstants.MODEL_PATH)
-                        .setCtxSize(128)
-                        .setGpuLayers(gpuLayers)
-                        .setFit(false)
-                        .enableEmbedding()
-                        .setPoolingType(type)
-        );
+        return new LlamaModel(new ModelParameters()
+                .setModel(TestConstants.MODEL_PATH)
+                .setCtxSize(128)
+                .setGpuLayers(gpuLayers)
+                .setFit(false)
+                .enableEmbedding()
+                .setPoolingType(type));
     }
 
     // -------------------------------------------------------------------------
@@ -184,23 +183,25 @@ public class LlamaEmbeddingsTest {
     @Test
     public void testNomicEmbedLoads() {
         String nomicPath = System.getProperty(TestConstants.PROP_NOMIC_MODEL_PATH);
-        Assumptions.assumeTrue(nomicPath != null,
+        Assumptions.assumeTrue(
+                nomicPath != null,
                 "Set -D" + TestConstants.PROP_NOMIC_MODEL_PATH + " to a nomic-embed-text GGUF to run this test");
         Assumptions.assumeTrue(new File(nomicPath).exists(), "Nomic model file not found at " + nomicPath);
 
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
-        model = new LlamaModel(
-                new ModelParameters()
-                        .setModel(nomicPath)
-                        .setBatchSize(8192)
-                        .setUbatchSize(8192)
-                        .setGpuLayers(gpuLayers)
-                        .setFit(false)
-                        .enableEmbedding()
-        );
+        model = new LlamaModel(new ModelParameters()
+                .setModel(nomicPath)
+                .setBatchSize(8192)
+                .setUbatchSize(8192)
+                .setGpuLayers(gpuLayers)
+                .setFit(false)
+                .enableEmbedding());
 
         float[] embedding = model.embed("search_query: What is TSNE?");
-        assertEquals(TestConstants.NOMIC_EMBED_DIM, embedding.length, "nomic-embed-text-v1.5 must return a " + TestConstants.NOMIC_EMBED_DIM + "-dim vector");
+        assertEquals(
+                TestConstants.NOMIC_EMBED_DIM,
+                embedding.length,
+                "nomic-embed-text-v1.5 must return a " + TestConstants.NOMIC_EMBED_DIM + "-dim vector");
         assertEmbeddingValid(embedding, PoolingType.MEAN);
     }
 }

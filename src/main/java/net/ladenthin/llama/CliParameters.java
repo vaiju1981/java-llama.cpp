@@ -5,13 +5,12 @@
 
 package net.ladenthin.llama;
 
-import net.ladenthin.llama.args.CliArg;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import net.ladenthin.llama.args.CliArg;
+import org.jetbrains.annotations.Nullable;
 
 abstract class CliParameters {
 
@@ -83,5 +82,4 @@ abstract class CliParameters {
         }
         return result.toArray(new String[0]);
     }
-
 }

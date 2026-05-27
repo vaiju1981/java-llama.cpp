@@ -4,16 +4,15 @@
 
 package net.ladenthin.llama;
 
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import org.junit.jupiter.api.Test;
 
 @ClaudeGenerated(
         purpose = "Verify CancellationToken state transitions (initial, cancel, reset) "
                 + "and idempotency of cancel(). Cooperative cancellation behaviour during "
-                + "a live inference loop is exercised in LlamaModelTest."
-)
+                + "a live inference loop is exercised in LlamaModelTest.")
 public class CancellationTokenTest {
 
     @Test

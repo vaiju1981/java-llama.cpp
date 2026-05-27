@@ -117,8 +117,7 @@ public final class ContentPart {
         } else if (name.endsWith(".gif")) {
             mimeType = "image/gif";
         } else {
-            throw new IllegalArgumentException(
-                    "Cannot infer MIME type from extension: " + imagePath
+            throw new IllegalArgumentException("Cannot infer MIME type from extension: " + imagePath
                     + " &#x2014; use ContentPart.imageBytes(bytes, mimeType) instead");
         }
         return imageBytes(Files.readAllBytes(imagePath), mimeType);

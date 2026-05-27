@@ -5,11 +5,10 @@
 
 package net.ladenthin.llama;
 
-import net.ladenthin.llama.args.CliArg;
-import net.ladenthin.llama.json.ParameterJsonSerializer;
-
 import java.util.HashMap;
 import java.util.Map;
+import net.ladenthin.llama.args.CliArg;
+import net.ladenthin.llama.json.ParameterJsonSerializer;
 
 /**
  * The Java library re-uses most of the llama.cpp server code, which mostly works with JSONs. Thus, the complexity and
@@ -18,69 +17,66 @@ import java.util.Map;
  */
 abstract class JsonParameters {
 
-	// We save parameters directly as a String map here, to re-use as much as possible of the (json-based) C++ code.
-	// The JNI code for a proper Java-typed data object is comparatively too complex and hard to maintain.
-	final Map<String, String> parameters = new HashMap<>();
+    // We save parameters directly as a String map here, to re-use as much as possible of the (json-based) C++ code.
+    // The JNI code for a proper Java-typed data object is comparatively too complex and hard to maintain.
+    final Map<String, String> parameters = new HashMap<>();
 
-	/** Serializer for converting Java values to JSON-safe strings. */
-	protected final ParameterJsonSerializer serializer = new ParameterJsonSerializer();
+    /** Serializer for converting Java values to JSON-safe strings. */
+    protected final ParameterJsonSerializer serializer = new ParameterJsonSerializer();
 
-	@Override
-	public String toString() {
-		StringBuilder builder = new StringBuilder();
-		builder.append("{\n");
-		int i = 0;
-		for (Map.Entry<String, String> entry : parameters.entrySet()) {
-			String key = entry.getKey();
-			String value = entry.getValue();
-			builder.append("\t\"")
-					.append(key)
-					.append("\": ")
-					.append(value);
-			if (i++ < parameters.size() - 1) {
-				builder.append(",");
-			}
-			builder.append("\n");
-		}
-		builder.append("}");
-		return builder.toString();
-	}
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("{\n");
+        int i = 0;
+        for (Map.Entry<String, String> entry : parameters.entrySet()) {
+            String key = entry.getKey();
+            String value = entry.getValue();
+            builder.append("\t\"").append(key).append("\": ").append(value);
+            if (i++ < parameters.size() - 1) {
+                builder.append(",");
+            }
+            builder.append("\n");
+        }
+        builder.append("}");
+        return builder.toString();
+    }
 
-	String toJsonString(String text) {
-		if (text == null) return null;
-		return serializer.toJsonString(text);
-	}
+    String toJsonString(String text) {
+        if (text == null) return null;
+        return serializer.toJsonString(text);
+    }
 
-	/**
-	 * Store a scalar value (typically a primitive: int, long, float, double, boolean)
-	 * for the given key using {@link String#valueOf(Object)} and return this builder
-	 * typed as the concrete subtype so callers can collapse the
-	 * {@code parameters.put(...); return this;} pair into a single
-	 * {@code return putScalar(...);}.
-	 *
-	 * @param key   the parameter key
-	 * @param value the scalar value; autoboxed at the call site
-	 * @param <T>   the concrete subtype of this builder
-	 * @return this builder
-	 */
-	@SuppressWarnings("unchecked")
-	protected final <T extends JsonParameters> T putScalar(String key, Object value) {
-		parameters.put(key, String.valueOf(value));
-		return (T) this;
-	}
+    /**
+     * Store a scalar value (typically a primitive: int, long, float, double, boolean)
+     * for the given key using {@link String#valueOf(Object)} and return this builder
+     * typed as the concrete subtype so callers can collapse the
+     * {@code parameters.put(...); return this;} pair into a single
+     * {@code return putScalar(...);}.
+     *
+     * @param key   the parameter key
+     * @param value the scalar value; autoboxed at the call site
+     * @param <T>   the concrete subtype of this builder
+     * @return this builder
+     */
+    @SuppressWarnings("unchecked")
+    protected final <T extends JsonParameters> T putScalar(String key, Object value) {
+        parameters.put(key, String.valueOf(value));
+        return (T) this;
+    }
 
-	/**
-	 * Store the CLI-argument string of the given enum constant for the given key and
-	 * return this builder typed as the concrete subtype.
-	 *
-	 * @param key   the parameter key
-	 * @param value the enum constant; must implement {@link CliArg}
-	 * @param <T>   the concrete subtype of this builder
-	 * @return this builder
-	 */
-	@SuppressWarnings("unchecked")
-	protected final <T extends JsonParameters> T putEnum(String key, CliArg value) {
-		parameters.put(key, value.getArgValue());
-		return (T) this;
-	}
+    /**
+     * Store the CLI-argument string of the given enum constant for the given key and
+     * return this builder typed as the concrete subtype.
+     *
+     * @param key   the parameter key
+     * @param value the enum constant; must implement {@link CliArg}
+     * @param <T>   the concrete subtype of this builder
+     * @return this builder
+     */
+    @SuppressWarnings("unchecked")
+    protected final <T extends JsonParameters> T putEnum(String key, CliArg value) {
+        parameters.put(key, value.getArgValue());
+        return (T) this;
+    }
 }

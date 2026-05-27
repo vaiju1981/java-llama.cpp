@@ -5,20 +5,19 @@
 
 package net.ladenthin.llama.json;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import net.ladenthin.llama.Pair;
-import net.ladenthin.llama.args.Sampler;
-import org.junit.jupiter.api.Test;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
+import net.ladenthin.llama.Pair;
+import net.ladenthin.llama.args.Sampler;
+import org.junit.jupiter.api.Test;
 
 /**
  * Unit tests for {@link ParameterJsonSerializer}.
@@ -89,10 +88,8 @@ public class ParameterJsonSerializerTest {
 
     @Test
     public void testBuildMessages_withoutSystemMessage() {
-        List<Pair<String, String>> msgs = Arrays.asList(
-                new Pair<>("user", "Hi"),
-                new Pair<>("assistant", "Hello there")
-        );
+        List<Pair<String, String>> msgs =
+                Arrays.asList(new Pair<>("user", "Hi"), new Pair<>("assistant", "Hello there"));
         ArrayNode arr = serializer.buildMessages(null, msgs);
         assertEquals(2, arr.size());
         assertEquals("user", arr.get(0).path("role").asText());
@@ -109,8 +106,7 @@ public class ParameterJsonSerializerTest {
 
     @Test
     public void testBuildMessages_specialCharsInContent() {
-        List<Pair<String, String>> msgs = Collections.singletonList(
-                new Pair<>("user", "line1\nline2\t\"quoted\""));
+        List<Pair<String, String>> msgs = Collections.singletonList(new Pair<>("user", "line1\nline2\t\"quoted\""));
         ArrayNode arr = serializer.buildMessages(null, msgs);
         assertEquals("line1\nline2\t\"quoted\"", arr.get(0).path("content").asText());
     }
@@ -173,8 +169,7 @@ public class ParameterJsonSerializerTest {
 
     @Test
     public void testBuildSamplers_allTypes() {
-        ArrayNode arr = serializer.buildSamplers(
-                Sampler.TOP_K, Sampler.TOP_P, Sampler.MIN_P, Sampler.TEMPERATURE);
+        ArrayNode arr = serializer.buildSamplers(Sampler.TOP_K, Sampler.TOP_P, Sampler.MIN_P, Sampler.TEMPERATURE);
         assertEquals(4, arr.size());
         assertEquals("top_k", arr.get(0).asText());
         assertEquals("top_p", arr.get(1).asText());
@@ -195,7 +190,7 @@ public class ParameterJsonSerializerTest {
 
     @Test
     public void testBuildIntArray_values() {
-        ArrayNode arr = serializer.buildIntArray(new int[]{1, 2, 3});
+        ArrayNode arr = serializer.buildIntArray(new int[] {1, 2, 3});
         assertEquals(3, arr.size());
         assertEquals(1, arr.get(0).asInt());
         assertEquals(3, arr.get(2).asInt());
@@ -203,13 +198,13 @@ public class ParameterJsonSerializerTest {
 
     @Test
     public void testBuildIntArray_empty() {
-        ArrayNode arr = serializer.buildIntArray(new int[]{});
+        ArrayNode arr = serializer.buildIntArray(new int[] {});
         assertEquals(0, arr.size());
     }
 
     @Test
     public void testBuildIntArray_roundtripsAsJson() throws Exception {
-        ArrayNode arr = serializer.buildIntArray(new int[]{10, 20});
+        ArrayNode arr = serializer.buildIntArray(new int[] {10, 20});
         JsonNode parsed = serializer.OBJECT_MAPPER.readTree(arr.toString());
         assertTrue(parsed.isArray());
         assertEquals(10, parsed.get(0).asInt());

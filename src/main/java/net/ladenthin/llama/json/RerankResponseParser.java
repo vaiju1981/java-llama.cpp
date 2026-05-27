@@ -7,12 +7,11 @@ package net.ladenthin.llama.json;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import net.ladenthin.llama.Pair;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import net.ladenthin.llama.Pair;
 
 /**
  * Pure JSON transforms for native rerank responses.
@@ -32,8 +31,7 @@ import java.util.List;
 public class RerankResponseParser {
 
     /** Creates a new {@link RerankResponseParser}. */
-    public RerankResponseParser() {
-    }
+    public RerankResponseParser() {}
 
     /** Shared Jackson mapper; thread-safe and reused across all instances. */
     public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();

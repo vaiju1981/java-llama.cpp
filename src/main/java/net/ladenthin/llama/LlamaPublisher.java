@@ -4,12 +4,11 @@
 
 package net.ladenthin.llama;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
-
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Reactive Streams {@link Publisher} that emits {@link LlamaOutput} tokens from a
@@ -48,8 +47,8 @@ public final class LlamaPublisher implements Publisher<LlamaOutput> {
             throw new NullPointerException("subscriber");
         }
         if (!subscribed.compareAndSet(false, true)) {
-            EmptySubscription.signalError(subscriber,
-                    new IllegalStateException("LlamaPublisher is single-subscriber; already subscribed"));
+            EmptySubscription.signalError(
+                    subscriber, new IllegalStateException("LlamaPublisher is single-subscriber; already subscribed"));
             return;
         }
         LlamaIterable iterable = chat ? model.generateChat(parameters) : model.generate(parameters);
@@ -84,12 +83,12 @@ public final class LlamaPublisher implements Publisher<LlamaOutput> {
         public void request(long n) {
             if (n <= 0) {
                 cancel();
-                subscriber.onError(new IllegalArgumentException(
-                        "reactive-streams §3.9: request must be > 0, got " + n));
+                subscriber.onError(
+                        new IllegalArgumentException("reactive-streams §3.9: request must be > 0, got " + n));
                 return;
             }
             // Saturating add
-            for (;;) {
+            for (; ; ) {
                 long cur = demand.get();
                 long next = cur + n;
                 if (next < 0) next = Long.MAX_VALUE;
@@ -164,8 +163,11 @@ public final class LlamaPublisher implements Publisher<LlamaOutput> {
 
     /** No-op subscription used to signal onError on rejected subscriptions. */
     private static final class EmptySubscription implements Subscription {
-        @Override public void request(long n) { }
-        @Override public void cancel() { }
+        @Override
+        public void request(long n) {}
+
+        @Override
+        public void cancel() {}
 
         static void signalError(Subscriber<?> subscriber, Throwable error) {
             subscriber.onSubscribe(new EmptySubscription());

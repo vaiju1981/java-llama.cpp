@@ -5,15 +5,14 @@
 
 package net.ladenthin.llama.json;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Map;
 import net.ladenthin.llama.LlamaOutput;
 import net.ladenthin.llama.StopReason;
 import org.junit.jupiter.api.Test;
-
-import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for {@link CompletionResponseParser}.
@@ -153,13 +152,12 @@ public class CompletionResponseParserTest {
 
     @Test
     public void testParseProbabilities_postSampling() throws Exception {
-        String json = "{\"content\":\"hi\",\"stop\":true," +
-                "\"completion_probabilities\":[" +
-                "{\"token\":\"Hello\",\"bytes\":[72],\"id\":15043,\"prob\":0.82," +
-                "\"top_probs\":[{\"token\":\"Hi\",\"bytes\":[72],\"id\":9932,\"prob\":0.1}]}," +
-                "{\"token\":\" world\",\"bytes\":[32,119],\"id\":1917,\"prob\":0.65," +
-                "\"top_probs\":[]}" +
-                "]}";
+        String json = "{\"content\":\"hi\",\"stop\":true," + "\"completion_probabilities\":["
+                + "{\"token\":\"Hello\",\"bytes\":[72],\"id\":15043,\"prob\":0.82,"
+                + "\"top_probs\":[{\"token\":\"Hi\",\"bytes\":[72],\"id\":9932,\"prob\":0.1}]},"
+                + "{\"token\":\" world\",\"bytes\":[32,119],\"id\":1917,\"prob\":0.65,"
+                + "\"top_probs\":[]}"
+                + "]}";
         JsonNode node = MAPPER.readTree(json);
         Map<String, Float> probs = parser.parseProbabilities(node);
         assertEquals(2, probs.size());
@@ -169,11 +167,10 @@ public class CompletionResponseParserTest {
 
     @Test
     public void testParseProbabilities_preSampling() throws Exception {
-        String json = "{\"content\":\"hi\",\"stop\":true," +
-                "\"completion_probabilities\":[" +
-                "{\"token\":\"Hello\",\"bytes\":[72],\"id\":15043,\"logprob\":-0.2," +
-                "\"top_logprobs\":[{\"token\":\"Hi\",\"bytes\":[72],\"id\":9932,\"logprob\":-2.3}]}" +
-                "]}";
+        String json = "{\"content\":\"hi\",\"stop\":true," + "\"completion_probabilities\":["
+                + "{\"token\":\"Hello\",\"bytes\":[72],\"id\":15043,\"logprob\":-0.2,"
+                + "\"top_logprobs\":[{\"token\":\"Hi\",\"bytes\":[72],\"id\":9932,\"logprob\":-2.3}]}"
+                + "]}";
         JsonNode node = MAPPER.readTree(json);
         Map<String, Float> probs = parser.parseProbabilities(node);
         assertEquals(1, probs.size());
@@ -182,11 +179,10 @@ public class CompletionResponseParserTest {
 
     @Test
     public void testParseProbabilities_escapedToken() throws Exception {
-        String json = "{\"content\":\"hi\",\"stop\":true," +
-                "\"completion_probabilities\":[" +
-                "{\"token\":\"say \\\"yes\\\"\",\"bytes\":[],\"id\":1,\"prob\":0.5," +
-                "\"top_probs\":[]}" +
-                "]}";
+        String json = "{\"content\":\"hi\",\"stop\":true," + "\"completion_probabilities\":["
+                + "{\"token\":\"say \\\"yes\\\"\",\"bytes\":[],\"id\":1,\"prob\":0.5,"
+                + "\"top_probs\":[]}"
+                + "]}";
         JsonNode node = MAPPER.readTree(json);
         Map<String, Float> probs = parser.parseProbabilities(node);
         assertEquals(1, probs.size());
@@ -196,11 +192,10 @@ public class CompletionResponseParserTest {
     @Test
     public void testParseProbabilities_topProbs_notIncluded() throws Exception {
         // top_probs entries must NOT appear in the outer map — only the outer token/prob
-        String json = "{\"content\":\"hi\",\"stop\":true," +
-                "\"completion_probabilities\":[" +
-                "{\"token\":\"A\",\"bytes\":[],\"id\":1,\"prob\":0.9," +
-                "\"top_probs\":[{\"token\":\"B\",\"bytes\":[],\"id\":2,\"prob\":0.05}]}" +
-                "]}";
+        String json = "{\"content\":\"hi\",\"stop\":true," + "\"completion_probabilities\":["
+                + "{\"token\":\"A\",\"bytes\":[],\"id\":1,\"prob\":0.9,"
+                + "\"top_probs\":[{\"token\":\"B\",\"bytes\":[],\"id\":2,\"prob\":0.05}]}"
+                + "]}";
         JsonNode node = MAPPER.readTree(json);
         Map<String, Float> probs = parser.parseProbabilities(node);
         assertEquals(1, probs.size());

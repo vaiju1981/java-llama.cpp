@@ -5,18 +5,16 @@
 
 package examples;
 
-import net.ladenthin.llama.InferenceParameters;
-import net.ladenthin.llama.LlamaModel;
-import net.ladenthin.llama.LlamaOutput;
-import net.ladenthin.llama.ModelParameters;
-import net.ladenthin.llama.Pair;
-
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-
+import net.ladenthin.llama.InferenceParameters;
+import net.ladenthin.llama.LlamaModel;
+import net.ladenthin.llama.LlamaOutput;
+import net.ladenthin.llama.ModelParameters;
+import net.ladenthin.llama.Pair;
 import org.junit.jupiter.api.Disabled;
 
 // Model file (models/codellama-7b.Q2_K.gguf) is not available in the models directory
@@ -24,9 +22,8 @@ import org.junit.jupiter.api.Disabled;
 public class ChatExample {
 
     public static void main(String... args) throws Exception {
-        ModelParameters modelParams = new ModelParameters()
-                .setModel("models/codellama-7b.Q2_K.gguf")
-                .setGpuLayers(43);
+        ModelParameters modelParams =
+                new ModelParameters().setModel("models/codellama-7b.Q2_K.gguf").setGpuLayers(43);
         try (LlamaModel model = new LlamaModel(modelParams)) {
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));
             List<Pair<String, String>> messages = new ArrayList<>();

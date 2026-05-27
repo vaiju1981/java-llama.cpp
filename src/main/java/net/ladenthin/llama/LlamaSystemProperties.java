@@ -11,8 +11,7 @@ package net.ladenthin.llama;
 public class LlamaSystemProperties {
 
     /** Creates a new {@link LlamaSystemProperties}. */
-    public LlamaSystemProperties() {
-    }
+    public LlamaSystemProperties() {}
 
     /** Common system-property prefix for all library-specific overrides. */
     public static final String PREFIX = "net.ladenthin.llama";

@@ -4,20 +4,18 @@
 
 package net.ladenthin.llama;
 
-import net.ladenthin.llama.json.ChatResponseParser;
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import net.ladenthin.llama.json.ChatResponseParser;
+import org.junit.jupiter.api.Test;
 
 @ClaudeGenerated(
         purpose = "Verify ChatResponseParser.parseResponse maps the OAI-compatible chat completion JSON "
                 + "into ChatResponse / ChatChoice / ChatMessage / ToolCall, surfaces Usage and Timings, "
-                + "and falls back gracefully on malformed input."
-)
+                + "and falls back gracefully on malformed input.")
 public class ChatResponseTest {
 
     private final ChatResponseParser parser = new ChatResponseParser();
@@ -42,7 +40,7 @@ public class ChatResponseTest {
         assertTrue(c.getMessage().getToolCalls().isEmpty());
 
         assertEquals(12L, r.getUsage().getPromptTokens());
-        assertEquals(5L,  r.getUsage().getCompletionTokens());
+        assertEquals(5L, r.getUsage().getCompletionTokens());
         assertEquals(17L, r.getUsage().getTotalTokens());
 
         assertEquals(12, r.getTimings().getPromptN());
@@ -101,8 +99,8 @@ public class ChatResponseTest {
         ChatRequest req = new ChatRequest()
                 .addMessage("system", "be terse")
                 .addMessage("user", "two plus two?")
-                .addMessage(ChatMessage.assistantToolCalls("",
-                        java.util.Collections.singletonList(new ToolCall("c1", "add", "{\"a\":2,\"b\":2}"))))
+                .addMessage(ChatMessage.assistantToolCalls(
+                        "", java.util.Collections.singletonList(new ToolCall("c1", "add", "{\"a\":2,\"b\":2}"))))
                 .addMessage(ChatMessage.toolResult("c1", "4"));
 
         String msgs = req.buildMessagesJson();
@@ -119,9 +117,9 @@ public class ChatResponseTest {
 
     @Test
     public void buildToolsJsonInlinesParameterSchema() {
-        ChatRequest req = new ChatRequest().addTool(new ToolDefinition(
-                "echo", "Echo a string",
-                "{\"type\":\"object\",\"properties\":{\"s\":{\"type\":\"string\"}}}"));
+        ChatRequest req = new ChatRequest()
+                .addTool(new ToolDefinition(
+                        "echo", "Echo a string", "{\"type\":\"object\",\"properties\":{\"s\":{\"type\":\"string\"}}}"));
         String tools = req.buildToolsJson();
         assertTrue(tools.contains("\"type\":\"function\""), tools);
         assertTrue(tools.contains("\"name\":\"echo\""), tools);

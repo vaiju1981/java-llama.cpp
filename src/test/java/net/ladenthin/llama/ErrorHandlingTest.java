@@ -5,10 +5,10 @@
 
 package net.ladenthin.llama;
 
-import java.io.File;
-
-import org.junit.jupiter.api.AfterAll;
 import static org.junit.jupiter.api.Assertions.*;
+
+import java.io.File;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -26,11 +26,10 @@ import org.junit.jupiter.api.Test;
  * </ul>
  */
 @ClaudeGenerated(
-        purpose = "Verify error handling paths in the JNI layer: invalid model path, embed without " +
-                  "enableEmbedding, handleInfill missing fields, handleEmbeddings invalid params, " +
-                  "and configureParallelInference validation.",
-        model = "claude-opus-4-6"
-)
+        purpose = "Verify error handling paths in the JNI layer: invalid model path, embed without "
+                + "enableEmbedding, handleInfill missing fields, handleEmbeddings invalid params, "
+                + "and configureParallelInference validation.",
+        model = "claude-opus-4-6")
 public class ErrorHandlingTest {
 
     private static LlamaModel model;
@@ -38,25 +37,22 @@ public class ErrorHandlingTest {
 
     @BeforeAll
     public static void setup() {
-        Assumptions.assumeTrue(new File(TestConstants.MODEL_PATH).exists(), "Model file not found, skipping ErrorHandlingTest");
+        Assumptions.assumeTrue(
+                new File(TestConstants.MODEL_PATH).exists(), "Model file not found, skipping ErrorHandlingTest");
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
         // Model WITH embedding
-        model = new LlamaModel(
-                new ModelParameters()
-                        .setCtxSize(128)
-                        .setModel(TestConstants.MODEL_PATH)
-                        .setGpuLayers(gpuLayers)
-                        .setFit(false)
-                        .enableEmbedding()
-        );
+        model = new LlamaModel(new ModelParameters()
+                .setCtxSize(128)
+                .setModel(TestConstants.MODEL_PATH)
+                .setGpuLayers(gpuLayers)
+                .setFit(false)
+                .enableEmbedding());
         // Model WITHOUT embedding
-        modelNoEmbed = new LlamaModel(
-                new ModelParameters()
-                        .setCtxSize(128)
-                        .setModel(TestConstants.MODEL_PATH)
-                        .setGpuLayers(gpuLayers)
-                        .setFit(false)
-        );
+        modelNoEmbed = new LlamaModel(new ModelParameters()
+                .setCtxSize(128)
+                .setModel(TestConstants.MODEL_PATH)
+                .setGpuLayers(gpuLayers)
+                .setFit(false));
     }
 
     @AfterAll
@@ -75,20 +71,18 @@ public class ErrorHandlingTest {
 
     @Test
     public void testInvalidModelPathThrows() {
-        assertThrows(LlamaException.class, () -> new LlamaModel(
-                new ModelParameters()
+        assertThrows(
+                LlamaException.class,
+                () -> new LlamaModel(new ModelParameters()
                         .setModel("/nonexistent/path/model.gguf")
-                        .setFit(false)
-        ));
+                        .setFit(false)));
     }
 
     @Test
     public void testEmptyModelPathThrows() {
-        assertThrows(LlamaException.class, () -> new LlamaModel(
-                new ModelParameters()
-                        .setModel("")
-                        .setFit(false)
-        ));
+        assertThrows(
+                LlamaException.class,
+                () -> new LlamaModel(new ModelParameters().setModel("").setFit(false)));
     }
 
     // -------------------------------------------------------------------------

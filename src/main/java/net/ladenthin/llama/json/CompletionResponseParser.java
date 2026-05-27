@@ -7,6 +7,12 @@ package net.ladenthin.llama.json;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import net.ladenthin.llama.CompletionResult;
 import net.ladenthin.llama.InferenceParameters;
 import net.ladenthin.llama.LlamaOutput;
@@ -14,13 +20,6 @@ import net.ladenthin.llama.StopReason;
 import net.ladenthin.llama.Timings;
 import net.ladenthin.llama.TokenLogprob;
 import net.ladenthin.llama.Usage;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 /**
  * Pure JSON transforms for native completion/streaming responses.
@@ -57,8 +56,7 @@ import java.util.Map;
 public class CompletionResponseParser {
 
     /** Creates a new {@link CompletionResponseParser}. */
-    public CompletionResponseParser() {
-    }
+    public CompletionResponseParser() {}
 
     /** Shared Jackson mapper; thread-safe and reused across all instances. */
     public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -75,8 +73,12 @@ public class CompletionResponseParser {
         try {
             return parse(OBJECT_MAPPER.readTree(json));
         } catch (IOException e) {
-            return new LlamaOutput("", Collections.<String, Float>emptyMap(),
-                    Collections.<TokenLogprob>emptyList(), false, StopReason.NONE);
+            return new LlamaOutput(
+                    "",
+                    Collections.<String, Float>emptyMap(),
+                    Collections.<TokenLogprob>emptyList(),
+                    false,
+                    StopReason.NONE);
         }
     }
 
@@ -92,7 +94,8 @@ public class CompletionResponseParser {
         boolean stop = node.path("stop").asBoolean(false);
         Map<String, Float> probabilities = parseProbabilities(node);
         List<TokenLogprob> logprobs = parseLogprobs(node);
-        StopReason stopReason = stop ? StopReason.fromStopType(node.path("stop_type").asText("")) : StopReason.NONE;
+        StopReason stopReason =
+                stop ? StopReason.fromStopType(node.path("stop_type").asText("")) : StopReason.NONE;
         return new LlamaOutput(content, probabilities, logprobs, stop, stopReason);
     }
 
@@ -187,11 +190,17 @@ public class CompletionResponseParser {
                     node.path("tokens_predicted").asLong(0L));
             Timings timings = Timings.fromJson(node.path("timings"));
             List<TokenLogprob> logprobs = parseLogprobs(node);
-            StopReason stopReason = StopReason.fromStopType(node.path("stop_type").asText(""));
+            StopReason stopReason =
+                    StopReason.fromStopType(node.path("stop_type").asText(""));
             return new CompletionResult(text, usage, timings, logprobs, stopReason, json);
         } catch (IOException e) {
-            return new CompletionResult("", new Usage(0L, 0L), Timings.fromJson(null),
-                    Collections.<TokenLogprob>emptyList(), StopReason.NONE, json);
+            return new CompletionResult(
+                    "",
+                    new Usage(0L, 0L),
+                    Timings.fromJson(null),
+                    Collections.<TokenLogprob>emptyList(),
+                    StopReason.NONE,
+                    json);
         }
     }
 

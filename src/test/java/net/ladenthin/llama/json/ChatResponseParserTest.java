@@ -5,11 +5,11 @@
 
 package net.ladenthin.llama.json;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for {@link ChatResponseParser}.
@@ -26,8 +26,8 @@ public class ChatResponseParserTest {
 
     @Test
     public void testExtractChoiceContent_typical() {
-        String json = "{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"OK\"}," +
-                "\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":1}}";
+        String json = "{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"OK\"},"
+                + "\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":1}}";
         assertEquals("OK", parser.extractChoiceContent(json));
     }
 
@@ -39,8 +39,8 @@ public class ChatResponseParserTest {
 
     @Test
     public void testExtractChoiceContent_escapedContent() {
-        String json = "{\"choices\":[{\"message\":{\"role\":\"assistant\"," +
-                "\"content\":\"line1\\nline2\\t\\\"quoted\\\"\"}}]}";
+        String json = "{\"choices\":[{\"message\":{\"role\":\"assistant\","
+                + "\"content\":\"line1\\nline2\\t\\\"quoted\\\"\"}}]}";
         assertEquals("line1\nline2\t\"quoted\"", parser.extractChoiceContent(json));
     }
 
@@ -86,18 +86,15 @@ public class ChatResponseParserTest {
 
     @Test
     public void testExtractChoiceContent_node() throws Exception {
-        JsonNode node = MAPPER.readTree(
-                "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"Hello\"}}]}");
+        JsonNode node = MAPPER.readTree("{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"Hello\"}}]}");
         assertEquals("Hello", parser.extractChoiceContent(node));
     }
 
     @Test
     public void testExtractChoiceContent_nodeMultipleChoices_takesFirst() throws Exception {
-        JsonNode node = MAPPER.readTree(
-                "{\"choices\":[" +
-                        "{\"message\":{\"content\":\"First\"}}," +
-                        "{\"message\":{\"content\":\"Second\"}}" +
-                        "]}");
+        JsonNode node = MAPPER.readTree("{\"choices\":[" + "{\"message\":{\"content\":\"First\"}},"
+                + "{\"message\":{\"content\":\"Second\"}}"
+                + "]}");
         assertEquals("First", parser.extractChoiceContent(node));
     }
 
@@ -107,8 +104,8 @@ public class ChatResponseParserTest {
 
     @Test
     public void testExtractChoiceReasoningContent_present() {
-        String json = "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"The answer is 42.\"," +
-                "\"reasoning_content\":\"Let me think step by step...\"}}]}";
+        String json = "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"The answer is 42.\","
+                + "\"reasoning_content\":\"Let me think step by step...\"}}]}";
         assertEquals("Let me think step by step...", parser.extractChoiceReasoningContent(json));
     }
 
@@ -120,8 +117,8 @@ public class ChatResponseParserTest {
 
     @Test
     public void testExtractChoiceReasoningContent_emptyString() {
-        String json = "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"Hi\"," +
-                "\"reasoning_content\":\"\"}}]}";
+        String json = "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"Hi\","
+                + "\"reasoning_content\":\"\"}}]}";
         assertEquals("", parser.extractChoiceReasoningContent(json));
     }
 
@@ -138,17 +135,15 @@ public class ChatResponseParserTest {
 
     @Test
     public void testExtractChoiceReasoningContent_multiline() {
-        String json = "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"42\"," +
-                "\"reasoning_content\":\"Step 1: identify the question.\\nStep 2: answer it.\"}}]}";
-        assertEquals("Step 1: identify the question.\nStep 2: answer it.",
-                parser.extractChoiceReasoningContent(json));
+        String json = "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"42\","
+                + "\"reasoning_content\":\"Step 1: identify the question.\\nStep 2: answer it.\"}}]}";
+        assertEquals("Step 1: identify the question.\nStep 2: answer it.", parser.extractChoiceReasoningContent(json));
     }
 
     @Test
     public void testExtractChoiceReasoningContent_node() throws Exception {
-        JsonNode node = MAPPER.readTree(
-                "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"ok\"," +
-                "\"reasoning_content\":\"thinking...\"}}]}");
+        JsonNode node = MAPPER.readTree("{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"ok\","
+                + "\"reasoning_content\":\"thinking...\"}}]}");
         assertEquals("thinking...", parser.extractChoiceReasoningContent(node));
     }
 
@@ -158,22 +153,22 @@ public class ChatResponseParserTest {
 
     @Test
     public void testExtractUsageField_promptTokens() throws Exception {
-        JsonNode node = MAPPER.readTree(
-                "{\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":5,\"total_tokens\":17}}");
+        JsonNode node =
+                MAPPER.readTree("{\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":5,\"total_tokens\":17}}");
         assertEquals(12, parser.extractUsageField(node, "prompt_tokens"));
     }
 
     @Test
     public void testExtractUsageField_completionTokens() throws Exception {
-        JsonNode node = MAPPER.readTree(
-                "{\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":5,\"total_tokens\":17}}");
+        JsonNode node =
+                MAPPER.readTree("{\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":5,\"total_tokens\":17}}");
         assertEquals(5, parser.extractUsageField(node, "completion_tokens"));
     }
 
     @Test
     public void testExtractUsageField_totalTokens() throws Exception {
-        JsonNode node = MAPPER.readTree(
-                "{\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":5,\"total_tokens\":17}}");
+        JsonNode node =
+                MAPPER.readTree("{\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":5,\"total_tokens\":17}}");
         assertEquals(17, parser.extractUsageField(node, "total_tokens"));
     }
 

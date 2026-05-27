@@ -11,11 +11,10 @@ import java.util.Collection;
 public class MiroStatTest extends AbstractCliArgEnumTest<MiroStat> {
 
     public static Collection<Object[]> data() {
-        return Arrays.asList(new Object[][]{
+        return Arrays.asList(new Object[][] {
             {MiroStat.DISABLED, "0", 3},
-            {MiroStat.V1,       "1", 3},
-            {MiroStat.V2,       "2", 3},
+            {MiroStat.V1, "1", 3},
+            {MiroStat.V2, "2", 3},
         });
     }
-
 }

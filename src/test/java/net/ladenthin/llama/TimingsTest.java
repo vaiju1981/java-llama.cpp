@@ -4,14 +4,12 @@
 
 package net.ladenthin.llama;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-
-@ClaudeGenerated(
-        purpose = "Verify Timings.fromJson maps every result_timings field and treats missing nodes as zero."
-)
+@ClaudeGenerated(purpose = "Verify Timings.fromJson maps every result_timings field and treats missing nodes as zero.")
 public class TimingsTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

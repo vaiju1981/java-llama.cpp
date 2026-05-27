@@ -10,9 +10,8 @@ package net.ladenthin.llama.args;
  */
 public enum LogFormat {
 
-	/** Structured JSON log records (one JSON object per line). */
-	JSON,
-	/** Human-readable plain-text log lines. */
-	TEXT
-
+    /** Structured JSON log records (one JSON object per line). */
+    JSON,
+    /** Human-readable plain-text log lines. */
+    TEXT
 }

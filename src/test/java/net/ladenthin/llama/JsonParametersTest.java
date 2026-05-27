@@ -4,21 +4,20 @@
 
 package net.ladenthin.llama;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
+
 import net.ladenthin.llama.args.CacheType;
 import net.ladenthin.llama.args.CliArg;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
-
 @ClaudeGenerated(
-        purpose = "Verify the putScalar and putEnum helpers on JsonParameters: that they store the " +
-                  "expected string form for every primitive type used by the ModelParameters / " +
-                  "InferenceParameters setters (int, long, float, double, boolean), that they " +
-                  "overwrite a previously-set key, that putEnum uses getArgValue() rather than the " +
-                  "enum name, and that both helpers return the concrete builder subtype so callers " +
-                  "can chain in a single statement."
-)
+        purpose = "Verify the putScalar and putEnum helpers on JsonParameters: that they store the "
+                + "expected string form for every primitive type used by the ModelParameters / "
+                + "InferenceParameters setters (int, long, float, double, boolean), that they "
+                + "overwrite a previously-set key, that putEnum uses getArgValue() rather than the "
+                + "enum name, and that both helpers return the concrete builder subtype so callers "
+                + "can chain in a single statement.")
 public class JsonParametersTest {
 
     private static final class TestBuilder extends JsonParameters {

@@ -5,25 +5,23 @@
 
 package net.ladenthin.llama;
 
-import net.ladenthin.llama.args.*;
-import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.HashMap;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
+import net.ladenthin.llama.args.*;
+import org.junit.jupiter.api.Test;
 
 /**
  * Extended tests for {@link ModelParameters} covering CLI argument serialization
  * for all setter methods not already tested in {@link ModelParametersTest}.
  */
 @ClaudeGenerated(
-        purpose = "Verify CLI argument serialization for all ModelParameters setters not covered by " +
-                  "ModelParametersTest: context/batch sizing, threading, sampling scalars, XTC, DRY, " +
-                  "RoPE, YaRN, KV cache, GPU, memory, parallel inference, flag-only toggles, " +
-                  "speculative decoding, logging, model loading, grammar, chat templates, and advanced options.",
-        model = "claude-opus-4-6"
-)
+        purpose = "Verify CLI argument serialization for all ModelParameters setters not covered by "
+                + "ModelParametersTest: context/batch sizing, threading, sampling scalars, XTC, DRY, "
+                + "RoPE, YaRN, KV cache, GPU, memory, parallel inference, flag-only toggles, "
+                + "speculative decoding, logging, model loading, grammar, chat templates, and advanced options.",
+        model = "claude-opus-4-6")
 public class ModelParametersExtendedTest {
 
     // -------------------------------------------------------------------------
@@ -495,10 +493,8 @@ public class ModelParametersExtendedTest {
     @Test
     public void testKvUnifiedCacheRamClearIdleChaining() {
         // All three features wired together as they would be in production use
-        ModelParameters p = new ModelParameters()
-                .setKvUnified(true)
-                .setCacheRamMib(8192)
-                .setClearIdle(true);
+        ModelParameters p =
+                new ModelParameters().setKvUnified(true).setCacheRamMib(8192).setClearIdle(true);
         assertTrue(p.parameters.containsKey("--kv-unified"));
         assertEquals("8192", p.parameters.get("--cache-ram"));
         assertTrue(p.parameters.containsKey("--cache-idle-slots"));
@@ -770,7 +766,8 @@ public class ModelParametersExtendedTest {
 
     @Test
     public void testSetChatTemplate() {
-        ModelParameters p = new ModelParameters().setChatTemplate("{% for msg in messages %}{{ msg.content }}{% endfor %}");
+        ModelParameters p =
+                new ModelParameters().setChatTemplate("{% for msg in messages %}{{ msg.content }}{% endfor %}");
         assertEquals("{% for msg in messages %}{{ msg.content }}{% endfor %}", p.parameters.get("--chat-template"));
     }
 

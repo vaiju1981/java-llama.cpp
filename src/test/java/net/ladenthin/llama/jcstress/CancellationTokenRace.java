@@ -15,8 +15,8 @@ import org.openjdk.jcstress.infra.results.Z_Result;
 
 @JCStressTest
 @Description("cancel() must be visible to the arbiter via the volatile flag.")
-@Outcome(id = "true",  expect = Expect.ACCEPTABLE, desc = "Cancellation visible after actor completes")
-@Outcome(id = "false", expect = Expect.FORBIDDEN,  desc = "BUG: volatile write not seen after actor finish")
+@Outcome(id = "true", expect = Expect.ACCEPTABLE, desc = "Cancellation visible after actor completes")
+@Outcome(id = "false", expect = Expect.FORBIDDEN, desc = "BUG: volatile write not seen after actor finish")
 @State
 public class CancellationTokenRace {
 
