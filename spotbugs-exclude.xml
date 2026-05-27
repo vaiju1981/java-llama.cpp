@@ -109,6 +109,31 @@ SPDX-License-Identifier: MIT
     </Match>
 
     <!--
+        LlamaLoader is the native-library bootstrap. It resolves the path
+        to libjllama.{so,dylib,dll} from three operator-controlled inputs:
+
+          1. -Dnet.ladenthin.llama.lib.path=<dir>   (line 94)
+          2. java.library.path entries              (line 119)
+          3. java.io.tmpdir + hardcoded basename    (lines 133, 171, 215)
+
+        findsecbugs PATH_TRAVERSAL_IN flags every non-literal argument to
+        Paths.get, treating "user input" syntactically as "any non-literal
+        string". The threat-model reality is different: all three sources
+        are JVM properties set at process launch by whoever started the
+        process. An attacker who can set JVM properties has already won;
+        there is no untrusted end-user input reaching these paths.
+
+        Canonicalize-and-restrict-to-root mitigation is not applicable
+        because the whole purpose of the .lib.path property is to let the
+        operator point at any directory containing the native library;
+        there is no meaningful "allowed root" to validate against.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.LlamaLoader"/>
+        <Bug pattern="PATH_TRAVERSAL_IN"/>
+    </Match>
+
+    <!--
         Session is a thin non-owning wrapper around a LlamaModel: one LlamaModel
         wraps a native llama.cpp context that is intentionally shared across
         multiple Session instances (one per slot id). The model owns native
