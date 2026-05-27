@@ -58,6 +58,26 @@ SPDX-License-Identifier: MIT
     </Match>
 
     <!--
+        InferenceParameters and ModelParameters are fluent builders whose
+        parameters field is a Map<String, String> serving as the CLI / JSON
+        wire-format passed across JNI to nlohmann/json. Every setter
+        deliberately serializes its argument (Jackson ArrayNode/ObjectNode
+        via .toString(), or scalar concat) and stores the string into the
+        map. Spotbugs STT_TOSTRING_STORED_IN_FIELD flags every site because
+        a String pinned by toString() cannot be reformatted with a different
+        locale/encoding later — that pin is the whole point of the
+        serialization step. Same design rationale as the EXS suppression on
+        LlamaModel above.
+    -->
+    <Match>
+        <Or>
+            <Class name="net.ladenthin.llama.InferenceParameters"/>
+            <Class name="net.ladenthin.llama.ModelParameters"/>
+        </Or>
+        <Bug pattern="STT_TOSTRING_STORED_IN_FIELD"/>
+    </Match>
+
+    <!--
         Session is a thin non-owning wrapper around a LlamaModel: one LlamaModel
         wraps a native llama.cpp context that is intentionally shared across
         multiple Session instances (one per slot id). The model owns native
