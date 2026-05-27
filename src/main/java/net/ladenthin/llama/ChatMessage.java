@@ -90,7 +90,7 @@ public final class ChatMessage {
         return parts;
     }
 
-    private static String concatText(List<ContentPart> parts) {
+    private static String concatText(Iterable<ContentPart> parts) {
         if (parts == null) return "";
         StringBuilder sb = new StringBuilder();
         for (ContentPart p : parts) {
