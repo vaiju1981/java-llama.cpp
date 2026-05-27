@@ -57,4 +57,21 @@ SPDX-License-Identifier: MIT
         </Or>
     </Match>
 
+    <!--
+        Session is a thin non-owning wrapper around a LlamaModel: one LlamaModel
+        wraps a native llama.cpp context that is intentionally shared across
+        multiple Session instances (one per slot id). The model owns native
+        memory and must NOT be defensively copied — Session deliberately holds
+        the same reference the caller passed in, and Session.close() calls
+        model.eraseSlot(slotId), never model.close(). This is the documented
+        dependency-injection contract; spotbugs flags it as EI_EXPOSE_REP2
+        because the constructor stores an externally-mutable object, which is
+        true but by design.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.Session"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+        <Method name="&lt;init&gt;"/>
+    </Match>
+
 </FindBugsFilter>

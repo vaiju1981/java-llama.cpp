@@ -173,7 +173,7 @@ public final class ChatMessage {
      *         legacy text-only messages built via {@link #ChatMessage(String, String)}
      */
     public List<ContentPart> getParts() {
-        return parts;
+        return parts == null ? null : Collections.unmodifiableList(parts);
     }
 
     /**
