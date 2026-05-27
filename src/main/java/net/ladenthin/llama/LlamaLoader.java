@@ -189,8 +189,8 @@ class LlamaLoader {
             try (InputStream nativeIn = LlamaLoader.class.getResourceAsStream(nativeLibraryFilePath);
                     InputStream extractedLibIn = Files.newInputStream(extractedFilePath)) {
                 if (!contentsEquals(nativeIn, extractedLibIn)) {
-                    throw new RuntimeException(
-                            String.format("Failed to write a native library file at %s", extractedFilePath));
+                    System.err.println(String.format("Failed to write a native library file at %s", extractedFilePath));
+                    return null;
                 }
             }
 
