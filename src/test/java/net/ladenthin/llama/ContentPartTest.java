@@ -116,7 +116,7 @@ public class ContentPartTest {
     @Test
     public void imageFileRejectsUnknownExtension() throws IOException {
         Path file = tmp.resolve("doc.txt");
-        Files.write(file, "hello".getBytes());
+        Files.writeString(file, "hello");
         try {
             ContentPart.imageFile(file);
             fail("expected IllegalArgumentException for unknown extension");

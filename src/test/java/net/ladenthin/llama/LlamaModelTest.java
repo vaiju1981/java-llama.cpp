@@ -8,6 +8,7 @@ package net.ladenthin.llama;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.regex.Pattern;
 import net.ladenthin.llama.args.LogFormat;
@@ -608,8 +609,7 @@ public class LlamaModelTest {
     private String completeAndReadStdOut() {
         PrintStream stdOut = System.out;
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-        @SuppressWarnings("ImplicitDefaultCharsetUsage")
-        PrintStream printStream = new PrintStream(outputStream);
+        PrintStream printStream = new PrintStream(outputStream, false, StandardCharsets.UTF_8);
         System.setOut(printStream);
 
         try {
@@ -622,7 +622,7 @@ public class LlamaModelTest {
             printStream.close();
         }
 
-        return outputStream.toString();
+        return outputStream.toString(StandardCharsets.UTF_8);
     }
 
     private List<String> splitLines(String text) {
