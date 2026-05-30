@@ -281,87 +281,10 @@ SPDX-License-Identifier: MIT
 							</annotationProcessorPaths>
 						</configuration>
 					</execution>
-					<!-- We have to perform a separate build pass for cuda
-					classifier -->
-					<execution>
-						<id>gpu</id>
-						<phase>compile</phase>
-						<goals>
-							<goal>compile</goal>
-						</goals>
-						<configuration>
-							<compilerArgs>
-								<arg>-h</arg>
-								<arg>src/main/cpp</arg>
-							</compilerArgs>
-							<outputDirectory>
-								${project.build.outputDirectory}_cuda</outputDirectory>
-						</configuration>
-					</execution>
-					<!-- Separate build pass for opencl-android classifier -->
-					<execution>
-						<id>opencl-android</id>
-						<phase>compile</phase>
-						<goals>
-							<goal>compile</goal>
-						</goals>
-						<configuration>
-							<compilerArgs>
-								<arg>-h</arg>
-								<arg>src/main/cpp</arg>
-							</compilerArgs>
-							<outputDirectory>
-								${project.build.outputDirectory}_opencl_android</outputDirectory>
-						</configuration>
-					</execution>
 				</executions>
 			</plugin>
 			<plugin>
 				<artifactId>maven-resources-plugin</artifactId>
-				<executions>
-					<!-- Copy custom cuda libs to the output directory -->
-					<execution>
-						<id>copy-resources</id>
-						<phase>process-classes</phase>
-						<goals>
-							<goal>copy-resources</goal>
-						</goals>
-						<configuration>
-							<outputDirectory>
-								${project.build.outputDirectory}_cuda</outputDirectory>
-							<resources>
-								<resource>
-									<directory>
-										${basedir}/src/main/resources_linux_cuda/</directory>
-									<includes>
-										<include>**/*.*</include>
-									</includes>
-								</resource>
-							</resources>
-						</configuration>
-					</execution>
-					<!-- Copy custom opencl-android libs to the output directory -->
-					<execution>
-						<id>copy-resources-opencl-android</id>
-						<phase>process-classes</phase>
-						<goals>
-							<goal>copy-resources</goal>
-						</goals>
-						<configuration>
-							<outputDirectory>
-								${project.build.outputDirectory}_opencl_android</outputDirectory>
-							<resources>
-								<resource>
-									<directory>
-										${basedir}/src/main/resources_android_opencl/</directory>
-									<includes>
-										<include>**/*.*</include>
-									</includes>
-								</resource>
-							</resources>
-						</configuration>
-					</execution>
-				</executions>
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -554,6 +477,55 @@ SPDX-License-Identifier: MIT
 				<plugins>
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-compiler-plugin</artifactId>
+						<executions>
+						<!-- We have to perform a separate build pass for cuda
+						classifier -->
+						<execution>
+							<id>gpu</id>
+							<phase>compile</phase>
+							<goals>
+								<goal>compile</goal>
+							</goals>
+							<configuration>
+								<compilerArgs>
+									<arg>-h</arg>
+									<arg>src/main/cpp</arg>
+								</compilerArgs>
+								<outputDirectory>
+									${project.build.outputDirectory}_cuda</outputDirectory>
+							</configuration>
+						</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<artifactId>maven-resources-plugin</artifactId>
+						<executions>
+						<!-- Copy custom cuda libs to the output directory -->
+						<execution>
+							<id>copy-resources</id>
+							<phase>process-classes</phase>
+							<goals>
+								<goal>copy-resources</goal>
+							</goals>
+							<configuration>
+								<outputDirectory>
+									${project.build.outputDirectory}_cuda</outputDirectory>
+								<resources>
+									<resource>
+										<directory>
+											${basedir}/src/main/resources_linux_cuda/</directory>
+										<includes>
+											<include>**/*.*</include>
+										</includes>
+									</resource>
+								</resources>
+							</configuration>
+						</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-jar-plugin</artifactId>
 						<executions>
 							<!-- Pick class files AND libs from custom output
@@ -580,6 +552,54 @@ SPDX-License-Identifier: MIT
 			<id>opencl-android</id>
 			<build>
 				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-compiler-plugin</artifactId>
+						<executions>
+						<!-- Separate build pass for opencl-android classifier -->
+						<execution>
+							<id>opencl-android</id>
+							<phase>compile</phase>
+							<goals>
+								<goal>compile</goal>
+							</goals>
+							<configuration>
+								<compilerArgs>
+									<arg>-h</arg>
+									<arg>src/main/cpp</arg>
+								</compilerArgs>
+								<outputDirectory>
+									${project.build.outputDirectory}_opencl_android</outputDirectory>
+							</configuration>
+						</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<artifactId>maven-resources-plugin</artifactId>
+						<executions>
+						<!-- Copy custom opencl-android libs to the output directory -->
+						<execution>
+							<id>copy-resources-opencl-android</id>
+							<phase>process-classes</phase>
+							<goals>
+								<goal>copy-resources</goal>
+							</goals>
+							<configuration>
+								<outputDirectory>
+									${project.build.outputDirectory}_opencl_android</outputDirectory>
+								<resources>
+									<resource>
+										<directory>
+											${basedir}/src/main/resources_android_opencl/</directory>
+										<includes>
+											<include>**/*.*</include>
+										</includes>
+									</resource>
+								</resources>
+							</configuration>
+						</execution>
+						</executions>
+					</plugin>
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-jar-plugin</artifactId>
