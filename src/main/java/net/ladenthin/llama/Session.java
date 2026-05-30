@@ -58,8 +58,7 @@ public final class Session implements AutoCloseable {
      * @param systemMessage optional system prompt
      * @param paramsCustomizer applied to each request's parameters; may be {@code null}
      */
-    public Session(LlamaModel model, int slotId, String systemMessage,
-                   Consumer<InferenceParameters> paramsCustomizer) {
+    public Session(LlamaModel model, int slotId, String systemMessage, Consumer<InferenceParameters> paramsCustomizer) {
         this.model = model;
         this.slotId = slotId;
         this.systemMessage = systemMessage;
@@ -75,8 +74,7 @@ public final class Session implements AutoCloseable {
     public String send(String userMessage) {
         synchronized (lock) {
             if (streamingActive) {
-                throw new IllegalStateException(
-                        "stream in progress; call commitStreamedReply(...) before send(...)");
+                throw new IllegalStateException("stream in progress; call commitStreamedReply(...) before send(...)");
             }
             turns.add(new Pair<String, String>("user", userMessage));
             InferenceParameters params = buildParams();
@@ -103,8 +101,7 @@ public final class Session implements AutoCloseable {
     public LlamaIterable stream(String userMessage) {
         synchronized (lock) {
             if (streamingActive) {
-                throw new IllegalStateException(
-                        "stream in progress; call commitStreamedReply(...) before stream(...)");
+                throw new IllegalStateException("stream in progress; call commitStreamedReply(...) before stream(...)");
             }
             turns.add(new Pair<String, String>("user", userMessage));
             try {
@@ -127,8 +124,7 @@ public final class Session implements AutoCloseable {
     public void commitStreamedReply(String assistantText) {
         synchronized (lock) {
             if (!streamingActive) {
-                throw new IllegalStateException(
-                        "no stream in progress; call stream(...) first");
+                throw new IllegalStateException("no stream in progress; call stream(...) first");
             }
             turns.add(new Pair<String, String>("assistant", assistantText));
             streamingActive = false;
@@ -144,8 +140,7 @@ public final class Session implements AutoCloseable {
     public String save(String filepath) {
         synchronized (lock) {
             if (streamingActive) {
-                throw new IllegalStateException(
-                        "stream in progress; call commitStreamedReply(...) before save(...)");
+                throw new IllegalStateException("stream in progress; call commitStreamedReply(...) before save(...)");
             }
             return model.saveSlot(slotId, filepath);
         }
@@ -193,8 +188,8 @@ public final class Session implements AutoCloseable {
     }
 
     private InferenceParameters buildParams() {
-        InferenceParameters params = new InferenceParameters("")
-                .setMessages(systemMessage, new ArrayList<Pair<String, String>>(turns));
+        InferenceParameters params =
+                new InferenceParameters("").setMessages(systemMessage, new ArrayList<Pair<String, String>>(turns));
         if (paramsCustomizer != null) {
             paramsCustomizer.accept(params);
         }

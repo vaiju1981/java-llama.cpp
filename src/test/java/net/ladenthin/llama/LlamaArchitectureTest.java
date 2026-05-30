@@ -18,8 +18,10 @@ public class LlamaArchitectureTest {
      */
     @ArchTest
     static final ArchRule noJavaUtilLogging = noClasses()
-            .that().resideInAPackage("net.ladenthin.llama..")
-            .should().dependOnClassesThat()
+            .that()
+            .resideInAPackage("net.ladenthin.llama..")
+            .should()
+            .dependOnClassesThat()
             .resideInAPackage("java.util.logging..");
 
     /**
@@ -27,7 +29,9 @@ public class LlamaArchitectureTest {
      */
     @ArchTest
     static final ArchRule noTestFrameworksInProduction = noClasses()
-            .that().resideInAPackage("net.ladenthin.llama..")
-            .should().dependOnClassesThat()
+            .that()
+            .resideInAPackage("net.ladenthin.llama..")
+            .should()
+            .dependOnClassesThat()
             .resideInAnyPackage("org.junit..", "net.jqwik..", "com.tngtech.archunit..");
 }

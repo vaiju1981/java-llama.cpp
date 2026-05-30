@@ -5,11 +5,10 @@
 
 package net.ladenthin.llama;
 
-import org.jetbrains.annotations.NotNull;
-
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * An output of the LLM providing access to the generated text and the associated probabilities. You have to configure
@@ -60,7 +59,11 @@ public final class LlamaOutput {
      * @param stop          whether this is the final token
      * @param stopReason    the stop reason ({@link StopReason#NONE} on intermediate tokens)
      */
-    public LlamaOutput(@NotNull String text, @NotNull Map<String, Float> probabilities, boolean stop, @NotNull StopReason stopReason) {
+    public LlamaOutput(
+            @NotNull String text,
+            @NotNull Map<String, Float> probabilities,
+            boolean stop,
+            @NotNull StopReason stopReason) {
         this(text, probabilities, Collections.<TokenLogprob>emptyList(), stop, stopReason);
     }
 
@@ -73,8 +76,12 @@ public final class LlamaOutput {
      * @param stop          whether this is the final token
      * @param stopReason    the stop reason ({@link StopReason#NONE} on intermediate tokens)
      */
-    public LlamaOutput(@NotNull String text, @NotNull Map<String, Float> probabilities,
-                       @NotNull List<TokenLogprob> logprobs, boolean stop, @NotNull StopReason stopReason) {
+    public LlamaOutput(
+            @NotNull String text,
+            @NotNull Map<String, Float> probabilities,
+            @NotNull List<TokenLogprob> logprobs,
+            boolean stop,
+            @NotNull StopReason stopReason) {
         this.text = text;
         this.probabilities = probabilities;
         this.logprobs = logprobs;

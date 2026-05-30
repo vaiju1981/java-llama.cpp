@@ -20,29 +20,29 @@ import java.util.Objects;
  */
 final class NativeLibraryPermissionSetter {
 
-	private final PrintStream warningSink;
+    private final PrintStream warningSink;
 
-	NativeLibraryPermissionSetter(PrintStream warningSink) {
-		this.warningSink = Objects.requireNonNull(warningSink, "warningSink");
-	}
+    NativeLibraryPermissionSetter(PrintStream warningSink) {
+        this.warningSink = Objects.requireNonNull(warningSink, "warningSink");
+    }
 
-	/**
-	 * Sets read, owner-only write, and execute permissions on {@code file}.
-	 *
-	 * @param file the extracted native library file
-	 * @return {@code true} if all three permission changes succeeded
-	 */
-	boolean apply(File file) {
-		boolean readable = file.setReadable(true);
-		boolean writable = file.setWritable(true, true);
-		boolean executable = file.setExecutable(true);
-		if (!readable || !writable || !executable) {
-			warningSink.println("Warning: could not set permissions on " + file
-					+ " (readable=" + readable
-					+ ", writable=" + writable
-					+ ", executable=" + executable + ")");
-			return false;
-		}
-		return true;
-	}
+    /**
+     * Sets read, owner-only write, and execute permissions on {@code file}.
+     *
+     * @param file the extracted native library file
+     * @return {@code true} if all three permission changes succeeded
+     */
+    boolean apply(File file) {
+        boolean readable = file.setReadable(true);
+        boolean writable = file.setWritable(true, true);
+        boolean executable = file.setExecutable(true);
+        if (!readable || !writable || !executable) {
+            warningSink.println("Warning: could not set permissions on " + file
+                    + " (readable=" + readable
+                    + ", writable=" + writable
+                    + ", executable=" + executable + ")");
+            return false;
+        }
+        return true;
+    }
 }

@@ -403,7 +403,7 @@ jobs:
           echo "${{ github.workspace }}/core.%e.%p" | sudo tee /proc/sys/kernel/core_pattern
       - name: Run tests
         run: |
-          mvn --no-transfer-progress test \
+          mvn --no-transfer-progress -P jcstress test \
             -Dnet.ladenthin.llama.nomic.path=models/${NOMIC_EMBED_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \

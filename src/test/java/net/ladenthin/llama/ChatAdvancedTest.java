@@ -5,17 +5,17 @@
 
 package net.ladenthin.llama;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-
 import net.ladenthin.llama.args.MiroStat;
 import net.ladenthin.llama.args.Sampler;
 import net.ladenthin.llama.json.CompletionResponseParser;
 import org.junit.jupiter.api.AfterAll;
-import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -41,10 +41,9 @@ import org.junit.jupiter.api.Test;
  * </ul>
  */
 @ClaudeGenerated(
-        purpose = "Advanced inference parameter scenarios: caching, probability output, custom chat " +
-                  "templates, penalty params, MiroStat, direct streaming, logit bias, multiple stop " +
-                  "strings, and all alternative sampler configurations."
-)
+        purpose = "Advanced inference parameter scenarios: caching, probability output, custom chat "
+                + "templates, penalty params, MiroStat, direct streaming, logit bias, multiple stop "
+                + "strings, and all alternative sampler configurations.")
 public class ChatAdvancedTest {
 
     private static final int N_PREDICT = 10;
@@ -55,15 +54,14 @@ public class ChatAdvancedTest {
 
     @BeforeAll
     public static void setup() {
-        Assumptions.assumeTrue(new File(TestConstants.MODEL_PATH).exists(), "Model file not found, skipping ChatAdvancedTest");
+        Assumptions.assumeTrue(
+                new File(TestConstants.MODEL_PATH).exists(), "Model file not found, skipping ChatAdvancedTest");
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
-        model = new LlamaModel(
-                new ModelParameters()
-                        .setCtxSize(256)
-                        .setModel(TestConstants.MODEL_PATH)
-                        .setGpuLayers(gpuLayers)
-                        .setFit(false)
-        );
+        model = new LlamaModel(new ModelParameters()
+                .setCtxSize(256)
+                .setModel(TestConstants.MODEL_PATH)
+                .setGpuLayers(gpuLayers)
+                .setFit(false));
     }
 
     @AfterAll
@@ -90,7 +88,7 @@ public class ChatAdvancedTest {
                 .setTemperature(0.0f)
                 .setCachePrompt(true);
 
-        String first  = model.complete(params);
+        String first = model.complete(params);
         String second = model.complete(params);
 
         assertFalse(first.isEmpty(), "First cached call must produce output");
@@ -163,7 +161,9 @@ public class ChatAdvancedTest {
             }
         }
 
-        assertTrue(foundProbabilities, "At least one streaming JSON chunk must contain 'completion_probabilities' when nProbs>0");
+        assertTrue(
+                foundProbabilities,
+                "At least one streaming JSON chunk must contain 'completion_probabilities' when nProbs>0");
     }
 
     // ------------------------------------------------------------------
@@ -193,21 +193,19 @@ public class ChatAdvancedTest {
         messages.add(new Pair<>("user", "hello world"));
 
         // A custom template using Jinja2 | upper filter
-        String customTemplate =
-                "{% for m in messages %}" +
-                "{{ m.role | upper }}: {{ m.content }}" +
-                "{% endfor %}";
+        String customTemplate = "{% for m in messages %}" + "{{ m.role | upper }}: {{ m.content }}" + "{% endfor %}";
 
-        InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setChatTemplate(customTemplate);
+        InferenceParameters params =
+                new InferenceParameters("").setMessages(null, messages).setChatTemplate(customTemplate);
 
         // Must not throw; parameter is accepted and forwarded to native layer
         String result = model.applyTemplate(params);
 
         assertNotNull(result, "applyTemplate with setChatTemplate must return non-null");
         assertFalse(result.isEmpty(), "applyTemplate with setChatTemplate must return non-empty result");
-        assertTrue(result.contains("hello world"), "Result must contain the message content 'hello world' regardless of template used");
+        assertTrue(
+                result.contains("hello world"),
+                "Result must contain the message content 'hello world' regardless of template used");
     }
 
     // ------------------------------------------------------------------
@@ -372,7 +370,7 @@ public class ChatAdvancedTest {
         int[] eosTokens = model.encode("");
         if (eosTokens.length == 0) {
             // No EOS token found; just use a safe no-op token id (0 = padding)
-            eosTokens = new int[]{0};
+            eosTokens = new int[] {0};
         }
 
         // Disable only the last token in the encoded empty string (which may include BOS)
@@ -445,7 +443,7 @@ public class ChatAdvancedTest {
 
         assertNotNull(output);
         // None of the stop strings should appear in the output
-        for (String stop : new String[]{"4", "5", "6"}) {
+        for (String stop : new String[] {"4", "5", "6"}) {
             assertFalse(output.contains(stop), "Output must not contain stop string '" + stop + "', got: " + output);
         }
     }

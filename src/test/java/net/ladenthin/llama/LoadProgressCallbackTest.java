@@ -4,21 +4,19 @@
 
 package net.ladenthin.llama;
 
-import org.junit.jupiter.api.Assumptions;
-import org.junit.jupiter.api.Test;
-
-import java.util.ArrayList;
-import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import java.util.ArrayList;
+import java.util.List;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.Test;
+
 @ClaudeGenerated(
         purpose = "Verify LoadProgressCallback receives non-decreasing progress values in [0,1] "
-                + "during a real model load, and that returning false from the callback aborts the load."
-)
+                + "during a real model load, and that returning false from the callback aborts the load.")
 public class LoadProgressCallbackTest {
 
     @Test
@@ -46,10 +44,14 @@ public class LoadProgressCallbackTest {
             assertTrue(p >= 0.0f && p <= 1.0f, "progress out of range: " + p);
         }
         // Last update should reach (or be very close to) 1.0
-        assertTrue(updates.get(updates.size() - 1) >= 0.9f, "last progress should reach completion, got " + updates.get(updates.size() - 1));
+        assertTrue(
+                updates.get(updates.size() - 1) >= 0.9f,
+                "last progress should reach completion, got " + updates.get(updates.size() - 1));
         // Non-decreasing
         for (int i = 1; i < updates.size(); i++) {
-            assertTrue(updates.get(i) >= updates.get(i - 1), "progress decreased at index " + i + ": " + updates.get(i - 1) + " -> " + updates.get(i));
+            assertTrue(
+                    updates.get(i) >= updates.get(i - 1),
+                    "progress decreased at index " + i + ": " + updates.get(i - 1) + " -> " + updates.get(i));
         }
         // Sanity: progress actually advanced
         assertNotEquals(updates.get(0), updates.get(updates.size() - 1), "progress never advanced");
@@ -62,12 +64,13 @@ public class LoadProgressCallbackTest {
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
         try {
             new LlamaModel(
-                    new ModelParameters()
-                            .setCtxSize(128)
-                            .setModel(TestConstants.MODEL_PATH)
-                            .setGpuLayers(gpuLayers)
-                            .setFit(false),
-                    progress -> false).close();
+                            new ModelParameters()
+                                    .setCtxSize(128)
+                                    .setModel(TestConstants.MODEL_PATH)
+                                    .setGpuLayers(gpuLayers)
+                                    .setFit(false),
+                            progress -> false)
+                    .close();
             fail("expected LlamaException when callback aborts load");
         } catch (LlamaException expected) {
             // pass

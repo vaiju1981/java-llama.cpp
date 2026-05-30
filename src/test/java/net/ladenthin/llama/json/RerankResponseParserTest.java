@@ -5,14 +5,13 @@
 
 package net.ladenthin.llama.json;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.List;
 import net.ladenthin.llama.Pair;
 import org.junit.jupiter.api.Test;
-
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for {@link RerankResponseParser}.
@@ -38,16 +37,15 @@ public class RerankResponseParserTest {
 
     @Test
     public void testParseString_multipleEntries() {
-        String json = "[" +
-                "{\"document\":\"First\",\"index\":0,\"score\":0.9}," +
-                "{\"document\":\"Second\",\"index\":1,\"score\":0.5}," +
-                "{\"document\":\"Third\",\"index\":2,\"score\":0.1}" +
-                "]";
+        String json = "[" + "{\"document\":\"First\",\"index\":0,\"score\":0.9},"
+                + "{\"document\":\"Second\",\"index\":1,\"score\":0.5},"
+                + "{\"document\":\"Third\",\"index\":2,\"score\":0.1}"
+                + "]";
         List<Pair<String, Float>> result = parser.parse(json);
         assertEquals(3, result.size());
-        assertEquals("First",  result.get(0).getKey());
+        assertEquals("First", result.get(0).getKey());
         assertEquals("Second", result.get(1).getKey());
-        assertEquals("Third",  result.get(2).getKey());
+        assertEquals("Third", result.get(2).getKey());
         assertEquals(0.9f, result.get(0).getValue(), 0.001f);
         assertEquals(0.5f, result.get(1).getValue(), 0.001f);
         assertEquals(0.1f, result.get(2).getValue(), 0.001f);
@@ -93,10 +91,9 @@ public class RerankResponseParserTest {
 
     @Test
     public void testParseNode_preservesOrder() throws Exception {
-        String json = "[" +
-                "{\"document\":\"A\",\"index\":0,\"score\":0.8}," +
-                "{\"document\":\"B\",\"index\":1,\"score\":0.3}" +
-                "]";
+        String json = "[" + "{\"document\":\"A\",\"index\":0,\"score\":0.8},"
+                + "{\"document\":\"B\",\"index\":1,\"score\":0.3}"
+                + "]";
         JsonNode arr = MAPPER.readTree(json);
         List<Pair<String, Float>> result = parser.parse(arr);
         assertEquals(2, result.size());

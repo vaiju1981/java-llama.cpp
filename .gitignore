@@ -49,3 +49,6 @@ src/test/resources/**/*.gbnf
 **/*.etag
 **/*.lastModified
 src/main/cpp/llama.cpp/
+
+# jcstress / jqwik test outputs (generated in repo root)
+/.jqwik-database

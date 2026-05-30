@@ -5,9 +5,9 @@
 
 package net.ladenthin.llama;
 
-import net.ladenthin.llama.json.CompletionResponseParser;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import net.ladenthin.llama.json.CompletionResponseParser;
 
 /**
  * This iterator is used by {@link LlamaModel#generate(InferenceParameters)} and
@@ -52,7 +52,7 @@ public final class LlamaIterator implements Iterator<LlamaOutput>, AutoCloseable
         LlamaOutput output = completionParser.parse(json);
         hasNext = !output.stop;
         if (output.stop) {
-        	model.releaseTask(taskId);
+            model.releaseTask(taskId);
         }
         return output;
     }

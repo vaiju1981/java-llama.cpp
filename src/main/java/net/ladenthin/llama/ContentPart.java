@@ -106,7 +106,11 @@ public final class ContentPart {
      */
     public static ContentPart imageFile(Path imagePath) throws IOException {
         Objects.requireNonNull(imagePath, "imagePath");
-        String name = imagePath.getFileName().toString().toLowerCase(Locale.ROOT);
+        Path fileNamePath = imagePath.getFileName();
+        if (fileNamePath == null) {
+            throw new IllegalArgumentException("imagePath has no file name component: " + imagePath);
+        }
+        String name = fileNamePath.toString().toLowerCase(Locale.ROOT);
         String mimeType;
         if (name.endsWith(".png")) {
             mimeType = "image/png";
@@ -117,8 +121,7 @@ public final class ContentPart {
         } else if (name.endsWith(".gif")) {
             mimeType = "image/gif";
         } else {
-            throw new IllegalArgumentException(
-                    "Cannot infer MIME type from extension: " + imagePath
+            throw new IllegalArgumentException("Cannot infer MIME type from extension: " + imagePath
                     + " &#x2014; use ContentPart.imageBytes(bytes, mimeType) instead");
         }
         return imageBytes(Files.readAllBytes(imagePath), mimeType);

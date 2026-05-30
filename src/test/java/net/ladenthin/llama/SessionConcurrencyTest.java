@@ -4,6 +4,12 @@
 
 package net.ladenthin.llama;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
+
 import java.io.File;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -11,18 +17,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Per-Session thread-safety follow-up to PR #188 (§2.6 of the
@@ -43,9 +42,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * {@link ChatScenarioTest}.
  */
 @ClaudeGenerated(
-        purpose = "Per-Session thread-safety follow-up: serialized send(), stream-in-progress guard, " +
-                  "commit-without-stream guard."
-)
+        purpose = "Per-Session thread-safety follow-up: serialized send(), stream-in-progress guard, "
+                + "commit-without-stream guard.")
 public class SessionConcurrencyTest {
 
     private static final int N_PREDICT = 2;
@@ -53,15 +51,14 @@ public class SessionConcurrencyTest {
 
     @BeforeAll
     public static void setup() {
-        Assumptions.assumeTrue(new File(TestConstants.MODEL_PATH).exists(), "Model file not found, skipping SessionConcurrencyTest");
+        Assumptions.assumeTrue(
+                new File(TestConstants.MODEL_PATH).exists(), "Model file not found, skipping SessionConcurrencyTest");
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
-        model = new LlamaModel(
-                new ModelParameters()
-                        .setCtxSize(4096)
-                        .setModel(TestConstants.MODEL_PATH)
-                        .setGpuLayers(gpuLayers)
-                        .setFit(false)
-        );
+        model = new LlamaModel(new ModelParameters()
+                .setCtxSize(4096)
+                .setModel(TestConstants.MODEL_PATH)
+                .setGpuLayers(gpuLayers)
+                .setFit(false));
     }
 
     @AfterAll
@@ -91,8 +88,8 @@ public class SessionConcurrencyTest {
     public void testConcurrentSendProducesAlternatingTranscript() throws Exception {
         final int threads = 2;
         final int callsPerThread = 2;
-        try (Session session = new Session(model, 0, null,
-                p -> p.setNPredict(N_PREDICT).setTemperature(0.0f))) {
+        try (Session session =
+                new Session(model, 0, null, p -> p.setNPredict(N_PREDICT).setTemperature(0.0f))) {
 
             ExecutorService pool = Executors.newFixedThreadPool(threads);
             CountDownLatch start = new CountDownLatch(1);
@@ -143,8 +140,8 @@ public class SessionConcurrencyTest {
     @Timeout(value = 120_000, unit = TimeUnit.MILLISECONDS)
     @Test
     public void testStreamGuardBlocksOtherOperationsUntilCommit() throws Exception {
-        try (Session session = new Session(model, 1, null,
-                p -> p.setNPredict(N_PREDICT).setTemperature(0.0f))) {
+        try (Session session =
+                new Session(model, 1, null, p -> p.setNPredict(N_PREDICT).setTemperature(0.0f))) {
 
             try (LlamaIterable stream = session.stream("hi")) {
                 int before = session.getMessages().size();
@@ -183,9 +180,11 @@ public class SessionConcurrencyTest {
                 session.commitStreamedReply(reply.toString());
 
                 List<ChatMessage> messages = session.getMessages();
-                assertEquals("assistant", messages.get(messages.size() - 1).getRole(), "last message must be the committed assistant reply");
-                assertEquals(reply.toString(),
-                        messages.get(messages.size() - 1).getContent());
+                assertEquals(
+                        "assistant",
+                        messages.get(messages.size() - 1).getRole(),
+                        "last message must be the committed assistant reply");
+                assertEquals(reply.toString(), messages.get(messages.size() - 1).getContent());
 
                 String next = session.send("follow-up");
                 assertNotNull(next);
@@ -220,8 +219,8 @@ public class SessionConcurrencyTest {
     @Timeout(value = 60_000, unit = TimeUnit.MILLISECONDS)
     @Test
     public void testSequentialSendsAlternateRoles() {
-        try (Session session = new Session(model, 3, null,
-                p -> p.setNPredict(N_PREDICT).setTemperature(0.0f))) {
+        try (Session session =
+                new Session(model, 3, null, p -> p.setNPredict(N_PREDICT).setTemperature(0.0f))) {
             session.send("a");
             session.send("b");
             List<ChatMessage> messages = session.getMessages();

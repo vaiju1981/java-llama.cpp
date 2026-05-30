@@ -4,20 +4,19 @@
 
 package net.ladenthin.llama;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import java.io.File;
 import java.nio.file.Paths;
 import java.util.Collections;
-
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
-
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * End-to-end multimodal regression. Loads a vision-capable model + matching
@@ -53,8 +52,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
         purpose = "End-to-end vision regression: real vision GGUF + mmproj + author-licensed (MIT) "
                 + "test image fed through the typed ChatMessage(role, List<ContentPart>) API; "
                 + "asserts non-empty reply to prove the OAI multipart content round-trips through "
-                + "the upstream mtmd pipeline. Closes #103 / #34."
-)
+                + "the upstream mtmd pipeline. Closes #103 / #34.")
 public class MultimodalIntegrationTest {
 
     private static String modelPath;
@@ -64,18 +62,21 @@ public class MultimodalIntegrationTest {
 
     @BeforeAll
     public static void setup() {
-        modelPath  = System.getProperty(TestConstants.PROP_VISION_MODEL_PATH);
+        modelPath = System.getProperty(TestConstants.PROP_VISION_MODEL_PATH);
         mmprojPath = System.getProperty(TestConstants.PROP_VISION_MMPROJ_PATH);
         // Image path falls back to the committed test resource when the
         // -D property is unset, so the test works on local dev checkouts
         // without any extra wiring. The model / mmproj remain externally
         // staged because their combined size (~600 MB) is too large to
         // commit.
-        imagePath  = System.getProperty(TestConstants.PROP_VISION_IMAGE_PATH,
-                TestConstants.DEFAULT_VISION_IMAGE_PATH);
+        imagePath = System.getProperty(TestConstants.PROP_VISION_IMAGE_PATH, TestConstants.DEFAULT_VISION_IMAGE_PATH);
 
-        Assumptions.assumeTrue(modelPath != null && !modelPath.isEmpty(), "Vision model path not set (-D" + TestConstants.PROP_VISION_MODEL_PATH + "=...)");
-        Assumptions.assumeTrue(mmprojPath != null && !mmprojPath.isEmpty(), "Vision mmproj path not set (-D" + TestConstants.PROP_VISION_MMPROJ_PATH + "=...)");
+        Assumptions.assumeTrue(
+                modelPath != null && !modelPath.isEmpty(),
+                "Vision model path not set (-D" + TestConstants.PROP_VISION_MODEL_PATH + "=...)");
+        Assumptions.assumeTrue(
+                mmprojPath != null && !mmprojPath.isEmpty(),
+                "Vision mmproj path not set (-D" + TestConstants.PROP_VISION_MMPROJ_PATH + "=...)");
 
         Assumptions.assumeTrue(new File(modelPath).exists(), "Vision model file missing: " + modelPath);
         Assumptions.assumeTrue(new File(mmprojPath).exists(), "Vision mmproj file missing: " + mmprojPath);
@@ -83,13 +84,12 @@ public class MultimodalIntegrationTest {
 
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
 
-        model = new LlamaModel(
-                new ModelParameters()
-                        .setCtxSize(2048)
-                        .setModel(modelPath)
-                        .setMmproj(mmprojPath)
-                        .setGpuLayers(gpuLayers)
-                        .setFit(false));
+        model = new LlamaModel(new ModelParameters()
+                .setCtxSize(2048)
+                .setModel(modelPath)
+                .setMmproj(mmprojPath)
+                .setGpuLayers(gpuLayers)
+                .setFit(false));
     }
 
     @AfterAll
@@ -134,8 +134,7 @@ public class MultimodalIntegrationTest {
     @Test
     public void multimodalThenTextOnSameModel() throws Exception {
         ChatMessage img = ChatMessage.userMultimodal(
-                ContentPart.text("What is this?"),
-                ContentPart.imageFile(Paths.get(imagePath)));
+                ContentPart.text("What is this?"), ContentPart.imageFile(Paths.get(imagePath)));
         String firstReply = model.chatCompleteText(new InferenceParameters("")
                 .setMessages(Collections.singletonList(img))
                 .setNPredict(24)
@@ -148,6 +147,8 @@ public class MultimodalIntegrationTest {
                 .setNPredict(8)
                 .setTemperature(0.0f));
         assertNotNull(secondReply);
-        assertTrue(secondReply.trim().length() > 0, "text-only call after multimodal must still produce tokens; got: \"" + secondReply + "\"");
+        assertTrue(
+                secondReply.trim().length() > 0,
+                "text-only call after multimodal must still produce tokens; got: \"" + secondReply + "\"");
     }
 }

@@ -5,13 +5,12 @@
 
 package net.ladenthin.llama;
 
-import net.ladenthin.llama.args.CliArg;
-import org.jetbrains.annotations.Nullable;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import net.ladenthin.llama.args.CliArg;
+import org.jetbrains.annotations.Nullable;
 
 abstract class CliParameters {
 
@@ -53,27 +52,35 @@ abstract class CliParameters {
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
-        for (String key : parameters.keySet()) {
-            String value = parameters.get(key);
-            builder.append(key).append(" ");
+        for (Map.Entry<String, @Nullable String> entry : parameters.entrySet()) {
+            builder.append(entry.getKey()).append(' ');
+            String value = entry.getValue();
             if (value != null) {
-                builder.append(value).append(" ");
+                builder.append(value).append(' ');
             }
         }
         return builder.toString();
     }
 
+    /**
+     * Returns the accumulated parameters as a C-style {@code argv} array.
+     *
+     * <p>The first element is a placeholder for the program name, followed by alternating
+     * argument keys and values (values are omitted for flag-style arguments).
+     *
+     * @return a fresh argv array suitable for passing to a native CLI parser
+     */
     public String[] toArray() {
-        List<String> result = new ArrayList<>();
+        // upper bound: 1 program-name slot + 2 entries (key, value) per parameter
+        List<String> result = new ArrayList<>(1 + parameters.size() * 2);
         result.add(""); // c args contain the program name as the first argument, so we add an empty entry
-        for (String key : parameters.keySet()) {
-            result.add(key);
-            String value = parameters.get(key);
+        for (Map.Entry<String, @Nullable String> entry : parameters.entrySet()) {
+            result.add(entry.getKey());
+            String value = entry.getValue();
             if (value != null) {
                 result.add(value);
             }
         }
         return result.toArray(new String[0]);
     }
-
 }

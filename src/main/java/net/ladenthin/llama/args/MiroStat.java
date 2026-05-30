@@ -13,8 +13,11 @@ package net.ladenthin.llama.args;
  */
 public enum MiroStat implements CliArg {
 
+    /** Mirostat sampling disabled. */
     DISABLED("0"),
+    /** Mirostat v1 sampling. */
     V1("1"),
+    /** Mirostat v2 sampling. */
     V2("2");
 
     private final String argValue;

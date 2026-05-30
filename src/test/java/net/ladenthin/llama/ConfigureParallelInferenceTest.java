@@ -5,10 +5,10 @@
 
 package net.ladenthin.llama;
 
-import java.io.File;
-
-import org.junit.jupiter.api.AfterAll;
 import static org.junit.jupiter.api.Assertions.*;
+
+import java.io.File;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -24,25 +24,24 @@ import org.junit.jupiter.api.Test;
  * </ul>
  */
 @ClaudeGenerated(
-        purpose = "Verify configureParallelInference for n_threads, n_threads_batch, combined configs, " +
-                  "and empty/no-op configuration.",
-        model = "claude-opus-4-6"
-)
+        purpose = "Verify configureParallelInference for n_threads, n_threads_batch, combined configs, "
+                + "and empty/no-op configuration.",
+        model = "claude-opus-4-6")
 public class ConfigureParallelInferenceTest {
 
     private static LlamaModel model;
 
     @BeforeAll
     public static void setup() {
-        Assumptions.assumeTrue(new File(TestConstants.MODEL_PATH).exists(), "Model file not found, skipping ConfigureParallelInferenceTest");
+        Assumptions.assumeTrue(
+                new File(TestConstants.MODEL_PATH).exists(),
+                "Model file not found, skipping ConfigureParallelInferenceTest");
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
-        model = new LlamaModel(
-                new ModelParameters()
-                        .setCtxSize(128)
-                        .setModel(TestConstants.MODEL_PATH)
-                        .setGpuLayers(gpuLayers)
-                        .setFit(false)
-        );
+        model = new LlamaModel(new ModelParameters()
+                .setCtxSize(128)
+                .setModel(TestConstants.MODEL_PATH)
+                .setGpuLayers(gpuLayers)
+                .setFit(false));
     }
 
     @AfterAll
@@ -90,8 +89,7 @@ public class ConfigureParallelInferenceTest {
 
     @Test
     public void testConfigureCombinedThreadsAndBatch() {
-        boolean result = model.configureParallelInference(
-                "{\"n_threads\":2,\"n_threads_batch\":4}");
+        boolean result = model.configureParallelInference("{\"n_threads\":2,\"n_threads_batch\":4}");
         assertTrue(result, "Combined n_threads + n_threads_batch should succeed");
     }
 
@@ -141,9 +139,8 @@ public class ConfigureParallelInferenceTest {
     @Test
     public void testModelWorksAfterReconfiguration() {
         model.configureParallelInference("{\"n_threads\":2}");
-        InferenceParameters params = new InferenceParameters("int main() {")
-                .setNPredict(5)
-                .setTemperature(0);
+        InferenceParameters params =
+                new InferenceParameters("int main() {").setNPredict(5).setTemperature(0);
         String result = model.complete(params);
         assertNotNull(result, "Model should produce output after reconfiguration");
         assertFalse(result.isEmpty(), "Output should not be empty");

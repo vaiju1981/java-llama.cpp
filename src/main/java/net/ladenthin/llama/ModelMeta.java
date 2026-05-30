@@ -26,6 +26,8 @@ public final class ModelMeta {
     }
 
     /**
+     * Returns the vocabulary type identifier.
+     *
      * @return vocabulary type identifier (e.g. SPM = 2, BPE = 1)
      */
     public int getVocabType() {
@@ -33,38 +35,64 @@ public final class ModelMeta {
     }
 
     /**
+     * Returns the total number of tokens in the model vocabulary.
+     *
      * @return total number of tokens in the model vocabulary
      */
     public int getNVocab() {
         return node.path("n_vocab").asInt(0);
     }
 
-    /** Context length the model was trained with. */
+    /**
+     * Context length the model was trained with.
+     *
+     * @return the training context length in tokens
+     */
     public int getNCtxTrain() {
         return node.path("n_ctx_train").asInt(0);
     }
 
-    /** Embedding dimension of the model. */
+    /**
+     * Embedding dimension of the model.
+     *
+     * @return the embedding dimension
+     */
     public int getNEmbd() {
         return node.path("n_embd").asInt(0);
     }
 
-    /** Total number of model parameters. */
+    /**
+     * Total number of model parameters.
+     *
+     * @return the parameter count
+     */
     public long getNParams() {
         return node.path("n_params").asLong(0L);
     }
 
-    /** Model file size in bytes. */
+    /**
+     * Model file size in bytes.
+     *
+     * @return the model file size in bytes
+     */
     public long getSize() {
         return node.path("size").asLong(0L);
     }
 
-    /** Returns true if the model supports vision (image) input. */
+    /**
+     * Returns true if the model supports vision (image) input.
+     *
+     * @return {@code true} if the model accepts image input
+     */
     public boolean supportsVision() {
         return node.at("/modalities/vision").asBoolean(false);
     }
 
-    /** Returns true if the model supports audio input. */
+    /**
+     * Returns true if the model supports audio input.
+     *
+     * @return {@code true} if the model accepts audio input
+     */
     public boolean supportsAudio() {
         return node.at("/modalities/audio").asBoolean(false);
     }
@@ -73,6 +101,8 @@ public final class ModelMeta {
      * The model architecture string from GGUF {@code general.architecture} metadata
      * (e.g. {@code "llama"}, {@code "gemma3"}, {@code "mistral"}).
      * Returns an empty string if the field is absent in the GGUF file.
+     *
+     * @return the architecture identifier, or {@code ""} if absent
      */
     public String getArchitecture() {
         return node.path("architecture").asText("");
@@ -81,6 +111,8 @@ public final class ModelMeta {
     /**
      * The human-readable model name from GGUF {@code general.name} metadata.
      * Returns an empty string if the field is absent in the GGUF file.
+     *
+     * @return the model name, or {@code ""} if absent
      */
     public String getModelName() {
         return node.path("name").asText("");
@@ -89,6 +121,8 @@ public final class ModelMeta {
     /**
      * Returns the underlying {@link JsonNode} for direct access to any field,
      * including fields added in future llama.cpp versions.
+     *
+     * @return the raw JSON node
      */
     public JsonNode asJson() {
         return node;

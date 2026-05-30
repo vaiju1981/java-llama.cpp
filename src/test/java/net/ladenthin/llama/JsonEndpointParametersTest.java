@@ -5,10 +5,10 @@
 
 package net.ladenthin.llama;
 
-import java.io.File;
-
-import org.junit.jupiter.api.AfterAll;
 import static org.junit.jupiter.api.Assertions.*;
+
+import java.io.File;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -30,11 +30,10 @@ import org.junit.jupiter.api.Test;
  * </ul>
  */
 @ClaudeGenerated(
-        purpose = "Verify raw JSON parameters accepted by handleCompletions that are not exposed " +
-                  "through InferenceParameters: DRY, XTC, top_n_sigma, return_tokens, response_fields, " +
-                  "timings_per_token, post_sampling_probs, n_discard, and id_slot.",
-        model = "claude-opus-4-6"
-)
+        purpose = "Verify raw JSON parameters accepted by handleCompletions that are not exposed "
+                + "through InferenceParameters: DRY, XTC, top_n_sigma, return_tokens, response_fields, "
+                + "timings_per_token, post_sampling_probs, n_discard, and id_slot.",
+        model = "claude-opus-4-6")
 public class JsonEndpointParametersTest {
 
     private static final int N_PREDICT = 5;
@@ -47,15 +46,15 @@ public class JsonEndpointParametersTest {
 
     @BeforeAll
     public static void setup() {
-        Assumptions.assumeTrue(new File(TestConstants.MODEL_PATH).exists(), "Model file not found, skipping JsonEndpointParametersTest");
+        Assumptions.assumeTrue(
+                new File(TestConstants.MODEL_PATH).exists(),
+                "Model file not found, skipping JsonEndpointParametersTest");
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
-        model = new LlamaModel(
-                new ModelParameters()
-                        .setCtxSize(256)
-                        .setModel(TestConstants.MODEL_PATH)
-                        .setGpuLayers(gpuLayers)
-                        .setFit(false)
-        );
+        model = new LlamaModel(new ModelParameters()
+                .setCtxSize(256)
+                .setModel(TestConstants.MODEL_PATH)
+                .setGpuLayers(gpuLayers)
+                .setFit(false));
     }
 
     @AfterAll
@@ -131,9 +130,8 @@ public class JsonEndpointParametersTest {
 
     @Test
     public void testTopNSigmaAccepted() {
-        String json = "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT
-                + DETERMINISTIC
-                + ",\"top_n_sigma\":2.0}";
+        String json =
+                "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT + DETERMINISTIC + ",\"top_n_sigma\":2.0}";
         String result = model.handleCompletions(json);
         assertNotNull(result);
         assertTrue(result.contains("\"content\""));
@@ -141,9 +139,8 @@ public class JsonEndpointParametersTest {
 
     @Test
     public void testTopNSigmaDisabled() {
-        String json = "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT
-                + DETERMINISTIC
-                + ",\"top_n_sigma\":-1.0}";
+        String json =
+                "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT + DETERMINISTIC + ",\"top_n_sigma\":-1.0}";
         String result = model.handleCompletions(json);
         assertNotNull(result);
         assertTrue(result.contains("\"content\""));
@@ -217,7 +214,9 @@ public class JsonEndpointParametersTest {
         String result = model.handleCompletions(json);
         assertNotNull(result);
         // post_sampling_probs changes the label from "logprob" to "prob"
-        assertTrue(result.contains("\"completion_probabilities\"") || result.contains("\"prob\""), "Response should contain completion_probabilities");
+        assertTrue(
+                result.contains("\"completion_probabilities\"") || result.contains("\"prob\""),
+                "Response should contain completion_probabilities");
     }
 
     // -------------------------------------------------------------------------
@@ -226,9 +225,7 @@ public class JsonEndpointParametersTest {
 
     @Test
     public void testNDiscardAccepted() {
-        String json = "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT
-                + DETERMINISTIC
-                + ",\"n_discard\":0}";
+        String json = "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT + DETERMINISTIC + ",\"n_discard\":0}";
         String result = model.handleCompletions(json);
         assertNotNull(result);
         assertTrue(result.contains("\"content\""));
@@ -240,9 +237,7 @@ public class JsonEndpointParametersTest {
 
     @Test
     public void testIdSlotSelection() {
-        String json = "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT
-                + DETERMINISTIC
-                + ",\"id_slot\":0}";
+        String json = "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT + DETERMINISTIC + ",\"id_slot\":0}";
         String result = model.handleCompletions(json);
         assertNotNull(result);
         assertTrue(result.contains("\"content\""));
@@ -256,9 +251,8 @@ public class JsonEndpointParametersTest {
     @Test
     public void testIgnoreEosAccepted() {
         // With ignore_eos=true and n_predict=N_PREDICT, generation should still respect n_predict
-        String json = "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT
-                + DETERMINISTIC
-                + ",\"ignore_eos\":true}";
+        String json =
+                "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT + DETERMINISTIC + ",\"ignore_eos\":true}";
         String result = model.handleCompletions(json);
         assertNotNull(result);
         assertTrue(result.contains("\"content\""));

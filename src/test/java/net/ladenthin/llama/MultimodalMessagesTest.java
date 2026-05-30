@@ -4,29 +4,26 @@
 
 package net.ladenthin.llama;
 
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import net.ladenthin.llama.json.ParameterJsonSerializer;
 import org.junit.jupiter.api.Test;
-
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 @ClaudeGenerated(
         purpose = "Verify multimodal ChatMessage flow: parts-based constructor, getParts()/hasParts(), "
                 + "userMultimodal factory, and that ParameterJsonSerializer.buildMessages(List<ChatMessage>) "
                 + "emits the OAI array-form content for parts-bearing messages while keeping the "
-                + "string-form content for plain text messages (drop-in compatibility)."
-)
+                + "string-form content for plain text messages (drop-in compatibility).")
 public class MultimodalMessagesTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
@@ -40,19 +37,20 @@ public class MultimodalMessagesTest {
 
     @Test
     public void hasPartsIsTrueForPartsConstructor() {
-        ChatMessage m = new ChatMessage("user",
-                Arrays.asList(ContentPart.text("hi"),
-                              ContentPart.imageUrl("data:image/png;base64,AAAA")));
+        ChatMessage m = new ChatMessage(
+                "user", Arrays.asList(ContentPart.text("hi"), ContentPart.imageUrl("data:image/png;base64,AAAA")));
         assertTrue(m.hasParts());
         assertEquals(2, m.getParts().size());
     }
 
     @Test
     public void contentFieldConcatenatesTextPartsForLegacyReaders() {
-        ChatMessage m = new ChatMessage("user",
-                Arrays.asList(ContentPart.text("describe"),
-                              ContentPart.imageUrl("data:image/png;base64,X"),
-                              ContentPart.text("please")));
+        ChatMessage m = new ChatMessage(
+                "user",
+                Arrays.asList(
+                        ContentPart.text("describe"),
+                        ContentPart.imageUrl("data:image/png;base64,X"),
+                        ContentPart.text("please")));
         // Image parts contribute no text; text parts are newline-joined.
         assertEquals("describe\nplease", m.getContent());
     }
@@ -60,8 +58,7 @@ public class MultimodalMessagesTest {
     @Test
     public void userMultimodalFactoryBuildsUserMessage() {
         ChatMessage m = ChatMessage.userMultimodal(
-                ContentPart.text("what is this?"),
-                ContentPart.imageUrl("data:image/jpeg;base64,Y"));
+                ContentPart.text("what is this?"), ContentPart.imageUrl("data:image/jpeg;base64,Y"));
         assertEquals("user", m.getRole());
         assertEquals(2, m.getParts().size());
         assertEquals(ContentPart.Type.TEXT, m.getParts().get(0).getType());
@@ -70,7 +67,8 @@ public class MultimodalMessagesTest {
 
     @Test
     public void emptyPartsListIsRejected() {
-        assertThrows(IllegalArgumentException.class, () -> new ChatMessage("user", Collections.<ContentPart>emptyList()));
+        assertThrows(
+                IllegalArgumentException.class, () -> new ChatMessage("user", Collections.<ContentPart>emptyList()));
     }
 
     @Test
@@ -93,8 +91,7 @@ public class MultimodalMessagesTest {
     public void serializerEmitsArrayContentForPartsMessage() throws Exception {
         ParameterJsonSerializer s = new ParameterJsonSerializer();
         ChatMessage user = ChatMessage.userMultimodal(
-                ContentPart.text("describe"),
-                ContentPart.imageUrl("data:image/png;base64,ABCD"));
+                ContentPart.text("describe"), ContentPart.imageUrl("data:image/png;base64,ABCD"));
         ArrayNode arr = s.buildMessages(Collections.singletonList(user));
 
         assertEquals(1, arr.size());
@@ -111,7 +108,8 @@ public class MultimodalMessagesTest {
 
         JsonNode p1 = content.get(1);
         assertEquals("image_url", p1.get("type").asText());
-        assertEquals("data:image/png;base64,ABCD", p1.get("image_url").get("url").asText());
+        assertEquals(
+                "data:image/png;base64,ABCD", p1.get("image_url").get("url").asText());
     }
 
     @Test
@@ -133,10 +131,8 @@ public class MultimodalMessagesTest {
         List<ChatMessage> messages = Arrays.asList(
                 new ChatMessage("system", "You are a helper."),
                 ChatMessage.userMultimodal(
-                        ContentPart.text("what's in here?"),
-                        ContentPart.imageUrl("data:image/png;base64,Z")),
-                new ChatMessage("assistant", "a cat")
-        );
+                        ContentPart.text("what's in here?"), ContentPart.imageUrl("data:image/png;base64,Z")),
+                new ChatMessage("assistant", "a cat"));
         ArrayNode arr = s.buildMessages(messages);
         assertEquals(3, arr.size());
         assertTrue(arr.get(0).get("content").isTextual());
@@ -148,9 +144,7 @@ public class MultimodalMessagesTest {
     public void inferenceParametersAcceptsMultimodalMessages() {
         InferenceParameters params = new InferenceParameters("");
         params.setMessages(Collections.singletonList(
-                ChatMessage.userMultimodal(
-                        ContentPart.text("hi"),
-                        ContentPart.imageUrl("data:image/png;base64,QQ"))));
+                ChatMessage.userMultimodal(ContentPart.text("hi"), ContentPart.imageUrl("data:image/png;base64,QQ"))));
         // setMessages encodes into the parameters map under "messages"; verify the
         // resulting JSON has the array form, which is what the upstream OAI chat
         // parser expects for multimodal routing.

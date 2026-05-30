@@ -66,12 +66,16 @@ public final class ChatMessage {
      * @param parts ordered list of content parts (must not be {@code null} or empty)
      */
     public ChatMessage(String role, List<ContentPart> parts) {
-        this(role, concatText(parts), null, Collections.<ToolCall>emptyList(),
-             Collections.unmodifiableList(new java.util.ArrayList<ContentPart>(requireNonEmpty(parts))));
+        this(
+                role,
+                concatText(parts),
+                null,
+                Collections.<ToolCall>emptyList(),
+                Collections.unmodifiableList(new java.util.ArrayList<ContentPart>(requireNonEmpty(parts))));
     }
 
-    private ChatMessage(String role, String content, String toolCallId,
-                        List<ToolCall> toolCalls, List<ContentPart> parts) {
+    private ChatMessage(
+            String role, String content, String toolCallId, List<ToolCall> toolCalls, List<ContentPart> parts) {
         this.role = role;
         this.content = content;
         this.toolCallId = toolCallId;
@@ -86,7 +90,7 @@ public final class ChatMessage {
         return parts;
     }
 
-    private static String concatText(List<ContentPart> parts) {
+    private static String concatText(Iterable<ContentPart> parts) {
         if (parts == null) return "";
         StringBuilder sb = new StringBuilder();
         for (ContentPart p : parts) {
@@ -169,7 +173,7 @@ public final class ChatMessage {
      *         legacy text-only messages built via {@link #ChatMessage(String, String)}
      */
     public List<ContentPart> getParts() {
-        return parts;
+        return parts == null ? null : Collections.unmodifiableList(parts);
     }
 
     /**
@@ -184,7 +188,7 @@ public final class ChatMessage {
     @Override
     public String toString() {
         if (!toolCalls.isEmpty()) return role + " (tool_calls=" + toolCalls.size() + "): " + content;
-        if (toolCallId != null)   return role + " (tool_call_id=" + toolCallId + "): " + content;
+        if (toolCallId != null) return role + " (tool_call_id=" + toolCallId + "): " + content;
         return role + ": " + content;
     }
 }

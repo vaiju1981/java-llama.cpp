@@ -85,7 +85,7 @@ public final class TokenLogprob {
 
     @Override
     public String toString() {
-        return "TokenLogprob{token=" + token + ", id=" + tokenId
-                + ", logprob=" + logprob + ", top=" + topLogprobs.size() + "}";
+        return "TokenLogprob{token=" + token + ", id=" + tokenId + ", logprob=" + logprob + ", top="
+                + topLogprobs.size() + "}";
     }
 }

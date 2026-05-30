@@ -5,15 +5,12 @@
 
 package net.ladenthin.llama.args;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import net.ladenthin.llama.ClaudeGenerated;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.*;
-
-@ClaudeGenerated(
-        purpose = "Verify LogFormat enum values and count.",
-        model = "claude-opus-4-6"
-)
+@ClaudeGenerated(purpose = "Verify LogFormat enum values and count.", model = "claude-opus-4-6")
 public class LogFormatTest {
 
     @Test

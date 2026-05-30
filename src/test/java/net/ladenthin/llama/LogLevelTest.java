@@ -5,14 +5,13 @@
 
 package net.ladenthin.llama;
 
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.*;
+
+import org.junit.jupiter.api.Test;
 
 @ClaudeGenerated(
         purpose = "Verify LogLevel enum values, count, and ordinal order matching llama.cpp native log levels.",
-        model = "claude-opus-4-6"
-)
+        model = "claude-opus-4-6")
 public class LogLevelTest {
 
     @Test

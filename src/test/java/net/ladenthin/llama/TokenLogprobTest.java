@@ -4,20 +4,18 @@
 
 package net.ladenthin.llama;
 
-import net.ladenthin.llama.json.CompletionResponseParser;
-import org.junit.jupiter.api.Test;
-
-import java.util.List;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
+import net.ladenthin.llama.json.CompletionResponseParser;
+import org.junit.jupiter.api.Test;
+
 @ClaudeGenerated(
         purpose = "Verify CompletionResponseParser.parseLogprobs populates TokenLogprob entries "
                 + "including token id and nested top_logprobs/top_probs alternatives, "
-                + "for both post-sampling (prob) and pre-sampling (logprob) modes."
-)
+                + "for both post-sampling (prob) and pre-sampling (logprob) modes.")
 public class TokenLogprobTest {
 
     private final CompletionResponseParser parser = new CompletionResponseParser();
@@ -90,8 +88,8 @@ public class TokenLogprobTest {
 
     @Test
     public void backwardsCompatibleConstructor() {
-        LlamaOutput out = new LlamaOutput("hi", java.util.Collections.<String, Float>emptyMap(),
-                false, StopReason.NONE);
+        LlamaOutput out =
+                new LlamaOutput("hi", java.util.Collections.<String, Float>emptyMap(), false, StopReason.NONE);
         assertNotNull(out.logprobs);
         assertTrue(out.logprobs.isEmpty());
     }

@@ -58,10 +58,14 @@ public enum StopReason {
     public static StopReason fromStopType(String stopType) {
         if (stopType == null) return NONE;
         switch (stopType) {
-            case "eos":   return EOS;
-            case "word":  return STOP_STRING;
-            case "limit": return MAX_TOKENS;
-            default:      return NONE;
+            case "eos":
+                return EOS;
+            case "word":
+                return STOP_STRING;
+            case "limit":
+                return MAX_TOKENS;
+            default:
+                return NONE;
         }
     }
 }

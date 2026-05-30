@@ -5,50 +5,49 @@
 
 package net.ladenthin.llama;
 
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.*;
 
+import org.junit.jupiter.api.Test;
+
 @ClaudeGenerated(
-        purpose = "Verify that LlamaException correctly propagates its message through the " +
-                  "RuntimeException hierarchy, handles null messages without error, and can " +
-                  "be thrown and caught as an unchecked exception."
-)
+        purpose = "Verify that LlamaException correctly propagates its message through the "
+                + "RuntimeException hierarchy, handles null messages without error, and can "
+                + "be thrown and caught as an unchecked exception.")
 public class LlamaExceptionTest {
 
-	@Test
-	public void testMessageIsPreserved() {
-		LlamaException ex = new LlamaException("something went wrong");
-		assertEquals("something went wrong", ex.getMessage());
-	}
+    @Test
+    public void testMessageIsPreserved() {
+        LlamaException ex = new LlamaException("something went wrong");
+        assertEquals("something went wrong", ex.getMessage());
+    }
 
-	@Test
-	public void testIsRuntimeException() {
-		LlamaException ex = new LlamaException("error");
-		assertTrue(ex instanceof RuntimeException);
-	}
+    @Test
+    public void testIsRuntimeException() {
+        LlamaException ex = new LlamaException("error");
+        assertTrue(ex instanceof RuntimeException);
+    }
 
-	@Test
-	public void testEmptyMessage() {
-		LlamaException ex = new LlamaException("");
-		assertEquals("", ex.getMessage());
-	}
+    @Test
+    public void testEmptyMessage() {
+        LlamaException ex = new LlamaException("");
+        assertEquals("", ex.getMessage());
+    }
 
-	@Test
-	public void testNullMessage() {
-		LlamaException ex = new LlamaException(null);
-		assertNull(ex.getMessage());
-	}
+    @Test
+    public void testNullMessage() {
+        LlamaException ex = new LlamaException(null);
+        assertNull(ex.getMessage());
+    }
 
-	@Test
-	public void testCanBeThrown() {
-		boolean caught = false;
-		try {
-			throw new LlamaException("thrown");
-		} catch (LlamaException e) {
-			assertEquals("thrown", e.getMessage());
-			caught = true;
-		}
-		assertTrue(caught, "Expected LlamaException to be thrown");
-	}
+    @Test
+    public void testCanBeThrown() {
+        boolean caught = false;
+        try {
+            throw new LlamaException("thrown");
+        } catch (LlamaException e) {
+            assertEquals("thrown", e.getMessage());
+            caught = true;
+        }
+        assertTrue(caught, "Expected LlamaException to be thrown");
+    }
 }

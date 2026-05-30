@@ -5,14 +5,14 @@
 
 package net.ladenthin.llama;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-
 import org.junit.jupiter.api.AfterAll;
-import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -35,8 +35,8 @@ import org.junit.jupiter.api.Test;
  * and the output changes or an assertion fires inside the C++ layer.
  */
 @ClaudeGenerated(
-        purpose = "Verify context-shifting KV-cache management (llama_memory_seq_rm/add, " +
-                  "cache_tokens rebuild) and prompt-cache prefix-reuse logic in server.hpp.")
+        purpose = "Verify context-shifting KV-cache management (llama_memory_seq_rm/add, "
+                + "cache_tokens rebuild) and prompt-cache prefix-reuse logic in server.hpp.")
 public class MemoryManagementTest {
 
     /**
@@ -57,8 +57,7 @@ public class MemoryManagementTest {
      * the first call, so {@code get_common_prefix()} returns the prefix length and reuses those
      * KV-cache positions via {@code llama_memory_seq_add}.
      */
-    private static final String CACHE_EXTENDED_PROMPT =
-            CACHE_PREFIX_PROMPT + "\n    result = ";
+    private static final String CACHE_EXTENDED_PROMPT = CACHE_PREFIX_PROMPT + "\n    result = ";
 
     /** Shared model used for prompt-cache tests (ctxSize=128 is ample). */
     private static LlamaModel model;
@@ -72,25 +71,24 @@ public class MemoryManagementTest {
 
     @BeforeAll
     public static void setup() {
-        Assumptions.assumeTrue(new File(TestConstants.MODEL_PATH).exists(), "Model file not found, skipping MemoryManagementTest");
+        Assumptions.assumeTrue(
+                new File(TestConstants.MODEL_PATH).exists(), "Model file not found, skipping MemoryManagementTest");
 
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
 
-        model = new LlamaModel(
-                new ModelParameters()
-                        .setModel(TestConstants.MODEL_PATH)
-                        .setCtxSize(128)
-                        .setGpuLayers(gpuLayers)
-                        .setFit(false));
+        model = new LlamaModel(new ModelParameters()
+                .setModel(TestConstants.MODEL_PATH)
+                .setCtxSize(128)
+                .setGpuLayers(gpuLayers)
+                .setFit(false));
 
         // ctxSize=32 makes a context shift unavoidable: ~10-token prompt + 25 predicted tokens
         // totals ~35 positions, guaranteed to exceed the 32-token window.
-        smallCtxModel = new LlamaModel(
-                new ModelParameters()
-                        .setModel(TestConstants.MODEL_PATH)
-                        .setCtxSize(32)
-                        .setGpuLayers(gpuLayers)
-                        .setFit(false));
+        smallCtxModel = new LlamaModel(new ModelParameters()
+                .setModel(TestConstants.MODEL_PATH)
+                .setCtxSize(32)
+                .setGpuLayers(gpuLayers)
+                .setFit(false));
     }
 
     @AfterAll
@@ -124,7 +122,7 @@ public class MemoryManagementTest {
     public void testContextShiftingAllowsContinuedGeneration() {
         InferenceParameters params = new InferenceParameters(SHORT_PROMPT)
                 .setNPredict(25)
-                .setIgnoreEos(true)   // prevent early stop so the shift is reliably triggered
+                .setIgnoreEos(true) // prevent early stop so the shift is reliably triggered
                 .setSeed(42);
 
         String output = smallCtxModel.complete(params);
@@ -151,9 +149,8 @@ public class MemoryManagementTest {
         smallCtxModel.complete(shiftParams);
 
         // Second call: independent generation on the same model after the shift
-        InferenceParameters freshParams = new InferenceParameters("x = ")
-                .setNPredict(5)
-                .setSeed(2);
+        InferenceParameters freshParams =
+                new InferenceParameters("x = ").setNPredict(5).setSeed(2);
         String output = smallCtxModel.complete(freshParams);
 
         assertNotNull(output);
@@ -178,15 +175,16 @@ public class MemoryManagementTest {
         InferenceParameters params = new InferenceParameters(CACHE_PREFIX_PROMPT)
                 .setCachePrompt(true)
                 .setNPredict(10)
-                .setTemperature(0f)  // greedy decoding: fully deterministic
+                .setTemperature(0f) // greedy decoding: fully deterministic
                 .setSeed(42);
 
-        String first  = model.complete(params);
+        String first = model.complete(params);
         String second = model.complete(params);
 
         assertFalse(first.isEmpty(), "First cached-prompt call must produce output");
         assertFalse(second.isEmpty(), "Second cached-prompt call must produce output");
-        assertEquals(first, second, "Both calls share the same prompt and seed; cache_prompt=true must not change output");
+        assertEquals(
+                first, second, "Both calls share the same prompt and seed; cache_prompt=true must not change output");
     }
 
     /**
@@ -203,11 +201,12 @@ public class MemoryManagementTest {
                 .setTemperature(0f)
                 .setSeed(42);
 
-        String first  = model.complete(params);
+        String first = model.complete(params);
         String second = model.complete(params);
 
         assertFalse(first.isEmpty());
-        assertEquals(first, second, "Without cache_prompt, repeated calls with the same seed must still be deterministic");
+        assertEquals(
+                first, second, "Without cache_prompt, repeated calls with the same seed must still be deterministic");
     }
 
     // ------------------------------------------------------------------
@@ -256,9 +255,9 @@ public class MemoryManagementTest {
                 .setTemperature(0f)
                 .setSeed(77);
 
-        String first  = model.complete(params);
+        String first = model.complete(params);
         String second = model.complete(params);
-        String third  = model.complete(params);
+        String third = model.complete(params);
 
         assertFalse(first.isEmpty(), "First call must produce output");
         assertEquals(first, second, "Second call must match first");
@@ -360,12 +359,11 @@ public class MemoryManagementTest {
         // Step 3: baseline — fresh model (no prior cache) on the same disjoint prompt.
         // Output must be identical, proving that the stale A cache had no effect on B's logits.
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
-        try (LlamaModel freshModel = new LlamaModel(
-                new ModelParameters()
-                        .setModel(TestConstants.MODEL_PATH)
-                        .setCtxSize(128)
-                        .setGpuLayers(gpuLayers)
-                        .setFit(false))) {
+        try (LlamaModel freshModel = new LlamaModel(new ModelParameters()
+                .setModel(TestConstants.MODEL_PATH)
+                .setCtxSize(128)
+                .setGpuLayers(gpuLayers)
+                .setFit(false))) {
             InferenceParameters freshParams = new InferenceParameters(disjointPrompt)
                     .setCachePrompt(true)
                     .setNPredict(8)
@@ -373,7 +371,10 @@ public class MemoryManagementTest {
                     .setSeed(99);
             String fresh = freshModel.complete(freshParams);
 
-            assertEquals(fresh, afterMiss, "A cache-miss call must produce the same output as a cold-start call on the same prompt");
+            assertEquals(
+                    fresh,
+                    afterMiss,
+                    "A cache-miss call must produce the same output as a cold-start call on the same prompt");
         }
     }
 
@@ -416,7 +417,9 @@ public class MemoryManagementTest {
 
         if (baseline > 0 && after > 0) {
             long deltaKb = after - baseline;
-            assertTrue(deltaKb < 200_000L, "VmRSS grew by " + deltaKb + " kB across 20 open/close iterations "
+            assertTrue(
+                    deltaKb < 200_000L,
+                    "VmRSS grew by " + deltaKb + " kB across 20 open/close iterations "
                             + "(baseline=" + baseline + " kB, after=" + after + " kB); "
                             + "indicates a native-side leak in LlamaModel.close()");
         }

@@ -27,6 +27,11 @@ public enum ContinuationMode {
         this.value = value;
     }
 
+    /**
+     * Returns the wire-format string sent to the native layer.
+     *
+     * @return the string value (e.g. {@code "reasoning_content"} or {@code "content"})
+     */
     public String getValue() {
         return value;
     }

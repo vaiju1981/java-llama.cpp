@@ -9,4 +9,168 @@ SPDX-License-Identifier: MIT
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="https://github.com/spotbugs/filter/3.0.0 https://raw.githubusercontent.com/spotbugs/spotbugs/4.8.6/spotbugs/etc/findbugsfilter.xsd">
 
+    <!--
+        OSInfo is vendored verbatim from xerial/sqlite-jdbc (originally @author leo).
+        See SPDX-FileCopyrightText header in src/main/java/net/ladenthin/llama/OSInfo.java.
+        Excluding the class (and its inner classes) from spotbugs analysis since
+        upstream fixes should land in xerial/sqlite-jdbc rather than be patched here.
+    -->
+    <Match>
+        <Class name="~net\.ladenthin\.llama\.OSInfo(\$.*)?"/>
+    </Match>
+
+    <!--
+        ProcessRunner is an internal package-private helper used solely by OSInfo
+        to invoke platform-detection commands ("uname -o", "uname -m"). It is
+        already hardened against shell-tokenisation by calling Runtime.exec(String[])
+        rather than the shell-parsing Runtime.exec(String). findsecbugs still flags
+        every non-literal Runtime.exec call as COMMAND_INJECTION regardless of which
+        overload is used; this exclusion documents the assessment that the finding
+        is theoretical only — there is no public API path that lets an external
+        caller reach this code, and the two call sites in OSInfo pass hardcoded
+        literal commands.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.ProcessRunner"/>
+        <Bug pattern="COMMAND_INJECTION"/>
+    </Match>
+
+    <!--
+        LlamaModel deliberately wraps low-level Jackson IOException into the
+        project's LlamaException (a RuntimeException subclass) at three JSON-parsing
+        boundary methods: completeAsJson, getMetricsTyped, getModelMeta. This is the
+        intended public-API design — IOException is an implementation detail of the
+        JSON parser, not something callers of a JNI bridge should be forced to handle.
+        The exception cause is already chained through so the original stack trace
+        is preserved (see f8c11b0). Spotbugs flags this as
+        EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS because the resulting RuntimeException
+        leaves no compile-time hint that an I/O failure happened; we accept that
+        tradeoff at these three boundary points.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.LlamaModel"/>
+        <Bug pattern="EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS"/>
+        <Or>
+            <Method name="completeAsJson"/>
+            <Method name="getMetricsTyped"/>
+            <Method name="getModelMeta"/>
+        </Or>
+    </Match>
+
+    <!--
+        ModelParameters intentionally types each enum-valued fluent setter
+        to its specific enum (CacheType, MiroStat, NumaStrategy,
+        ReasoningFormat, RopeScalingType, GpuSplitMode) rather than the
+        shared CliArg interface that those enums all implement. The narrow
+        type is the API contract:
+
+          params.setMirostat(MiroStat.V1)             accepted
+          params.setMirostat(NumaStrategy.DISTRIBUTE) rejected by compiler
+
+        If we widened to CliArg as spotbugs OCP suggests, the second call
+        would silently compile and emit a nonsense CLI value that the
+        native code would reject at runtime. IDE autocomplete
+        also relies on the narrow type to surface the right enum
+        constants. Same design-intent rationale as the STT and EXS
+        suppressions above.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.ModelParameters"/>
+        <Bug pattern="OCP_OVERLY_CONCRETE_PARAMETER"/>
+        <Or>
+            <Method name="setCacheTypeK"/>
+            <Method name="setCacheTypeV"/>
+            <Method name="setMirostat"/>
+            <Method name="setNuma"/>
+            <Method name="setReasoningFormat"/>
+            <Method name="setRopeScaling"/>
+            <Method name="setSplitMode"/>
+        </Or>
+    </Match>
+
+    <!--
+        InferenceParameters and ModelParameters are fluent builders whose
+        parameters field is a Map<String, String> serving as the CLI / JSON
+        wire-format passed across JNI to nlohmann/json. Every setter
+        deliberately serializes its argument (Jackson ArrayNode/ObjectNode
+        via .toString(), or scalar concat) and stores the string into the
+        map. Spotbugs STT_TOSTRING_STORED_IN_FIELD flags every site because
+        a String pinned by toString() cannot be reformatted with a different
+        locale/encoding later — that pin is the whole point of the
+        serialization step. Same design rationale as the EXS suppression on
+        LlamaModel above.
+    -->
+    <Match>
+        <Or>
+            <Class name="net.ladenthin.llama.InferenceParameters"/>
+            <Class name="net.ladenthin.llama.ModelParameters"/>
+        </Or>
+        <Bug pattern="STT_TOSTRING_STORED_IN_FIELD"/>
+    </Match>
+
+    <!--
+        LlamaLoader is the native-library bootstrap. It resolves the path
+        to libjllama.{so,dylib,dll} from three operator-controlled inputs:
+
+          1. -Dnet.ladenthin.llama.lib.path=<dir>   (line 94)
+          2. java.library.path entries              (line 119)
+          3. java.io.tmpdir + hardcoded basename    (lines 133, 171, 215)
+
+        findsecbugs PATH_TRAVERSAL_IN flags every non-literal argument to
+        Paths.get, treating "user input" syntactically as "any non-literal
+        string". The threat-model reality is different: all three sources
+        are JVM properties set at process launch by whoever started the
+        process. An attacker who can set JVM properties has already won;
+        there is no untrusted end-user input reaching these paths.
+
+        Canonicalize-and-restrict-to-root mitigation is not applicable
+        because the whole purpose of the .lib.path property is to let the
+        operator point at any directory containing the native library;
+        there is no meaningful "allowed root" to validate against.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.LlamaLoader"/>
+        <Bug pattern="PATH_TRAVERSAL_IN"/>
+    </Match>
+
+    <!--
+        LlamaIterator and LlamaModel form a deliberate producer/consumer
+        cycle: LlamaModel.generate(...) returns a LlamaIterable that
+        yields LlamaIterator instances; each LlamaIterator calls back
+        into LlamaModel to fetch the next token via the native bridge.
+        This is the standard shape of a streaming iterator that drives
+        a backend (java.util.Iterator semantics require it). The static
+        class cycle is a side effect of the Iterator/Iterable API
+        contract, not a design defect.
+
+        Breaking the static cycle with an interface (e.g. a TokenSource
+        that LlamaModel implements and LlamaIterator depends on) would
+        add a fake abstraction with one implementer and no decoupling
+        value; the runtime coupling is identical either way.
+    -->
+    <Match>
+        <Or>
+            <Class name="net.ladenthin.llama.LlamaIterator"/>
+            <Class name="net.ladenthin.llama.LlamaModel"/>
+        </Or>
+        <Bug pattern="FCCD_FIND_CLASS_CIRCULAR_DEPENDENCY"/>
+    </Match>
+
+    <!--
+        Session is a thin non-owning wrapper around a LlamaModel: one LlamaModel
+        wraps a native llama.cpp context that is intentionally shared across
+        multiple Session instances (one per slot id). The model owns native
+        memory and must NOT be defensively copied — Session deliberately holds
+        the same reference the caller passed in, and Session.close() calls
+        model.eraseSlot(slotId), never model.close(). This is the documented
+        dependency-injection contract; spotbugs flags it as EI_EXPOSE_REP2
+        because the constructor stores an externally-mutable object, which is
+        true but by design.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.Session"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+        <Method name="&lt;init&gt;"/>
+    </Match>
+
 </FindBugsFilter>

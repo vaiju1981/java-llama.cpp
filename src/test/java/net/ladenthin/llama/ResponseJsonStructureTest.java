@@ -5,13 +5,11 @@
 
 package net.ladenthin.llama;
 
-import java.io.File;
-import java.util.ArrayList;
-import java.util.List;
+import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.File;
 import net.ladenthin.llama.args.PoolingType;
 import org.junit.jupiter.api.AfterAll;
-import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -30,10 +28,9 @@ import org.junit.jupiter.api.Test;
  * </ul>
  */
 @ClaudeGenerated(
-        purpose = "Validate full JSON response structures from all endpoints: non-OAI and OAI completions, " +
-                  "chat completions, timings, stop_type/finish_reason values, embedding and tokenization responses.",
-        model = "claude-opus-4-6"
-)
+        purpose = "Validate full JSON response structures from all endpoints: non-OAI and OAI completions, "
+                + "chat completions, timings, stop_type/finish_reason values, embedding and tokenization responses.",
+        model = "claude-opus-4-6")
 public class ResponseJsonStructureTest {
 
     private static final int N_PREDICT = 5;
@@ -46,17 +43,17 @@ public class ResponseJsonStructureTest {
 
     @BeforeAll
     public static void setup() {
-        Assumptions.assumeTrue(new File(TestConstants.MODEL_PATH).exists(), "Model file not found, skipping ResponseJsonStructureTest");
+        Assumptions.assumeTrue(
+                new File(TestConstants.MODEL_PATH).exists(),
+                "Model file not found, skipping ResponseJsonStructureTest");
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
-        model = new LlamaModel(
-                new ModelParameters()
-                        .setCtxSize(256)
-                        .setModel(TestConstants.MODEL_PATH)
-                        .setGpuLayers(gpuLayers)
-                        .setFit(false)
-                        .enableEmbedding()
-                        .setPoolingType(PoolingType.MEAN)
-        );
+        model = new LlamaModel(new ModelParameters()
+                .setCtxSize(256)
+                .setModel(TestConstants.MODEL_PATH)
+                .setGpuLayers(gpuLayers)
+                .setFit(false)
+                .enableEmbedding()
+                .setPoolingType(PoolingType.MEAN));
     }
 
     @AfterAll
@@ -205,9 +202,11 @@ public class ResponseJsonStructureTest {
         String json = "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":50" + DETERMINISTIC + ",\"stop\":[\"return\"]}";
         String result = model.handleCompletions(json);
         // May be "word" if stop string matched, or "limit" if n_predict reached first
-        assertTrue(result.contains("\"stop_type\":\"word\"") ||
-                result.contains("\"stop_type\":\"limit\"") ||
-                result.contains("\"stop_type\":\"eos\""), "stop_type should be present");
+        assertTrue(
+                result.contains("\"stop_type\":\"word\"")
+                        || result.contains("\"stop_type\":\"limit\"")
+                        || result.contains("\"stop_type\":\"eos\""),
+                "stop_type should be present");
     }
 
     // -------------------------------------------------------------------------
@@ -232,7 +231,9 @@ public class ResponseJsonStructureTest {
     public void testOaiCompletionHasObject() {
         String json = "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT + DETERMINISTIC + "}";
         String result = model.handleCompletionsOai(json);
-        assertTrue(result.contains("\"object\":\"text_completion\""), "OAI response must contain 'object':'text_completion'");
+        assertTrue(
+                result.contains("\"object\":\"text_completion\""),
+                "OAI response must contain 'object':'text_completion'");
     }
 
     @Test
@@ -284,8 +285,9 @@ public class ResponseJsonStructureTest {
         String json = "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT + DETERMINISTIC + "}";
         String result = model.handleCompletionsOai(json);
         // With small n_predict, finish_reason should be "length"
-        assertTrue(result.contains("\"finish_reason\":\"length\"") ||
-                result.contains("\"finish_reason\":\"stop\""), "finish_reason should be 'length' or 'stop'");
+        assertTrue(
+                result.contains("\"finish_reason\":\"length\"") || result.contains("\"finish_reason\":\"stop\""),
+                "finish_reason should be 'length' or 'stop'");
     }
 
     // -------------------------------------------------------------------------
@@ -295,8 +297,7 @@ public class ResponseJsonStructureTest {
     @Test
     public void testOaiChatCompletionHasChoices() {
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, java.util.Collections.singletonList(
-                        new Pair<>("user", "Say hello")))
+                .setMessages(null, java.util.Collections.singletonList(new Pair<>("user", "Say hello")))
                 .setNPredict(N_PREDICT)
                 .setTemperature(0);
         String result = model.chatComplete(params);
@@ -306,8 +307,7 @@ public class ResponseJsonStructureTest {
     @Test
     public void testOaiChatCompletionHasUsage() {
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, java.util.Collections.singletonList(
-                        new Pair<>("user", "Say hello")))
+                .setMessages(null, java.util.Collections.singletonList(new Pair<>("user", "Say hello")))
                 .setNPredict(N_PREDICT)
                 .setTemperature(0);
         String result = model.chatComplete(params);
@@ -317,8 +317,7 @@ public class ResponseJsonStructureTest {
     @Test
     public void testOaiChatCompletionHasMessageObject() {
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, java.util.Collections.singletonList(
-                        new Pair<>("user", "Say hello")))
+                .setMessages(null, java.util.Collections.singletonList(new Pair<>("user", "Say hello")))
                 .setNPredict(N_PREDICT)
                 .setTemperature(0);
         String result = model.chatComplete(params);
@@ -328,19 +327,18 @@ public class ResponseJsonStructureTest {
     @Test
     public void testOaiChatCompletionObjectType() {
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, java.util.Collections.singletonList(
-                        new Pair<>("user", "Say hello")))
+                .setMessages(null, java.util.Collections.singletonList(new Pair<>("user", "Say hello")))
                 .setNPredict(N_PREDICT)
                 .setTemperature(0);
         String result = model.chatComplete(params);
-        assertTrue(result.contains("\"object\":\"chat.completion\""), "Chat response 'object' must be 'chat.completion'");
+        assertTrue(
+                result.contains("\"object\":\"chat.completion\""), "Chat response 'object' must be 'chat.completion'");
     }
 
     @Test
     public void testOaiChatCompletionMessageHasRole() {
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, java.util.Collections.singletonList(
-                        new Pair<>("user", "Say hello")))
+                .setMessages(null, java.util.Collections.singletonList(new Pair<>("user", "Say hello")))
                 .setNPredict(N_PREDICT)
                 .setTemperature(0);
         String result = model.chatComplete(params);
@@ -401,10 +399,11 @@ public class ResponseJsonStructureTest {
 
     @Test
     public void testCompletionProbabilitiesStructure() {
-        String json = "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT
-                + DETERMINISTIC + ",\"n_probs\":3}";
+        String json = "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT + DETERMINISTIC + ",\"n_probs\":3}";
         String result = model.handleCompletions(json);
-        assertTrue(result.contains("\"completion_probabilities\""), "Response with n_probs should contain 'completion_probabilities'");
+        assertTrue(
+                result.contains("\"completion_probabilities\""),
+                "Response with n_probs should contain 'completion_probabilities'");
     }
 
     // -------------------------------------------------------------------------

@@ -50,14 +50,24 @@ SPDX-License-Identifier: MIT
 
 	<properties>
 		<jna.version>5.18.1</jna.version>
+		<jetbrains-annotations.version>26.1.0</jetbrains-annotations.version>
+		<jackson.version>2.21.3</jackson.version>
+		<reactive-streams.version>1.0.4</reactive-streams.version>
+		<slf4j.version>2.0.18</slf4j.version>
+		<logback.version>1.5.32</logback.version>
+		<animal-sniffer.version>1.27</animal-sniffer.version>
+		<junit.version>6.1.0</junit.version>
+		<jmh.version>1.37</jmh.version>
 		<jcstress.version>0.16</jcstress.version>
 		<lincheck.version>2.39</lincheck.version>
 		<vmlens.version>1.2.28</vmlens.version>
-		<jqwik.version>1.9.2</jqwik.version>
-		<archunit.version>1.3.0</archunit.version>
-		<spotbugs.version>4.8.6.6</spotbugs.version>
+		<jqwik.version>1.10.0</jqwik.version>
+		<archunit.version>1.4.2</archunit.version>
+		<spotbugs.version>4.9.8.3</spotbugs.version>
 		<fb-contrib.version>7.6.4</fb-contrib.version>
-		<findsecbugs.version>1.13.0</findsecbugs.version>
+		<findsecbugs.version>1.14.0</findsecbugs.version>
+		<spotless.version>3.5.1</spotless.version>
+		<palantir-java-format.version>2.66.0</palantir-java-format.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.build.outputTimestamp>${git.commit.time}</project.build.outputTimestamp>
 	</properties>
@@ -66,7 +76,7 @@ SPDX-License-Identifier: MIT
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter</artifactId>
-			<version>6.1.0</version>
+			<version>${junit.version}</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -84,13 +94,13 @@ SPDX-License-Identifier: MIT
 		<dependency>
 			<groupId>org.jetbrains</groupId>
 			<artifactId>annotations</artifactId>
-			<version>26.1.0</version>
+			<version>${jetbrains-annotations.version}</version>
 			<scope>compile</scope>
 		</dependency>
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
-			<version>2.21.3</version>
+			<version>${jackson.version}</version>
 		</dependency>
 		<!-- Reactive Streams API used by LlamaPublisher to expose token streams as a
 		     Publisher<LlamaOutput>. Java 8 compatible, ~5 KB, supplies the standard
@@ -98,20 +108,20 @@ SPDX-License-Identifier: MIT
 		<dependency>
 			<groupId>org.reactivestreams</groupId>
 			<artifactId>reactive-streams</artifactId>
-			<version>1.0.4</version>
+			<version>${reactive-streams.version}</version>
 		</dependency>
 		<!-- Required by OSInfo (vendored from xerial/sqlite-jdbc) for log emission. -->
 		<dependency>
 			<groupId>org.slf4j</groupId>
 			<artifactId>slf4j-api</artifactId>
-			<version>2.0.18</version>
+			<version>${slf4j.version}</version>
 		</dependency>
 		<!-- Default SLF4J binding shipped with this library. Runtime scope: not
 		     required on the compile classpath, only loaded at JVM startup. -->
 		<dependency>
 			<groupId>ch.qos.logback</groupId>
 			<artifactId>logback-classic</artifactId>
-			<version>1.5.32</version>
+			<version>${logback.version}</version>
 			<scope>runtime</scope>
 		</dependency>
 		<!-- @IgnoreJRERequirement marker used by OSInfo (vendored from xerial/sqlite-jdbc)
@@ -120,19 +130,19 @@ SPDX-License-Identifier: MIT
 		<dependency>
 			<groupId>org.codehaus.mojo</groupId>
 			<artifactId>animal-sniffer-annotations</artifactId>
-			<version>1.27</version>
+			<version>${animal-sniffer.version}</version>
 			<scope>provided</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.openjdk.jmh</groupId>
 			<artifactId>jmh-core</artifactId>
-			<version>1.37</version>
+			<version>${jmh.version}</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
 			<groupId>org.openjdk.jmh</groupId>
 			<artifactId>jmh-generator-annprocess</artifactId>
-			<version>1.37</version>
+			<version>${jmh.version}</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -150,11 +160,84 @@ SPDX-License-Identifier: MIT
 	</dependencies>
 
 	<build>
+		<pluginManagement>
+			<plugins>
+				<plugin>
+					<groupId>com.diffplug.spotless</groupId>
+					<artifactId>spotless-maven-plugin</artifactId>
+					<version>${spotless.version}</version>
+				</plugin>
+				<plugin>
+					<groupId>com.github.spotbugs</groupId>
+					<artifactId>spotbugs-maven-plugin</artifactId>
+					<version>${spotbugs.version}</version>
+				</plugin>
+				<plugin>
+					<groupId>com.vmlens</groupId>
+					<artifactId>vmlens-maven-plugin</artifactId>
+					<version>${vmlens.version}</version>
+				</plugin>
+				<plugin>
+					<groupId>io.github.git-commit-id</groupId>
+					<artifactId>git-commit-id-maven-plugin</artifactId>
+					<version>10.0.0</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-compiler-plugin</artifactId>
+					<version>3.15.0</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-gpg-plugin</artifactId>
+					<version>3.2.8</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-jar-plugin</artifactId>
+					<version>3.5.0</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-javadoc-plugin</artifactId>
+					<version>3.12.0</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-resources-plugin</artifactId>
+					<version>3.5.0</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-source-plugin</artifactId>
+					<version>3.4.0</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-surefire-plugin</artifactId>
+					<version>3.5.5</version>
+				</plugin>
+				<plugin>
+					<groupId>org.codehaus.mojo</groupId>
+					<artifactId>exec-maven-plugin</artifactId>
+					<version>3.6.3</version>
+				</plugin>
+				<plugin>
+					<groupId>org.jacoco</groupId>
+					<artifactId>jacoco-maven-plugin</artifactId>
+					<version>0.8.14</version>
+				</plugin>
+				<plugin>
+					<groupId>org.sonatype.central</groupId>
+					<artifactId>central-publishing-maven-plugin</artifactId>
+					<version>0.10.0</version>
+				</plugin>
+			</plugins>
+		</pluginManagement>
 		<plugins>
 			<plugin>
 				<groupId>io.github.git-commit-id</groupId>
 				<artifactId>git-commit-id-maven-plugin</artifactId>
-				<version>10.0.0</version>
 				<executions>
 					<execution>
 						<id>get-git-properties</id>
@@ -174,7 +257,6 @@ SPDX-License-Identifier: MIT
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
-				<version>3.15.0</version>
 				<configuration>
 					<source>1.8</source>
 					<target>1.8</target>
@@ -194,98 +276,19 @@ SPDX-License-Identifier: MIT
 								<path>
 									<groupId>org.openjdk.jmh</groupId>
 									<artifactId>jmh-generator-annprocess</artifactId>
-									<version>1.37</version>
+									<version>${jmh.version}</version>
 								</path>
 							</annotationProcessorPaths>
-						</configuration>
-					</execution>
-					<!-- We have to perform a separate build pass for cuda
-					classifier -->
-					<execution>
-						<id>gpu</id>
-						<phase>compile</phase>
-						<goals>
-							<goal>compile</goal>
-						</goals>
-						<configuration>
-							<compilerArgs>
-								<arg>-h</arg>
-								<arg>src/main/cpp</arg>
-							</compilerArgs>
-							<outputDirectory>
-								${project.build.outputDirectory}_cuda</outputDirectory>
-						</configuration>
-					</execution>
-					<!-- Separate build pass for opencl-android classifier -->
-					<execution>
-						<id>opencl-android</id>
-						<phase>compile</phase>
-						<goals>
-							<goal>compile</goal>
-						</goals>
-						<configuration>
-							<compilerArgs>
-								<arg>-h</arg>
-								<arg>src/main/cpp</arg>
-							</compilerArgs>
-							<outputDirectory>
-								${project.build.outputDirectory}_opencl_android</outputDirectory>
 						</configuration>
 					</execution>
 				</executions>
 			</plugin>
 			<plugin>
 				<artifactId>maven-resources-plugin</artifactId>
-				<version>3.5.0</version>
-				<executions>
-					<!-- Copy custom cuda libs to the output directory -->
-					<execution>
-						<id>copy-resources</id>
-						<phase>process-classes</phase>
-						<goals>
-							<goal>copy-resources</goal>
-						</goals>
-						<configuration>
-							<outputDirectory>
-								${project.build.outputDirectory}_cuda</outputDirectory>
-							<resources>
-								<resource>
-									<directory>
-										${basedir}/src/main/resources_linux_cuda/</directory>
-									<includes>
-										<include>**/*.*</include>
-									</includes>
-								</resource>
-							</resources>
-						</configuration>
-					</execution>
-					<!-- Copy custom opencl-android libs to the output directory -->
-					<execution>
-						<id>copy-resources-opencl-android</id>
-						<phase>process-classes</phase>
-						<goals>
-							<goal>copy-resources</goal>
-						</goals>
-						<configuration>
-							<outputDirectory>
-								${project.build.outputDirectory}_opencl_android</outputDirectory>
-							<resources>
-								<resource>
-									<directory>
-										${basedir}/src/main/resources_android_opencl/</directory>
-									<includes>
-										<include>**/*.*</include>
-									</includes>
-								</resource>
-							</resources>
-						</configuration>
-					</execution>
-				</executions>
 			</plugin>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-source-plugin</artifactId>
-				<version>3.4.0</version>
 				<executions>
 					<execution>
 						<id>attach-sources</id>
@@ -298,9 +301,11 @@ SPDX-License-Identifier: MIT
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-javadoc-plugin</artifactId>
-				<version>3.12.0</version>
 				<configuration>
 					<source>1.8</source>
+					<failOnError>true</failOnError>
+					<failOnWarnings>true</failOnWarnings>
+					<doclint>all</doclint>
 				</configuration>
 				<executions>
 					<execution>
@@ -314,7 +319,6 @@ SPDX-License-Identifier: MIT
 			<plugin>
 				<groupId>org.jacoco</groupId>
 				<artifactId>jacoco-maven-plugin</artifactId>
-				<version>0.8.14</version>
 				<executions>
 					<execution>
 						<id>prepare-agent</id>
@@ -346,7 +350,6 @@ SPDX-License-Identifier: MIT
 				-->
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
-				<version>3.5.5</version>
 				<configuration>
 					<argLine>@{argLine} -XX:ErrorFile=hs_err_pid%p.log -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=.</argLine>
 					<!--
@@ -361,9 +364,35 @@ SPDX-License-Identifier: MIT
 				</configuration>
 			</plugin>
 			<plugin>
+				<groupId>com.diffplug.spotless</groupId>
+				<artifactId>spotless-maven-plugin</artifactId>
+				<configuration>
+					<java>
+						<includes>
+							<include>src/main/java/**/*.java</include>
+							<include>src/test/java/**/*.java</include>
+						</includes>
+						<palantirJavaFormat>
+							<version>${palantir-java-format.version}</version>
+						</palantirJavaFormat>
+						<removeUnusedImports/>
+						<trimTrailingWhitespace/>
+						<endWithNewline/>
+					</java>
+				</configuration>
+				<executions>
+					<execution>
+						<id>spotless-check</id>
+						<phase>verify</phase>
+						<goals>
+							<goal>check</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
 				<groupId>com.github.spotbugs</groupId>
 				<artifactId>spotbugs-maven-plugin</artifactId>
-				<version>${spotbugs.version}</version>
 				<configuration>
 					<effort>Default</effort>
 					<threshold>Default</threshold>
@@ -396,31 +425,10 @@ SPDX-License-Identifier: MIT
 			<plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>exec-maven-plugin</artifactId>
-				<version>3.6.3</version>
 				<configuration>
 					<mainClass>org.openjdk.jmh.Main</mainClass>
 					<classpathScope>test</classpathScope>
 				</configuration>
-				<executions>
-					<execution>
-						<id>jcstress</id>
-						<phase>test</phase>
-						<goals><goal>exec</goal></goals>
-						<configuration>
-							<skip>${skipTests}</skip>
-							<executable>${java.home}/bin/java</executable>
-							<classpathScope>test</classpathScope>
-							<arguments>
-								<argument>-classpath</argument>
-								<classpath/>
-								<argument>org.openjdk.jcstress.Main</argument>
-								<argument>-v</argument>
-								<argument>-m</argument>
-								<argument>default</argument>
-							</arguments>
-						</configuration>
-					</execution>
-				</executions>
 			</plugin>
 		</plugins>
 	</build>
@@ -433,7 +441,6 @@ SPDX-License-Identifier: MIT
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-gpg-plugin</artifactId>
-						<version>3.2.8</version>
 						<executions>
 							<execution>
 								<id>sign-artifacts</id>
@@ -453,7 +460,6 @@ SPDX-License-Identifier: MIT
 					<plugin>
 						<groupId>org.sonatype.central</groupId>
 						<artifactId>central-publishing-maven-plugin</artifactId>
-						<version>0.10.0</version>
 						<extensions>true</extensions>
 						<configuration>
 							<publishingServerId>central</publishingServerId>
@@ -471,8 +477,56 @@ SPDX-License-Identifier: MIT
 				<plugins>
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-compiler-plugin</artifactId>
+						<executions>
+						<!-- We have to perform a separate build pass for cuda
+						classifier -->
+						<execution>
+							<id>gpu</id>
+							<phase>compile</phase>
+							<goals>
+								<goal>compile</goal>
+							</goals>
+							<configuration>
+								<compilerArgs>
+									<arg>-h</arg>
+									<arg>src/main/cpp</arg>
+								</compilerArgs>
+								<outputDirectory>
+									${project.build.outputDirectory}_cuda</outputDirectory>
+							</configuration>
+						</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<artifactId>maven-resources-plugin</artifactId>
+						<executions>
+						<!-- Copy custom cuda libs to the output directory -->
+						<execution>
+							<id>copy-resources</id>
+							<phase>process-classes</phase>
+							<goals>
+								<goal>copy-resources</goal>
+							</goals>
+							<configuration>
+								<outputDirectory>
+									${project.build.outputDirectory}_cuda</outputDirectory>
+								<resources>
+									<resource>
+										<directory>
+											${basedir}/src/main/resources_linux_cuda/</directory>
+										<includes>
+											<include>**/*.*</include>
+										</includes>
+									</resource>
+								</resources>
+							</configuration>
+						</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-jar-plugin</artifactId>
-						<version>3.5.0</version>
 						<executions>
 							<!-- Pick class files AND libs from custom output
 							directory -->
@@ -500,8 +554,55 @@ SPDX-License-Identifier: MIT
 				<plugins>
 					<plugin>
 						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-compiler-plugin</artifactId>
+						<executions>
+						<!-- Separate build pass for opencl-android classifier -->
+						<execution>
+							<id>opencl-android</id>
+							<phase>compile</phase>
+							<goals>
+								<goal>compile</goal>
+							</goals>
+							<configuration>
+								<compilerArgs>
+									<arg>-h</arg>
+									<arg>src/main/cpp</arg>
+								</compilerArgs>
+								<outputDirectory>
+									${project.build.outputDirectory}_opencl_android</outputDirectory>
+							</configuration>
+						</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<artifactId>maven-resources-plugin</artifactId>
+						<executions>
+						<!-- Copy custom opencl-android libs to the output directory -->
+						<execution>
+							<id>copy-resources-opencl-android</id>
+							<phase>process-classes</phase>
+							<goals>
+								<goal>copy-resources</goal>
+							</goals>
+							<configuration>
+								<outputDirectory>
+									${project.build.outputDirectory}_opencl_android</outputDirectory>
+								<resources>
+									<resource>
+										<directory>
+											${basedir}/src/main/resources_android_opencl/</directory>
+										<includes>
+											<include>**/*.*</include>
+										</includes>
+									</resource>
+								</resources>
+							</configuration>
+						</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
 						<artifactId>maven-jar-plugin</artifactId>
-						<version>3.5.0</version>
 						<executions>
 							<!-- Pick class files AND libs from custom output
 							directory -->
@@ -537,7 +638,6 @@ SPDX-License-Identifier: MIT
 					<plugin>
 						<groupId>com.vmlens</groupId>
 						<artifactId>vmlens-maven-plugin</artifactId>
-						<version>${vmlens.version}</version>
 						<configuration>
 							<!--
 								Lincheck generates its own TestThreadExecution class on the fly.
@@ -557,6 +657,36 @@ SPDX-License-Identifier: MIT
 								<goals>
 									<goal>test</goal>
 								</goals>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+		<profile>
+			<id>jcstress</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.codehaus.mojo</groupId>
+						<artifactId>exec-maven-plugin</artifactId>
+						<executions>
+							<execution>
+								<id>jcstress</id>
+								<phase>test</phase>
+								<goals><goal>exec</goal></goals>
+								<configuration>
+									<executable>${java.home}/bin/java</executable>
+									<classpathScope>test</classpathScope>
+									<arguments>
+										<argument>-classpath</argument>
+										<classpath/>
+										<argument>org.openjdk.jcstress.Main</argument>
+										<argument>-v</argument>
+										<argument>-m</argument>
+										<argument>default</argument>
+									</arguments>
+								</configuration>
 							</execution>
 						</executions>
 					</plugin>

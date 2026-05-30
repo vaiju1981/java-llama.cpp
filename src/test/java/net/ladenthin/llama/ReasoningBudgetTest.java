@@ -5,13 +5,13 @@
 
 package net.ladenthin.llama;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import java.io.File;
 import java.util.Collections;
-
 import net.ladenthin.llama.args.ReasoningFormat;
 import net.ladenthin.llama.json.ChatResponseParser;
 import org.junit.jupiter.api.AfterAll;
-import static org.junit.jupiter.api.Assertions.*;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Disabled;
@@ -49,10 +49,9 @@ import org.junit.jupiter.api.Test;
  * </ol>
  */
 @ClaudeGenerated(
-        purpose = "Integration tests for Qwen3 thinking-mode extraction and reasoning_budget_tokens " +
-                  "parameter acceptance. Documents the known llama.cpp limitation that budget " +
-                  "enforcement does not work for prompt-injected thinking models."
-)
+        purpose = "Integration tests for Qwen3 thinking-mode extraction and reasoning_budget_tokens "
+                + "parameter acceptance. Documents the known llama.cpp limitation that budget "
+                + "enforcement does not work for prompt-injected thinking models.")
 public class ReasoningBudgetTest {
 
     /**
@@ -70,17 +69,18 @@ public class ReasoningBudgetTest {
 
     @BeforeAll
     public static void setup() {
-        Assumptions.assumeTrue(new File(TestConstants.REASONING_MODEL_PATH).exists(), "Reasoning model not found, skipping ReasoningBudgetTest");
+        Assumptions.assumeTrue(
+                new File(TestConstants.REASONING_MODEL_PATH).exists(),
+                "Reasoning model not found, skipping ReasoningBudgetTest");
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
-        model = new LlamaModel(
-                new ModelParameters()
-                        .setModel(TestConstants.REASONING_MODEL_PATH)
-                        .setCtxSize(2048)
-                        .setGpuLayers(gpuLayers)
-                        .setFit(false)
-                        .setReasoningFormat(ReasoningFormat.DEEPSEEK)
-                        .enableLogTimestamps().enableLogPrefix()
-        );
+        model = new LlamaModel(new ModelParameters()
+                .setModel(TestConstants.REASONING_MODEL_PATH)
+                .setCtxSize(2048)
+                .setGpuLayers(gpuLayers)
+                .setFit(false)
+                .setReasoningFormat(ReasoningFormat.DEEPSEEK)
+                .enableLogTimestamps()
+                .enableLogPrefix());
     }
 
     @AfterAll
@@ -105,8 +105,12 @@ public class ReasoningBudgetTest {
         String reasoningContent = parser.extractChoiceReasoningContent(json);
         String content = parser.extractChoiceContent(json);
 
-        assertFalse(reasoningContent == null || reasoningContent.trim().isEmpty(), "reasoning_content should be non-empty (Qwen3 thinks by default)");
-        assertFalse(content == null || content.trim().isEmpty(), "content must not be empty (model must produce an answer after thinking)");
+        assertFalse(
+                reasoningContent == null || reasoningContent.trim().isEmpty(),
+                "reasoning_content should be non-empty (Qwen3 thinks by default)");
+        assertFalse(
+                content == null || content.trim().isEmpty(),
+                "content must not be empty (model must produce an answer after thinking)");
     }
 
     /**
@@ -138,10 +142,12 @@ public class ReasoningBudgetTest {
         assertNotNull(json, "Response JSON must not be null");
 
         String reasoningContent = parser.extractChoiceReasoningContent(json);
-        assertFalse(reasoningContent == null || reasoningContent.trim().isEmpty(), "reasoning_content is expected to be present because the per-request " +
-                "budget is not applied (llama.cpp server-common.cpp copy-loop bug). " +
-                "If this assertion fails, the bug has been fixed — remove this test and " +
-                "enable testReasoningBudgetZero_expectedBehavior_suppressesThinking.");
+        assertFalse(
+                reasoningContent == null || reasoningContent.trim().isEmpty(),
+                "reasoning_content is expected to be present because the per-request "
+                        + "budget is not applied (llama.cpp server-common.cpp copy-loop bug). "
+                        + "If this assertion fails, the bug has been fixed — remove this test and "
+                        + "enable testReasoningBudgetZero_expectedBehavior_suppressesThinking.");
     }
 
     /**
@@ -174,9 +180,9 @@ public class ReasoningBudgetTest {
      * {@link #testReasoningBudgetZero_parameterAccepted_thinkingNotSuppressed}.
      * Tracked in <a href="https://github.com/ggml-org/llama.cpp/pull/23116">llama.cpp PR #23116</a>.
      */
-    @Disabled("llama.cpp bug: per-request reasoning_budget_tokens is overwritten by model default " +
-            "in oaicompat_chat_params_parse (server-common.cpp). " +
-            "See Javadoc for exact fix location and code.")
+    @Disabled("llama.cpp bug: per-request reasoning_budget_tokens is overwritten by model default "
+            + "in oaicompat_chat_params_parse (server-common.cpp). "
+            + "See Javadoc for exact fix location and code.")
     @Test
     public void testReasoningBudgetZero_expectedBehavior_suppressesThinking() {
         InferenceParameters params = new InferenceParameters("")
@@ -188,8 +194,10 @@ public class ReasoningBudgetTest {
         assertNotNull(json, "Response JSON must not be null");
 
         String reasoningContent = parser.extractChoiceReasoningContent(json);
-        assertTrue(reasoningContent == null || reasoningContent.trim().isEmpty(), "reasoning_content should be empty when budget=0 suppresses thinking, " +
-                "but was: " + reasoningContent);
+        assertTrue(
+                reasoningContent == null || reasoningContent.trim().isEmpty(),
+                "reasoning_content should be empty when budget=0 suppresses thinking, " + "but was: "
+                        + reasoningContent);
     }
 
     /**
@@ -207,8 +215,8 @@ public class ReasoningBudgetTest {
     @Test
     public void testReasoningBudgetPositive_parameterAccepted() {
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, Collections.singletonList(
-                        new Pair<>("user", "Think step by step: what is 3 times 7?")))
+                .setMessages(
+                        null, Collections.singletonList(new Pair<>("user", "Think step by step: what is 3 times 7?")))
                 .setReasoningBudgetTokens(100)
                 .setNPredict(N_PREDICT);
 
@@ -217,9 +225,11 @@ public class ReasoningBudgetTest {
 
         String reasoningContent = parser.extractChoiceReasoningContent(json);
         String content = parser.extractChoiceContent(json);
-        boolean hasReasoning = reasoningContent != null && !reasoningContent.trim().isEmpty();
-        boolean hasContent   = content          != null && !content.trim().isEmpty();
-        assertTrue(hasReasoning || hasContent, "model must produce at least some output in reasoning_content or content, " +
-                "but both were empty");
+        boolean hasReasoning =
+                reasoningContent != null && !reasoningContent.trim().isEmpty();
+        boolean hasContent = content != null && !content.trim().isEmpty();
+        assertTrue(
+                hasReasoning || hasContent,
+                "model must produce at least some output in reasoning_content or content, " + "but both were empty");
     }
 }

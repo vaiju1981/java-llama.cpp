@@ -10,15 +10,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import net.ladenthin.llama.ChatMessage;
-import net.ladenthin.llama.ContentPart;
-import net.ladenthin.llama.Pair;
-import net.ladenthin.llama.args.Sampler;
-
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import net.ladenthin.llama.ChatMessage;
+import net.ladenthin.llama.ContentPart;
+import net.ladenthin.llama.Pair;
+import net.ladenthin.llama.args.Sampler;
 
 /**
  * Pure JSON builders for inference request parameters.
@@ -35,6 +34,9 @@ import java.util.Map;
  * {@code JsonParameters}.
  */
 public class ParameterJsonSerializer {
+
+    /** Creates a new {@link ParameterJsonSerializer}. */
+    public ParameterJsonSerializer() {}
 
     /** Shared Jackson mapper; thread-safe and reused across all instances. */
     public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
@@ -89,8 +91,7 @@ public class ParameterJsonSerializer {
             String role = message.getKey();
             String content = message.getValue();
             if (!"user".equals(role) && !"assistant".equals(role)) {
-                throw new IllegalArgumentException(
-                        "Invalid role: " + role + ". Role must be 'user' or 'assistant'.");
+                throw new IllegalArgumentException("Invalid role: " + role + ". Role must be 'user' or 'assistant'.");
             }
             ObjectNode msg = OBJECT_MAPPER.createObjectNode();
             msg.put("role", role);
