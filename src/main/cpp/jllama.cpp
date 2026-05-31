@@ -812,18 +812,28 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveCompletionJ
         rd = it->second.get();
     }
 
-    server_task_result_ptr result = rd->next([] { return false; });
+    // Upstream b9437 added is_begin partial results whose to_json() returns
+    // a nullptr sentinel meaning "HTTP-headers-only, no body". Loop past
+    // those so the Java iterator only ever sees real events.
+    json response;
+    while (true) {
+        server_task_result_ptr result = rd->next([] { return false; });
 
-    if (!result_ok_or_throw(env, result)) {
-        erase_reader(jctx, id_task);
-        return nullptr;
-    }
+        if (!result_ok_or_throw(env, result)) {
+            erase_reader(jctx, id_task);
+            return nullptr;
+        }
 
-    json response      = result->to_json();
-    response["stop"]   = result->is_stop();
+        response = result->to_json();
+        if (response.is_null()) {
+            continue;
+        }
+        response["stop"] = result->is_stop();
 
-    if (result->is_stop()) {
-        erase_reader(jctx, id_task);
+        if (result->is_stop()) {
+            erase_reader(jctx, id_task);
+        }
+        break;
     }
 
     return json_to_jstring_impl(env, response);
