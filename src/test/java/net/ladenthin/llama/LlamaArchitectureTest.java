@@ -75,4 +75,19 @@ public class LlamaArchitectureTest {
             .should()
             .dependOnClassesThat()
             .resideInAnyPackage("sun..", "com.sun..", "jdk.internal..");
+
+    /**
+     * Public mutable state forbidden: any non-static field declared
+     * {@code public} must also be {@code final}. {@link LlamaOutput} is an
+     * immutable value class with {@code public final} fields — that pattern
+     * remains allowed because the fields ARE final.
+     */
+    @ArchTest
+    static final ArchRule noPublicMutableFields = fields()
+            .that()
+            .arePublic()
+            .and()
+            .areNotStatic()
+            .should()
+            .beFinal();
 }
