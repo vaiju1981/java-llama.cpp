@@ -562,6 +562,8 @@ public class LlamaModel implements AutoCloseable {
         ChatResponse last = chat(request);
         for (int round = 1; round < maxRounds; round++) {
             Optional<ChatMessage> assistantOpt = last.getFirstMessage();
+            // NOTE: inline !isPresent() here (not compatibilityHelper.isEmpty) so NullAway's
+            //       CheckOptionalEmptiness recognises this as null-narrowing for the .get() below.
             if (!assistantOpt.isPresent() || assistantOpt.get().getToolCalls().isEmpty()) {
                 return last;
             }

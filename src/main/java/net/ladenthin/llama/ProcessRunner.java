@@ -12,6 +12,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 
 class ProcessRunner {
+
+    private final Java8CompatibilityHelper compatibilityHelper = new Java8CompatibilityHelper();
+
     String runAndWaitFor(String command) throws IOException, InterruptedException {
         Process p = Runtime.getRuntime().exec(splitArgs(command));
         p.waitFor();
@@ -37,7 +40,7 @@ class ProcessRunner {
         return command.split(" ");
     }
 
-    private static String getProcessOutput(Process process) throws IOException {
+    private String getProcessOutput(Process process) throws IOException {
         try (InputStream in = process.getInputStream()) {
             int readLen;
             ByteArrayOutputStream b = new ByteArrayOutputStream();
@@ -45,7 +48,7 @@ class ProcessRunner {
             while ((readLen = in.read(buf, 0, buf.length)) >= 0) {
                 b.write(buf, 0, readLen);
             }
-            return new String(b.toByteArray(), StandardCharsets.UTF_8);
+            return compatibilityHelper.toString(b, StandardCharsets.UTF_8);
         }
     }
 }
