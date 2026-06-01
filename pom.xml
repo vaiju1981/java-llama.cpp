@@ -266,16 +266,15 @@ SPDX-License-Identifier: MIT
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
 				<configuration>
-					<source>1.8</source>
-					<target>1.8</target>
-					<testSource>21</testSource>
-					<testTarget>21</testTarget>
+					<release>8</release>
+					<testRelease>21</testRelease>
 					<showWarnings>true</showWarnings>
+					<parameters>true</parameters>
 					<compilerArgs>
 						<arg>-XDaddTypeAnnotationsToSymbol=true</arg>
 						<arg>-XDcompilePolicy=simple</arg>
 						<arg>--should-stop=ifError=FLOW</arg>
-						<arg>-Xplugin:ErrorProne -Xep:NullAway:ERROR -XepOpt:NullAway:AnnotatedPackages=net.ladenthin.llama -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:CheckOptionalEmptiness=true -XepOpt:NullAway:AcknowledgeRestrictiveAnnotations=true -XepOpt:NullAway:AcknowledgeAndroidRecent=true -XepOpt:NullAway:AssertsEnabled=true</arg>
+						<arg>-Xplugin:ErrorProne -Xep:NullAway:ERROR -XepOpt:NullAway:OnlyNullMarked=true -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:CheckOptionalEmptiness=true -XepOpt:NullAway:AcknowledgeRestrictiveAnnotations=true -XepOpt:NullAway:AcknowledgeAndroidRecent=true -XepOpt:NullAway:AssertsEnabled=true</arg>
 					</compilerArgs>
 					<annotationProcessorPaths>
 						<path>
@@ -294,7 +293,10 @@ SPDX-License-Identifier: MIT
 					<execution>
 						<id>default-testCompile</id>
 						<configuration>
-							<compilerArgs>
+							<!-- Drop -parameters for test compile so jcstress reflection doesn't
+							     pick up parameter names from MethodParameters. -->
+							<parameters>false</parameters>
+							<compilerArgs combine.self="override">
 								<arg>-XDaddTypeAnnotationsToSymbol=true</arg>
 								<arg>-XDcompilePolicy=simple</arg>
 								<arg>--should-stop=ifError=FLOW</arg>

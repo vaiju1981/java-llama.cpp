@@ -45,7 +45,7 @@ class ProcessRunner {
             while ((readLen = in.read(buf, 0, buf.length)) >= 0) {
                 b.write(buf, 0, readLen);
             }
-            return b.toString(StandardCharsets.UTF_8);
+            return new String(b.toByteArray(), StandardCharsets.UTF_8);
         }
     }
 }

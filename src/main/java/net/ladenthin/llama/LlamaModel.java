@@ -562,7 +562,7 @@ public class LlamaModel implements AutoCloseable {
         ChatResponse last = chat(request);
         for (int round = 1; round < maxRounds; round++) {
             Optional<ChatMessage> assistantOpt = last.getFirstMessage();
-            if (assistantOpt.isEmpty() || assistantOpt.get().getToolCalls().isEmpty()) {
+            if (!assistantOpt.isPresent() || assistantOpt.get().getToolCalls().isEmpty()) {
                 return last;
             }
             ChatMessage assistant = assistantOpt.get();

@@ -119,7 +119,8 @@ public class ParameterJsonSerializer {
             msg.put("role", message.getRole());
             if (message.hasParts()) {
                 ArrayNode parts = OBJECT_MAPPER.createArrayNode();
-                for (ContentPart p : message.getParts().orElseThrow()) {
+                for (ContentPart p : message.getParts().orElseThrow(
+                        () -> new IllegalStateException("hasParts() was true but getParts() was empty"))) {
                     ObjectNode part = OBJECT_MAPPER.createObjectNode();
                     if (p.getType() == ContentPart.Type.TEXT) {
                         part.put("type", "text");
