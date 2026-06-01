@@ -5,9 +5,7 @@
 /**
  * Typed enums for CLI-arg-valued options consumed by {@link net.ladenthin.llama.CliParameters}.
  *
- * <p>JSpecify {@code @NullMarked}: see {@link net.ladenthin.llama} for the convention.
+ * <p>JSpecify {@code @NullMarked} is declared at module level in
+ * {@code module-info.java} and applies to this package transitively.
  */
-@NullMarked
 package net.ladenthin.llama.args;
-
-import org.jspecify.annotations.NullMarked;

@@ -1,5 +1,5 @@
 **Build:**  
-![Java 11+](https://img.shields.io/badge/Java-11%2B-informational)  
+![Java 8+](https://img.shields.io/badge/Java-8%2B-informational)  
 [![JPMS](https://img.shields.io/badge/JPMS-modular%20JAR-25A162)](https://openjdk.org/projects/jigsaw/)  
 ![JUnit](https://img.shields.io/badge/tested%20with-JUnit6-25A162)  
 [![JSpecify](https://img.shields.io/badge/JSpecify-1.0.0%20%40NullMarked-25A162)](https://jspecify.dev)  
