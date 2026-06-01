@@ -495,6 +495,10 @@ android {
 keep class net.ladenthin.llama.** { *; }
 ```
 
+## TODO
+
+- **Expand PIT mutation-testing scope.** PIT is wired in `pom.xml` and runs on every CI build (in the `test-java-linux-x86_64` job) with `<mutationThreshold>100</mutationThreshold>`, but `<targetClasses>` is currently narrowed to a single class (`Pair`). The intent is to exercise the wiring and gate against regressions on that single class today; widen `<targetClasses>` incrementally as additional classes reach mutation-test parity. Final target: `<param>net.ladenthin.llama.*</param>` matching the streambuffer pattern.
+
 ## Feature Ideas
 
 Forward-looking ideas being tracked for this fork:
