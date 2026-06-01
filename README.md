@@ -22,10 +22,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/bernardladenthin/java-llama.cpp/badge.svg?branch=main)](https://coveralls.io/github/bernardladenthin/java-llama.cpp?branch=main)  
 [![codecov](https://codecov.io/gh/bernardladenthin/java-llama.cpp/graph/badge.svg)](https://codecov.io/gh/bernardladenthin/java-llama.cpp)  
 [![JaCoCo](https://img.shields.io/codecov/c/github/bernardladenthin/java-llama.cpp?label=JaCoCo&logo=java)](https://codecov.io/gh/bernardladenthin/java-llama.cpp)  
-<!--
-PIT mutation testing is not configured for this repository.
-Do not add a PIT badge here unless PIT is wired into pom.xml + CI.
--->
+[![PIT Mutation](https://img.shields.io/badge/PIT%20mutation-100%25%20(1%20class)-brightgreen)](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/publish.yml)  
 
 **Quality:**  
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=bernardladenthin_java-llama.cpp&metric=alert_status)](https://sonarcloud.io/dashboard?id=bernardladenthin_java-llama.cpp)  
