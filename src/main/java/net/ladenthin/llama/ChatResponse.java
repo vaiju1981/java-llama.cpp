@@ -6,6 +6,7 @@ package net.ladenthin.llama;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Typed result of {@link LlamaModel#chat(ChatRequest)} and
@@ -59,10 +60,10 @@ public final class ChatResponse {
 
     /**
      * Convenience accessor for the first assistant message.
-     * @return the first choice's message, or {@code null} when there are no choices
+     * @return the first choice's message, or {@link Optional#empty()} when there are no choices
      */
-    public ChatMessage getFirstMessage() {
-        return choices.isEmpty() ? null : choices.get(0).getMessage();
+    public Optional<ChatMessage> getFirstMessage() {
+        return choices.isEmpty() ? Optional.empty() : Optional.of(choices.get(0).getMessage());
     }
 
     /**
@@ -70,8 +71,7 @@ public final class ChatResponse {
      * @return the first choice's message content, or {@code ""} when there are no choices
      */
     public String getFirstContent() {
-        ChatMessage m = getFirstMessage();
-        return m == null ? "" : m.getContent();
+        return getFirstMessage().map(ChatMessage::getContent).orElse("");
     }
 
     /**

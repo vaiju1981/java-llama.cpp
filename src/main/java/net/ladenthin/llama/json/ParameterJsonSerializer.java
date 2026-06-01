@@ -9,6 +9,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
+import org.jspecify.annotations.Nullable;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.util.Collection;
@@ -79,7 +80,7 @@ public class ParameterJsonSerializer {
      * @return a Jackson {@link ArrayNode} of {@code {"role", "content"}} message objects
      * @throws IllegalArgumentException if any message has an invalid role
      */
-    public ArrayNode buildMessages(String systemMessage, List<Pair<String, String>> messages) {
+    public ArrayNode buildMessages(@Nullable String systemMessage, List<Pair<String, String>> messages) {
         ArrayNode arr = OBJECT_MAPPER.createArrayNode();
         if (systemMessage != null && !systemMessage.isEmpty()) {
             ObjectNode sys = OBJECT_MAPPER.createObjectNode();
@@ -118,7 +119,7 @@ public class ParameterJsonSerializer {
             msg.put("role", message.getRole());
             if (message.hasParts()) {
                 ArrayNode parts = OBJECT_MAPPER.createArrayNode();
-                for (ContentPart p : message.getParts()) {
+                for (ContentPart p : message.getParts().orElseThrow()) {
                     ObjectNode part = OBJECT_MAPPER.createObjectNode();
                     if (p.getType() == ContentPart.Type.TEXT) {
                         part.put("type", "text");

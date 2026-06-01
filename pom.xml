@@ -50,7 +50,9 @@ SPDX-License-Identifier: MIT
 
 	<properties>
 		<jna.version>5.18.1</jna.version>
-		<jetbrains-annotations.version>26.1.0</jetbrains-annotations.version>
+		<jspecify.version>1.0.0</jspecify.version>
+		<errorprone.version>2.49.0</errorprone.version>
+		<nullaway.version>0.13.4</nullaway.version>
 		<jackson.version>2.21.3</jackson.version>
 		<reactive-streams.version>1.0.4</reactive-streams.version>
 		<slf4j.version>2.0.18</slf4j.version>
@@ -99,10 +101,9 @@ SPDX-License-Identifier: MIT
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.jetbrains</groupId>
-			<artifactId>annotations</artifactId>
-			<version>${jetbrains-annotations.version}</version>
-			<scope>compile</scope>
+			<groupId>org.jspecify</groupId>
+			<artifactId>jspecify</artifactId>
+			<version>${jspecify.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
@@ -269,12 +270,37 @@ SPDX-License-Identifier: MIT
 					<target>1.8</target>
 					<testSource>21</testSource>
 					<testTarget>21</testTarget>
+					<showWarnings>true</showWarnings>
+					<compilerArgs>
+						<arg>-XDaddTypeAnnotationsToSymbol=true</arg>
+						<arg>-XDcompilePolicy=simple</arg>
+						<arg>--should-stop=ifError=FLOW</arg>
+						<arg>-Xplugin:ErrorProne -Xep:NullAway:ERROR -XepOpt:NullAway:AnnotatedPackages=net.ladenthin.llama</arg>
+					</compilerArgs>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>com.google.errorprone</groupId>
+							<artifactId>error_prone_core</artifactId>
+							<version>${errorprone.version}</version>
+						</path>
+						<path>
+							<groupId>com.uber.nullaway</groupId>
+							<artifactId>nullaway</artifactId>
+							<version>${nullaway.version}</version>
+						</path>
+					</annotationProcessorPaths>
 				</configuration>
 				<executions>
 					<execution>
 						<id>default-testCompile</id>
 						<configuration>
-							<annotationProcessorPaths>
+							<compilerArgs>
+								<arg>-XDaddTypeAnnotationsToSymbol=true</arg>
+								<arg>-XDcompilePolicy=simple</arg>
+								<arg>--should-stop=ifError=FLOW</arg>
+								<arg>-Xplugin:ErrorProne -Xep:NullAway:OFF -Xep:GuardedBy:OFF</arg>
+							</compilerArgs>
+							<annotationProcessorPaths combine.children="append">
 								<path>
 									<groupId>org.openjdk.jcstress</groupId>
 									<artifactId>jcstress-core</artifactId>

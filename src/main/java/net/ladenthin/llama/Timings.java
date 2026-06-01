@@ -5,6 +5,7 @@
 package net.ladenthin.llama;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Per-completion timing data parsed from a llama.cpp result {@code timings} block.
@@ -70,7 +71,7 @@ public final class Timings {
      * @param node the {@code timings} object node; may be a missing-node
      * @return a populated {@link Timings} (all-zero when {@code node} is missing/null)
      */
-    public static Timings fromJson(JsonNode node) {
+    public static Timings fromJson(@Nullable JsonNode node) {
         if (node == null || node.isMissingNode() || node.isNull()) {
             return new Timings(0, 0, 0.0, 0.0, 0, 0.0, 0.0, 0, 0);
         }

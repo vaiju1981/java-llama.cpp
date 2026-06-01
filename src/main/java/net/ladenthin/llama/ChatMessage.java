@@ -7,6 +7,8 @@ package net.ladenthin.llama;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A single message in a chat conversation: a role ({@code "user"}, {@code "assistant"},
@@ -30,9 +32,9 @@ public final class ChatMessage {
 
     private final String role;
     private final String content;
-    private final String toolCallId;
+    private final @Nullable String toolCallId;
     private final List<ToolCall> toolCalls;
-    private final List<ContentPart> parts;
+    private final @Nullable List<ContentPart> parts;
 
     /**
      * Plain user/assistant/system message.
@@ -52,7 +54,7 @@ public final class ChatMessage {
      * @param toolCallId for tool-result turns ({@code role="tool"}), the id of the originating call; {@code null} otherwise
      * @param toolCalls  for assistant tool-call turns, the list of calls; empty otherwise
      */
-    public ChatMessage(String role, String content, String toolCallId, List<ToolCall> toolCalls) {
+    public ChatMessage(String role, String content, @Nullable String toolCallId, List<ToolCall> toolCalls) {
         this(role, content, toolCallId, toolCalls, null);
     }
 
@@ -75,7 +77,11 @@ public final class ChatMessage {
     }
 
     private ChatMessage(
-            String role, String content, String toolCallId, List<ToolCall> toolCalls, List<ContentPart> parts) {
+            String role,
+            String content,
+            @Nullable String toolCallId,
+            List<ToolCall> toolCalls,
+            @Nullable List<ContentPart> parts) {
         this.role = role;
         this.content = content;
         this.toolCallId = toolCallId;
@@ -155,7 +161,7 @@ public final class ChatMessage {
      * Tool-call id for tool-result turns.
      * @return the originating tool call id, or {@code null} for non-tool messages
      */
-    public String getToolCallId() {
+    public @Nullable String getToolCallId() {
         return toolCallId;
     }
 
@@ -169,17 +175,17 @@ public final class ChatMessage {
 
     /**
      * Multimodal content parts accessor.
-     * @return an unmodifiable list of text and image parts, or {@code null} for
-     *         legacy text-only messages built via {@link #ChatMessage(String, String)}
+     * @return an unmodifiable list of text and image parts, or {@link Optional#empty()}
+     *         for legacy text-only messages built via {@link #ChatMessage(String, String)}
      */
-    public List<ContentPart> getParts() {
-        return parts == null ? null : Collections.unmodifiableList(parts);
+    public Optional<List<ContentPart>> getParts() {
+        return parts == null ? Optional.empty() : Optional.of(Collections.unmodifiableList(parts));
     }
 
     /**
      * Whether this message carries multimodal parts (i.e. was constructed via
      * {@link #ChatMessage(String, List)} or {@link #userMultimodal(ContentPart...)}).
-     * @return {@code true} when {@link #getParts()} is non-null
+     * @return {@code true} when {@link #getParts()} is non-empty
      */
     public boolean hasParts() {
         return parts != null;

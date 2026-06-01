@@ -5,7 +5,6 @@
 package net.ladenthin.llama;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -61,7 +60,7 @@ public class ChatResponseTest {
                 + "]},\"finish_reason\":\"tool_calls\"}],"
                 + "\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":7}}";
         ChatResponse r = parser.parseResponse(json);
-        ChatMessage m = r.getFirstMessage();
+        ChatMessage m = r.getFirstMessage().orElseThrow();
         assertEquals("assistant", m.getRole());
         List<ToolCall> tc = m.getToolCalls();
         assertEquals(2, tc.size());
@@ -80,7 +79,7 @@ public class ChatResponseTest {
                 + "{\"name\":\"f\",\"arguments\":{\"a\":1,\"b\":2}}}]},"
                 + "\"finish_reason\":\"tool_calls\"}]}";
         ChatResponse r = parser.parseResponse(json);
-        String args = r.getFirstMessage().getToolCalls().get(0).getArgumentsJson();
+        String args = r.getFirstMessage().orElseThrow().getToolCalls().get(0).getArgumentsJson();
         // exact text isn't guaranteed, but must contain both fields
         assertTrue(args.contains("\"a\":1"), "expected serialized object, got: " + args);
         assertTrue(args.contains("\"b\":2"));
@@ -112,7 +111,7 @@ public class ChatResponseTest {
     @Test
     public void buildToolsJsonEmptyWhenNoTools() {
         ChatRequest req = new ChatRequest().addMessage("user", "hi");
-        assertNull(req.buildToolsJson());
+        assertTrue(req.buildToolsJson().isEmpty());
     }
 
     @Test
@@ -120,7 +119,7 @@ public class ChatResponseTest {
         ChatRequest req = new ChatRequest()
                 .addTool(new ToolDefinition(
                         "echo", "Echo a string", "{\"type\":\"object\",\"properties\":{\"s\":{\"type\":\"string\"}}}"));
-        String tools = req.buildToolsJson();
+        String tools = req.buildToolsJson().orElseThrow();
         assertTrue(tools.contains("\"type\":\"function\""), tools);
         assertTrue(tools.contains("\"name\":\"echo\""), tools);
         assertTrue(tools.contains("\"properties\""), tools);

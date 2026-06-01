@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Thin multi-turn conversation wrapper over a {@link LlamaModel} slot. Maintains an
@@ -31,9 +32,9 @@ public final class Session implements AutoCloseable {
 
     private final LlamaModel model;
     private final int slotId;
-    private final String systemMessage;
+    private final @Nullable String systemMessage;
     private final List<Pair<String, String>> turns = new ArrayList<Pair<String, String>>();
-    private final Consumer<InferenceParameters> paramsCustomizer;
+    private final @Nullable Consumer<InferenceParameters> paramsCustomizer;
     private final Object lock = new Object();
     private boolean streamingActive;
 
@@ -45,7 +46,7 @@ public final class Session implements AutoCloseable {
      * @param slotId the slot id used by {@link #save(String)} / {@link #restore(String)}
      * @param systemMessage optional system prompt (may be {@code null} or empty)
      */
-    public Session(LlamaModel model, int slotId, String systemMessage) {
+    public Session(LlamaModel model, int slotId, @Nullable String systemMessage) {
         this(model, slotId, systemMessage, null);
     }
 
@@ -58,7 +59,11 @@ public final class Session implements AutoCloseable {
      * @param systemMessage optional system prompt
      * @param paramsCustomizer applied to each request's parameters; may be {@code null}
      */
-    public Session(LlamaModel model, int slotId, String systemMessage, Consumer<InferenceParameters> paramsCustomizer) {
+    public Session(
+            LlamaModel model,
+            int slotId,
+            @Nullable String systemMessage,
+            @Nullable Consumer<InferenceParameters> paramsCustomizer) {
         this.model = model;
         this.slotId = slotId;
         this.systemMessage = systemMessage;

@@ -10,7 +10,9 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Builder for a typed chat completion call.
@@ -28,9 +30,9 @@ public final class ChatRequest {
 
     private final List<ChatMessage> messages = new ArrayList<ChatMessage>();
     private final List<ToolDefinition> tools = new ArrayList<ToolDefinition>();
-    private String toolChoice;
+    private @Nullable String toolChoice;
     private int maxToolRounds = 8;
-    private Consumer<InferenceParameters> paramsCustomizer;
+    private @Nullable Consumer<InferenceParameters> paramsCustomizer;
 
     /** Construct an empty request; populate via the setters. */
     public ChatRequest() {
@@ -75,7 +77,7 @@ public final class ChatRequest {
      * @param toolChoice the hint string, or {@code null} to clear
      * @return this builder
      */
-    public ChatRequest setToolChoice(String toolChoice) {
+    public ChatRequest setToolChoice(@Nullable String toolChoice) {
         this.toolChoice = toolChoice;
         return this;
     }
@@ -103,7 +105,7 @@ public final class ChatRequest {
      * @param customizer the customizer; {@code null} clears any prior customizer
      * @return this builder
      */
-    public ChatRequest setInferenceCustomizer(Consumer<InferenceParameters> customizer) {
+    public ChatRequest setInferenceCustomizer(@Nullable Consumer<InferenceParameters> customizer) {
         this.paramsCustomizer = customizer;
         return this;
     }
@@ -128,7 +130,7 @@ public final class ChatRequest {
      * Tool choice accessor.
      * @return the {@code tool_choice} hint, or {@code null} when unset
      */
-    public String getToolChoice() {
+    public @Nullable String getToolChoice() {
         return toolChoice;
     }
 
@@ -176,13 +178,12 @@ public final class ChatRequest {
     }
 
     /**
-     * Build the OAI-style {@code tools} array as a JSON string. Returns {@code null}
-     * when no tools were added.
+     * Build the OAI-style {@code tools} array as a JSON string.
      *
-     * @return the JSON array as a string, or {@code null} when there are no tools
+     * @return the JSON array as a string, or {@link Optional#empty()} when no tools were added
      */
-    public String buildToolsJson() {
-        if (tools.isEmpty()) return null;
+    public Optional<String> buildToolsJson() {
+        if (tools.isEmpty()) return Optional.empty();
         ArrayNode arr = MAPPER.createArrayNode();
         for (ToolDefinition t : tools) {
             ObjectNode entry = MAPPER.createObjectNode();
@@ -198,7 +199,7 @@ public final class ChatRequest {
             entry.set("function", fn);
             arr.add(entry);
         }
-        return arr.toString();
+        return Optional.of(arr.toString());
     }
 
     /**

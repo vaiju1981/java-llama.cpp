@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 import net.ladenthin.llama.args.CliArg;
 import net.ladenthin.llama.json.ParameterJsonSerializer;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The Java library re-uses most of the llama.cpp server code, which mostly works with JSONs. Thus, the complexity and
@@ -42,7 +43,7 @@ abstract class JsonParameters {
         return builder.toString();
     }
 
-    String toJsonString(String text) {
+    @Nullable String toJsonString(@Nullable String text) {
         if (text == null) return null;
         return serializer.toJsonString(text);
     }

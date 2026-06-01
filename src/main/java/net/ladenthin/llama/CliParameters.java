@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.ladenthin.llama.args.CliArg;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.Nullable;
 
 abstract class CliParameters {
 

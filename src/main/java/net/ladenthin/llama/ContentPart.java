@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 
 /**
  * One piece of a {@link ChatMessage}'s multimodal content array: either a text
@@ -42,10 +43,10 @@ public final class ContentPart {
     }
 
     private final Type type;
-    private final String text;
-    private final String imageUrl;
+    private final @Nullable String text;
+    private final @Nullable String imageUrl;
 
-    private ContentPart(Type type, String text, String imageUrl) {
+    private ContentPart(Type type, @Nullable String text, @Nullable String imageUrl) {
         this.type = type;
         this.text = text;
         this.imageUrl = imageUrl;
@@ -139,7 +140,7 @@ public final class ContentPart {
      * Text accessor (only set for {@link Type#TEXT}).
      * @return the text fragment, or {@code null} for {@link Type#IMAGE_URL} parts
      */
-    public String getText() {
+    public @Nullable String getText() {
         return text;
     }
 
@@ -147,7 +148,7 @@ public final class ContentPart {
      * Image URL accessor (only set for {@link Type#IMAGE_URL}).
      * @return the URL or data URI, or {@code null} for {@link Type#TEXT} parts
      */
-    public String getImageUrl() {
+    public @Nullable String getImageUrl() {
         return imageUrl;
     }
 }

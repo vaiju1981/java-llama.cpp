@@ -32,7 +32,7 @@ public class MultimodalMessagesTest {
     public void hasPartsIsFalseForLegacyConstructor() {
         ChatMessage m = new ChatMessage("user", "hello");
         assertFalse(m.hasParts());
-        assertEquals(null, m.getParts());
+        assertTrue(m.getParts().isEmpty());
     }
 
     @Test
@@ -40,7 +40,7 @@ public class MultimodalMessagesTest {
         ChatMessage m = new ChatMessage(
                 "user", Arrays.asList(ContentPart.text("hi"), ContentPart.imageUrl("data:image/png;base64,AAAA")));
         assertTrue(m.hasParts());
-        assertEquals(2, m.getParts().size());
+        assertEquals(2, m.getParts().orElseThrow().size());
     }
 
     @Test
@@ -60,9 +60,10 @@ public class MultimodalMessagesTest {
         ChatMessage m = ChatMessage.userMultimodal(
                 ContentPart.text("what is this?"), ContentPart.imageUrl("data:image/jpeg;base64,Y"));
         assertEquals("user", m.getRole());
-        assertEquals(2, m.getParts().size());
-        assertEquals(ContentPart.Type.TEXT, m.getParts().get(0).getType());
-        assertEquals(ContentPart.Type.IMAGE_URL, m.getParts().get(1).getType());
+        List<ContentPart> parts = m.getParts().orElseThrow();
+        assertEquals(2, parts.size());
+        assertEquals(ContentPart.Type.TEXT, parts.get(0).getType());
+        assertEquals(ContentPart.Type.IMAGE_URL, parts.get(1).getType());
     }
 
     @Test
@@ -80,7 +81,7 @@ public class MultimodalMessagesTest {
     public void getPartsListIsUnmodifiable() {
         ChatMessage m = ChatMessage.userMultimodal(ContentPart.text("x"));
         try {
-            m.getParts().add(ContentPart.text("y"));
+            m.getParts().orElseThrow().add(ContentPart.text("y"));
             fail("getParts() must return an unmodifiable list");
         } catch (UnsupportedOperationException expected) {
             // ok

@@ -16,7 +16,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Stream;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Set the system properties {@code net.ladenthin.llama.lib.path} /
@@ -164,8 +164,7 @@ class LlamaLoader {
         }
     }
 
-    @Nullable
-    private static Path extractFile(String sourceDirectory, String fileName, String targetDirectory) {
+    private static @Nullable Path extractFile(String sourceDirectory, String fileName, String targetDirectory) {
         String nativeLibraryFilePath = sourceDirectory + "/" + fileName;
 
         Path extractedFilePath = Paths.get(targetDirectory, fileName);

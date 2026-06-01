@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import net.ladenthin.llama.args.ContinuationMode;
 import net.ladenthin.llama.args.MiroStat;
+import org.jspecify.annotations.Nullable;
 import net.ladenthin.llama.args.ReasoningFormat;
 import net.ladenthin.llama.args.Sampler;
 
@@ -559,7 +560,7 @@ public final class InferenceParameters extends JsonParameters {
      * @param messages a list of user/assistant message pairs (role as key, content as value)
      * @return this builder
      */
-    public InferenceParameters setMessages(String systemMessage, List<Pair<String, String>> messages) {
+    public InferenceParameters setMessages(@Nullable String systemMessage, List<Pair<String, String>> messages) {
         parameters.put(
                 PARAM_MESSAGES,
                 serializer.buildMessages(systemMessage, messages).toString());
