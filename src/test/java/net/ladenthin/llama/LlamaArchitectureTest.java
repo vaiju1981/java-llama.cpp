@@ -61,4 +61,18 @@ public class LlamaArchitectureTest {
             .matching("net.ladenthin.llama.(*)..")
             .should()
             .beFreeOfCycles();
+
+    /**
+     * Production code must not import unsupported / internal JDK packages.
+     * These are not part of the Java SE API and may change or disappear without notice.
+     * {@code OSInfo} is vendored from xerial/sqlite-jdbc and was already audited;
+     * if it ever pulls in sun.*, this rule fails and forces a re-audit.
+     */
+    @ArchTest
+    static final ArchRule noInternalJdkImports = noClasses()
+            .that()
+            .resideInAPackage("net.ladenthin.llama..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAnyPackage("sun..", "com.sun..", "jdk.internal..");
 }
