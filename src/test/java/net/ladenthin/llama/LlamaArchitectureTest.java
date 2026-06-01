@@ -11,6 +11,7 @@ import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
 import com.tngtech.archunit.lang.ArchRule;
+import java.util.Random;
 import org.slf4j.Logger;
 
 @AnalyzeClasses(packages = "net.ladenthin.llama", importOptions = ImportOption.DoNotIncludeTests.class)
@@ -90,4 +91,45 @@ public class LlamaArchitectureTest {
             .areNotStatic()
             .should()
             .beFinal();
+
+    /**
+     * Production code must not call {@link System#exit(int)}; throw an exception instead.
+     */
+    @ArchTest
+    static final ArchRule noSystemExit = noClasses()
+            .that()
+            .resideInAPackage("net.ladenthin.llama..")
+            .should()
+            .callMethod(System.class, "exit", int.class)
+            .allowEmptyShould(true);
+
+    /**
+     * Production code must not construct {@link java.util.Random}; {@code Random} is a non-cryptographic
+     * PRNG (CWE-338). Use {@link java.security.SecureRandom} or {@link java.util.concurrent.ThreadLocalRandom}
+     * depending on whether cryptographic strength or thread-local fast jitter is needed.
+     */
+    @ArchTest
+    static final ArchRule noNewRandom = noClasses()
+            .that()
+            .resideInAPackage("net.ladenthin.llama..")
+            .should()
+            .callConstructor(Random.class)
+            .orShould()
+            .callConstructor(Random.class, long.class)
+            .allowEmptyShould(true);
+
+    /**
+     * Production code must not call {@link Thread#sleep(long)} / {@link Thread#sleep(long, int)};
+     * prefer {@link java.util.concurrent.BlockingQueue#poll(long, java.util.concurrent.TimeUnit)} or
+     * {@link java.util.concurrent.locks.Condition#await(long, java.util.concurrent.TimeUnit)}.
+     */
+    @ArchTest
+    static final ArchRule noThreadSleep = noClasses()
+            .that()
+            .resideInAPackage("net.ladenthin.llama..")
+            .should()
+            .callMethod(Thread.class, "sleep", long.class)
+            .orShould()
+            .callMethod(Thread.class, "sleep", long.class, int.class)
+            .allowEmptyShould(true);
 }
