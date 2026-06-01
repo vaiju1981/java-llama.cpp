@@ -4,6 +4,8 @@
 
 package net.ladenthin.llama;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Token-usage counters, modeled after the OpenAI / Llama Stack {@code usage} block.
  * <p>
@@ -52,7 +54,7 @@ public final class Usage {
     }
 
     @Override
-    public boolean equals(Object o) {
+    public boolean equals(@Nullable Object o) {
         if (this == o) return true;
         if (!(o instanceof Usage)) return false;
         Usage u = (Usage) o;

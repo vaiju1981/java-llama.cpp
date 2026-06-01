@@ -9,7 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 import net.ladenthin.llama.args.CliArg;
 import net.ladenthin.llama.json.ParameterJsonSerializer;
-import org.jspecify.annotations.Nullable;
+import org.checkerframework.checker.nullness.qual.PolyNull;
 
 /**
  * The Java library re-uses most of the llama.cpp server code, which mostly works with JSONs. Thus, the complexity and
@@ -43,7 +43,11 @@ abstract class JsonParameters {
         return builder.toString();
     }
 
-    @Nullable String toJsonString(@Nullable String text) {
+    // @PolyNull lets the Checker Framework see that null in returns null and non-null
+    // in returns non-null. NullAway has no equivalent qualifier and reads the return as
+    // @NonNull (under @NullMarked), so we suppress the NullAway-only complaint here.
+    @SuppressWarnings("NullAway")
+    @PolyNull String toJsonString(@PolyNull String text) {
         if (text == null) return null;
         return serializer.toJsonString(text);
     }

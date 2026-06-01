@@ -53,6 +53,7 @@ SPDX-License-Identifier: MIT
 		<jspecify.version>1.0.0</jspecify.version>
 		<errorprone.version>2.49.0</errorprone.version>
 		<nullaway.version>0.13.4</nullaway.version>
+		<checker.version>4.1.0</checker.version>
 		<jackson.version>2.21.3</jackson.version>
 		<reactive-streams.version>1.0.4</reactive-streams.version>
 		<slf4j.version>2.0.18</slf4j.version>
@@ -120,6 +121,11 @@ SPDX-License-Identifier: MIT
 			<groupId>org.jspecify</groupId>
 			<artifactId>jspecify</artifactId>
 			<version>${jspecify.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.checkerframework</groupId>
+			<artifactId>checker-qual</artifactId>
+			<version>${checker.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
@@ -332,6 +338,14 @@ SPDX-License-Identifier: MIT
 					<compilerArgs>
 						<!-- See streambuffer pom for why -Werror is intentionally absent under release=8. -->
 						<arg>-Xlint:all,-serial,-options,-classfile</arg>
+						<!--
+						  Checker Framework Nullness Checker runs as a second nullness pass
+						  alongside NullAway. CF is generics-aware and stricter than NullAway,
+						  so it acts as a second-opinion verifier on the same JSpecify
+						  annotations.
+						-->
+						<arg>-processor</arg>
+						<arg>org.checkerframework.checker.nullness.NullnessChecker</arg>
 						<arg>-XDaddTypeAnnotationsToSymbol=true</arg>
 						<arg>-XDcompilePolicy=simple</arg>
 						<arg>--should-stop=ifError=FLOW</arg>
@@ -347,6 +361,11 @@ SPDX-License-Identifier: MIT
 							<groupId>com.uber.nullaway</groupId>
 							<artifactId>nullaway</artifactId>
 							<version>${nullaway.version}</version>
+						</path>
+						<path>
+							<groupId>org.checkerframework</groupId>
+							<artifactId>checker</artifactId>
+							<version>${checker.version}</version>
 						</path>
 					</annotationProcessorPaths>
 				</configuration>

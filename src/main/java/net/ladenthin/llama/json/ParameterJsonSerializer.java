@@ -124,11 +124,13 @@ public class ParameterJsonSerializer {
                     ObjectNode part = OBJECT_MAPPER.createObjectNode();
                     if (p.getType() == ContentPart.Type.TEXT) {
                         part.put("type", "text");
-                        part.put("text", p.getText());
+                        final String text = p.getText();
+                        part.put("text", text != null ? text : "");
                     } else {
                         part.put("type", "image_url");
                         ObjectNode imageUrl = OBJECT_MAPPER.createObjectNode();
-                        imageUrl.put("url", p.getImageUrl());
+                        final String url = p.getImageUrl();
+                        imageUrl.put("url", url != null ? url : "");
                         part.set("image_url", imageUrl);
                     }
                     parts.add(part);

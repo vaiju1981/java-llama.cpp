@@ -5,6 +5,8 @@
 
 package net.ladenthin.llama;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * Resolves library-specific system properties under the {@link #PREFIX} domain prefix.
  */
@@ -16,7 +18,7 @@ public class LlamaSystemProperties {
     /** Common system-property prefix for all library-specific overrides. */
     public static final String PREFIX = "net.ladenthin.llama";
 
-    private String getProperty(String suffix) {
+    private @Nullable String getProperty(String suffix) {
         return System.getProperty(PREFIX + suffix);
     }
 
@@ -25,7 +27,7 @@ public class LlamaSystemProperties {
      *
      * @return the configured library directory, or {@code null} if unset
      */
-    public String getLibPath() {
+    public @Nullable String getLibPath() {
         return getProperty(".lib.path");
     }
 
@@ -34,7 +36,7 @@ public class LlamaSystemProperties {
      *
      * @return the configured library file name, or {@code null} if unset
      */
-    public String getLibName() {
+    public @Nullable String getLibName() {
         return getProperty(".lib.name");
     }
 
@@ -44,7 +46,7 @@ public class LlamaSystemProperties {
      *
      * @return the configured temp directory, or {@code null} if unset
      */
-    public String getTmpDir() {
+    public @Nullable String getTmpDir() {
         return getProperty(".tmpdir");
     }
 
@@ -53,7 +55,7 @@ public class LlamaSystemProperties {
      *
      * @return the configured architecture override, or {@code null} if unset
      */
-    public String getOsinfoArchitecture() {
+    public @Nullable String getOsinfoArchitecture() {
         return getProperty(".osinfo.architecture");
     }
 
@@ -62,7 +64,7 @@ public class LlamaSystemProperties {
      *
      * @return the configured GPU layer count as a string, or {@code null} if unset
      */
-    public String getTestNgl() {
+    public @Nullable String getTestNgl() {
         return getProperty(".test.ngl");
     }
 }

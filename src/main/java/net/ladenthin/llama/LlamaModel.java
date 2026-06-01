@@ -57,6 +57,9 @@ public class LlamaModel implements AutoCloseable {
      * @param parameters the set of options
      * @throws LlamaException if no model could be loaded from the given file path
      */
+    // loadModel is a native method; it does not call back into Java with this,
+    // so the @UnderInitialization receiver warning is a CF false positive.
+    @SuppressWarnings("method.invocation")
     public LlamaModel(ModelParameters parameters) {
         loadModel(parameters.toArray());
     }
@@ -71,6 +74,10 @@ public class LlamaModel implements AutoCloseable {
      * @param progress   load progress sink; {@code null} disables the callback
      * @throws LlamaException if loading fails or the callback aborts
      */
+    // loadModel / loadModelWithProgress are native methods; they do not call back
+    // into Java with this, so the @UnderInitialization receiver warning is a CF
+    // false positive.
+    @SuppressWarnings("method.invocation")
     public LlamaModel(ModelParameters parameters, LoadProgressCallback progress) {
         if (progress == null) {
             loadModel(parameters.toArray());
@@ -525,8 +532,9 @@ public class LlamaModel implements AutoCloseable {
         InferenceParameters params = new InferenceParameters("").setMessagesJson(request.buildMessagesJson());
         request.buildToolsJson().ifPresent(toolsJson -> {
             params.setToolsJson(toolsJson);
-            if (request.getToolChoice() != null) {
-                params.setToolChoice(request.getToolChoice());
+            final String toolChoice = request.getToolChoice();
+            if (toolChoice != null) {
+                params.setToolChoice(toolChoice);
             }
             params.setUseChatTemplate(true);
         });

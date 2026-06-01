@@ -187,6 +187,10 @@ class LlamaLoader {
             // Check whether the contents are properly copied from the resource folder
             try (InputStream nativeIn = LlamaLoader.class.getResourceAsStream(nativeLibraryFilePath);
                     InputStream extractedLibIn = Files.newInputStream(extractedFilePath)) {
+                if (nativeIn == null) {
+                    System.err.println(String.format("Native library resource missing at %s", nativeLibraryFilePath));
+                    return null;
+                }
                 if (!contentsEquals(nativeIn, extractedLibIn)) {
                     System.err.println(String.format("Failed to write a native library file at %s", extractedFilePath));
                     return null;
@@ -244,7 +248,12 @@ class LlamaLoader {
     }
 
     static String getNativeResourcePath() {
-        String packagePath = LlamaLoader.class.getPackage().getName().replace('.', '/');
+        final Package pkg = LlamaLoader.class.getPackage();
+        // LlamaLoader is in a named package, so Class.getPackage() is never null here.
+        if (pkg == null) {
+            throw new IllegalStateException("LlamaLoader.class.getPackage() returned null");
+        }
+        String packagePath = pkg.getName().replace('.', '/');
         return String.format("/%s/%s", packagePath, OSInfo.getNativeLibFolderPathForCurrentOS());
     }
 

@@ -155,8 +155,9 @@ public final class ChatRequest {
             ObjectNode obj = MAPPER.createObjectNode();
             obj.put("role", m.getRole());
             obj.put("content", m.getContent() == null ? "" : m.getContent());
-            if (m.getToolCallId() != null) {
-                obj.put("tool_call_id", m.getToolCallId());
+            final String toolCallId = m.getToolCallId();
+            if (toolCallId != null) {
+                obj.put("tool_call_id", toolCallId);
             }
             if (!m.getToolCalls().isEmpty()) {
                 ArrayNode tc = MAPPER.createArrayNode();
