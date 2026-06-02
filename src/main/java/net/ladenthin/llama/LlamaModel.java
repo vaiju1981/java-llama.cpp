@@ -242,7 +242,11 @@ public class LlamaModel implements AutoCloseable {
      */
     public CompletableFuture<String> completeAsync(InferenceParameters parameters, CancellationToken token) {
         CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> complete(parameters, token));
-        future.whenComplete((result, ex) -> {
+        // whenComplete returns a new stage that we deliberately discard: this is a
+        // fire-and-forget cancellation callback attached to `future`, which is what
+        // the caller observes.
+        @SuppressWarnings("FutureReturnValueIgnored")
+        final CompletableFuture<String> cancelHook = future.whenComplete((result, ex) -> {
             if (ex instanceof java.util.concurrent.CancellationException) {
                 token.cancel();
             }
@@ -390,7 +394,7 @@ public class LlamaModel implements AutoCloseable {
      * deleted, since the attack vector disappears together with finalization.
      * </p>
      */
-    @SuppressWarnings({"deprecation", "removal"})
+    @SuppressWarnings({"deprecation", "removal", "Finalize"})
     @Override
     protected final void finalize() {
         // no-op

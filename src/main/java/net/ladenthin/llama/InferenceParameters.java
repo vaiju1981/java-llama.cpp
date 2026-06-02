@@ -254,6 +254,10 @@ public final class InferenceParameters extends JsonParameters {
      * @param mirostat the MiroStat sampling strategy
      * @return this builder
      */
+    // .ordinal() is intentional here: the llama.cpp server expects the integer
+    // ordinal of the MiroStat enum (0 = OFF, 1 = V1, 2 = V2) on the wire. The
+    // declared order of MiroStat.values() matches the upstream contract.
+    @SuppressWarnings("EnumOrdinal")
     public InferenceParameters setMiroStat(MiroStat mirostat) {
         return putScalar(PARAM_MIROSTAT, mirostat.ordinal());
     }
@@ -572,7 +576,7 @@ public final class InferenceParameters extends JsonParameters {
      * with non-null {@link ChatMessage#getParts()} are serialized as OAI array-form
      * {@code content} (text + image_url parts). Plain text messages emit the legacy
      * string-form {@code content}, so this overload is also a drop-in replacement
-     * for the {@code List&lt;Pair&gt;} variant when callers prefer the typed
+     * for the {@code List<Pair>} variant when callers prefer the typed
      * {@link ChatMessage} surface.
      * <p>
      * Image parts require the model to have a multimodal projector loaded via

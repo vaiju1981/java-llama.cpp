@@ -61,7 +61,9 @@ public class RerankResponseParser {
      */
     public List<Pair<String, Float>> parse(JsonNode arr) {
         if (!arr.isArray() || arr.size() == 0) {
-            return Collections.emptyList();
+            // Mutable empty list keeps the return-type contract consistent
+            // (Error Prone MixedMutabilityReturnType).
+            return new ArrayList<>();
         }
         List<Pair<String, Float>> results = new ArrayList<Pair<String, Float>>();
         for (JsonNode entry : arr) {

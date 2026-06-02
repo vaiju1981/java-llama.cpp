@@ -227,7 +227,7 @@ public class OSInfo {
      * @return {@code true} if the JVM identifies itself as Android
      */
     public static boolean isAndroidRuntime() {
-        return System.getProperty("java.runtime.name", "").toLowerCase().contains("android");
+        return System.getProperty("java.runtime.name", "").toLowerCase(Locale.ROOT).contains("android");
     }
 
     /**
@@ -237,7 +237,7 @@ public class OSInfo {
      */
     public static boolean isAndroidTermux() {
         try {
-            return processRunner.runAndWaitFor("uname -o").toLowerCase().contains("android");
+            return processRunner.runAndWaitFor("uname -o").toLowerCase(Locale.ROOT).contains("android");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return false;
@@ -257,7 +257,7 @@ public class OSInfo {
     public static boolean isMusl() {
         Path mapFilesDir = Paths.get("/proc/self/map_files");
         try (Stream<Path> dirStream = Files.list(mapFilesDir)) {
-            return dirStream.map(OSInfo::toRealPathOrEmpty).anyMatch(s -> s.toLowerCase()
+            return dirStream.map(OSInfo::toRealPathOrEmpty).anyMatch(s -> s.toLowerCase(Locale.ROOT)
                     .contains("musl"));
         } catch (Exception ignored) {
             // fall back to checking for alpine linux in the event we're using an older kernel which
@@ -282,6 +282,9 @@ public class OSInfo {
         try (Stream<String> osLines = Files.lines(Paths.get("/etc/os-release"))) {
             return osLines.anyMatch(l -> l.startsWith("ID") && l.contains("alpine"));
         } catch (Exception ignored2) {
+            // Treat any I/O / parse failure as "not Alpine" — the file is absent on
+            // non-Linux hosts and unreadable in sandboxed Linux runtimes; either
+            // way the answer is the same and there is nothing meaningful to log.
         }
         return false;
     }

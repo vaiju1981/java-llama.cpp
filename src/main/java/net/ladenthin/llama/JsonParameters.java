@@ -64,7 +64,11 @@ abstract class JsonParameters {
      * @param <T>   the concrete subtype of this builder
      * @return this builder
      */
-    @SuppressWarnings("unchecked")
+    // Self-typing builder idiom: the caller fixes T to its own concrete subtype
+    // so that chained calls return the concrete builder instead of JsonParameters.
+    // This deliberately uses T only in the return type and is not the
+    // "TypeParameterUnusedInFormals" anti-pattern Error Prone warns about.
+    @SuppressWarnings({"unchecked", "TypeParameterUnusedInFormals"})
     protected final <T extends JsonParameters> T putScalar(String key, Object value) {
         parameters.put(key, String.valueOf(value));
         return (T) this;
@@ -79,7 +83,8 @@ abstract class JsonParameters {
      * @param <T>   the concrete subtype of this builder
      * @return this builder
      */
-    @SuppressWarnings("unchecked")
+    // Self-typing builder idiom — see putScalar above.
+    @SuppressWarnings({"unchecked", "TypeParameterUnusedInFormals"})
     protected final <T extends JsonParameters> T putEnum(String key, CliArg value) {
         parameters.put(key, value.getArgValue());
         return (T) this;

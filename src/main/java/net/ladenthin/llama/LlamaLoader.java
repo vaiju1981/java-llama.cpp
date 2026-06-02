@@ -13,7 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
 import org.jspecify.annotations.Nullable;
@@ -86,7 +86,7 @@ class LlamaLoader {
     }
 
     private static void loadNativeLibrary(String name) {
-        List<String> triedPaths = new LinkedList<>();
+        List<String> triedPaths = new ArrayList<>();
 
         String nativeLibName = System.mapLibraryName(name);
         String nativeLibPath = systemProperties.getLibPath();
@@ -112,7 +112,11 @@ class LlamaLoader {
 
         // Try to load the library from java.library.path
         String javaLibraryPath = System.getProperty("java.library.path", "");
-        for (String ldPath : javaLibraryPath.split(File.pathSeparator)) {
+        // String.split's "trailing empties dropped" quirk is benign here because
+        // we explicitly skip empty entries with the isEmpty() check below.
+        @SuppressWarnings("StringSplitter")
+        final String[] ldPaths = javaLibraryPath.split(File.pathSeparator);
+        for (String ldPath : ldPaths) {
             if (ldPath.isEmpty()) {
                 continue;
             }

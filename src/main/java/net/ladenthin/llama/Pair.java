@@ -56,9 +56,8 @@ public class Pair<K, V> {
     @Override
     public boolean equals(@Nullable Object obj) {
         if (this == obj) return true;
-        if (obj == null) return false;
-        if (getClass() != obj.getClass()) return false;
-        Pair other = (Pair) obj;
+        if (!(obj instanceof Pair)) return false;
+        Pair<?, ?> other = (Pair<?, ?>) obj;
         return Objects.equals(key, other.key) && Objects.equals(value, other.value);
     }
 

@@ -160,7 +160,9 @@ public class CompletionResponseParser {
     public List<TokenLogprob> parseLogprobs(JsonNode root) {
         JsonNode array = root.path("completion_probabilities");
         if (!array.isArray() || array.size() == 0) {
-            return Collections.emptyList();
+            // Return a mutable empty ArrayList to keep the return type consistent
+            // with the non-empty branch below (Error Prone MixedMutabilityReturnType).
+            return new ArrayList<>();
         }
         List<TokenLogprob> result = new ArrayList<TokenLogprob>(array.size());
         for (JsonNode entry : array) {

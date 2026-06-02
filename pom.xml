@@ -341,8 +341,21 @@ SPDX-License-Identifier: MIT
 					<showWarnings>true</showWarnings>
 					<parameters>true</parameters>
 					<compilerArgs>
-						<!-- See streambuffer pom for why -Werror is intentionally absent under release=8. -->
-						<arg>-Xlint:all,-serial,-options,-classfile</arg>
+						<!--
+						  -Xlint:all surfaces every category of javac warning. Excluded:
+						    -serial    : serialVersionUID warnings on non-Serializable classes
+						    -options   : bootclasspath / target-mismatch chatter under release=8
+						    -classfile : noise when javac reads our own .class output mid-build
+						    -processing: "No processor claimed any of these annotations" — the
+						                 animal-sniffer @IgnoreJRERequirement is consumed by the
+						                 maven-plugin (not a JSR-269 processor), so javac flags
+						                 it every build
+						  -Werror is on: the ElementType.MODULE blocker is gone now that
+						  @NullMarked lives only in module-info.java (compiled at release 9 in
+						  a separate execution); see module-info.java's javadoc.
+						-->
+						<arg>-Xlint:all,-serial,-options,-classfile,-processing</arg>
+						<arg>-Werror</arg>
 						<!--
 						  Checker Framework Nullness Checker runs as a second nullness pass
 						  alongside NullAway. CF is generics-aware and stricter than NullAway,
