@@ -7,6 +7,7 @@ package net.ladenthin.llama;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.util.Objects;
 import org.junit.jupiter.api.Test;
 
 public class PairTest {
@@ -105,6 +106,16 @@ public class PairTest {
         Pair<String, Integer> pair = new Pair<>(null, null);
         // Should not throw when hashing null values
         assertNotNull(pair.hashCode());
+    }
+
+    @Test
+    public void testHashCodeMatchesObjectsHash() {
+        // Pins hashCode() to Objects.hash(key, value) exactly.
+        // Without this, PIT's PrimitiveReturnsMutator survives by replacing
+        // the return with 0 - the existing assertNotNull tests cannot detect
+        // that because hashCode()'s primitive int autoboxes to a non-null Integer.
+        Pair<String, Integer> pair = new Pair<>("key", 123);
+        assertEquals(Objects.hash("key", 123), pair.hashCode());
     }
 
     @Test
