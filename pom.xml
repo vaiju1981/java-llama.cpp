@@ -692,6 +692,11 @@ SPDX-License-Identifier: MIT
 								<goal>compile</goal>
 							</goals>
 							<configuration>
+								<!-- Same rationale as default-compile: this pass targets release 8;
+								     module-info.java is Java 9+ and is handled by module-info-compile. -->
+								<excludes>
+									<exclude>module-info.java</exclude>
+								</excludes>
 								<compilerArgs>
 									<arg>-h</arg>
 									<arg>src/main/cpp</arg>
@@ -768,6 +773,11 @@ SPDX-License-Identifier: MIT
 								<goal>compile</goal>
 							</goals>
 							<configuration>
+								<!-- Same rationale as default-compile: this pass targets release 8;
+								     module-info.java is Java 9+ and is handled by module-info-compile. -->
+								<excludes>
+									<exclude>module-info.java</exclude>
+								</excludes>
 								<compilerArgs>
 									<arg>-h</arg>
 									<arg>src/main/cpp</arg>
