@@ -1424,7 +1424,7 @@ public final class ModelParameters extends CliParameters {
      * @param key the parameter key without the {@code --} prefix
      * @return {@code true} if the key is absent from the configured parameters
      */
-    public boolean isDefault(String key) {
+    public boolean isUnset(String key) {
         return !parameters.containsKey("--" + key);
     }
 }
