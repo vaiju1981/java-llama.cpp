@@ -57,7 +57,7 @@ SPDX-License-Identifier: MIT
 		<jackson.version>2.22.0</jackson.version>
 		<reactive-streams.version>1.0.4</reactive-streams.version>
 		<slf4j.version>2.0.18</slf4j.version>
-		<logback.version>1.5.32</logback.version>
+		<logback.version>1.5.33</logback.version>
 		<animal-sniffer.version>1.27</animal-sniffer.version>
 		<junit.version>6.1.0</junit.version>
 		<jmh.version>1.37</jmh.version>
