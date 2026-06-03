@@ -15,7 +15,7 @@
 [![Lincheck](https://img.shields.io/badge/tested%20with-Lincheck-7F52FF)](https://github.com/JetBrains/lincheck)  
 [![vmlens](https://img.shields.io/badge/tested%20with-vmlens-ff6f00)](https://vmlens.com)  
 [![JMH](https://img.shields.io/badge/benchmarked%20with-JMH-25A162)](https://openjdk.org/projects/code-tools/jmh/)  
-[![llama.cpp b9490](https://img.shields.io/badge/llama.cpp-%23b9490-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9490)  
+[![llama.cpp b9495](https://img.shields.io/badge/llama.cpp-%23b9495-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9495)  
 [![Publish](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/publish.yml/badge.svg)](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/publish.yml)  
 [![CodeQL](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/codeql.yml/badge.svg)](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/codeql.yml)  
 
