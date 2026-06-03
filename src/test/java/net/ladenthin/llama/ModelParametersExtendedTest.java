@@ -1058,22 +1058,22 @@ public class ModelParametersExtendedTest {
     }
 
     // -------------------------------------------------------------------------
-    // isDefault — extended
+    // isUnset — extended
     // -------------------------------------------------------------------------
 
     @Test
     public void testIsDefaultForCtxSize() {
         ModelParameters p = new ModelParameters();
-        assertTrue(p.isDefault("ctx-size"));
+        assertTrue(p.isUnset("ctx-size"));
         p.setCtxSize(2048);
-        assertFalse(p.isDefault("ctx-size"));
+        assertFalse(p.isUnset("ctx-size"));
     }
 
     @Test
     public void testIsDefaultForFlagOnly() {
         ModelParameters p = new ModelParameters();
-        assertTrue(p.isDefault("flash-attn"));
+        assertTrue(p.isUnset("flash-attn"));
         p.enableFlashAttn();
-        assertFalse(p.isDefault("flash-attn"));
+        assertFalse(p.isUnset("flash-attn"));
     }
 }

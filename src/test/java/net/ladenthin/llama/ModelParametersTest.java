@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
                 + "correct CLI argument formatting for enum-based setters (PoolingType, RopeScalingType, "
                 + "CacheType, GpuSplitMode, NumaStrategy, MiroStat) and composite-value setters "
                 + "(loraScaled, controlVectorScaled, controlVectorLayerRange), semicolon-separated "
-                + "lowercase sampler list, isDefault key-presence check, and the CliParameters base "
+                + "lowercase sampler list, isUnset key-presence check, and the CliParameters base "
                 + "behaviour: toString omits 'null' for flag-only entries, toArray always prepends an "
                 + "empty argv[0] string and omits values for null-valued flags.")
 public class ModelParametersTest {
@@ -185,25 +185,25 @@ public class ModelParametersTest {
     }
 
     // -------------------------------------------------------------------------
-    // isDefault
+    // isUnset
     // -------------------------------------------------------------------------
 
     @Test
     public void testIsDefaultTrueWhenNotSet() {
         ModelParameters p = new ModelParameters();
-        assertTrue(p.isDefault("threads"));
+        assertTrue(p.isUnset("threads"));
     }
 
     @Test
     public void testIsDefaultFalseWhenSet() {
         ModelParameters p = new ModelParameters().setThreads(4);
-        assertFalse(p.isDefault("threads"));
+        assertFalse(p.isUnset("threads"));
     }
 
     @Test
     public void testIsDefaultFalseAfterFlagOnly() {
         ModelParameters p = new ModelParameters().enableEmbedding();
-        assertFalse(p.isDefault("embedding"));
+        assertFalse(p.isUnset("embedding"));
     }
 
     // -------------------------------------------------------------------------

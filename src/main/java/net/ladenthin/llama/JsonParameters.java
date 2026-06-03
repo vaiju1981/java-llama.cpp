@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 import net.ladenthin.llama.args.CliArg;
 import net.ladenthin.llama.json.ParameterJsonSerializer;
+import org.checkerframework.checker.nullness.qual.PolyNull;
 
 /**
  * The Java library re-uses most of the llama.cpp server code, which mostly works with JSONs. Thus, the complexity and
@@ -42,7 +43,11 @@ abstract class JsonParameters {
         return builder.toString();
     }
 
-    String toJsonString(String text) {
+    // @PolyNull lets the Checker Framework see that null in returns null and non-null
+    // in returns non-null. NullAway has no equivalent qualifier and reads the return as
+    // @NonNull (under @NullMarked), so we suppress the NullAway-only complaint here.
+    @SuppressWarnings("NullAway")
+    @PolyNull String toJsonString(@PolyNull String text) {
         if (text == null) return null;
         return serializer.toJsonString(text);
     }
@@ -59,7 +64,11 @@ abstract class JsonParameters {
      * @param <T>   the concrete subtype of this builder
      * @return this builder
      */
-    @SuppressWarnings("unchecked")
+    // Self-typing builder idiom: the caller fixes T to its own concrete subtype
+    // so that chained calls return the concrete builder instead of JsonParameters.
+    // This deliberately uses T only in the return type and is not the
+    // "TypeParameterUnusedInFormals" anti-pattern Error Prone warns about.
+    @SuppressWarnings({"unchecked", "TypeParameterUnusedInFormals"})
     protected final <T extends JsonParameters> T putScalar(String key, Object value) {
         parameters.put(key, String.valueOf(value));
         return (T) this;
@@ -74,7 +83,8 @@ abstract class JsonParameters {
      * @param <T>   the concrete subtype of this builder
      * @return this builder
      */
-    @SuppressWarnings("unchecked")
+    // Self-typing builder idiom — see putScalar above.
+    @SuppressWarnings({"unchecked", "TypeParameterUnusedInFormals"})
     protected final <T extends JsonParameters> T putEnum(String key, CliArg value) {
         parameters.put(key, value.getArgValue());
         return (T) this;

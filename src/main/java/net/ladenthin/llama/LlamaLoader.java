@@ -13,10 +13,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Set the system properties {@code net.ladenthin.llama.lib.path} /
@@ -86,7 +86,7 @@ class LlamaLoader {
     }
 
     private static void loadNativeLibrary(String name) {
-        List<String> triedPaths = new LinkedList<>();
+        List<String> triedPaths = new ArrayList<>();
 
         String nativeLibName = System.mapLibraryName(name);
         String nativeLibPath = systemProperties.getLibPath();
@@ -112,7 +112,11 @@ class LlamaLoader {
 
         // Try to load the library from java.library.path
         String javaLibraryPath = System.getProperty("java.library.path", "");
-        for (String ldPath : javaLibraryPath.split(File.pathSeparator)) {
+        // String.split's "trailing empties dropped" quirk is benign here because
+        // we explicitly skip empty entries with the isEmpty() check below.
+        @SuppressWarnings("StringSplitter")
+        final String[] ldPaths = javaLibraryPath.split(File.pathSeparator);
+        for (String ldPath : ldPaths) {
             if (ldPath.isEmpty()) {
                 continue;
             }
@@ -164,8 +168,7 @@ class LlamaLoader {
         }
     }
 
-    @Nullable
-    private static Path extractFile(String sourceDirectory, String fileName, String targetDirectory) {
+    private static @Nullable Path extractFile(String sourceDirectory, String fileName, String targetDirectory) {
         String nativeLibraryFilePath = sourceDirectory + "/" + fileName;
 
         Path extractedFilePath = Paths.get(targetDirectory, fileName);
@@ -188,6 +191,10 @@ class LlamaLoader {
             // Check whether the contents are properly copied from the resource folder
             try (InputStream nativeIn = LlamaLoader.class.getResourceAsStream(nativeLibraryFilePath);
                     InputStream extractedLibIn = Files.newInputStream(extractedFilePath)) {
+                if (nativeIn == null) {
+                    System.err.println(String.format("Native library resource missing at %s", nativeLibraryFilePath));
+                    return null;
+                }
                 if (!contentsEquals(nativeIn, extractedLibIn)) {
                     System.err.println(String.format("Failed to write a native library file at %s", extractedFilePath));
                     return null;
@@ -245,7 +252,12 @@ class LlamaLoader {
     }
 
     static String getNativeResourcePath() {
-        String packagePath = LlamaLoader.class.getPackage().getName().replace('.', '/');
+        final Package pkg = LlamaLoader.class.getPackage();
+        // LlamaLoader is in a named package, so Class.getPackage() is never null here.
+        if (pkg == null) {
+            throw new IllegalStateException("LlamaLoader.class.getPackage() returned null");
+        }
+        String packagePath = pkg.getName().replace('.', '/');
         return String.format("/%s/%s", packagePath, OSInfo.getNativeLibFolderPathForCurrentOS());
     }
 

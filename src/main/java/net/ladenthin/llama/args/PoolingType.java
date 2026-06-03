@@ -91,6 +91,7 @@ public enum PoolingType implements CliArg {
      *
      * @return the pooling type string (e.g. {@code "mean"}, {@code "cls"})
      */
+    @Override
     public String getArgValue() {
         return argValue;
     }

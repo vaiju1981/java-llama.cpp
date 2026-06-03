@@ -5,6 +5,8 @@
 
 package net.ladenthin.llama;
 
+import org.jspecify.annotations.Nullable;
+
 /**
  * The reason why token generation stopped for a {@link LlamaOutput}.
  *
@@ -31,9 +33,9 @@ public enum StopReason {
     /** Token budget exhausted. Server {@code "stop_type"} value: {@code "limit"}. */
     MAX_TOKENS("limit");
 
-    private final String stopType;
+    private final @Nullable String stopType;
 
-    StopReason(String stopType) {
+    StopReason(@Nullable String stopType) {
         this.stopType = stopType;
     }
 
@@ -43,7 +45,7 @@ public enum StopReason {
      *
      * @return the stop-type string, or {@code null} for {@link #NONE}
      */
-    public String getStopType() {
+    public @Nullable String getStopType() {
         return stopType;
     }
 
@@ -55,7 +57,7 @@ public enum StopReason {
      * @param stopType the raw stop-type string, or {@code null} / empty for absent field
      * @return the corresponding {@link StopReason}, or {@link #NONE} if unrecognised
      */
-    public static StopReason fromStopType(String stopType) {
+    public static StopReason fromStopType(@Nullable String stopType) {
         if (stopType == null) return NONE;
         switch (stopType) {
             case "eos":

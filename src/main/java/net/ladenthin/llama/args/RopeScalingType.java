@@ -29,6 +29,7 @@ public enum RopeScalingType implements CliArg {
         this.argValue = value;
     }
 
+    @Override
     public String getArgValue() {
         return argValue;
     }

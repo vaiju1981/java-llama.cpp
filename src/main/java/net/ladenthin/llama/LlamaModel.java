@@ -10,12 +10,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import net.ladenthin.llama.args.LogFormat;
 import net.ladenthin.llama.json.ChatResponseParser;
 import net.ladenthin.llama.json.CompletionResponseParser;
 import net.ladenthin.llama.json.RerankResponseParser;
+import org.jspecify.annotations.Nullable;
 
 /**
  * This class is a wrapper around the llama.cpp functionality.
@@ -52,10 +55,21 @@ public class LlamaModel implements AutoCloseable {
      * </ul>
      *
      * @param parameters the set of options
-     * @throws LlamaException if no model could be loaded from the given file path
+     * @throws ModelUnavailableException if {@link ModelParameters#setSkipDownload(boolean)
+     *                                   setSkipDownload(true)} (or
+     *                                   {@link net.ladenthin.llama.args.ModelFlag#SKIP_DOWNLOAD})
+     *                                   is set and the configured model file is missing or invalid
+     * @throws LlamaException            for any other load failure
      */
+    // loadModel is a native method; it does not call back into Java with this,
+    // so the @UnderInitialization receiver warning is a CF false positive.
+    @SuppressWarnings("method.invocation")
     public LlamaModel(ModelParameters parameters) {
-        loadModel(parameters.toArray());
+        try {
+            loadModel(parameters.toArray());
+        } catch (LlamaException e) {
+            throw SkipDownloadFailureTranslator.translate(parameters, e);
+        }
     }
 
     /**
@@ -68,11 +82,19 @@ public class LlamaModel implements AutoCloseable {
      * @param progress   load progress sink; {@code null} disables the callback
      * @throws LlamaException if loading fails or the callback aborts
      */
+    // loadModel / loadModelWithProgress are native methods; they do not call back
+    // into Java with this, so the @UnderInitialization receiver warning is a CF
+    // false positive.
+    @SuppressWarnings("method.invocation")
     public LlamaModel(ModelParameters parameters, LoadProgressCallback progress) {
-        if (progress == null) {
-            loadModel(parameters.toArray());
-        } else {
-            loadModelWithProgress(parameters.toArray(), progress);
+        try {
+            if (progress == null) {
+                loadModel(parameters.toArray());
+            } else {
+                loadModelWithProgress(parameters.toArray(), progress);
+            }
+        } catch (LlamaException e) {
+            throw SkipDownloadFailureTranslator.translate(parameters, e);
         }
     }
 
@@ -232,7 +254,11 @@ public class LlamaModel implements AutoCloseable {
      */
     public CompletableFuture<String> completeAsync(InferenceParameters parameters, CancellationToken token) {
         CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> complete(parameters, token));
-        future.whenComplete((result, ex) -> {
+        // whenComplete returns a new stage that we deliberately discard: this is a
+        // fire-and-forget cancellation callback attached to `future`, which is what
+        // the caller observes.
+        @SuppressWarnings("FutureReturnValueIgnored")
+        final CompletableFuture<String> cancelHook = future.whenComplete((result, ex) -> {
             if (ex instanceof java.util.concurrent.CancellationException) {
                 token.cancel();
             }
@@ -380,7 +406,7 @@ public class LlamaModel implements AutoCloseable {
      * deleted, since the attack vector disappears together with finalization.
      * </p>
      */
-    @SuppressWarnings({"deprecation", "removal"})
+    @SuppressWarnings({"deprecation", "removal", "Finalize"})
     @Override
     protected final void finalize() {
         // no-op
@@ -520,14 +546,14 @@ public class LlamaModel implements AutoCloseable {
      */
     public ChatResponse chat(ChatRequest request) {
         InferenceParameters params = new InferenceParameters("").setMessagesJson(request.buildMessagesJson());
-        String toolsJson = request.buildToolsJson();
-        if (toolsJson != null) {
+        request.buildToolsJson().ifPresent(toolsJson -> {
             params.setToolsJson(toolsJson);
-            if (request.getToolChoice() != null) {
-                params.setToolChoice(request.getToolChoice());
+            final String toolChoice = request.getToolChoice();
+            if (toolChoice != null) {
+                params.setToolChoice(toolChoice);
             }
             params.setUseChatTemplate(true);
-        }
+        });
         request.applyCustomizer(params);
         String raw = chatComplete(params);
         return chatParser.parseResponse(raw);
@@ -551,13 +577,21 @@ public class LlamaModel implements AutoCloseable {
      *         (or the last response when the round cap is hit)
      */
     public ChatResponse chatWithTools(ChatRequest request, java.util.Map<String, ToolHandler> handlers) {
-        ChatResponse last = null;
-        for (int round = 0; round < request.getMaxToolRounds(); round++) {
-            last = chat(request);
-            ChatMessage assistant = last.getFirstMessage();
-            if (assistant == null || assistant.getToolCalls().isEmpty()) {
+        final int maxRounds = request.getMaxToolRounds();
+        if (maxRounds < 1) {
+            throw new IllegalArgumentException(
+                    "ChatRequest.maxToolRounds must be >= 1 (got " + maxRounds + "); "
+                            + "chatWithTools always issues at least one chat call.");
+        }
+        ChatResponse last = chat(request);
+        for (int round = 1; round < maxRounds; round++) {
+            Optional<ChatMessage> assistantOpt = last.getFirstMessage();
+            // NOTE: inline !isPresent() here (not compatibilityHelper.isEmpty) so NullAway's
+            //       CheckOptionalEmptiness recognises this as null-narrowing for the .get() below.
+            if (!assistantOpt.isPresent() || assistantOpt.get().getToolCalls().isEmpty()) {
                 return last;
             }
+            ChatMessage assistant = assistantOpt.get();
             request.addMessage(assistant);
             for (ToolCall call : assistant.getToolCalls()) {
                 ToolHandler handler = handlers.get(call.getName());
@@ -576,6 +610,7 @@ public class LlamaModel implements AutoCloseable {
                 }
                 request.addMessage(ChatMessage.toolResult(call.getId(), result));
             }
+            last = chat(request);
         }
         return last;
     }
@@ -807,7 +842,7 @@ public class LlamaModel implements AutoCloseable {
      */
     public native boolean configureParallelInference(String configJson) throws LlamaException;
 
-    native String handleSlotAction(int action, int slotId, String filename) throws LlamaException;
+    native String handleSlotAction(int action, int slotId, @Nullable String filename) throws LlamaException;
 
     native String handleChatCompletions(String params) throws LlamaException;
 

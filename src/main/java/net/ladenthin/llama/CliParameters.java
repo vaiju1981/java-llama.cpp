@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import net.ladenthin.llama.args.CliArg;
-import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.Nullable;
 
 abstract class CliParameters {
 
@@ -28,7 +28,9 @@ abstract class CliParameters {
      * @param <T>   the concrete subtype of this builder
      * @return this builder
      */
-    @SuppressWarnings("unchecked")
+    // Self-typing builder idiom: caller fixes T to its concrete subtype so chained
+    // calls return the concrete builder, not CliParameters.
+    @SuppressWarnings({"unchecked", "TypeParameterUnusedInFormals"})
     protected final <T extends CliParameters> T putScalar(String key, Object value) {
         parameters.put(key, String.valueOf(value));
         return (T) this;
@@ -43,7 +45,8 @@ abstract class CliParameters {
      * @param <T>   the concrete subtype of this builder
      * @return this builder
      */
-    @SuppressWarnings("unchecked")
+    // Self-typing builder idiom — see putScalar above.
+    @SuppressWarnings({"unchecked", "TypeParameterUnusedInFormals"})
     protected final <T extends CliParameters> T putEnum(String key, CliArg value) {
         parameters.put(key, value.getArgValue());
         return (T) this;

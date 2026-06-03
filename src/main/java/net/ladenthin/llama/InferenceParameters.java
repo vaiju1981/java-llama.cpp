@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Map;
 import net.ladenthin.llama.args.ContinuationMode;
 import net.ladenthin.llama.args.MiroStat;
+import org.jspecify.annotations.Nullable;
 import net.ladenthin.llama.args.ReasoningFormat;
 import net.ladenthin.llama.args.Sampler;
 
@@ -253,6 +254,10 @@ public final class InferenceParameters extends JsonParameters {
      * @param mirostat the MiroStat sampling strategy
      * @return this builder
      */
+    // .ordinal() is intentional here: the llama.cpp server expects the integer
+    // ordinal of the MiroStat enum (0 = OFF, 1 = V1, 2 = V2) on the wire. The
+    // declared order of MiroStat.values() matches the upstream contract.
+    @SuppressWarnings("EnumOrdinal")
     public InferenceParameters setMiroStat(MiroStat mirostat) {
         return putScalar(PARAM_MIROSTAT, mirostat.ordinal());
     }
@@ -559,7 +564,7 @@ public final class InferenceParameters extends JsonParameters {
      * @param messages a list of user/assistant message pairs (role as key, content as value)
      * @return this builder
      */
-    public InferenceParameters setMessages(String systemMessage, List<Pair<String, String>> messages) {
+    public InferenceParameters setMessages(@Nullable String systemMessage, List<Pair<String, String>> messages) {
         parameters.put(
                 PARAM_MESSAGES,
                 serializer.buildMessages(systemMessage, messages).toString());
@@ -571,7 +576,7 @@ public final class InferenceParameters extends JsonParameters {
      * with non-null {@link ChatMessage#getParts()} are serialized as OAI array-form
      * {@code content} (text + image_url parts). Plain text messages emit the legacy
      * string-form {@code content}, so this overload is also a drop-in replacement
-     * for the {@code List&lt;Pair&gt;} variant when callers prefer the typed
+     * for the {@code List<Pair>} variant when callers prefer the typed
      * {@link ChatMessage} surface.
      * <p>
      * Image parts require the model to have a multimodal projector loaded via

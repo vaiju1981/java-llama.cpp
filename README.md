@@ -1,6 +1,13 @@
 **Build:**  
-![Java 11+](https://img.shields.io/badge/Java-11%2B-informational)  
-![JUnit](https://img.shields.io/badge/tested%20with-JUnit4-yellow)  
+![Java 8+](https://img.shields.io/badge/Java-8%2B-informational)  
+![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Android-lightgrey)  
+[![JPMS](https://img.shields.io/badge/JPMS-modular%20JAR-25A162)](https://openjdk.org/projects/jigsaw/)  
+![JUnit](https://img.shields.io/badge/tested%20with-JUnit6-25A162)  
+[![JSpecify](https://img.shields.io/badge/JSpecify-1.0.0%20%40NullMarked-25A162)](https://jspecify.dev)  
+[![NullAway](https://img.shields.io/badge/NullAway-strict%20JSpecify-25A162)](https://github.com/uber/NullAway)  
+[![Checker Framework](https://img.shields.io/badge/Checker%20Framework-Nullness-25A162)](https://checkerframework.org)  
+[![Error Prone](https://img.shields.io/badge/Error%20Prone-12%20patterns%20at%20ERROR-25A162)](https://errorprone.info)  
+[![Maven Enforcer](https://img.shields.io/badge/Maven%20Enforcer-strict-25A162)](https://maven.apache.org/enforcer/)  
 [![jqwik](https://img.shields.io/badge/tested%20with-jqwik-1f6feb)](https://jqwik.net)  
 [![ArchUnit](https://img.shields.io/badge/tested%20with-ArchUnit-c71a36)](https://www.archunit.org)  
 [![SpotBugs](https://img.shields.io/badge/analyzed%20with-SpotBugs-3b5998)](https://spotbugs.github.io)  
@@ -8,7 +15,7 @@
 [![Lincheck](https://img.shields.io/badge/tested%20with-Lincheck-7F52FF)](https://github.com/JetBrains/lincheck)  
 [![vmlens](https://img.shields.io/badge/tested%20with-vmlens-ff6f00)](https://vmlens.com)  
 [![JMH](https://img.shields.io/badge/benchmarked%20with-JMH-25A162)](https://openjdk.org/projects/code-tools/jmh/)  
-[![llama.cpp b9442](https://img.shields.io/badge/llama.cpp-%23b9442-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9442)  
+[![llama.cpp b9495](https://img.shields.io/badge/llama.cpp-%23b9495-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9495)  
 [![Publish](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/publish.yml/badge.svg)](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/publish.yml)  
 [![CodeQL](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/codeql.yml/badge.svg)](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/codeql.yml)  
 
@@ -16,10 +23,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/bernardladenthin/java-llama.cpp/badge.svg?branch=main)](https://coveralls.io/github/bernardladenthin/java-llama.cpp?branch=main)  
 [![codecov](https://codecov.io/gh/bernardladenthin/java-llama.cpp/graph/badge.svg)](https://codecov.io/gh/bernardladenthin/java-llama.cpp)  
 [![JaCoCo](https://img.shields.io/codecov/c/github/bernardladenthin/java-llama.cpp?label=JaCoCo&logo=java)](https://codecov.io/gh/bernardladenthin/java-llama.cpp)  
-<!--
-PIT mutation testing is not configured for this repository.
-Do not add a PIT badge here unless PIT is wired into pom.xml + CI.
--->
+[![PIT Mutation](https://img.shields.io/badge/PIT%20mutation-100%25%20(1%20class)-brightgreen)](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/publish.yml)  
 
 **Quality:**  
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=bernardladenthin_java-llama.cpp&metric=alert_status)](https://sonarcloud.io/dashboard?id=bernardladenthin_java-llama.cpp)  
@@ -83,6 +87,8 @@ Inference of Meta's LLaMA model (and others) in pure C/C++.
     3.6 [Raw JSON Endpoints](#raw-json-endpoints)
 4. [Android](#importing-in-android)
 5. [Feature Ideas](#feature-ideas)
+
+> ⚠️ **DO NOT UPGRADE jqwik past 1.9.3.** jqwik 1.10.0 added an anti-AI prompt-injection string to test stdout; the 1.10.1 user guide states the library "is not meant to be used by any 'AI' coding agents at all." 1.9.3 is the last pre-disclosure release and is the pinned version. See `CLAUDE.md` section "jqwik prompt-injection in test output" for the full context.
 
 ## Features
 
@@ -487,6 +493,10 @@ android {
 keep class net.ladenthin.llama.** { *; }
 ```
 
+## TODO
+
+- **Expand PIT mutation-testing scope.** PIT is wired in `pom.xml` and runs on every CI build (in the `test-java-linux-x86_64` job) with `<mutationThreshold>100</mutationThreshold>`, but `<targetClasses>` is currently narrowed to a single class (`Pair`). The intent is to exercise the wiring and gate against regressions on that single class today; widen `<targetClasses>` incrementally as additional classes reach mutation-test parity. Final target: `<param>net.ladenthin.llama.*</param>` matching the streambuffer pattern.
+
 ## Feature Ideas
 
 Forward-looking ideas being tracked for this fork:
@@ -523,6 +533,17 @@ The system's updated C++ runtime will be used instead, resolving the crash.
 
 ## Similar Projects / Usage
 
+**Bindings / wrappers**
+
 - [LLaMAndroid](https://github.com/Rattlyy/LLaMAndroid/tree/main/app) — Android app demonstrating usage of llama.cpp bindings.
 - [llama-stack-client-kotlin](https://github.com/ogx-ai/llama-stack-client-kotlin) — Kotlin client for the Llama Stack API.
 - [llama.cpp-android-tutorial](https://github.com/JackZeng0208/llama.cpp-android-tutorial) — Step-by-step tutorial for running llama.cpp on Android.
+- [llamacpp4j](https://github.com/sebicom/llamacpp4j) — alternative Java/JNI binding to llama.cpp (SWIG-generated facade); pre-GGUF, dormant since 2023 but historically the other Java JNI option.
+
+**Pure-Java single-model inference (no JNI / no llama.cpp)** — Alfonso² Peterssen's `*.java` family of standalone, dependency-free Java inference runtimes, one per model architecture. Useful when JNI is unavailable (e.g. some sandboxes / GraalVM native-image scenarios) or when you want a single jar with no native side at all. Different design point from this project, which prioritises GGUF compatibility and llama.cpp performance via JNI.
+
+- [llama3.java](https://github.com/mukel/llama3.java) — Llama 3 / 3.1 / 3.2 inference.
+- [gemma4.java](https://github.com/mukel/gemma4.java) — Gemma 4 (and earlier Gemma 2/3) inference.
+- [gptoss.java](https://github.com/mukel/gptoss.java) — GPT-OSS architecture inference.
+- [qwen35.java](https://github.com/mukel/qwen35.java) — Qwen 3.5 inference.
+- [nemotron3.java](https://github.com/mukel/nemotron3.java) — NVIDIA Nemotron-3 inference.

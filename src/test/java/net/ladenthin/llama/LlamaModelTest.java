@@ -362,7 +362,7 @@ public class LlamaModelTest {
         ChatResponse r = model.chat(req);
         assertNotNull(r);
         assertFalse(r.getChoices().isEmpty());
-        assertNotNull(r.getFirstMessage());
+        assertTrue(r.getFirstMessage().isPresent());
         assertTrue(r.getUsage().getTotalTokens() > 0);
     }
 

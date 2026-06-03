@@ -162,7 +162,9 @@ public class ChatResponseParser {
     }
 
     private List<ChatChoice> parseChoices(JsonNode arr) {
-        if (!arr.isArray() || arr.size() == 0) return Collections.emptyList();
+        // Mutable ArrayList on both branches keeps the return-type contract consistent
+        // (Error Prone MixedMutabilityReturnType).
+        if (!arr.isArray() || arr.size() == 0) return new ArrayList<>();
         List<ChatChoice> out = new ArrayList<ChatChoice>(arr.size());
         for (JsonNode c : arr) {
             int index = c.path("index").asInt(0);
@@ -180,7 +182,7 @@ public class ChatResponseParser {
     }
 
     private List<ToolCall> parseToolCalls(JsonNode arr) {
-        if (!arr.isArray() || arr.size() == 0) return Collections.emptyList();
+        if (!arr.isArray() || arr.size() == 0) return new ArrayList<>();
         List<ToolCall> out = new ArrayList<ToolCall>(arr.size());
         for (JsonNode tc : arr) {
             String id = tc.path("id").asText("");

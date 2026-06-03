@@ -5,8 +5,6 @@
 
 package net.ladenthin.llama;
 
-import org.jetbrains.annotations.NotNull;
-
 /**
  * An {@link Iterable} wrapper around {@link LlamaIterator} returned by
  * {@link LlamaModel#generate(InferenceParameters)} and {@link LlamaModel#generateChat(InferenceParameters)}.
@@ -34,7 +32,6 @@ public final class LlamaIterable implements Iterable<LlamaOutput>, AutoCloseable
         this.iterator = iterator;
     }
 
-    @NotNull
     @Override
     public LlamaIterator iterator() {
         return iterator;

@@ -48,6 +48,7 @@ public class ModelFlagTest {
             {ModelFlag.NO_CLEAR_IDLE, "--no-cache-idle-slots"},
             {ModelFlag.MMPROJ_AUTO, "--mmproj-auto"},
             {ModelFlag.MMPROJ_OFFLOAD, "--mmproj-offload"},
+            {ModelFlag.SKIP_DOWNLOAD, "--skip-download"},
         });
     }
 
@@ -63,7 +64,7 @@ public class ModelFlagTest {
 
     @Test
     public void testEnumCount() {
-        assertEquals(31, ModelFlag.values().length);
+        assertEquals(32, ModelFlag.values().length);
     }
 
     @ParameterizedTest(name = "{0} -> {1}")

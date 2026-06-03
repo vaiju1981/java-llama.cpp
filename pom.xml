@@ -50,7 +50,10 @@ SPDX-License-Identifier: MIT
 
 	<properties>
 		<jna.version>5.18.1</jna.version>
-		<jetbrains-annotations.version>26.1.0</jetbrains-annotations.version>
+		<jspecify.version>1.0.0</jspecify.version>
+		<errorprone.version>2.49.0</errorprone.version>
+		<nullaway.version>0.13.4</nullaway.version>
+		<checker.version>4.1.0</checker.version>
 		<jackson.version>2.21.3</jackson.version>
 		<reactive-streams.version>1.0.4</reactive-streams.version>
 		<slf4j.version>2.0.18</slf4j.version>
@@ -59,9 +62,16 @@ SPDX-License-Identifier: MIT
 		<junit.version>6.1.0</junit.version>
 		<jmh.version>1.37</jmh.version>
 		<jcstress.version>0.16</jcstress.version>
-		<lincheck.version>2.39</lincheck.version>
+		<lincheck.version>3.6</lincheck.version>
+		<logcaptor.version>2.10.1</logcaptor.version>
 		<vmlens.version>1.2.28</vmlens.version>
-		<!-- DO NOT UPGRADE: jqwik >= 1.10.0 ships an anti-AI prompt-injection string in test stdout; see CLAUDE.md. Replacement (QuickTheories) tracked as an URGENT TODO. -->
+		<!-- DO NOT UPGRADE jqwik past 1.9.3. jqwik 1.10.0 added a deliberate
+		     anti-AI prompt-injection string to test stdout; the 1.10.1 user
+		     guide states the library "is not meant to be used by any 'AI'
+		     coding agents at all." 1.9.3 is the last pre-disclosure release
+		     and is the pinned version for this repo. Any CI / Dependabot /
+		     contributor PR that bumps this MUST be rejected. See CLAUDE.md
+		     section "jqwik prompt-injection in test output" for full context. -->
 		<jqwik.version>1.9.3</jqwik.version>
 		<archunit.version>1.4.2</archunit.version>
 		<spotbugs.version>4.9.8.3</spotbugs.version>
@@ -72,6 +82,22 @@ SPDX-License-Identifier: MIT
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.build.outputTimestamp>${git.commit.time}</project.build.outputTimestamp>
 	</properties>
+
+	<!--
+	    Pin transitively-conflicting versions so maven-enforcer's
+	    dependencyConvergence rule passes. The direct slf4j-api version above
+	    must always win over the older 2.0.17 that logback-classic 1.5.32
+	    brings in transitively.
+	-->
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.slf4j</groupId>
+				<artifactId>slf4j-api</artifactId>
+				<version>${slf4j.version}</version>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 
 	<dependencies>
 		<dependency>
@@ -93,10 +119,14 @@ SPDX-License-Identifier: MIT
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.jetbrains</groupId>
-			<artifactId>annotations</artifactId>
-			<version>${jetbrains-annotations.version}</version>
-			<scope>compile</scope>
+			<groupId>org.jspecify</groupId>
+			<artifactId>jspecify</artifactId>
+			<version>${jspecify.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.checkerframework</groupId>
+			<artifactId>checker-qual</artifactId>
+			<version>${checker.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>com.fasterxml.jackson.core</groupId>
@@ -153,9 +183,16 @@ SPDX-License-Identifier: MIT
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.jetbrains.kotlinx</groupId>
-			<artifactId>lincheck-jvm</artifactId>
+			<groupId>org.jetbrains.lincheck</groupId>
+			<artifactId>lincheck</artifactId>
 			<version>${lincheck.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<!-- Test-only SLF4J/Logback log-capture for the LoggingSmokeTest. -->
+		<dependency>
+			<groupId>io.github.hakky54</groupId>
+			<artifactId>logcaptor</artifactId>
+			<version>${logcaptor.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
@@ -219,6 +256,11 @@ SPDX-License-Identifier: MIT
 					<version>3.5.5</version>
 				</plugin>
 				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-enforcer-plugin</artifactId>
+					<version>3.6.3</version>
+				</plugin>
+				<plugin>
 					<groupId>org.codehaus.mojo</groupId>
 					<artifactId>exec-maven-plugin</artifactId>
 					<version>3.6.3</version>
@@ -229,6 +271,11 @@ SPDX-License-Identifier: MIT
 					<version>0.8.14</version>
 				</plugin>
 				<plugin>
+					<groupId>org.pitest</groupId>
+					<artifactId>pitest-maven</artifactId>
+					<version>1.25.1</version>
+				</plugin>
+				<plugin>
 					<groupId>org.sonatype.central</groupId>
 					<artifactId>central-publishing-maven-plugin</artifactId>
 					<version>0.10.0</version>
@@ -236,6 +283,44 @@ SPDX-License-Identifier: MIT
 			</plugins>
 		</pluginManagement>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-enforcer-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>enforce</id>
+						<goals>
+							<goal>enforce</goal>
+						</goals>
+						<configuration>
+							<rules>
+								<requireMavenVersion>
+									<version>[3.6.3,)</version>
+								</requireMavenVersion>
+								<requireJavaVersion>
+									<version>[1.8,)</version>
+								</requireJavaVersion>
+								<dependencyConvergence/>
+								<bannedDependencies>
+									<excludes>
+										<!-- Use SLF4J directly; never commons-logging. -->
+										<exclude>commons-logging:commons-logging</exclude>
+										<!-- Legacy / EoL logging frameworks. -->
+										<exclude>log4j:log4j</exclude>
+										<!-- Old hamcrest split artifacts; use hamcrest:hamcrest 2.x+. -->
+										<exclude>org.hamcrest:hamcrest-core</exclude>
+										<exclude>org.hamcrest:hamcrest-library</exclude>
+										<exclude>org.hamcrest:hamcrest-all</exclude>
+										<!-- Legacy JUnit 3 / 4; we use Jupiter (junit:junit-jupiter). -->
+										<exclude>junit:junit</exclude>
+										<exclude>junit:junit-dep</exclude>
+									</excludes>
+								</bannedDependencies>
+							</rules>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
 			<plugin>
 				<groupId>io.github.git-commit-id</groupId>
 				<artifactId>git-commit-id-maven-plugin</artifactId>
@@ -259,16 +344,105 @@ SPDX-License-Identifier: MIT
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-compiler-plugin</artifactId>
 				<configuration>
-					<source>1.8</source>
-					<target>1.8</target>
-					<testSource>21</testSource>
-					<testTarget>21</testTarget>
+					<release>8</release>
+					<testRelease>21</testRelease>
+					<showWarnings>true</showWarnings>
+					<parameters>true</parameters>
+					<compilerArgs>
+						<!--
+						  -Xlint:all surfaces every category of javac warning. Excluded:
+						    -serial    : serialVersionUID warnings on non-Serializable classes
+						    -options   : bootclasspath / target-mismatch chatter under release=8
+						    -classfile : noise when javac reads our own .class output mid-build
+						    -processing: "No processor claimed any of these annotations" — the
+						                 animal-sniffer @IgnoreJRERequirement is consumed by the
+						                 maven-plugin (not a JSR-269 processor), so javac flags
+						                 it every build
+						  -Werror is on: the ElementType.MODULE blocker is gone now that
+						  @NullMarked lives only in module-info.java (compiled at release 9 in
+						  a separate execution); see module-info.java's javadoc.
+						-->
+						<arg>-Xlint:all,-serial,-options,-classfile,-processing</arg>
+						<arg>-Werror</arg>
+						<!--
+						  Checker Framework Nullness Checker runs as a second nullness pass
+						  alongside NullAway. CF is generics-aware and stricter than NullAway,
+						  so it acts as a second-opinion verifier on the same JSpecify
+						  annotations.
+						-->
+						<arg>-processor</arg>
+						<arg>org.checkerframework.checker.nullness.NullnessChecker</arg>
+						<arg>-XDaddTypeAnnotationsToSymbol=true</arg>
+						<arg>-XDcompilePolicy=simple</arg>
+						<arg>--should-stop=ifError=FLOW</arg>
+						<arg>-Xplugin:ErrorProne -Xep:NullAway:ERROR -XepOpt:NullAway:OnlyNullMarked=true -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:CheckOptionalEmptiness=true -XepOpt:NullAway:AcknowledgeRestrictiveAnnotations=true -XepOpt:NullAway:AcknowledgeAndroidRecent=true -XepOpt:NullAway:AssertsEnabled=true -Xep:BoxedPrimitiveEquality:ERROR -Xep:EqualsHashCode:ERROR -Xep:EqualsIncompatibleType:ERROR -Xep:IdentityBinaryExpression:ERROR -Xep:SelfAssignment:ERROR -Xep:SelfComparison:ERROR -Xep:SelfEquals:ERROR -Xep:DeadException:ERROR -Xep:FormatString:ERROR -Xep:InvalidPatternSyntax:ERROR -Xep:OptionalEquality:ERROR -Xep:ImpossibleNullComparison:ERROR</arg>
+					</compilerArgs>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>com.google.errorprone</groupId>
+							<artifactId>error_prone_core</artifactId>
+							<version>${errorprone.version}</version>
+						</path>
+						<path>
+							<groupId>com.uber.nullaway</groupId>
+							<artifactId>nullaway</artifactId>
+							<version>${nullaway.version}</version>
+						</path>
+						<path>
+							<groupId>org.checkerframework</groupId>
+							<artifactId>checker</artifactId>
+							<version>${checker.version}</version>
+						</path>
+					</annotationProcessorPaths>
 				</configuration>
 				<executions>
 					<execution>
+						<id>default-compile</id>
+						<configuration>
+							<!-- The default compile pass targets Java 8 bytecode for the library
+							     sources. module-info.java cannot be compiled at release 8 (it is a
+							     Java 9+ construct) and is handled by the separate execution below. -->
+							<excludes>
+								<exclude>module-info.java</exclude>
+							</excludes>
+						</configuration>
+					</execution>
+					<execution>
+						<id>module-info-compile</id>
+						<phase>compile</phase>
+						<goals>
+							<goal>compile</goal>
+						</goals>
+						<configuration>
+							<!-- module-info.java is the only Java 9+ source in this project; compile
+							     it at release 9 (the minimum version that understands modules) without
+							     the Error Prone / NullAway / Checker Framework processors that target
+							     ordinary source files only. Java 8 runtimes silently ignore the
+							     resulting module-info.class at the JAR root, so existing classpath
+							     consumers continue to work unchanged. LlamaLoader loads native libs
+							     via Class.getResourceAsStream on its own class object, which resolves
+							     to this module and therefore does not require any opens directives. -->
+							<release>9</release>
+							<includes>
+								<include>module-info.java</include>
+							</includes>
+							<compilerArgs combine.self="override"/>
+							<annotationProcessorPaths combine.self="override"/>
+						</configuration>
+					</execution>
+					<execution>
 						<id>default-testCompile</id>
 						<configuration>
-							<annotationProcessorPaths>
+							<!-- Drop -parameters for test compile so jcstress reflection doesn't
+							     pick up parameter names from MethodParameters. -->
+							<parameters>false</parameters>
+							<compilerArgs combine.self="override">
+								<arg>-XDaddTypeAnnotationsToSymbol=true</arg>
+								<arg>-XDcompilePolicy=simple</arg>
+								<arg>--should-stop=ifError=FLOW</arg>
+								<arg>-Xplugin:ErrorProne -Xep:NullAway:OFF -Xep:GuardedBy:OFF</arg>
+							</compilerArgs>
+							<annotationProcessorPaths combine.children="append">
 								<path>
 									<groupId>org.openjdk.jcstress</groupId>
 									<artifactId>jcstress-core</artifactId>
@@ -431,6 +605,35 @@ SPDX-License-Identifier: MIT
 					<classpathScope>test</classpathScope>
 				</configuration>
 			</plugin>
+			<plugin>
+				<!--
+				  PIT mutation testing is INTENTIONALLY scoped to a single class
+				  (Pair) so that the wiring is exercised on every CI build with a
+				  100% mutation threshold gate, without forcing every other class
+				  up to 100% mutation coverage at once. Expand targetClasses
+				  incrementally as classes reach mutation-test parity (see README
+				  TODO).
+				-->
+				<groupId>org.pitest</groupId>
+				<artifactId>pitest-maven</artifactId>
+				<dependencies>
+					<dependency>
+						<groupId>org.pitest</groupId>
+						<artifactId>pitest-junit5-plugin</artifactId>
+						<version>1.2.3</version>
+					</dependency>
+				</dependencies>
+				<configuration>
+					<targetClasses>
+						<param>net.ladenthin.llama.Pair</param>
+					</targetClasses>
+					<targetTests>
+						<param>net.ladenthin.llama.PairTest</param>
+					</targetTests>
+					<mutationThreshold>100</mutationThreshold>
+					<timeoutConstant>30000</timeoutConstant>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 
@@ -489,6 +692,11 @@ SPDX-License-Identifier: MIT
 								<goal>compile</goal>
 							</goals>
 							<configuration>
+								<!-- Same rationale as default-compile: this pass targets release 8;
+								     module-info.java is Java 9+ and is handled by module-info-compile. -->
+								<excludes>
+									<exclude>module-info.java</exclude>
+								</excludes>
 								<compilerArgs>
 									<arg>-h</arg>
 									<arg>src/main/cpp</arg>
@@ -565,6 +773,11 @@ SPDX-License-Identifier: MIT
 								<goal>compile</goal>
 							</goals>
 							<configuration>
+								<!-- Same rationale as default-compile: this pass targets release 8;
+								     module-info.java is Java 9+ and is handled by module-info-compile. -->
+								<excludes>
+									<exclude>module-info.java</exclude>
+								</excludes>
 								<compilerArgs>
 									<arg>-h</arg>
 									<arg>src/main/cpp</arg>

@@ -107,7 +107,19 @@ public enum ModelFlag {
     MMPROJ_AUTO("--mmproj-auto"),
 
     /** Offload the mmproj vision projection model to the GPU. */
-    MMPROJ_OFFLOAD("--mmproj-offload");
+    MMPROJ_OFFLOAD("--mmproj-offload"),
+
+    /**
+     * Skip any model file download — only validation is performed. Useful for air-gapped or
+     * pre-staged-model deployments where any outbound network call is a failure mode.
+     *
+     * <p>When this flag is set and the configured model file is missing or invalid (e.g. ETag
+     * mismatch), upstream throws {@code common_skip_download_exception} during arg parsing,
+     * which is caught inside {@code common_params_parse_ex} and surfaces as a {@code false}
+     * return; the Java layer translates that combined signal into a typed
+     * {@link net.ladenthin.llama.ModelUnavailableException}.</p>
+     */
+    SKIP_DOWNLOAD("--skip-download");
 
     private final String cliFlag;
 
