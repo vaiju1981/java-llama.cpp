@@ -4,8 +4,8 @@
 package net.ladenthin.llama;
 
 import org.jetbrains.kotlinx.lincheck.LinChecker;
-import org.jetbrains.lincheck.datastructures.Operation;
 import org.jetbrains.lincheck.datastructures.ModelCheckingOptions;
+import org.jetbrains.lincheck.datastructures.Operation;
 import org.junit.jupiter.api.Test;
 
 /**
