@@ -1,5 +1,6 @@
 **Build:**  
 ![Java 8+](https://img.shields.io/badge/Java-8%2B-informational)  
+![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Android-lightgrey)  
 [![JPMS](https://img.shields.io/badge/JPMS-modular%20JAR-25A162)](https://openjdk.org/projects/jigsaw/)  
 ![JUnit](https://img.shields.io/badge/tested%20with-JUnit6-25A162)  
 [![JSpecify](https://img.shields.io/badge/JSpecify-1.0.0%20%40NullMarked-25A162)](https://jspecify.dev)  
@@ -532,6 +533,16 @@ The system's updated C++ runtime will be used instead, resolving the crash.
 
 ## Similar Projects / Usage
 
+**Bindings / wrappers**
+
 - [LLaMAndroid](https://github.com/Rattlyy/LLaMAndroid/tree/main/app) — Android app demonstrating usage of llama.cpp bindings.
 - [llama-stack-client-kotlin](https://github.com/ogx-ai/llama-stack-client-kotlin) — Kotlin client for the Llama Stack API.
 - [llama.cpp-android-tutorial](https://github.com/JackZeng0208/llama.cpp-android-tutorial) — Step-by-step tutorial for running llama.cpp on Android.
+
+**Pure-Java single-model inference (no JNI / no llama.cpp)** — Alfonso² Peterssen's `*.java` family of standalone, dependency-free Java inference runtimes, one per model architecture. Useful when JNI is unavailable (e.g. some sandboxes / GraalVM native-image scenarios) or when you want a single jar with no native side at all. Different design point from this project, which prioritises GGUF compatibility and llama.cpp performance via JNI.
+
+- [llama3.java](https://github.com/mukel/llama3.java) — Llama 3 / 3.1 / 3.2 inference.
+- [gemma4.java](https://github.com/mukel/gemma4.java) — Gemma 4 (and earlier Gemma 2/3) inference.
+- [gptoss.java](https://github.com/mukel/gptoss.java) — GPT-OSS architecture inference.
+- [qwen35.java](https://github.com/mukel/qwen35.java) — Qwen 3.5 inference.
+- [nemotron3.java](https://github.com/mukel/nemotron3.java) — NVIDIA Nemotron-3 inference.
