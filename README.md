@@ -538,6 +538,7 @@ The system's updated C++ runtime will be used instead, resolving the crash.
 - [LLaMAndroid](https://github.com/Rattlyy/LLaMAndroid/tree/main/app) — Android app demonstrating usage of llama.cpp bindings.
 - [llama-stack-client-kotlin](https://github.com/ogx-ai/llama-stack-client-kotlin) — Kotlin client for the Llama Stack API.
 - [llama.cpp-android-tutorial](https://github.com/JackZeng0208/llama.cpp-android-tutorial) — Step-by-step tutorial for running llama.cpp on Android.
+- [llamacpp4j](https://github.com/sebicom/llamacpp4j) — alternative Java/JNI binding to llama.cpp (SWIG-generated facade); pre-GGUF, dormant since 2023 but historically the other Java JNI option.
 
 **Pure-Java single-model inference (no JNI / no llama.cpp)** — Alfonso² Peterssen's `*.java` family of standalone, dependency-free Java inference runtimes, one per model architecture. Useful when JNI is unavailable (e.g. some sandboxes / GraalVM native-image scenarios) or when you want a single jar with no native side at all. Different design point from this project, which prioritises GGUF compatibility and llama.cpp performance via JNI.
 
