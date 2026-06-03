@@ -1419,6 +1419,42 @@ public final class ModelParameters extends CliParameters {
     }
 
     /**
+     * Returns whether the given flag is currently set on this builder.
+     *
+     * @param flag the flag to query
+     * @return {@code true} if {@link #setFlag(ModelFlag)} was called for {@code flag} and
+     *         {@link #clearFlag(ModelFlag)} has not since removed it; {@code false} otherwise
+     */
+    public boolean hasFlag(ModelFlag flag) {
+        return parameters.containsKey(flag.getCliFlag());
+    }
+
+    /**
+     * Skip any model file download — only validation is performed (default: {@code false}).
+     *
+     * <p>When enabled, the upstream loader will NOT attempt any outbound network call to
+     * download the configured model. If the model file is missing or invalid (e.g. ETag
+     * mismatch), {@link LlamaModel#LlamaModel(ModelParameters)} throws a typed
+     * {@link ModelUnavailableException} so the caller can distinguish an air-gapped miss
+     * from a genuine misconfiguration.</p>
+     *
+     * <p>Useful for air-gapped / pre-staged-model deployments where any outbound network
+     * call is itself a failure mode.</p>
+     *
+     * @param skip {@code true} to skip downloads (set {@link ModelFlag#SKIP_DOWNLOAD}),
+     *             {@code false} to clear the flag and allow downloads
+     * @return this builder
+     */
+    public ModelParameters setSkipDownload(boolean skip) {
+        if (skip) {
+            setFlag(ModelFlag.SKIP_DOWNLOAD);
+        } else {
+            clearFlag(ModelFlag.SKIP_DOWNLOAD);
+        }
+        return this;
+    }
+
+    /**
      * Returns whether the given parameter key has not been explicitly set.
      *
      * @param key the parameter key without the {@code --} prefix

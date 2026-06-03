@@ -55,13 +55,21 @@ public class LlamaModel implements AutoCloseable {
      * </ul>
      *
      * @param parameters the set of options
-     * @throws LlamaException if no model could be loaded from the given file path
+     * @throws ModelUnavailableException if {@link ModelParameters#setSkipDownload(boolean)
+     *                                   setSkipDownload(true)} (or
+     *                                   {@link net.ladenthin.llama.args.ModelFlag#SKIP_DOWNLOAD})
+     *                                   is set and the configured model file is missing or invalid
+     * @throws LlamaException            for any other load failure
      */
     // loadModel is a native method; it does not call back into Java with this,
     // so the @UnderInitialization receiver warning is a CF false positive.
     @SuppressWarnings("method.invocation")
     public LlamaModel(ModelParameters parameters) {
-        loadModel(parameters.toArray());
+        try {
+            loadModel(parameters.toArray());
+        } catch (LlamaException e) {
+            throw SkipDownloadFailureTranslator.translate(parameters, e);
+        }
     }
 
     /**
@@ -79,10 +87,14 @@ public class LlamaModel implements AutoCloseable {
     // false positive.
     @SuppressWarnings("method.invocation")
     public LlamaModel(ModelParameters parameters, LoadProgressCallback progress) {
-        if (progress == null) {
-            loadModel(parameters.toArray());
-        } else {
-            loadModelWithProgress(parameters.toArray(), progress);
+        try {
+            if (progress == null) {
+                loadModel(parameters.toArray());
+            } else {
+                loadModelWithProgress(parameters.toArray(), progress);
+            }
+        } catch (LlamaException e) {
+            throw SkipDownloadFailureTranslator.translate(parameters, e);
         }
     }
 
