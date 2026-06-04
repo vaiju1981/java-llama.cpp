@@ -264,7 +264,11 @@ mvn test -Dtest=LlamaModelTest#testGenerateAnswer
 ```
 
 **Optional models** referenced by individual tests are gated on a system
-property so CI can skip them cleanly when the GGUF is not downloaded:
+property so CI can skip them cleanly when the GGUF is not downloaded.
+The full property → consumer → default table for every `net.ladenthin.llama.*`
+property the library understands (runtime + test) is the user-facing
+**[System Properties Reference](README.md#system-properties-reference)** in
+the README. The summary below covers only the optional-model bindings:
 
 | Property | Default test that uses it | Model |
 |----------|---------------------------|-------|
@@ -683,6 +687,10 @@ See [`../workspace/policies/jqwik-prompt-injection.md`](../workspace/policies/jq
 - **Expose `llama_vocab::get_suppress_tokens()` via `LlamaModel.getSuppressTokens()`.** Added in b9490&#x2013;b9495 alongside the new `tokenizer.ggml.suppress_tokens` GGUF key and the `LLM_KV_TOKENIZER_SUPPRESS_TOKENS` constant. When a GGUF declares this array, upstream stores it on `llama_vocab::impl::suppress_tokens` and exposes it via the new `llama_vocab::get_suppress_tokens()` accessor. The bias is **applied automatically** inside the model forward graph &mdash; the Gemma4 Unified graph (`src/models/gemma4.cpp`) reads the list and adds a `-INFINITY` logit bias to those token IDs via a new `llm_graph_input_logits_bias` input so the model cannot emit them (used to block `<image|>` / `<audio|>` placeholders). A Java mirror would be `public int[] getSuppressTokens()` on `LlamaModel`: a read-only inspector returning the suppression list for debugging or for callers running their own sampling who want to replicate the same bias. Value is low (the bias is auto-applied, Java callers cannot change it; java-llama.cpp does not expose custom logit-bias hooks at this level); cost is trivial (one JNI passthrough + a `getSuppressTokens()` Java method). Add only after a real user request &mdash; same posture as the b9444&#x2013;b9490 follow-ups (`setReasoningControl`, `setMaxOutputs`, `setMtp`) queued above.
 
 - **Cross-repo code-quality TODOs** — see [`../workspace/policies/code-quality-todos.md`](../workspace/policies/code-quality-todos.md) for the canonical `@VisibleForTesting` design-fit review, package hierarchy review, and class/method naming review. This repo has no `@VisibleForTesting` usages today; package and naming reviews remain open.
+
+- **`LlamaSystemProperties` registry cleanup (deep-scan finding).** The deep scan that produced the README [System Properties Reference](README.md#system-properties-reference) surfaced two small inconsistencies between the registry class and its actual consumers — worth a focused cleanup but low priority:
+  - `LlamaSystemProperties.getLibName()` is **declared but has zero callers** in `src/main/java`. Either wire it into `LlamaLoader`'s filename-resolution path (so `-Dnet.ladenthin.llama.lib.name=…` actually does something), or delete the getter as dead code. The README table documents the property as "currently no production caller" so users are not misled in the meantime.
+  - `OSInfo.java:390` reads `System.getProperty("net.ladenthin.llama.osinfo.architecture")` directly with the literal string, **bypassing** `LlamaSystemProperties.getOsinfoArchitecture()`. The duplication parallels the recent BAF `Radix.HEX` consolidation: the registry-side getter exists but is not the single source of truth. Route `OSInfo` through the registry getter so a future property rename only has to land in one place.
 
 - ~~**Abstract the Java and test writing guidelines to a workspace-level shared layer.**~~ **DONE.** This repo is Java 8; follow the workspace version chain at [`../workspace/guides/src/CODE_WRITING_GUIDE-8.md`](../workspace/guides/src/CODE_WRITING_GUIDE-8.md) and [`../workspace/guides/test/TEST_WRITING_GUIDE-8.md`](../workspace/guides/test/TEST_WRITING_GUIDE-8.md). Canonical TDD skill at [`../workspace/.claude/skills/java-tdd-guide/SKILL.md`](../workspace/.claude/skills/java-tdd-guide/SKILL.md). This repo has no project-specific writing-guide supplements.
 

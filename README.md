@@ -249,15 +249,21 @@ The application will search in the following order in the following locations:
 
 #### System Properties Reference
 
-All `net.ladenthin.llama.*` system properties are resolved by `LlamaSystemProperties`.
+Every `net.ladenthin.llama.*` system property recognised by the library, deep-scanned from the source. Runtime properties are resolved through `LlamaSystemProperties`; test-only properties are declared in the test sources (`TestConstants`) and consumed by individual test classes.
 
-| Property | Description |
-|---|---|
-| `net.ladenthin.llama.lib.path` | Directory containing the native `jllama` shared library. Checked first, before `java.library.path`. |
-| `net.ladenthin.llama.lib.name` | Override the native library filename (default is platform-determined, e.g. `jllama.so`). |
-| `net.ladenthin.llama.tmpdir` | Custom temporary directory used when extracting the native library from the JAR. Falls back to `java.io.tmpdir`. |
-| `net.ladenthin.llama.osinfo.architecture` | Override the OS/architecture string used to locate the bundled library inside the JAR (e.g. `Linux/x86_64`). Useful for non-standard JVM environments. |
-| `net.ladenthin.llama.test.ngl` | Number of GPU layers used during testing. Parsed by the test suite; not relevant for production use. |
+| Property | Default | Scope | Consumer | Description |
+|---|---|---|---|---|
+| `net.ladenthin.llama.lib.path` | unset (falls back to `java.library.path`) | runtime | `LlamaLoader` | Directory containing the native `jllama` shared library. Checked first, before `java.library.path`. Set with `-Dnet.ladenthin.llama.lib.path=/path/to/dir`. |
+| `net.ladenthin.llama.lib.name` | unset (platform-determined, e.g. `jllama.so`) | runtime | `LlamaSystemProperties.getLibName()` (declared, currently no production caller) | Override for the native library filename. |
+| `net.ladenthin.llama.tmpdir` | unset (falls back to `java.io.tmpdir`) | runtime | `LlamaLoader` | Custom temporary directory used when extracting the native library from the JAR. |
+| `net.ladenthin.llama.osinfo.architecture` | unset (uses `os.arch`) | runtime | `OSInfo` | Override for the architecture string used to locate the bundled library inside the JAR. Useful when `os.arch` reports an unexpected value (e.g. inside dockcross / chrooted environments). |
+| `net.ladenthin.llama.test.ngl` | `43` | test | `LlamaModelTest`, `RerankingModelTest`, `ChatScenarioTest`, `ChatAdvancedTest`, `ErrorHandlingTest`, `SessionConcurrencyTest`, `ConfigureParallelInferenceTest`, `MultimodalIntegrationTest` (via `Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL)`) | Number of GPU layers used during testing. Pin to `0` on CPU-only hosts: `mvn test -Dnet.ladenthin.llama.test.ngl=0`. |
+| `net.ladenthin.llama.nomic.path` | unset (test self-skips) | test | `LlamaEmbeddingsTest#testNomicEmbedLoads` | Path to a Nomic embedding model (`nomic-embed-text-v1.5.f16.gguf` or a compatible BERT-family encoder). Regression test for upstream issue #98 (BERT-encoder `result_output` assertion). |
+| `net.ladenthin.llama.vision.model` | unset (test self-skips) | test | `MultimodalIntegrationTest` (closes #103 / #34) | Path to a vision-capable model GGUF. Any vision-capable GGUF works; CI default is `SmolVLM-500M-Instruct-Q8_0.gguf`. |
+| `net.ladenthin.llama.vision.mmproj` | unset (test self-skips) | test | `MultimodalIntegrationTest` | Matching mmproj GGUF for the vision model. |
+| `net.ladenthin.llama.vision.image` | `src/test/resources/images/test-image.jpg` (a CC-BY-4.0 / MIT-granted photo committed to the repo) | test | `MultimodalIntegrationTest` | Visual prompt image. Any png/jpeg/webp/gif works; the extension drives MIME detection. |
+
+`MultimodalIntegrationTest` self-skips when any of the three `vision.*` properties points at a missing path, so a partial setup (just the vision model + the committed image, no mmproj) lets the test class load without erroring.
 
 ## Documentation
 
