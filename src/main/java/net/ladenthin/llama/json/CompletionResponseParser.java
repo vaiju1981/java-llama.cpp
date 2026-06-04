@@ -18,6 +18,7 @@ import net.ladenthin.llama.InferenceParameters;
 import net.ladenthin.llama.LlamaOutput;
 import net.ladenthin.llama.StopReason;
 import net.ladenthin.llama.Timings;
+import net.ladenthin.llama.TimingsLogger;
 import net.ladenthin.llama.TokenLogprob;
 import net.ladenthin.llama.Usage;
 
@@ -191,6 +192,7 @@ public class CompletionResponseParser {
                     node.path("tokens_evaluated").asLong(0L),
                     node.path("tokens_predicted").asLong(0L));
             Timings timings = Timings.fromJson(node.path("timings"));
+            TimingsLogger.log(timings);
             List<TokenLogprob> logprobs = parseLogprobs(node);
             StopReason stopReason =
                     StopReason.fromStopType(node.path("stop_type").asText(""));
