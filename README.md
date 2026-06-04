@@ -254,7 +254,6 @@ Every `net.ladenthin.llama.*` system property recognised by the library, deep-sc
 | Property | Default | Scope | Consumer | Description |
 |---|---|---|---|---|
 | `net.ladenthin.llama.lib.path` | unset (falls back to `java.library.path`) | runtime | `LlamaLoader` | Directory containing the native `jllama` shared library. Checked first, before `java.library.path`. Set with `-Dnet.ladenthin.llama.lib.path=/path/to/dir`. |
-| `net.ladenthin.llama.lib.name` | unset (platform-determined, e.g. `jllama.so`) | runtime | `LlamaSystemProperties.getLibName()` (declared, currently no production caller) | Override for the native library filename. |
 | `net.ladenthin.llama.tmpdir` | unset (falls back to `java.io.tmpdir`) | runtime | `LlamaLoader` | Custom temporary directory used when extracting the native library from the JAR. |
 | `net.ladenthin.llama.osinfo.architecture` | unset (uses `os.arch`) | runtime | `OSInfo` | Override for the architecture string used to locate the bundled library inside the JAR. Useful when `os.arch` reports an unexpected value (e.g. inside dockcross / chrooted environments). |
 | `net.ladenthin.llama.test.ngl` | `43` | test | `LlamaModelTest`, `RerankingModelTest`, `ChatScenarioTest`, `ChatAdvancedTest`, `ErrorHandlingTest`, `SessionConcurrencyTest`, `ConfigureParallelInferenceTest`, `MultimodalIntegrationTest` (via `Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL)`) | Number of GPU layers used during testing. Pin to `0` on CPU-only hosts: `mvn test -Dnet.ladenthin.llama.test.ngl=0`. |

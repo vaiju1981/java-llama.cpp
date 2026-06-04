@@ -32,15 +32,6 @@ public class LlamaSystemProperties {
     }
 
     /**
-     * Override for the native library file name.
-     *
-     * @return the configured library file name, or {@code null} if unset
-     */
-    public @Nullable String getLibName() {
-        return getProperty(".lib.name");
-    }
-
-    /**
      * Custom temporary directory used when extracting the native library from
      * the JAR. Falls back to {@code java.io.tmpdir} if absent.
      *
