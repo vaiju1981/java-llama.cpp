@@ -387,7 +387,7 @@ public class OSInfo {
      * @return the canonical architecture folder name
      */
     public static String getArchName() {
-        String override = System.getProperty("net.ladenthin.llama.osinfo.architecture");
+        String override = new LlamaSystemProperties().getOsinfoArchitecture();
         if (override != null) {
             return override;
         }
