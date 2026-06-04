@@ -64,6 +64,34 @@ public class LlamaArchitectureTest {
             .beFreeOfCycles();
 
     /**
+     * The {@code args} sub-package is a true leaf: pure enums / constants
+     * ({@code Sampler}, {@code PoolingType}, {@code ModelFlag}, …). It must not
+     * import anything from elsewhere in the project — neither the root API
+     * package nor the {@code json} parser package.
+     *
+     * <p>This pins the only stackable layer relationship in jllama. The
+     * traditional {@code layeredArchitecture()} 3-layer rule (Args → Json → Api)
+     * was attempted and rejected: {@code json} parsers/serializers genuinely
+     * depend on root-package DTOs ({@code Pair}, {@code ChatMessage},
+     * {@code ContentPart}) AND the root API genuinely depends on {@code json}
+     * parsers — they are <em>peers in the public API layer</em>, not a
+     * stackable hierarchy. Splitting the DTOs into a dedicated
+     * {@code net.ladenthin.llama.value} package would enable real layering,
+     * but breaks the published public-API FQNs ({@code net.ladenthin.llama.Pair}
+     * etc.) and is out of scope for an ArchUnit rule.
+     *
+     * <p>So the only real architectural invariant worth enforcing here is "args
+     * stays a leaf" — and that is what this rule does.
+     */
+    @ArchTest
+    static final ArchRule argsPackageIsALeaf = noClasses()
+            .that()
+            .resideInAPackage("net.ladenthin.llama.args..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAnyPackage("net.ladenthin.llama", "net.ladenthin.llama.json..");
+
+    /**
      * Production code must not import unsupported / internal JDK packages.
      * These are not part of the Java SE API and may change or disappear without notice.
      * {@code OSInfo} is vendored from xerial/sqlite-jdbc and was already audited;
