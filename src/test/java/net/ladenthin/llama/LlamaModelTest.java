@@ -329,8 +329,11 @@ public class LlamaModelTest {
      */
     @Test
     public void testSessionMultiTurn() {
-        try (Session session = new Session(model, 0, "You are a terse assistant.", params -> params.setNPredict(8)
-                .setSeed(1))) {
+        try (Session session = new Session(
+                model,
+                0,
+                "You are a terse assistant.",
+                params -> params.setNPredict(8).setSeed(1))) {
             String r1 = session.send("Say hi.");
             assertNotNull(r1);
             String r2 = session.send("Say bye.");
@@ -428,10 +431,12 @@ public class LlamaModelTest {
     @Test
     public void testChatBatch() {
         java.util.List<ChatRequest> requests = java.util.Arrays.asList(
-                new ChatRequest().addMessage("user", "Say hi.").setInferenceCustomizer(p -> p.setNPredict(4)
-                        .setSeed(1)),
-                new ChatRequest().addMessage("user", "Say bye.").setInferenceCustomizer(p -> p.setNPredict(4)
-                        .setSeed(2)));
+                new ChatRequest()
+                        .addMessage("user", "Say hi.")
+                        .setInferenceCustomizer(p -> p.setNPredict(4).setSeed(1)),
+                new ChatRequest()
+                        .addMessage("user", "Say bye.")
+                        .setInferenceCustomizer(p -> p.setNPredict(4).setSeed(2)));
         java.util.List<ChatResponse> results = model.chatBatch(requests);
         assertEquals(2, results.size());
         for (ChatResponse r : results) {

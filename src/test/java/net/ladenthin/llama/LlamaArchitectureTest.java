@@ -43,8 +43,7 @@ public class LlamaArchitectureTest {
      * Every SLF4J {@link Logger} field follows the {@code private static final} idiom.
      */
     @ArchTest
-    static final ArchRule loggersArePrivateStaticFinal = fields()
-            .that()
+    static final ArchRule loggersArePrivateStaticFinal = fields().that()
             .haveRawType(Logger.class)
             .should()
             .bePrivate()
@@ -58,10 +57,8 @@ public class LlamaArchitectureTest {
      * package starts importing from its parent or sibling.
      */
     @ArchTest
-    static final ArchRule noPackageCycles = slices()
-            .matching("net.ladenthin.llama.(*)..")
-            .should()
-            .beFreeOfCycles();
+    static final ArchRule noPackageCycles =
+            slices().matching("net.ladenthin.llama.(*)..").should().beFreeOfCycles();
 
     /**
      * The {@code args} sub-package is a true leaf: pure enums / constants
@@ -112,13 +109,8 @@ public class LlamaArchitectureTest {
      * remains allowed because the fields ARE final.
      */
     @ArchTest
-    static final ArchRule noPublicMutableFields = fields()
-            .that()
-            .arePublic()
-            .and()
-            .areNotStatic()
-            .should()
-            .beFinal();
+    static final ArchRule noPublicMutableFields =
+            fields().that().arePublic().and().areNotStatic().should().beFinal();
 
     /**
      * Production code must not call {@link System#exit(int)}; throw an exception instead.

@@ -22,22 +22,20 @@ public class TimingsLoggerTest {
     @Test
     public void format_standardGeneration_singleLineWithAllSegments() {
         Timings t = new Timings(
-                /*cacheN*/        0,
-                /*promptN*/      12,
-                /*promptMs*/    84.3,
-                /*promptPerSec*/142.4,
-                /*predictedN*/  256,
-                /*predictedMs*/5031.7,
-                /*predictedPerSec*/50.9,
-                /*draftN*/        0,
-                /*draftNAccepted*/0);
+                /*cacheN*/ 0,
+                /*promptN*/ 12,
+                /*promptMs*/ 84.3,
+                /*promptPerSec*/ 142.4,
+                /*predictedN*/ 256,
+                /*predictedMs*/ 5031.7,
+                /*predictedPerSec*/ 50.9,
+                /*draftN*/ 0,
+                /*draftNAccepted*/ 0);
 
         String line = TimingsLogger.format(t);
 
         assertEquals(
-                "prompt: 12 tok in 84.3 ms (142.4 tok/s)"
-                        + " | gen: 256 tok in 5031.7 ms (50.9 tok/s)"
-                        + " | cache: 0",
+                "prompt: 12 tok in 84.3 ms (142.4 tok/s)" + " | gen: 256 tok in 5031.7 ms (50.9 tok/s)" + " | cache: 0",
                 line);
     }
 

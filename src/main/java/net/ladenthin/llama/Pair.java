@@ -5,8 +5,8 @@
 
 package net.ladenthin.llama;
 
-import java.util.Objects;
-import org.jspecify.annotations.Nullable;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 /**
  * A generic immutable key-value pair.
@@ -14,6 +14,8 @@ import org.jspecify.annotations.Nullable;
  * @param <K> the key type
  * @param <V> the value type
  */
+@ToString
+@EqualsAndHashCode
 public class Pair<K, V> {
 
     private final K key;
@@ -46,23 +48,5 @@ public class Pair<K, V> {
      */
     public V getValue() {
         return value;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(key, value);
-    }
-
-    @Override
-    public boolean equals(@Nullable Object obj) {
-        if (this == obj) return true;
-        if (!(obj instanceof Pair)) return false;
-        Pair<?, ?> other = (Pair<?, ?>) obj;
-        return Objects.equals(key, other.key) && Objects.equals(value, other.value);
-    }
-
-    @Override
-    public String toString() {
-        return "Pair [key=" + key + ", value=" + value + "]";
     }
 }

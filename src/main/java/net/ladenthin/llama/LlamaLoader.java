@@ -16,6 +16,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
+import lombok.ToString;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -40,6 +41,7 @@ import org.jspecify.annotations.Nullable;
  * @author leo
  */
 @SuppressWarnings("UseOfSystemOutOrSystemErr")
+@ToString
 class LlamaLoader {
 
     private static boolean extracted = false;

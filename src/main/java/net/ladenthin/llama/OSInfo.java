@@ -227,7 +227,9 @@ public class OSInfo {
      * @return {@code true} if the JVM identifies itself as Android
      */
     public static boolean isAndroidRuntime() {
-        return System.getProperty("java.runtime.name", "").toLowerCase(Locale.ROOT).contains("android");
+        return System.getProperty("java.runtime.name", "")
+                .toLowerCase(Locale.ROOT)
+                .contains("android");
     }
 
     /**
@@ -237,7 +239,10 @@ public class OSInfo {
      */
     public static boolean isAndroidTermux() {
         try {
-            return processRunner.runAndWaitFor("uname -o").toLowerCase(Locale.ROOT).contains("android");
+            return processRunner
+                    .runAndWaitFor("uname -o")
+                    .toLowerCase(Locale.ROOT)
+                    .contains("android");
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return false;
@@ -257,8 +262,9 @@ public class OSInfo {
     public static boolean isMusl() {
         Path mapFilesDir = Paths.get("/proc/self/map_files");
         try (Stream<Path> dirStream = Files.list(mapFilesDir)) {
-            return dirStream.map(OSInfo::toRealPathOrEmpty).anyMatch(s -> s.toLowerCase(Locale.ROOT)
-                    .contains("musl"));
+            return dirStream
+                    .map(OSInfo::toRealPathOrEmpty)
+                    .anyMatch(s -> s.toLowerCase(Locale.ROOT).contains("musl"));
         } catch (Exception ignored) {
             // fall back to checking for alpine linux in the event we're using an older kernel which
             // may not fail the above check

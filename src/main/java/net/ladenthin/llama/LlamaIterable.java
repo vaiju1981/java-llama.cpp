@@ -5,6 +5,8 @@
 
 package net.ladenthin.llama;
 
+import lombok.ToString;
+
 /**
  * An {@link Iterable} wrapper around {@link LlamaIterator} returned by
  * {@link LlamaModel#generate(InferenceParameters)} and {@link LlamaModel#generateChat(InferenceParameters)}.
@@ -24,6 +26,7 @@ package net.ladenthin.llama;
  * <p>A plain for-each loop without try-with-resources continues to work; the {@link #close()}
  * method just will not be called on early exit in that case.
  */
+@ToString
 public final class LlamaIterable implements Iterable<LlamaOutput>, AutoCloseable {
 
     private final LlamaIterator iterator;

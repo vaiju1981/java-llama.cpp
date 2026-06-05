@@ -7,7 +7,6 @@ package net.ladenthin.llama;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-import java.util.Objects;
 import org.junit.jupiter.api.Test;
 
 public class PairTest {
@@ -109,13 +108,16 @@ public class PairTest {
     }
 
     @Test
-    public void testHashCodeMatchesObjectsHash() {
-        // Pins hashCode() to Objects.hash(key, value) exactly.
-        // Without this, PIT's PrimitiveReturnsMutator survives by replacing
-        // the return with 0 - the existing assertNotNull tests cannot detect
-        // that because hashCode()'s primitive int autoboxes to a non-null Integer.
+    public void testHashCodeIsFieldDerived() {
+        // Catches PIT's PrimitiveReturnsMutator (would replace the return with 0)
+        // and AbstractMutator (would constant-fold to a fixed value) without pinning
+        // the exact implementation. Verifies hashCode is non-zero for non-trivial
+        // values and varies when either field changes — both invariants any
+        // contract-respecting hashCode must honour.
         Pair<String, Integer> pair = new Pair<>("key", 123);
-        assertEquals(Objects.hash("key", 123), pair.hashCode());
+        assertNotEquals(0, pair.hashCode());
+        assertNotEquals(pair.hashCode(), new Pair<>("other", 123).hashCode());
+        assertNotEquals(pair.hashCode(), new Pair<>("key", 456).hashCode());
     }
 
     @Test

@@ -50,16 +50,28 @@ public final class TimingsLogger {
      */
     public static String format(Timings t) {
         StringBuilder sb = new StringBuilder()
-                .append("prompt: ").append(t.getPromptN()).append(" tok in ")
-                .append(formatMs(t.getPromptMs())).append(" ms (")
-                .append(formatRate(t.getPromptPerSecond())).append(" tok/s)")
-                .append(" | gen: ").append(t.getPredictedN()).append(" tok in ")
-                .append(formatMs(t.getPredictedMs())).append(" ms (")
-                .append(formatRate(t.getPredictedPerSecond())).append(" tok/s)")
-                .append(" | cache: ").append(t.getCacheN());
+                .append("prompt: ")
+                .append(t.getPromptN())
+                .append(" tok in ")
+                .append(formatMs(t.getPromptMs()))
+                .append(" ms (")
+                .append(formatRate(t.getPromptPerSecond()))
+                .append(" tok/s)")
+                .append(" | gen: ")
+                .append(t.getPredictedN())
+                .append(" tok in ")
+                .append(formatMs(t.getPredictedMs()))
+                .append(" ms (")
+                .append(formatRate(t.getPredictedPerSecond()))
+                .append(" tok/s)")
+                .append(" | cache: ")
+                .append(t.getCacheN());
         if (t.getDraftN() > 0) {
-            sb.append(" | draft: ").append(t.getDraftN())
-                    .append(" (").append(t.getDraftNAccepted()).append(" accepted)");
+            sb.append(" | draft: ")
+                    .append(t.getDraftN())
+                    .append(" (")
+                    .append(t.getDraftNAccepted())
+                    .append(" accepted)");
         }
         return sb.toString();
     }

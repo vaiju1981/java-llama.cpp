@@ -5,11 +5,13 @@
 
 package net.ladenthin.llama;
 
+import lombok.ToString;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Resolves library-specific system properties under the {@link #PREFIX} domain prefix.
  */
+@ToString
 public class LlamaSystemProperties {
 
     /** Creates a new {@link LlamaSystemProperties}. */

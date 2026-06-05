@@ -29,8 +29,7 @@ public class LoggingSmokeTest {
             LoggerFactory.getLogger(OSInfo.class).info("smoke");
             assertTrue(
                     captor.getInfoLogs().contains("smoke"),
-                    "SLF4J pipeline did not deliver INFO event to LogCaptor; "
-                            + "binding or Logback config is broken");
+                    "SLF4J pipeline did not deliver INFO event to LogCaptor; " + "binding or Logback config is broken");
         }
     }
 
@@ -53,8 +52,7 @@ public class LoggingSmokeTest {
             };
             assertEquals("unknown", OSInfo.getHardwareName());
             assertTrue(
-                    captor.getErrorLogs().stream()
-                            .anyMatch(m -> m.contains("Error while running uname -m")),
+                    captor.getErrorLogs().stream().anyMatch(m -> m.contains("Error while running uname -m")),
                     "expected error log 'Error while running uname -m' was not captured");
         } finally {
             OSInfo.processRunner = original;

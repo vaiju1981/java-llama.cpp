@@ -9,7 +9,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
-import org.jspecify.annotations.Nullable;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.util.Collection;
@@ -19,6 +18,7 @@ import net.ladenthin.llama.ChatMessage;
 import net.ladenthin.llama.ContentPart;
 import net.ladenthin.llama.Pair;
 import net.ladenthin.llama.args.Sampler;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Pure JSON builders for inference request parameters.
@@ -119,8 +119,8 @@ public class ParameterJsonSerializer {
             msg.put("role", message.getRole());
             if (message.hasParts()) {
                 ArrayNode parts = OBJECT_MAPPER.createArrayNode();
-                for (ContentPart p : message.getParts().orElseThrow(
-                        () -> new IllegalStateException("hasParts() was true but getParts() was empty"))) {
+                for (ContentPart p : message.getParts()
+                        .orElseThrow(() -> new IllegalStateException("hasParts() was true but getParts() was empty"))) {
                     ObjectNode part = OBJECT_MAPPER.createObjectNode();
                     if (p.getType() == ContentPart.Type.TEXT) {
                         part.put("type", "text");
