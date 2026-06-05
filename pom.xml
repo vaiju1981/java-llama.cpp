@@ -51,6 +51,7 @@ SPDX-License-Identifier: MIT
 	<properties>
 		<jna.version>5.18.1</jna.version>
 		<jspecify.version>1.0.0</jspecify.version>
+		<lombok.version>1.18.46</lombok.version>
 		<errorprone.version>2.49.0</errorprone.version>
 		<nullaway.version>0.13.4</nullaway.version>
 		<checker.version>4.2.0</checker.version>
@@ -100,6 +101,12 @@ SPDX-License-Identifier: MIT
 	</dependencyManagement>
 
 	<dependencies>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<version>${lombok.version}</version>
+			<scope>provided</scope>
+		</dependency>
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter</artifactId>
