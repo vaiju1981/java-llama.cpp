@@ -98,7 +98,7 @@ public class ModelParametersTest {
 
     @Test
     public void testSetRepeatLastNTooLow() {
-        assertThrows(RuntimeException.class, () -> new ModelParameters().setRepeatLastN(-2));
+        assertThrows(IllegalArgumentException.class, () -> new ModelParameters().setRepeatLastN(-2));
     }
 
     // -------------------------------------------------------------------------
@@ -119,7 +119,7 @@ public class ModelParametersTest {
 
     @Test
     public void testSetDryPenaltyLastNTooLow() {
-        assertThrows(RuntimeException.class, () -> new ModelParameters().setDryPenaltyLastN(-2));
+        assertThrows(IllegalArgumentException.class, () -> new ModelParameters().setDryPenaltyLastN(-2));
     }
 
     // -------------------------------------------------------------------------

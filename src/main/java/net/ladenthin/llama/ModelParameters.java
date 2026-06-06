@@ -115,7 +115,9 @@ public final class ModelParameters extends CliParameters {
      */
     public ModelParameters setPriority(int priority) {
         if (priority < 0 || priority > 3) {
-            throw new IllegalArgumentException("Invalid value for priority");
+            throw new IllegalArgumentException(
+                    "Invalid value for priority: " + priority
+                            + " (allowed: 0=normal, 1=medium, 2=high, 3=realtime)");
         }
         return putScalar("--prio", priority);
     }
@@ -170,7 +172,9 @@ public final class ModelParameters extends CliParameters {
      */
     public ModelParameters setPriorityBatch(int priorityBatch) {
         if (priorityBatch < 0 || priorityBatch > 3) {
-            throw new IllegalArgumentException("Invalid value for priority batch");
+            throw new IllegalArgumentException(
+                    "Invalid value for priority batch: " + priorityBatch
+                            + " (allowed: 0=normal, 1=medium, 2=high, 3=realtime)");
         }
         return putScalar("--prio-batch", priorityBatch);
     }
@@ -425,7 +429,9 @@ public final class ModelParameters extends CliParameters {
      */
     public ModelParameters setRepeatLastN(int repeatLastN) {
         if (repeatLastN < -1) {
-            throw new RuntimeException("Invalid repeat-last-n value");
+            throw new IllegalArgumentException(
+                    "Invalid repeat-last-n value: " + repeatLastN
+                            + " (must be >= -1; -1 = ctx_size, 0 = disabled)");
         }
         return putScalar("--repeat-last-n", repeatLastN);
     }
@@ -498,7 +504,9 @@ public final class ModelParameters extends CliParameters {
      */
     public ModelParameters setDryPenaltyLastN(int dryPenaltyLastN) {
         if (dryPenaltyLastN < -1) {
-            throw new RuntimeException("Invalid dry-penalty-last-n value");
+            throw new IllegalArgumentException(
+                    "Invalid dry-penalty-last-n value: " + dryPenaltyLastN
+                            + " (must be >= -1; -1 = context size, 0 = disabled)");
         }
         return putScalar("--dry-penalty-last-n", dryPenaltyLastN);
     }
