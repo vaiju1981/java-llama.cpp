@@ -7,6 +7,7 @@ package net.ladenthin.llama;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -167,7 +168,7 @@ public final class ChatRequest {
         for (ChatMessage m : messages) {
             ObjectNode obj = MAPPER.createObjectNode();
             obj.put("role", m.getRole());
-            obj.put("content", m.getContent() == null ? "" : m.getContent());
+            obj.put("content", m.getContent());
             final String toolCallId = m.getToolCallId();
             if (toolCallId != null) {
                 obj.put("tool_call_id", toolCallId);
@@ -180,7 +181,7 @@ public final class ChatRequest {
                     entry.put("type", "function");
                     ObjectNode fn = MAPPER.createObjectNode();
                     fn.put("name", call.getName());
-                    fn.put("arguments", call.getArgumentsJson() == null ? "" : call.getArgumentsJson());
+                    fn.put("arguments", call.getArgumentsJson());
                     entry.set("function", fn);
                     tc.add(entry);
                 }
@@ -204,10 +205,10 @@ public final class ChatRequest {
             entry.put("type", "function");
             ObjectNode fn = MAPPER.createObjectNode();
             fn.put("name", t.getName());
-            if (t.getDescription() != null) fn.put("description", t.getDescription());
+            fn.put("description", t.getDescription());
             try {
                 fn.set("parameters", MAPPER.readTree(t.getParametersSchemaJson()));
-            } catch (Exception e) {
+            } catch (IOException e) {
                 fn.put("parameters", t.getParametersSchemaJson());
             }
             entry.set("function", fn);
