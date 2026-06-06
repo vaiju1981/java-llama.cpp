@@ -51,7 +51,17 @@ These are JNI plumbing items for upstream API additions. Policy: add only after 
 
 - **Null-safety refinement.** JSpecify + NullAway are now enforced at compile time in **strict JSpecify mode** with the extra options `CheckOptionalEmptiness`, `AcknowledgeRestrictiveAnnotations`, `AcknowledgeAndroidRecent`, `AssertsEnabled` (see `pom.xml`); `@NullMarked` on the three packages via `package-info.java`; JDK module exports in `.mvn/jvm.config`. The legacy `org.jetbrains.annotations` dep has been removed; all nullability annotations are JSpecify. Public-API methods that may legitimately have no value use `Optional<T>` rather than `@Nullable T` (`ChatResponse.getFirstMessage`, `ChatMessage.getParts`, `ChatRequest.buildToolsJson`). Open follow-up: review remaining unannotated public API surfaces for places where `@Nullable` would be more precise than the implicit non-null default.
 
-- **SpotBugs `effort=Max` + `threshold=Low`** — currently default effort/threshold. Raising both surfaces more findings (and takes longer per build). Worth a one-off experiment to triage what appears before committing. Cross-cutting (tracked in `crossrepostatus.md`).
+- **SpotBugs `effort=Max` + `threshold=Low`** — currently default effort/threshold. Raising both surfaces ~65 remaining findings (was 90; the cross-repo `OPM_OVERLY_PERMISSIVE_METHOD` suppression in `07109cc` silenced 25 of them pending the package refactor — see below). Top remaining patterns: `DRE_DECLARED_RUNTIME_EXCEPTION` 20, `WEM_WEAK_EXCEPTION_MESSAGING` 14. The BAF/sb/plugin playbook applies: flip pom, run `spotbugs:check`, fix at source where reasonable + narrow `<Match>` with rationale for structural false positives. Cross-cutting (tracked in [`../workspace/crossrepostatus.md`](../workspace/crossrepostatus.md)).
+
+- **Drop the project-wide `OPM_OVERLY_PERMISSIVE_METHOD` suppression in
+  `spotbugs-exclude.xml`** once the package-architecture refactor lands
+  (see [`../workspace/crossrepostatus.md`](../workspace/crossrepostatus.md)
+  under "Affects BAF + jllama (multi-package repos)"). The single-root
+  package today makes every "method called only by same-package callers
+  → could be package-private" finding correct-but-unstable; once layers
+  split, cross-layer calls will need public. Snapshot at suppression
+  (`07109cc`): 25 sites. The same rule is suppressed in BAF
+  (`52c8c95`) for identical reasons.
 
 - **Additional ArchUnit rules to consider** — layered-architecture rules (`layeredArchitecture().consideringAllDependencies()`), per-module banned-imports lists, public-API-surface constraints (no public mutable static state, etc.). Partial progress: `7b6667d` covers the "no public field that is not final" sub-rule.
 
