@@ -99,7 +99,10 @@ public final class Session implements AutoCloseable {
     public String send(String userMessage) {
         synchronized (lock) {
             if (streamingActive) {
-                throw new IllegalStateException("stream in progress; call commitStreamedReply(...) before send(...)");
+                throw new IllegalStateException(
+                        "stream in progress on slot " + slotId
+                                + " (transcript=" + turns.size() + " turns)"
+                                + "; call commitStreamedReply(...) before send(...)");
             }
             turns.add(new Pair<String, String>("user", userMessage));
             InferenceParameters params = buildParams();
@@ -126,7 +129,10 @@ public final class Session implements AutoCloseable {
     public LlamaIterable stream(String userMessage) {
         synchronized (lock) {
             if (streamingActive) {
-                throw new IllegalStateException("stream in progress; call commitStreamedReply(...) before stream(...)");
+                throw new IllegalStateException(
+                        "stream in progress on slot " + slotId
+                                + " (transcript=" + turns.size() + " turns)"
+                                + "; call commitStreamedReply(...) before stream(...)");
             }
             turns.add(new Pair<String, String>("user", userMessage));
             try {
@@ -149,7 +155,10 @@ public final class Session implements AutoCloseable {
     public void commitStreamedReply(String assistantText) {
         synchronized (lock) {
             if (!streamingActive) {
-                throw new IllegalStateException("no stream in progress; call stream(...) first");
+                throw new IllegalStateException(
+                        "no stream in progress on slot " + slotId
+                                + " (transcript=" + turns.size() + " turns)"
+                                + "; call stream(...) first");
             }
             turns.add(new Pair<String, String>("assistant", assistantText));
             streamingActive = false;
@@ -165,7 +174,10 @@ public final class Session implements AutoCloseable {
     public String save(String filepath) {
         synchronized (lock) {
             if (streamingActive) {
-                throw new IllegalStateException("stream in progress; call commitStreamedReply(...) before save(...)");
+                throw new IllegalStateException(
+                        "stream in progress on slot " + slotId
+                                + " (transcript=" + turns.size() + " turns)"
+                                + "; call commitStreamedReply(...) before save(...)");
             }
             return model.saveSlot(slotId, filepath);
         }
@@ -181,7 +193,9 @@ public final class Session implements AutoCloseable {
         synchronized (lock) {
             if (streamingActive) {
                 throw new IllegalStateException(
-                        "stream in progress; call commitStreamedReply(...) before restore(...)");
+                        "stream in progress on slot " + slotId
+                                + " (transcript=" + turns.size() + " turns)"
+                                + "; call commitStreamedReply(...) before restore(...)");
             }
             return model.restoreSlot(slotId, filepath);
         }
