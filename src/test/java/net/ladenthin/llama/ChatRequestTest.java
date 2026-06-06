@@ -67,7 +67,7 @@ class ChatRequestTest {
         @Test
         void withInferenceCustomizerReturnsNewInstance() {
             ChatRequest original = ChatRequest.empty();
-            ChatRequest derived = original.withInferenceCustomizer(p -> p.setSeed(42));
+            ChatRequest derived = original.withInferenceCustomizer(p -> p.withSeed(42));
             assertNotSame(original, derived);
         }
 
@@ -136,8 +136,8 @@ class ChatRequestTest {
         @Test
         @DisplayName("the customiser is excluded from equality — two requests with the same content but different lambdas are equal")
         void customizerExcludedFromEquality() {
-            ChatRequest a = ChatRequest.empty().withInferenceCustomizer(p -> p.setSeed(1));
-            ChatRequest b = ChatRequest.empty().withInferenceCustomizer(p -> p.setSeed(2));
+            ChatRequest a = ChatRequest.empty().withInferenceCustomizer(p -> p.withSeed(1));
+            ChatRequest b = ChatRequest.empty().withInferenceCustomizer(p -> p.withSeed(2));
             assertEquals(a, b, "different lambda identities must NOT make the requests unequal");
         }
     }

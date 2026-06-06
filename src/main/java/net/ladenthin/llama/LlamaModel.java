@@ -113,8 +113,8 @@ public class LlamaModel implements AutoCloseable {
      * @return an LLM response
      */
     public String complete(InferenceParameters parameters) {
-        parameters.setStream(false);
-        int taskId = requestCompletion(parameters.toString());
+        InferenceParameters nonStreaming = parameters.withStream(false);
+        int taskId = requestCompletion(nonStreaming.toString());
         String json = receiveCompletionJson(taskId);
         return completionParser.parse(json).text;
     }
@@ -123,15 +123,15 @@ public class LlamaModel implements AutoCloseable {
      * Typed variant of {@link #complete(InferenceParameters)} that surfaces per-completion
      * {@link Usage}, {@link Timings}, {@link TokenLogprob} entries, and {@link StopReason}.
      * <p>
-     * Logprobs are populated only when {@link InferenceParameters#setNProbs(int)} is &gt; 0.
+     * Logprobs are populated only when {@link InferenceParameters#withNProbs(int)} is &gt; 0.
      * The raw native JSON is preserved on {@link CompletionResult#getRawJson()}.
      *
      * @param parameters the inference configuration
      * @return a populated {@link CompletionResult}
      */
     public CompletionResult completeWithStats(InferenceParameters parameters) {
-        parameters.setStream(false);
-        int taskId = requestCompletion(parameters.toString());
+        InferenceParameters nonStreaming = parameters.withStream(false);
+        int taskId = requestCompletion(nonStreaming.toString());
         String json = receiveCompletionJson(taskId);
         return completionParser.parseCompletionResult(json);
     }
@@ -282,8 +282,8 @@ public class LlamaModel implements AutoCloseable {
      */
     public String complete(InferenceParameters parameters, CancellationToken token) {
         token.reset();
-        parameters.setStream(true);
-        int taskId = requestCompletion(parameters.toString());
+        InferenceParameters streaming = parameters.withStream(true);
+        int taskId = requestCompletion(streaming.toString());
         StringBuilder sb = new StringBuilder();
         try {
             while (true) {
@@ -489,10 +489,10 @@ public class LlamaModel implements AutoCloseable {
      * List<Pair<String, String>> messages = new ArrayList<>();
      * messages.add(new Pair<>("user", "What is the capital of France?"));
      *
-     * InferenceParameters params = new InferenceParameters("")
-     *     .setMessages("You are a helpful assistant.", messages)
-     *     .setNPredict(128)
-     *     .setTemperature(0.7f);
+     * InferenceParameters params = InferenceParameters.empty()
+     *     .withMessages("You are a helpful assistant.", messages)
+     *     .withNPredict(128)
+     *     .withTemperature(0.7f);
      *
      * String response = model.chatComplete(params);
      * }</pre>
@@ -502,8 +502,8 @@ public class LlamaModel implements AutoCloseable {
      * @throws LlamaException if the model was loaded in embedding mode or if inference fails
      */
     public String chatComplete(InferenceParameters parameters) {
-        parameters.setStream(false);
-        return handleChatCompletions(parameters.toString());
+        InferenceParameters nonStreaming = parameters.withStream(false);
+        return handleChatCompletions(nonStreaming.toString());
     }
 
     /**
@@ -529,13 +529,17 @@ public class LlamaModel implements AutoCloseable {
      * @return the parsed typed response
      */
     public ChatResponse chat(ChatRequest request) {
-        InferenceParameters params = new InferenceParameters("").setMessagesJson(request.buildMessagesJson());
-        request.buildToolsJson().ifPresent(toolsJson -> {
-            params.setToolsJson(toolsJson);
-            request.getToolChoice().ifPresent(params::setToolChoice);
-            params.setUseChatTemplate(true);
-        });
-        request.applyCustomizer(params);
+        InferenceParameters params = InferenceParameters.empty()
+                .withMessagesJson(request.buildMessagesJson());
+        Optional<String> toolsJsonOpt = request.buildToolsJson();
+        if (toolsJsonOpt.isPresent()) {
+            params = params.withToolsJson(toolsJsonOpt.get()).withUseChatTemplate(true);
+            Optional<String> toolChoice = request.getToolChoice();
+            if (toolChoice.isPresent()) {
+                params = params.withToolChoice(toolChoice.get());
+            }
+        }
+        params = request.applyCustomizer(params);
         String raw = chatComplete(params);
         return chatParser.parseResponse(raw);
     }
@@ -605,9 +609,9 @@ public class LlamaModel implements AutoCloseable {
      * List<Pair<String, String>> messages = new ArrayList<>();
      * messages.add(new Pair<>("user", "Tell me a story."));
      *
-     * InferenceParameters params = new InferenceParameters("")
-     *     .setMessages("You are a storyteller.", messages)
-     *     .setNPredict(128);
+     * InferenceParameters params = InferenceParameters.empty()
+     *     .withMessages("You are a storyteller.", messages)
+     *     .withNPredict(128);
      *
      * for (LlamaOutput output : model.generateChat(params)) {
      *     System.out.print(output.text);
@@ -696,7 +700,7 @@ public class LlamaModel implements AutoCloseable {
     /**
      * Run {@link #complete(InferenceParameters)} constrained to the supplied JSON Schema
      * and deserialize the result into an instance of {@code type}. The schema is applied
-     * via {@link InferenceParameters#setJsonSchema(String)} for the duration of this call;
+     * via {@link InferenceParameters#withJsonSchema(String)} for the duration of this call;
      * the supplied {@code parameters} object is mutated.
      * <p>
      * Callers are responsible for producing a JSON Schema that matches the target type;
@@ -705,22 +709,21 @@ public class LlamaModel implements AutoCloseable {
      * the schema has already been set on {@code parameters}.
      *
      * @param type       the target POJO class for Jackson deserialization
-     * @param schema     JSON Schema string applied via {@code setJsonSchema}
-     * @param parameters inference parameters (will be mutated to include the schema)
+     * @param schema     JSON Schema string applied via {@code withJsonSchema}
+     * @param parameters inference parameters (a new derivation with the schema set is used)
      * @param <T>        target type
      * @return parsed POJO of type {@code T}
      * @throws LlamaException when the response is not valid JSON for the target type
      */
     public <T> T completeAsJson(Class<T> type, String schema, InferenceParameters parameters) {
-        parameters.setJsonSchema(schema);
-        return completeAsJson(type, parameters);
+        return completeAsJson(type, parameters.withJsonSchema(schema));
     }
 
     /**
      * Run {@link #complete(InferenceParameters)} and deserialize the result as JSON into
      * {@code type}. The {@code parameters} object should already have a JSON Schema set
-     * via {@link InferenceParameters#setJsonSchema(String)} or a grammar via
-     * {@link InferenceParameters#setGrammar(String)} — otherwise the model output is
+     * via {@link InferenceParameters#withJsonSchema(String)} or a grammar via
+     * {@link InferenceParameters#withGrammar(String)} — otherwise the model output is
      * unlikely to parse.
      *
      * @param type       the target POJO class for Jackson deserialization

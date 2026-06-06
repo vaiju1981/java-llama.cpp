@@ -12,7 +12,7 @@ import lombok.ToString;
 /**
  * Per-token log-probability entry from the native {@code completion_probabilities} array.
  * <p>
- * Populated when {@link InferenceParameters#setNProbs(int)} is &gt; 0. The native server
+ * Populated when {@link InferenceParameters#withNProbs(int)} is &gt; 0. The native server
  * emits one of two equivalent shapes depending on whether post-sampling probabilities are
  * enabled:
  * </p>

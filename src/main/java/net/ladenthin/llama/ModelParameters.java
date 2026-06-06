@@ -1306,7 +1306,7 @@ public final class ModelParameters extends CliParameters {
     /**
      * Set the default reasoning format for all requests handled by this model instance.
      * Individual requests can override this via
-     * {@link InferenceParameters#setReasoningFormat(net.ladenthin.llama.args.ReasoningFormat)}.
+     * {@link InferenceParameters#withReasoningFormat(net.ladenthin.llama.args.ReasoningFormat)}.
      *
      * @param format the reasoning format for thinking-model output
      * @return this builder
@@ -1319,7 +1319,7 @@ public final class ModelParameters extends CliParameters {
      * Set the default reasoning token budget for all requests.
      * Use {@code -1} to disable the budget (unlimited reasoning tokens).
      * Individual requests can override this via
-     * {@link InferenceParameters#setReasoningBudgetTokens(int)}.
+     * {@link InferenceParameters#withReasoningBudgetTokens(int)}.
      *
      * @param budget maximum reasoning tokens per request (-1 = unlimited)
      * @return this builder

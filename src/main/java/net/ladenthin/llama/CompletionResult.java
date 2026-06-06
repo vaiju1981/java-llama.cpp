@@ -13,7 +13,7 @@ import lombok.EqualsAndHashCode;
  * <p>
  * Bundles the generated text with parsed {@link Usage}, {@link Timings},
  * per-token {@link TokenLogprob} entries (populated only when
- * {@link InferenceParameters#setNProbs(int)} &gt; 0), and the {@link StopReason}.
+ * {@link InferenceParameters#withNProbs(int)} &gt; 0), and the {@link StopReason}.
  * The raw native JSON is exposed via {@link #getRawJson()} as an escape hatch.
  * </p>
  *

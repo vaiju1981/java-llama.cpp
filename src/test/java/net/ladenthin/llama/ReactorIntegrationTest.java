@@ -100,7 +100,7 @@ class ReactorIntegrationTest {
             // First: stream via Reactor with Flux.using for proper cleanup, take 3 tokens, cancel.
             String first = Flux.using(
                             () -> model.generate(
-                                    new InferenceParameters("Q: 1+1=").setNPredict(20).setTemperature(0.0f)),
+                                    new InferenceParameters("Q: 1+1=").withNPredict(20).withTemperature(0.0f)),
                             Flux::fromIterable,
                             LlamaIterable::close)
                     .subscribeOn(Schedulers.boundedElastic())
@@ -117,7 +117,7 @@ class ReactorIntegrationTest {
             // routing through LlamaIterable.close() -> LlamaIterator.close() ->
             // native cancelCompletion.
             String second = model.complete(
-                    new InferenceParameters("Hi").setNPredict(2).setTemperature(0.0f));
+                    new InferenceParameters("Hi").withNPredict(2).withTemperature(0.0f));
             assertNotNull(second);
         }
     }

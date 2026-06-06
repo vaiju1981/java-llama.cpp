@@ -98,8 +98,8 @@ public class ReasoningBudgetTest {
     @Test
     public void testThinkingDefault_reasoningContentAndAnswerPresent() {
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, Collections.singletonList(new Pair<>("user", "What is 2+2?")))
-                .setNPredict(N_PREDICT);
+                .withMessages(null, Collections.singletonList(new Pair<>("user", "What is 2+2?")))
+                .withNPredict(N_PREDICT);
 
         String json = model.chatComplete(params);
         String reasoningContent = parser.extractChoiceReasoningContent(json);
@@ -133,9 +133,9 @@ public class ReasoningBudgetTest {
     @Test
     public void testReasoningBudgetZero_parameterAccepted_thinkingNotSuppressed() {
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, Collections.singletonList(new Pair<>("user", "What is 2+2?")))
-                .setReasoningBudgetTokens(0)
-                .setNPredict(N_PREDICT);
+                .withMessages(null, Collections.singletonList(new Pair<>("user", "What is 2+2?")))
+                .withReasoningBudgetTokens(0)
+                .withNPredict(N_PREDICT);
 
         String json = model.chatComplete(params);
 
@@ -186,9 +186,9 @@ public class ReasoningBudgetTest {
     @Test
     public void testReasoningBudgetZero_expectedBehavior_suppressesThinking() {
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, Collections.singletonList(new Pair<>("user", "What is 2+2?")))
-                .setReasoningBudgetTokens(0)
-                .setNPredict(N_PREDICT);
+                .withMessages(null, Collections.singletonList(new Pair<>("user", "What is 2+2?")))
+                .withReasoningBudgetTokens(0)
+                .withNPredict(N_PREDICT);
 
         String json = model.chatComplete(params);
         assertNotNull(json, "Response JSON must not be null");
@@ -215,10 +215,10 @@ public class ReasoningBudgetTest {
     @Test
     public void testReasoningBudgetPositive_parameterAccepted() {
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(
+                .withMessages(
                         null, Collections.singletonList(new Pair<>("user", "Think step by step: what is 3 times 7?")))
-                .setReasoningBudgetTokens(100)
-                .setNPredict(N_PREDICT);
+                .withReasoningBudgetTokens(100)
+                .withNPredict(N_PREDICT);
 
         String json = model.chatComplete(params);
         assertNotNull(json, "Response JSON must not be null");

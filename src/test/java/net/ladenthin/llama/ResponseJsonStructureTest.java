@@ -297,9 +297,9 @@ public class ResponseJsonStructureTest {
     @Test
     public void testOaiChatCompletionHasChoices() {
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, java.util.Collections.singletonList(new Pair<>("user", "Say hello")))
-                .setNPredict(N_PREDICT)
-                .setTemperature(0);
+                .withMessages(null, java.util.Collections.singletonList(new Pair<>("user", "Say hello")))
+                .withNPredict(N_PREDICT)
+                .withTemperature(0);
         String result = model.chatComplete(params);
         assertTrue(result.contains("\"choices\""), "Chat response must contain 'choices'");
     }
@@ -307,9 +307,9 @@ public class ResponseJsonStructureTest {
     @Test
     public void testOaiChatCompletionHasUsage() {
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, java.util.Collections.singletonList(new Pair<>("user", "Say hello")))
-                .setNPredict(N_PREDICT)
-                .setTemperature(0);
+                .withMessages(null, java.util.Collections.singletonList(new Pair<>("user", "Say hello")))
+                .withNPredict(N_PREDICT)
+                .withTemperature(0);
         String result = model.chatComplete(params);
         assertTrue(result.contains("\"usage\""), "Chat response must contain 'usage'");
     }
@@ -317,9 +317,9 @@ public class ResponseJsonStructureTest {
     @Test
     public void testOaiChatCompletionHasMessageObject() {
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, java.util.Collections.singletonList(new Pair<>("user", "Say hello")))
-                .setNPredict(N_PREDICT)
-                .setTemperature(0);
+                .withMessages(null, java.util.Collections.singletonList(new Pair<>("user", "Say hello")))
+                .withNPredict(N_PREDICT)
+                .withTemperature(0);
         String result = model.chatComplete(params);
         assertTrue(result.contains("\"message\""), "Chat response must contain 'message'");
     }
@@ -327,9 +327,9 @@ public class ResponseJsonStructureTest {
     @Test
     public void testOaiChatCompletionObjectType() {
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, java.util.Collections.singletonList(new Pair<>("user", "Say hello")))
-                .setNPredict(N_PREDICT)
-                .setTemperature(0);
+                .withMessages(null, java.util.Collections.singletonList(new Pair<>("user", "Say hello")))
+                .withNPredict(N_PREDICT)
+                .withTemperature(0);
         String result = model.chatComplete(params);
         assertTrue(
                 result.contains("\"object\":\"chat.completion\""), "Chat response 'object' must be 'chat.completion'");
@@ -338,9 +338,9 @@ public class ResponseJsonStructureTest {
     @Test
     public void testOaiChatCompletionMessageHasRole() {
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, java.util.Collections.singletonList(new Pair<>("user", "Say hello")))
-                .setNPredict(N_PREDICT)
-                .setTemperature(0);
+                .withMessages(null, java.util.Collections.singletonList(new Pair<>("user", "Say hello")))
+                .withNPredict(N_PREDICT)
+                .withTemperature(0);
         String result = model.chatComplete(params);
         assertTrue(result.contains("\"role\":\"assistant\""), "Message must contain 'role':'assistant'");
     }

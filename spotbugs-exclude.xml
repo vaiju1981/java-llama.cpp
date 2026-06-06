@@ -89,6 +89,20 @@ SPDX-License-Identifier: MIT
     </Match>
 
     <!--
+        Same design-intent rationale as the ModelParameters OCP block above:
+        InferenceParameters.withReasoningFormat(ReasoningFormat) intentionally
+        types its parameter to the specific ReasoningFormat enum rather than
+        the shared CliArg interface. The narrow type is the API contract;
+        widening it would silently accept any CliArg-implementing enum and
+        emit a nonsense JSON value the native code would reject.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.InferenceParameters"/>
+        <Bug pattern="OCP_OVERLY_CONCRETE_PARAMETER"/>
+        <Method name="withReasoningFormat"/>
+    </Match>
+
+    <!--
         InferenceParameters and ModelParameters are fluent builders whose
         parameters field is a Map<String, String> serving as the CLI / JSON
         wire-format passed across JNI to nlohmann/json. Every setter

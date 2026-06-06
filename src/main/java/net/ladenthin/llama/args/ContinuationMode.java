@@ -11,7 +11,7 @@ package net.ladenthin.llama.args;
  * <p>Maps to the string-valued branch of llama.cpp's
  * {@code common_chat_continuation_parse}. The boolean form
  * ({@code true}/{@code false}) is exposed separately via
- * {@code InferenceParameters.setContinueFinalMessage(boolean)}.
+ * {@code InferenceParameters.withContinueFinalMessage(boolean)}.
  */
 public enum ContinuationMode {
 

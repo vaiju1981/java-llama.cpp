@@ -116,9 +116,9 @@ public class MultimodalIntegrationTest {
                 ContentPart.imageFile(Paths.get(imagePath)));
 
         String reply = model.chatCompleteText(new InferenceParameters("")
-                .setMessages(Collections.singletonList(userMsg))
-                .setNPredict(48)
-                .setTemperature(0.0f));
+                .withMessages(Collections.singletonList(userMsg))
+                .withNPredict(48)
+                .withTemperature(0.0f));
 
         assertNotNull(reply, "chatCompleteText must return a string, not null");
         assertFalse(reply.trim().isEmpty(), "reply must be non-empty for a multimodal prompt; got: \"" + reply + "\"");
@@ -136,16 +136,16 @@ public class MultimodalIntegrationTest {
         ChatMessage img = ChatMessage.userMultimodal(
                 ContentPart.text("What is this?"), ContentPart.imageFile(Paths.get(imagePath)));
         String firstReply = model.chatCompleteText(new InferenceParameters("")
-                .setMessages(Collections.singletonList(img))
-                .setNPredict(24)
-                .setTemperature(0.0f));
+                .withMessages(Collections.singletonList(img))
+                .withNPredict(24)
+                .withTemperature(0.0f));
         assertNotNull(firstReply);
 
         ChatMessage textOnly = new ChatMessage("user", "Reply with the single word: ok");
         String secondReply = model.chatCompleteText(new InferenceParameters("")
-                .setMessages(Collections.singletonList(textOnly))
-                .setNPredict(8)
-                .setTemperature(0.0f));
+                .withMessages(Collections.singletonList(textOnly))
+                .withNPredict(8)
+                .withTemperature(0.0f));
         assertNotNull(secondReply);
         assertTrue(
                 secondReply.trim().length() > 0,

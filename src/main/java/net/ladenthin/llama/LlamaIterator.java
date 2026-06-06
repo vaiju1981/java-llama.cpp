@@ -44,10 +44,13 @@ public final class LlamaIterator implements Iterator<LlamaOutput>, AutoCloseable
 
     LlamaIterator(LlamaModel model, InferenceParameters parameters, boolean chat) {
         this.model = model;
-        parameters.setStream(true);
+        // Pin the stream flag on a local derivation so the caller's parameters object
+        // is not mutated — InferenceParameters is immutable and withStream returns a
+        // new instance with the flag set.
+        InferenceParameters streamingParams = parameters.withStream(true);
         taskId = chat
-                ? model.requestChatCompletion(parameters.toString())
-                : model.requestCompletion(parameters.toString());
+                ? model.requestChatCompletion(streamingParams.toString())
+                : model.requestCompletion(streamingParams.toString());
     }
 
     @Override

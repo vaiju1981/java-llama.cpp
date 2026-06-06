@@ -89,7 +89,7 @@ public class SessionConcurrencyTest {
         final int threads = 2;
         final int callsPerThread = 2;
         try (Session session =
-                new Session(model, 0, null, p -> p.setNPredict(N_PREDICT).setTemperature(0.0f))) {
+                new Session(model, 0, null, p -> p.withNPredict(N_PREDICT).withTemperature(0.0f))) {
 
             ExecutorService pool = Executors.newFixedThreadPool(threads);
             CountDownLatch start = new CountDownLatch(1);
@@ -141,7 +141,7 @@ public class SessionConcurrencyTest {
     @Test
     public void testStreamGuardBlocksOtherOperationsUntilCommit() throws Exception {
         try (Session session =
-                new Session(model, 1, null, p -> p.setNPredict(N_PREDICT).setTemperature(0.0f))) {
+                new Session(model, 1, null, p -> p.withNPredict(N_PREDICT).withTemperature(0.0f))) {
 
             try (LlamaIterable stream = session.stream("hi")) {
                 int before = session.getMessages().size();
@@ -220,7 +220,7 @@ public class SessionConcurrencyTest {
     @Test
     public void testSequentialSendsAlternateRoles() {
         try (Session session =
-                new Session(model, 3, null, p -> p.setNPredict(N_PREDICT).setTemperature(0.0f))) {
+                new Session(model, 3, null, p -> p.withNPredict(N_PREDICT).withTemperature(0.0f))) {
             session.send("a");
             session.send("b");
             List<ChatMessage> messages = session.getMessages();

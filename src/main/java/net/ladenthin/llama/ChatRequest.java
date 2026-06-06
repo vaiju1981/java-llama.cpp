@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
 import lombok.EqualsAndHashCode;
 import lombok.ToString;
 import org.jspecify.annotations.Nullable;
@@ -25,8 +25,12 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>The request carries the conversation messages, optional tool definitions,
  * an optional {@code tool_choice} hint, and an {@link InferenceParameters}
- * customiser applied to the underlying request just before invocation. The
- * type is consumed by {@link LlamaModel#chat(ChatRequest)} and
+ * customiser applied to the underlying request just before invocation. Because
+ * {@link InferenceParameters} is itself immutable, the customiser is a
+ * {@link UnaryOperator} that takes a parameter set and returns the transformed
+ * one — callers chain {@code withX(...)} calls on the input and return the
+ * resulting instance. The type is consumed by
+ * {@link LlamaModel#chat(ChatRequest)} and
  * {@link LlamaModel#chatWithTools(ChatRequest, java.util.Map)}.
  *
  * <p>All instances are <b>immutable</b>: every field is {@code final} and the
@@ -47,7 +51,7 @@ import org.jspecify.annotations.Nullable;
  *         .appendMessage("system", "be terse")
  *         .appendMessage("user", "two plus two?")
  *         .withMaxToolRounds(2)
- *         .withInferenceCustomizer(p -> p.setNPredict(8).setSeed(1));
+ *         .withInferenceCustomizer(p -> p.withNPredict(8).withSeed(1));
  * }</pre>
  *
  * <p>Each call allocates a new {@code ChatRequest}. The cost is intentional:
@@ -58,7 +62,7 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>{@code @EqualsAndHashCode} compares messages, tools, {@code toolChoice},
  * and {@code maxToolRounds} by value. The {@code paramsCustomizer}
- * {@link Consumer} is <b>excluded</b> from equality: lambdas have
+ * {@link UnaryOperator} is <b>excluded</b> from equality: lambdas have
  * compiler-synthesised identity equality which is not value-shaped, so
  * including it would mean two structurally-identical requests with the same
  * customiser source code rarely compare equal — surprising for the typical
@@ -93,7 +97,7 @@ public final class ChatRequest {
     // equality is compiler-synthesised class identity, not value-shaped.
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
-    private final @Nullable Consumer<InferenceParameters> paramsCustomizer;
+    private final @Nullable UnaryOperator<InferenceParameters> paramsCustomizer;
 
     /**
      * All-args constructor. Private because callers should enter via {@link #empty()}
@@ -105,7 +109,7 @@ public final class ChatRequest {
             List<ToolDefinition> tools,
             @Nullable String toolChoice,
             int maxToolRounds,
-            @Nullable Consumer<InferenceParameters> paramsCustomizer) {
+            @Nullable UnaryOperator<InferenceParameters> paramsCustomizer) {
         this.messages = messages;
         this.tools = tools;
         this.toolChoice = toolChoice;
@@ -212,7 +216,7 @@ public final class ChatRequest {
      * @param newCustomizer the customiser; {@code null} clears any prior customiser
      * @return a new request with the customiser replaced; this request is unchanged
      */
-    public ChatRequest withInferenceCustomizer(@Nullable Consumer<InferenceParameters> newCustomizer) {
+    public ChatRequest withInferenceCustomizer(@Nullable UnaryOperator<InferenceParameters> newCustomizer) {
         return new ChatRequest(messages, tools, toolChoice, maxToolRounds, newCustomizer);
     }
 
@@ -319,14 +323,14 @@ public final class ChatRequest {
     }
 
     /**
-     * Apply the optional customiser to an {@link InferenceParameters} instance.
-     * Package-private; called by {@link LlamaModel}.
+     * Apply the optional customiser to an {@link InferenceParameters} instance and
+     * return the transformed result. Package-private; called by {@link LlamaModel}.
+     * When no customiser is set, returns {@code params} unchanged.
      *
-     * @param params the parameters to mutate
+     * @param params the parameters to transform
+     * @return the (possibly new) parameters produced by the customiser, or {@code params} when no customiser is set
      */
-    void applyCustomizer(InferenceParameters params) {
-        if (paramsCustomizer != null) {
-            paramsCustomizer.accept(params);
-        }
+    InferenceParameters applyCustomizer(InferenceParameters params) {
+        return paramsCustomizer == null ? params : paramsCustomizer.apply(params);
     }
 }

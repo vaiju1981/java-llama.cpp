@@ -25,7 +25,7 @@ import org.jspecify.annotations.Nullable;
  * Multimodal turns carry a non-null {@link #getParts()} list of {@link ContentPart}s
  * (text and image references). When parts are present they take precedence over
  * {@link #getContent()} during serialization; the upstream OAI chat path
- * (see {@link InferenceParameters#setMessages(java.util.List)}) emits an array-form
+ * (see {@link InferenceParameters#withMessages(java.util.List)}) emits an array-form
  * {@code content} field that the compiled-in {@code mtmd} pipeline understands.
  * </p>
  *

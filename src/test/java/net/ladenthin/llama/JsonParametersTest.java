@@ -5,132 +5,181 @@
 package net.ladenthin.llama;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.Map;
 import net.ladenthin.llama.args.CacheType;
 import net.ladenthin.llama.args.CliArg;
 import org.junit.jupiter.api.Test;
 
 @ClaudeGenerated(
-        purpose = "Verify the putScalar and putEnum helpers on JsonParameters: that they store the "
-                + "expected string form for every primitive type used by the ModelParameters / "
-                + "InferenceParameters setters (int, long, float, double, boolean), that they "
-                + "overwrite a previously-set key, that putEnum uses getArgValue() rather than the "
-                + "enum name, and that both helpers return the concrete builder subtype so callers "
-                + "can chain in a single statement.")
+        purpose = "Verify the withScalar / withEnum / withOptionalJson / withRaw helpers on the "
+                + "immutable JsonParameters base: that they store the expected string form for every "
+                + "primitive type used by InferenceParameters (int, long, float, double, boolean), "
+                + "that withEnum uses getArgValue() rather than the enum name, that every helper "
+                + "returns a NEW instance whose parameter map carries the entry inserted or replaced "
+                + "without touching the original, and that the inherited parameters map is an "
+                + "unmodifiable view. The CliParameters subclass tests cover the legacy put-style "
+                + "helpers used by ModelParameters (which still extends CliParameters and remains "
+                + "mutable).")
 public class JsonParametersTest {
 
     private static final class TestBuilder extends JsonParameters {
-        TestBuilder putScalarPublic(String key, Object value) {
-            return putScalar(key, value);
+        TestBuilder() {
+            super();
         }
 
-        TestBuilder putEnumPublic(String key, CliArg value) {
-            return putEnum(key, value);
+        TestBuilder(Map<String, String> parameters) {
+            super(parameters);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        protected <T extends JsonParameters> T withParameters(Map<String, String> newParameters) {
+            return (T) new TestBuilder(newParameters);
+        }
+
+        TestBuilder withScalarPublic(String key, Object value) {
+            return withScalar(key, value);
+        }
+
+        TestBuilder withEnumPublic(String key, CliArg value) {
+            return withEnum(key, value);
+        }
+
+        TestBuilder withRawPublic(String key, String value) {
+            return withRaw(key, value);
+        }
+
+        TestBuilder withOptionalJsonPublic(String key, String text) {
+            return withOptionalJson(key, text);
         }
     }
 
     @Test
-    public void putScalar_int_storesDecimalString() {
-        TestBuilder b = new TestBuilder();
-        b.putScalarPublic("--threads", 8);
+    public void withScalar_int_storesDecimalString() {
+        TestBuilder b = new TestBuilder().withScalarPublic("--threads", 8);
         assertEquals("8", b.parameters.get("--threads"));
     }
 
     @Test
-    public void putScalar_negativeInt_storesSignedDecimal() {
-        TestBuilder b = new TestBuilder();
-        b.putScalarPublic("--predict", -1);
+    public void withScalar_negativeInt_storesSignedDecimal() {
+        TestBuilder b = new TestBuilder().withScalarPublic("--predict", -1);
         assertEquals("-1", b.parameters.get("--predict"));
     }
 
     @Test
-    public void putScalar_zero_storesZero() {
-        TestBuilder b = new TestBuilder();
-        b.putScalarPublic("--keep", 0);
+    public void withScalar_zero_storesZero() {
+        TestBuilder b = new TestBuilder().withScalarPublic("--keep", 0);
         assertEquals("0", b.parameters.get("--keep"));
     }
 
     @Test
-    public void putScalar_long_storesDecimalString() {
-        TestBuilder b = new TestBuilder();
-        b.putScalarPublic("--seed", 4242424242L);
+    public void withScalar_long_storesDecimalString() {
+        TestBuilder b = new TestBuilder().withScalarPublic("--seed", 4242424242L);
         assertEquals("4242424242", b.parameters.get("--seed"));
     }
 
     @Test
-    public void putScalar_float_storesDotSeparatedDecimal() {
-        TestBuilder b = new TestBuilder();
-        b.putScalarPublic("--temp", 0.7f);
+    public void withScalar_float_storesDotSeparatedDecimal() {
+        TestBuilder b = new TestBuilder().withScalarPublic("--temp", 0.7f);
         // String.valueOf(float) is locale-independent and uses '.' as the decimal separator.
         assertEquals("0.7", b.parameters.get("--temp"));
     }
 
     @Test
-    public void putScalar_double_storesDotSeparatedDecimal() {
-        TestBuilder b = new TestBuilder();
-        b.putScalarPublic("--top-p", 0.95d);
+    public void withScalar_double_storesDotSeparatedDecimal() {
+        TestBuilder b = new TestBuilder().withScalarPublic("--top-p", 0.95d);
         assertEquals("0.95", b.parameters.get("--top-p"));
     }
 
     @Test
-    public void putScalar_booleanTrue_storesLowercaseTrue() {
-        TestBuilder b = new TestBuilder();
-        b.putScalarPublic("--cache", true);
+    public void withScalar_booleanTrue_storesLowercaseTrue() {
+        TestBuilder b = new TestBuilder().withScalarPublic("--cache", true);
         assertEquals("true", b.parameters.get("--cache"));
     }
 
     @Test
-    public void putScalar_booleanFalse_storesLowercaseFalse() {
-        TestBuilder b = new TestBuilder();
-        b.putScalarPublic("--cache", false);
+    public void withScalar_booleanFalse_storesLowercaseFalse() {
+        TestBuilder b = new TestBuilder().withScalarPublic("--cache", false);
         assertEquals("false", b.parameters.get("--cache"));
     }
 
     @Test
-    public void putScalar_overwritesPreviousValue() {
-        TestBuilder b = new TestBuilder();
-        b.putScalarPublic("--threads", 4);
-        b.putScalarPublic("--threads", 16);
+    public void withScalar_overwritesPreviousValue() {
+        TestBuilder b = new TestBuilder()
+                .withScalarPublic("--threads", 4)
+                .withScalarPublic("--threads", 16);
         assertEquals("16", b.parameters.get("--threads"));
         assertEquals(1, b.parameters.size());
     }
 
     @Test
-    public void putScalar_returnsSameBuilderInstance() {
-        TestBuilder b = new TestBuilder();
-        TestBuilder returned = b.putScalarPublic("--threads", 1);
-        assertSame(returned, b);
+    public void withScalar_returnsFreshInstance() {
+        TestBuilder original = new TestBuilder();
+        TestBuilder derived = original.withScalarPublic("--threads", 1);
+        assertNotSame(original, derived, "wither must allocate a new instance");
+        assertTrue(original.parameters.isEmpty(), "original must remain empty");
+        assertEquals("1", derived.parameters.get("--threads"));
     }
 
     @Test
-    public void putEnum_usesGetArgValueNotEnumName() {
-        TestBuilder b = new TestBuilder();
-        b.putEnumPublic("--cache-type-k", CacheType.Q8_0);
+    public void withEnum_usesGetArgValueNotEnumName() {
+        TestBuilder b = new TestBuilder().withEnumPublic("--cache-type-k", CacheType.Q8_0);
         assertEquals(CacheType.Q8_0.getArgValue(), b.parameters.get("--cache-type-k"));
         // Sanity check: the stored string is not the Java enum constant name.
         assertEquals("q8_0", b.parameters.get("--cache-type-k"));
     }
 
     @Test
-    public void putEnum_returnsSameBuilderInstance() {
-        TestBuilder b = new TestBuilder();
-        TestBuilder returned = b.putEnumPublic("--cache-type-k", CacheType.F16);
-        assertSame(returned, b);
+    public void withEnum_returnsFreshInstance() {
+        TestBuilder original = new TestBuilder();
+        TestBuilder derived = original.withEnumPublic("--cache-type-k", CacheType.F16);
+        assertNotSame(original, derived);
     }
 
     @Test
-    public void putEnum_overwritesPreviousValue() {
-        TestBuilder b = new TestBuilder();
-        b.putEnumPublic("--cache-type-k", CacheType.F16);
-        b.putEnumPublic("--cache-type-k", CacheType.Q8_0);
+    public void withEnum_overwritesPreviousValue() {
+        TestBuilder b = new TestBuilder()
+                .withEnumPublic("--cache-type-k", CacheType.F16)
+                .withEnumPublic("--cache-type-k", CacheType.Q8_0);
         assertEquals("q8_0", b.parameters.get("--cache-type-k"));
         assertEquals(1, b.parameters.size());
     }
 
-    // The CliParameters base class carries the same putScalar / putEnum helpers
-    // because ModelParameters does not extend JsonParameters. Verify both
-    // helpers work on a CliParameters subclass as well.
+    @Test
+    public void withRaw_storesValueVerbatim() {
+        TestBuilder b = new TestBuilder().withRawPublic("schema", "{\"type\":\"object\"}");
+        assertEquals("{\"type\":\"object\"}", b.parameters.get("schema"));
+    }
+
+    @Test
+    public void withOptionalJson_nullIsNoOpReturnsSameInstance() {
+        TestBuilder original = new TestBuilder();
+        TestBuilder derived = original.withOptionalJsonPublic("grammar", null);
+        assertSame(original, derived, "null input must short-circuit to this");
+    }
+
+    @Test
+    public void withOptionalJson_nonNullEncodesAndAllocates() {
+        TestBuilder original = new TestBuilder();
+        TestBuilder derived = original.withOptionalJsonPublic("grammar", "abc");
+        assertNotSame(original, derived);
+        assertEquals("\"abc\"", derived.parameters.get("grammar"), "value must be JSON-encoded");
+    }
+
+    @Test
+    public void parametersAccessorIsUnmodifiable() {
+        TestBuilder b = new TestBuilder().withScalarPublic("--threads", 1);
+        assertThrows(UnsupportedOperationException.class, () -> b.parameters.put("evil", "x"));
+    }
+
+    // The CliParameters base class still carries the legacy putScalar / putEnum helpers
+    // because ModelParameters does not extend JsonParameters. The CliParameters subclass
+    // remains mutable by design.
 
     private static final class CliTestBuilder extends CliParameters {
         CliTestBuilder putScalarPublic(String key, Object value) {

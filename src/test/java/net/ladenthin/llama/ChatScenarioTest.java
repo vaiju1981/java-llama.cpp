@@ -90,10 +90,10 @@ public class ChatScenarioTest {
         messages.add(new Pair<>("user", "Say the word OK."));
 
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f);
+                .withMessages(null, messages)
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f);
 
         String response = model.chatComplete(params);
 
@@ -117,10 +117,10 @@ public class ChatScenarioTest {
         messages.add(new Pair<>("user", "Say the word OK."));
 
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f);
+                .withMessages(null, messages)
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f);
 
         String text = model.chatCompleteText(params);
 
@@ -139,10 +139,10 @@ public class ChatScenarioTest {
         messages.add(new Pair<>("user", "What is 2 plus 2?"));
 
         InferenceParameters params = new InferenceParameters("")
-                .setMessages("You are a helpful assistant.", messages)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f);
+                .withMessages("You are a helpful assistant.", messages)
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f);
 
         String rawJson = model.chatComplete(params);
         String text = model.chatCompleteText(params);
@@ -182,11 +182,11 @@ public class ChatScenarioTest {
         messages.add(new Pair<>("user", "Write a single word."));
 
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f)
-                .setStream(true);
+                .withMessages(null, messages)
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f)
+                .withStream(true);
 
         int taskId = model.requestChatCompletion(params.toString());
 
@@ -232,10 +232,10 @@ public class ChatScenarioTest {
 
         // Blocking
         InferenceParameters blockingParams = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setNPredict(N_PREDICT)
-                .setSeed(123)
-                .setTemperature(0.0f);
+                .withMessages(null, messages)
+                .withNPredict(N_PREDICT)
+                .withSeed(123)
+                .withTemperature(0.0f);
         String blockingJson = model.chatComplete(blockingParams);
         assertNotNull(blockingJson, "Blocking chat must return non-null JSON");
         assertFalse(blockingJson.isEmpty(), "Blocking chat must return non-empty JSON");
@@ -243,10 +243,10 @@ public class ChatScenarioTest {
 
         // Streaming
         InferenceParameters streamingParams = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setNPredict(N_PREDICT)
-                .setSeed(123)
-                .setTemperature(0.0f);
+                .withMessages(null, messages)
+                .withNPredict(N_PREDICT)
+                .withSeed(123)
+                .withTemperature(0.0f);
         StringBuilder streamedContent = new StringBuilder();
         for (LlamaOutput output : model.generateChat(streamingParams)) {
             streamedContent.append(output.text);
@@ -269,20 +269,20 @@ public class ChatScenarioTest {
 
         // Unconstrained
         InferenceParameters unconstrained = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f);
+                .withMessages(null, messages)
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f);
         String unJson = model.chatComplete(unconstrained);
         String unContent = chatParser.extractChoiceContent(unJson);
 
         // Stopped at "3"
         InferenceParameters stopped = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f)
-                .setStopStrings("4");
+                .withMessages(null, messages)
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f)
+                .withStopStrings("4");
         String stJson = model.chatComplete(stopped);
         String stContent = chatParser.extractChoiceContent(stJson);
 
@@ -317,11 +317,11 @@ public class ChatScenarioTest {
         messages.add(new Pair<>("user", "Generate output."));
 
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setGrammar("root ::= (\"a\" | \"b\")+")
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f);
+                .withMessages(null, messages)
+                .withGrammar("root ::= (\"a\" | \"b\")+")
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f);
 
         String responseJson = model.chatComplete(params);
 
@@ -349,10 +349,10 @@ public class ChatScenarioTest {
 
         for (int turn = 0; turn < 3; turn++) {
             InferenceParameters params = new InferenceParameters("")
-                    .setMessages(null, messages)
-                    .setNPredict(N_PREDICT)
-                    .setSeed(42)
-                    .setTemperature(0.0f);
+                    .withMessages(null, messages)
+                    .withNPredict(N_PREDICT)
+                    .withSeed(42)
+                    .withTemperature(0.0f);
 
             String json = model.chatComplete(params);
             String content = chatParser.extractChoiceContent(json);
@@ -383,10 +383,10 @@ public class ChatScenarioTest {
         messages.add(new Pair<>("user", "Translate: café résumé naïve"));
 
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f);
+                .withMessages(null, messages)
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f);
 
         // Must not throw
         String response = model.chatComplete(params);
@@ -410,10 +410,10 @@ public class ChatScenarioTest {
         messages.add(new Pair<>("user", "He said \"hello\", path: C:\\tmp\nNew line."));
 
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f);
+                .withMessages(null, messages)
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f);
 
         // Must not throw a JSON parse error in the native layer
         String response = model.chatComplete(params);
@@ -440,10 +440,10 @@ public class ChatScenarioTest {
             messages.add(new Pair<>("user", prompts[i]));
 
             InferenceParameters params = new InferenceParameters("")
-                    .setMessages(null, messages)
-                    .setNPredict(N_PREDICT)
-                    .setSeed(42)
-                    .setTemperature(0.0f);
+                    .withMessages(null, messages)
+                    .withNPredict(N_PREDICT)
+                    .withSeed(42)
+                    .withTemperature(0.0f);
 
             responses[i] = model.chatComplete(params);
             assertNotNull(responses[i], "Call " + i + " must not return null");
@@ -582,7 +582,7 @@ public class ChatScenarioTest {
     @Test
     public void testSaveAndRestoreSlot() throws IOException {
         // Prime the slot with a short generation so there is state to save
-        model.complete(new InferenceParameters("Hello").setNPredict(5).setSeed(42));
+        model.complete(new InferenceParameters("Hello").withNPredict(5).withSeed(42));
 
         File tempFile = File.createTempFile("llama_slot_", ".bin");
         tempFile.deleteOnExit();
@@ -620,10 +620,10 @@ public class ChatScenarioTest {
         messages.add(new Pair<>("user", "Say X."));
 
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setNPredict(1)
-                .setSeed(42)
-                .setTemperature(0.0f);
+                .withMessages(null, messages)
+                .withNPredict(1)
+                .withSeed(42)
+                .withTemperature(0.0f);
 
         String response = model.chatComplete(params);
         assertNotNull(response);
@@ -648,10 +648,10 @@ public class ChatScenarioTest {
         messages.add(new Pair<>("user", "Write one word."));
 
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f);
+                .withMessages(null, messages)
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f);
 
         List<LlamaOutput> outputs = new ArrayList<>();
         for (LlamaOutput output : model.generateChat(params)) {
