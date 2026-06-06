@@ -7,6 +7,7 @@ package net.ladenthin.llama;
 import java.io.File;
 import java.io.PrintStream;
 import java.util.Objects;
+import lombok.ToString;
 
 /**
  * Applies the read / write (owner-only) / execute permissions required for the
@@ -18,6 +19,7 @@ import java.util.Objects;
  * the platform. Both the warning sink and the entry point are instance members
  * so the behaviour can be unit-tested without touching {@link System#err}.
  */
+@ToString
 final class NativeLibraryPermissionSetter {
 
     private final PrintStream warningSink;

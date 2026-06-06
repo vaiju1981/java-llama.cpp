@@ -5,6 +5,8 @@
 package net.ladenthin.llama;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -17,6 +19,8 @@ import org.jspecify.annotations.Nullable;
  * runs additionally include {@code draft_n} and {@code draft_n_accepted}.
  * </p>
  */
+@ToString
+@EqualsAndHashCode
 public final class Timings {
 
     private final int cacheN;
@@ -157,15 +161,5 @@ public final class Timings {
      */
     public int getDraftNAccepted() {
         return draftNAccepted;
-    }
-
-    @Override
-    public String toString() {
-        return "Timings{cacheN=" + cacheN
-                + ", promptN=" + promptN + ", promptMs=" + promptMs
-                + ", promptPerSecond=" + promptPerSecond
-                + ", predictedN=" + predictedN + ", predictedMs=" + predictedMs
-                + ", predictedPerSecond=" + predictedPerSecond
-                + ", draftN=" + draftN + ", draftNAccepted=" + draftNAccepted + "}";
     }
 }

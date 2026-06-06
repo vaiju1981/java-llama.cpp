@@ -60,10 +60,10 @@ public class InferenceParametersBenchmark {
     @Benchmark
     public void serializeWithSamplingParams(Blackhole bh) {
         bh.consume(new InferenceParameters("")
-                .setTemperature(0.7f)
-                .setTopP(0.9f)
-                .setNPredict(512)
-                .setStopStrings("</s>", "<|im_end|>")
+                .withTemperature(0.7f)
+                .withTopP(0.9f)
+                .withNPredict(512)
+                .withStopStrings("</s>", "<|im_end|>")
                 .toString());
     }
 }

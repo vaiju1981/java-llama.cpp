@@ -5,11 +5,13 @@
 
 package net.ladenthin.llama;
 
+import lombok.ToString;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Resolves library-specific system properties under the {@link #PREFIX} domain prefix.
  */
+@ToString
 public class LlamaSystemProperties {
 
     /** Creates a new {@link LlamaSystemProperties}. */
@@ -29,15 +31,6 @@ public class LlamaSystemProperties {
      */
     public @Nullable String getLibPath() {
         return getProperty(".lib.path");
-    }
-
-    /**
-     * Override for the native library file name.
-     *
-     * @return the configured library file name, or {@code null} if unset
-     */
-    public @Nullable String getLibName() {
-        return getProperty(".lib.name");
     }
 
     /**

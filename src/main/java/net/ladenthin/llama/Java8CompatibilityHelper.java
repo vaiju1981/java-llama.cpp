@@ -13,6 +13,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import lombok.ToString;
 
 /**
  * Wrapper methods for Java 9+ APIs to provide Java 1.8 compatibility.
@@ -24,7 +25,14 @@ import java.util.stream.Stream;
  * {@code private final Java8CompatibilityHelper compatibilityHelper = new Java8CompatibilityHelper();}
  * and routes Java 9+ idioms through it. The build's {@code --release 8} compiler arg
  * (see {@code pom.xml}) prevents accidental direct use of post-8 APIs in production code.
+ *
+ * <p>The stateless instance has no fields, so the Lombok-generated {@code toString}
+ * renders as "{@code Java8CompatibilityHelper()}" — informative enough to satisfy the
+ * fb-contrib IMC_IMMATURE_CLASS_NO_TOSTRING contract. Note this class also exposes a
+ * {@code toString(ByteArrayOutputStream, Charset)} <em>method</em> for stream decoding;
+ * that is unrelated to the generated {@link Object#toString()} override.
  */
+@ToString
 public class Java8CompatibilityHelper {
 
     /** Creates a new {@link Java8CompatibilityHelper}. */
@@ -81,7 +89,8 @@ public class Java8CompatibilityHelper {
      * @param charset the charset to encode the content with; defaults to UTF-8 if {@code null}
      * @throws IOException if an I/O error occurs writing to the file
      */
-    public void writeString(final Path path, final String content, final @org.jspecify.annotations.Nullable Charset charset)
+    public void writeString(
+            final Path path, final String content, final @org.jspecify.annotations.Nullable Charset charset)
             throws IOException {
         final Charset targetCharset = charset != null ? charset : StandardCharsets.UTF_8;
         Files.write(path, content.getBytes(targetCharset));

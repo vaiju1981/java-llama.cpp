@@ -39,10 +39,10 @@ public class MainExample {
                 System.out.print("Llama: ");
                 prompt += "\nLlama: ";
                 InferenceParameters inferParams = new InferenceParameters(prompt)
-                        .setTemperature(0.7f)
-                        .setPenalizeNl(true)
-                        .setMiroStat(MiroStat.V2)
-                        .setStopStrings("User:");
+                        .withTemperature(0.7f)
+                        .withPenalizeNl(true)
+                        .withMiroStat(MiroStat.V2)
+                        .withStopStrings("User:");
                 for (LlamaOutput output : model.generate(inferParams)) {
                     System.out.print(output);
                     prompt += output;

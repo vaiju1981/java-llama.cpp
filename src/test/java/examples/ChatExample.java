@@ -34,8 +34,8 @@ public class ChatExample {
                 messages.add(new Pair<>("user", input));
                 StringBuilder response = new StringBuilder();
                 InferenceParameters inferParams = new InferenceParameters("")
-                        .setMessages(system, messages)
-                        .setUseChatTemplate(true);
+                        .withMessages(system, messages)
+                        .withUseChatTemplate(true);
                 System.out.print("Assistant: ");
                 for (LlamaOutput output : model.generate(inferParams)) {
                     System.out.print(output);

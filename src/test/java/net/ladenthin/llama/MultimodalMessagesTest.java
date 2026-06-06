@@ -143,9 +143,9 @@ public class MultimodalMessagesTest {
 
     @Test
     public void inferenceParametersAcceptsMultimodalMessages() {
-        InferenceParameters params = new InferenceParameters("");
-        params.setMessages(Collections.singletonList(
-                ChatMessage.userMultimodal(ContentPart.text("hi"), ContentPart.imageUrl("data:image/png;base64,QQ"))));
+        InferenceParameters params = new InferenceParameters("")
+                .withMessages(Collections.singletonList(
+                        ChatMessage.userMultimodal(ContentPart.text("hi"), ContentPart.imageUrl("data:image/png;base64,QQ"))));
         // setMessages encodes into the parameters map under "messages"; verify the
         // resulting JSON has the array form, which is what the upstream OAI chat
         // parser expects for multimodal routing.

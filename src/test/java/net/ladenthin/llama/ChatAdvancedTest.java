@@ -83,10 +83,10 @@ public class ChatAdvancedTest {
     @Test
     public void testCachePromptConsistentOutput() {
         InferenceParameters params = new InferenceParameters(SIMPLE_PROMPT)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f)
-                .setCachePrompt(true);
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f)
+                .withCachePrompt(true);
 
         String first = model.complete(params);
         String second = model.complete(params);
@@ -108,10 +108,10 @@ public class ChatAdvancedTest {
     public void testUnboundedGenerationTerminatesAtStopString() {
         // Use a stop string that the model will produce quickly
         InferenceParameters params = new InferenceParameters("A B C D E F G")
-                .setNPredict(-1)
-                .setSeed(42)
-                .setTemperature(0.0f)
-                .setStopStrings("E");
+                .withNPredict(-1)
+                .withSeed(42)
+                .withTemperature(0.0f)
+                .withStopStrings("E");
 
         String output = model.complete(params);
 
@@ -132,11 +132,11 @@ public class ChatAdvancedTest {
     @Test
     public void testSetNProbsStreamingJsonHasProbabilities() {
         InferenceParameters params = new InferenceParameters(SIMPLE_PROMPT)
-                .setNPredict(5)
-                .setSeed(42)
-                .setTemperature(0.0f)
-                .setNProbs(3)
-                .setStream(true);
+                .withNPredict(5)
+                .withSeed(42)
+                .withTemperature(0.0f)
+                .withNProbs(3)
+                .withStream(true);
 
         int taskId = model.requestCompletion(params.toString());
 
@@ -196,7 +196,7 @@ public class ChatAdvancedTest {
         String customTemplate = "{% for m in messages %}" + "{{ m.role | upper }}: {{ m.content }}" + "{% endfor %}";
 
         InferenceParameters params =
-                new InferenceParameters("").setMessages(null, messages).setChatTemplate(customTemplate);
+                new InferenceParameters("").withMessages(null, messages).withChatTemplate(customTemplate);
 
         // Must not throw; parameter is accepted and forwarded to native layer
         String result = model.applyTemplate(params);
@@ -224,11 +224,11 @@ public class ChatAdvancedTest {
         messages.add(new Pair<>("user", "Write one word."));
 
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setUseChatTemplate(true)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f);
+                .withMessages(null, messages)
+                .withUseChatTemplate(true)
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f);
 
         StringBuilder output = new StringBuilder();
         for (LlamaOutput token : model.generate(params)) {
@@ -250,13 +250,13 @@ public class ChatAdvancedTest {
     @Test
     public void testRepeatAndFrequencyAndPresencePenalty() {
         InferenceParameters params = new InferenceParameters(SIMPLE_PROMPT)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.5f)
-                .setRepeatPenalty(1.3f)
-                .setFrequencyPenalty(0.3f)
-                .setPresencePenalty(0.2f)
-                .setRepeatLastN(32);
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.5f)
+                .withRepeatPenalty(1.3f)
+                .withFrequencyPenalty(0.3f)
+                .withPresencePenalty(0.2f)
+                .withRepeatLastN(32);
 
         String output = model.complete(params);
         assertFalse(output.isEmpty(), "Penalty params must not produce empty output");
@@ -274,12 +274,12 @@ public class ChatAdvancedTest {
     @Test
     public void testCustomSamplerChain() {
         InferenceParameters params = new InferenceParameters(SIMPLE_PROMPT)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.7f)
-                .setTopK(40)
-                .setTopP(0.9f)
-                .setSamplers(Sampler.TOP_K, Sampler.TOP_P, Sampler.TEMPERATURE);
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.7f)
+                .withTopK(40)
+                .withTopP(0.9f)
+                .withSamplers(Sampler.TOP_K, Sampler.TOP_P, Sampler.TEMPERATURE);
 
         String output = model.complete(params);
         assertFalse(output.isEmpty(), "Custom sampler chain must produce non-empty output");
@@ -297,11 +297,11 @@ public class ChatAdvancedTest {
     @Test
     public void testMiroStatV2Sampling() {
         InferenceParameters params = new InferenceParameters(SIMPLE_PROMPT)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setMiroStat(MiroStat.V2)
-                .setMiroStatTau(5.0f)
-                .setMiroStatEta(0.1f);
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withMiroStat(MiroStat.V2)
+                .withMiroStatTau(5.0f)
+                .withMiroStatEta(0.1f);
 
         String output = model.complete(params);
         assertFalse(output.isEmpty(), "MiroStat V2 must produce non-empty output");
@@ -319,10 +319,10 @@ public class ChatAdvancedTest {
     @Test
     public void testRequestCompletionDirectStreaming() {
         InferenceParameters params = new InferenceParameters(SIMPLE_PROMPT)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f)
-                .setStream(true);
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f)
+                .withStream(true);
 
         int taskId = model.requestCompletion(params.toString());
 
@@ -377,10 +377,10 @@ public class ChatAdvancedTest {
         int disabledId = eosTokens[eosTokens.length - 1];
 
         InferenceParameters params = new InferenceParameters(SIMPLE_PROMPT)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f)
-                .disableTokenIds(Collections.singletonList(disabledId));
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f)
+                .withDisabledTokenIds(Collections.singletonList(disabledId));
 
         String output = model.complete(params);
         assertFalse(output.isEmpty(), "disableTokenIds must not produce empty output");
@@ -398,11 +398,11 @@ public class ChatAdvancedTest {
     @Test
     public void testPenaltyPromptStringAccepted() {
         InferenceParameters params = new InferenceParameters(SIMPLE_PROMPT)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f)
-                .setPenaltyPrompt("def ")
-                .setRepeatPenalty(1.2f);
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f)
+                .withPenaltyPrompt("def ")
+                .withRepeatPenalty(1.2f);
 
         assertFalse(model.complete(params).isEmpty(), "setPenaltyPrompt(String) must produce output");
     }
@@ -413,11 +413,11 @@ public class ChatAdvancedTest {
         Assumptions.assumeTrue(penaltyTokens.length > 0, "Need at least one penalty token");
 
         InferenceParameters params = new InferenceParameters(SIMPLE_PROMPT)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f)
-                .setPenaltyPrompt(penaltyTokens)
-                .setRepeatPenalty(1.2f);
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f)
+                .withPenaltyPrompt(penaltyTokens)
+                .withRepeatPenalty(1.2f);
 
         assertFalse(model.complete(params).isEmpty(), "setPenaltyPrompt(int[]) must produce output");
     }
@@ -434,10 +434,10 @@ public class ChatAdvancedTest {
     public void testMultipleStopStringsFirstMatchTerminates() {
         // Prompt that will produce digits quickly; stop at first of several options
         InferenceParameters params = new InferenceParameters("1 2 3 4 5 6 7 8 9")
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f)
-                .setStopStrings("4", "5", "6");
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f)
+                .withStopStrings("4", "5", "6");
 
         String output = model.complete(params);
 
@@ -460,10 +460,10 @@ public class ChatAdvancedTest {
     @Test
     public void testMinPSamplerAccepted() {
         InferenceParameters params = new InferenceParameters(SIMPLE_PROMPT)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.7f)
-                .setMinP(0.05f);
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.7f)
+                .withMinP(0.05f);
 
         assertFalse(model.complete(params).isEmpty(), "setMinP must produce output");
     }
@@ -471,10 +471,10 @@ public class ChatAdvancedTest {
     @Test
     public void testTfsZSamplerAccepted() {
         InferenceParameters params = new InferenceParameters(SIMPLE_PROMPT)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.7f)
-                .setTfsZ(0.95f);
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.7f)
+                .withTfsZ(0.95f);
 
         assertFalse(model.complete(params).isEmpty(), "setTfsZ must produce output");
     }
@@ -482,10 +482,10 @@ public class ChatAdvancedTest {
     @Test
     public void testTypicalPSamplerAccepted() {
         InferenceParameters params = new InferenceParameters(SIMPLE_PROMPT)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.7f)
-                .setTypicalP(0.9f);
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.7f)
+                .withTypicalP(0.9f);
 
         assertFalse(model.complete(params).isEmpty(), "setTypicalP must produce output");
     }
@@ -502,10 +502,10 @@ public class ChatAdvancedTest {
     @Test
     public void testNKeepAllTokensAccepted() {
         InferenceParameters params = new InferenceParameters(SIMPLE_PROMPT)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f)
-                .setNKeep(-1);
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f)
+                .withNKeep(-1);
 
         assertFalse(model.complete(params).isEmpty(), "setNKeep(-1) must produce output");
     }
@@ -523,10 +523,10 @@ public class ChatAdvancedTest {
     public void testDisableTokensStringFormAccepted() {
         // Disable a token that is very unlikely to appear in a Python snippet
         InferenceParameters params = new InferenceParameters(SIMPLE_PROMPT)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setTemperature(0.0f)
-                .disableTokens(Arrays.asList("!!!"));
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withTemperature(0.0f)
+                .withDisabledTokens(Arrays.asList("!!!"));
 
         assertFalse(model.complete(params).isEmpty(), "disableTokens must not produce empty output");
     }
@@ -542,11 +542,11 @@ public class ChatAdvancedTest {
     @Test
     public void testMiroStatV1Sampling() {
         InferenceParameters params = new InferenceParameters(SIMPLE_PROMPT)
-                .setNPredict(N_PREDICT)
-                .setSeed(42)
-                .setMiroStat(MiroStat.V1)
-                .setMiroStatTau(5.0f)
-                .setMiroStatEta(0.1f);
+                .withNPredict(N_PREDICT)
+                .withSeed(42)
+                .withMiroStat(MiroStat.V1)
+                .withMiroStatTau(5.0f)
+                .withMiroStatEta(0.1f);
 
         assertFalse(model.complete(params).isEmpty(), "MiroStat V1 must produce non-empty output");
     }

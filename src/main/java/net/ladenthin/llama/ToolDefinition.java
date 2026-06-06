@@ -4,6 +4,9 @@
 
 package net.ladenthin.llama;
 
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
+
 /**
  * Declaration of a tool/function the model is allowed to call. Mirrors the OpenAI
  * chat-completions {@code tools[i].function} object: a name, a human-readable description,
@@ -13,6 +16,8 @@ package net.ladenthin.llama;
  * server and propagates into the chat template / grammar driver.
  * </p>
  */
+@ToString
+@EqualsAndHashCode
 public final class ToolDefinition {
 
     private final String name;

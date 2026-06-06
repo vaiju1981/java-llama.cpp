@@ -158,14 +158,27 @@ papercut.
 
 ### 2.3 Async / non-blocking API — **S–M**
 
-**Status: SHIPPED.** `CompletableFuture` wrappers (`completeAsync`,
-`chatCompleteAsync`, `chatCompleteTextAsync`, plus a
+**Status: SHIPPED + REVERTED REACTIVE PUBLISHER.** `CompletableFuture` wrappers
+(`completeAsync`, `chatCompleteAsync`, `chatCompleteTextAsync`, plus a
 `completeAsync(params, CancellationToken)` bridge that propagates
-`future.cancel(true)` into the cooperative token) in commit `1e673a9`.
-The reactive `Publisher<LlamaOutput>` follow-up (backpressure via
-Reactive Streams, single-subscriber) shipped in commit `afa4f65` as
-`LlamaModel.streamPublisher(...)` and `streamChatPublisher(...)` backed
-by `LlamaPublisher`. New runtime dep: `org.reactivestreams:reactive-streams:1.0.4`.
+`future.cancel(true)` into the cooperative token) in commit `1e673a9` —
+**still shipped**.
+
+The reactive `Publisher<LlamaOutput>` follow-up was shipped in commit `afa4f65`
+as `LlamaModel.streamPublisher(...)` / `streamChatPublisher(...)` backed by
+`LlamaPublisher`. **It has since been removed** — see the README section
+"Reactive integration" for the rationale and the canonical replacement
+patterns. In short: `LlamaIterable` is already
+`Iterable<LlamaOutput> & AutoCloseable`, and every mainstream reactive
+library (Project Reactor, RxJava 3, Kotlin coroutines `Flow`, Akka Streams)
+wraps it in a few lines via its own resource-management primitive
+(`Flux.using`, `Flowable.using`, Kotlin `use {}`, etc.). Keeping a hand-rolled
+`Publisher` in the binding imposed a mandatory `org.reactivestreams` runtime
+dep on every consumer for a class that had **zero non-test callers** —
+including the canonical Android sample [LLaMAndroid](https://github.com/Rattlyy/LLaMAndroid),
+which uses `LlamaIterable` directly inside a Kotlin `flow { }` block. Pattern
+correctness is now pinned end-to-end by `ReactorIntegrationTest`
+(test-scope `reactor-core`); zero runtime deps added.
 
 **Gap.** All `LlamaModel` methods are blocking. Kotlin offers
 `suspend fun` + Flow variants. JVM users currently dedicate platform

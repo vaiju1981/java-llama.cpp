@@ -18,6 +18,7 @@ import net.ladenthin.llama.InferenceParameters;
 import net.ladenthin.llama.LlamaOutput;
 import net.ladenthin.llama.StopReason;
 import net.ladenthin.llama.Timings;
+import net.ladenthin.llama.TimingsLogger;
 import net.ladenthin.llama.TokenLogprob;
 import net.ladenthin.llama.Usage;
 
@@ -38,7 +39,7 @@ import net.ladenthin.llama.Usage;
  * }
  * }</pre>
  *
- * <p>When inference is configured with {@link InferenceParameters#setNProbs(int)} &gt; 0,
+ * <p>When inference is configured with {@link InferenceParameters#withNProbs(int)} &gt; 0,
  * each chunk additionally carries a {@code completion_probabilities} array:
  * <pre>{@code
  * {
@@ -119,7 +120,7 @@ public class CompletionResponseParser {
      * and do not interfere with field lookup.
      *
      * <p>Returns an empty map when the field is absent or the array is empty.
-     * Requires {@code InferenceParameters#setNProbs(int)} to be configured before inference.
+     * Requires {@code InferenceParameters#withNProbs(int)} to be configured before inference.
      *
      * @param root the top-level completion response node
      * @return map from token string to probability; empty when no probability data is present
@@ -152,7 +153,7 @@ public class CompletionResponseParser {
      * ({@code top_probs} for post-sampling mode or {@code top_logprobs} for pre-sampling).
      *
      * <p>Returns an empty list when the field is absent or empty. Requires
-     * {@link InferenceParameters#setNProbs(int)} to be configured.
+     * {@link InferenceParameters#withNProbs(int)} to be configured.
      *
      * @param root the top-level completion response node
      * @return list of {@link TokenLogprob}; empty when no probability data is present
@@ -191,6 +192,7 @@ public class CompletionResponseParser {
                     node.path("tokens_evaluated").asLong(0L),
                     node.path("tokens_predicted").asLong(0L));
             Timings timings = Timings.fromJson(node.path("timings"));
+            TimingsLogger.log(timings);
             List<TokenLogprob> logprobs = parseLogprobs(node);
             StopReason stopReason =
                     StopReason.fromStopType(node.path("stop_type").asText(""));

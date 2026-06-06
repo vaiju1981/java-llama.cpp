@@ -10,6 +10,8 @@ import java.nio.file.Path;
 import java.util.Base64;
 import java.util.Locale;
 import java.util.Objects;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -32,6 +34,8 @@ import org.jspecify.annotations.Nullable;
  * factories &#x2014; the constructor is private.
  * </p>
  */
+@ToString
+@EqualsAndHashCode
 public final class ContentPart {
 
     /** Discriminator for the two part kinds the OAI multipart schema supports. */
@@ -88,7 +92,8 @@ public final class ContentPart {
         Objects.requireNonNull(bytes, "bytes");
         Objects.requireNonNull(mimeType, "mimeType");
         if (mimeType.isEmpty()) {
-            throw new IllegalArgumentException("mimeType must not be empty");
+            throw new IllegalArgumentException(
+                    "mimeType must not be empty (bytes.length=" + bytes.length + ")");
         }
         String encoded = Base64.getEncoder().encodeToString(bytes);
         return new ContentPart(Type.IMAGE_URL, null, "data:" + mimeType + ";base64," + encoded);

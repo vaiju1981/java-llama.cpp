@@ -15,6 +15,7 @@ import net.ladenthin.llama.ChatChoice;
 import net.ladenthin.llama.ChatMessage;
 import net.ladenthin.llama.ChatResponse;
 import net.ladenthin.llama.Timings;
+import net.ladenthin.llama.TimingsLogger;
 import net.ladenthin.llama.ToolCall;
 import net.ladenthin.llama.Usage;
 
@@ -154,6 +155,7 @@ public class ChatResponseParser {
                     node.path("usage").path("prompt_tokens").asLong(0L),
                     node.path("usage").path("completion_tokens").asLong(0L));
             Timings timings = Timings.fromJson(node.path("timings"));
+            TimingsLogger.log(timings);
             return new ChatResponse(id, choices, usage, timings, json);
         } catch (IOException e) {
             return new ChatResponse(

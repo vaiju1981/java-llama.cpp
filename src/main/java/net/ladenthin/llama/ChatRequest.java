@@ -7,140 +7,262 @@ package net.ladenthin.llama;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
+import java.util.function.UnaryOperator;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Builder for a typed chat completion call.
- * <p>
- * Bundles the conversation messages, optional tool definitions, an optional
- * {@code tool_choice} hint, and an {@link InferenceParameters} customizer that gets
- * applied to the underlying request just before invocation. Built with the fluent
- * setters; consumed by {@link LlamaModel#chat(ChatRequest)} and
+ * Immutable typed chat-completion request, populated through a functional
+ * "wither / appender" API.
+ *
+ * <h2>Design</h2>
+ *
+ * <p>The request carries the conversation messages, optional tool definitions,
+ * an optional {@code tool_choice} hint, and an {@link InferenceParameters}
+ * customiser applied to the underlying request just before invocation. Because
+ * {@link InferenceParameters} is itself immutable, the customiser is a
+ * {@link UnaryOperator} that takes a parameter set and returns the transformed
+ * one — callers chain {@code withX(...)} calls on the input and return the
+ * resulting instance. The type is consumed by
+ * {@link LlamaModel#chat(ChatRequest)} and
  * {@link LlamaModel#chatWithTools(ChatRequest, java.util.Map)}.
- * </p>
+ *
+ * <p>All instances are <b>immutable</b>: every field is {@code final} and the
+ * stored lists are wrapped with {@link Collections#unmodifiableList(List)}.
+ * Modification methods return a <b>new</b> {@code ChatRequest} instance with
+ * the requested change applied; the original is untouched. This makes
+ * {@code ChatRequest} safe to share across threads and gives it a meaningful
+ * value-equality semantics (two requests with the same content compare
+ * equal regardless of identity).
+ *
+ * <h2>Construction patterns</h2>
+ *
+ * <p>Use {@link #empty()} as the entry point, then chain {@code append*}
+ * (for list fields) and {@code with*} (for scalar fields):
+ *
+ * <pre>{@code
+ * ChatRequest req = ChatRequest.empty()
+ *         .appendMessage("system", "be terse")
+ *         .appendMessage("user", "two plus two?")
+ *         .withMaxToolRounds(2)
+ *         .withInferenceCustomizer(p -> p.withNPredict(8).withSeed(1));
+ * }</pre>
+ *
+ * <p>Each call allocates a new {@code ChatRequest}. The cost is intentional:
+ * the API is functional, so a caller can hold an intermediate request and
+ * derive variants without worrying about hidden state changes.
+ *
+ * <h2>Equality</h2>
+ *
+ * <p>{@code @EqualsAndHashCode} compares messages, tools, {@code toolChoice},
+ * and {@code maxToolRounds} by value. The {@code paramsCustomizer}
+ * {@link UnaryOperator} is <b>excluded</b> from equality: lambdas have
+ * compiler-synthesised identity equality which is not value-shaped, so
+ * including it would mean two structurally-identical requests with the same
+ * customiser source code rarely compare equal — surprising for the typical
+ * snapshot-testing and caching use cases. The customiser is also excluded
+ * from {@link ToString} for the same reason (the rendered hash is noise).
  */
+@ToString
+@EqualsAndHashCode
 public final class ChatRequest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private final List<ChatMessage> messages = new ArrayList<ChatMessage>();
-    private final List<ToolDefinition> tools = new ArrayList<ToolDefinition>();
-    private @Nullable String toolChoice;
-    private int maxToolRounds = 8;
-    private @Nullable Consumer<InferenceParameters> paramsCustomizer;
+    /**
+     * Default {@code maxToolRounds} when the caller does not override it via
+     * {@link #withMaxToolRounds(int)}. Mirrors the prior mutable builder's default.
+     */
+    public static final int DEFAULT_MAX_TOOL_ROUNDS = 8;
 
-    /** Construct an empty request; populate via the setters. */
-    public ChatRequest() {
-        // empty
-    }
+    private static final ChatRequest EMPTY = new ChatRequest(
+            Collections.<ChatMessage>emptyList(),
+            Collections.<ToolDefinition>emptyList(),
+            null,
+            DEFAULT_MAX_TOOL_ROUNDS,
+            null);
+
+    private final List<ChatMessage> messages;
+    private final List<ToolDefinition> tools;
+    private final @Nullable String toolChoice;
+    private final int maxToolRounds;
+
+    // Lambda Consumer — toString is the implementation hash, not useful in logs;
+    // equality is compiler-synthesised class identity, not value-shaped.
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private final @Nullable UnaryOperator<InferenceParameters> paramsCustomizer;
 
     /**
-     * Append a message to the conversation.
-     * @param message the message to append
-     * @return this builder
+     * All-args constructor. Private because callers should enter via {@link #empty()}
+     * and derive variants via the {@code append*} / {@code with*} methods. Each
+     * variant call routes through this same constructor with one field replaced.
      */
-    public ChatRequest addMessage(ChatMessage message) {
-        messages.add(message);
-        return this;
-    }
-
-    /**
-     * Convenience for adding a system/user/assistant turn.
-     * @param role    the role
-     * @param content the content
-     * @return this builder
-     */
-    public ChatRequest addMessage(String role, String content) {
-        messages.add(new ChatMessage(role, content));
-        return this;
-    }
-
-    /**
-     * Append a tool definition.
-     * @param tool the tool definition to expose to the model
-     * @return this builder
-     */
-    public ChatRequest addTool(ToolDefinition tool) {
-        tools.add(tool);
-        return this;
-    }
-
-    /**
-     * Set the {@code tool_choice} hint: typically {@code "auto"}, {@code "none"}, or
-     * {@code "required"}. Defaults to absent (server default applies).
-     *
-     * @param toolChoice the hint string, or {@code null} to clear
-     * @return this builder
-     */
-    public ChatRequest setToolChoice(@Nullable String toolChoice) {
+    private ChatRequest(
+            List<ChatMessage> messages,
+            List<ToolDefinition> tools,
+            @Nullable String toolChoice,
+            int maxToolRounds,
+            @Nullable UnaryOperator<InferenceParameters> paramsCustomizer) {
+        this.messages = messages;
+        this.tools = tools;
         this.toolChoice = toolChoice;
-        return this;
-    }
-
-    /**
-     * Set the maximum number of agent-loop rounds for
-     * {@link LlamaModel#chatWithTools(ChatRequest, java.util.Map)}. A round is one
-     * model call followed by zero or more tool invocations. Default {@code 8}.
-     *
-     * @param maxToolRounds the round cap (must be positive)
-     * @return this builder
-     */
-    public ChatRequest setMaxToolRounds(int maxToolRounds) {
-        if (maxToolRounds <= 0) {
-            throw new IllegalArgumentException("maxToolRounds must be > 0");
-        }
         this.maxToolRounds = maxToolRounds;
-        return this;
+        this.paramsCustomizer = paramsCustomizer;
     }
 
     /**
-     * Register a callback that customizes the {@link InferenceParameters} (e.g.
-     * {@code setNPredict}, {@code setTemperature}) right before each request is sent.
+     * Returns the empty request — no messages, no tools, {@code toolChoice}
+     * absent, {@code maxToolRounds} = {@value #DEFAULT_MAX_TOOL_ROUNDS}, no
+     * customiser. Acts as the starting point for chained derivations.
      *
-     * @param customizer the customizer; {@code null} clears any prior customizer
-     * @return this builder
+     * @return the empty request
      */
-    public ChatRequest setInferenceCustomizer(@Nullable Consumer<InferenceParameters> customizer) {
-        this.paramsCustomizer = customizer;
-        return this;
+    public static ChatRequest empty() {
+        return EMPTY;
     }
+
+    // -----------------------------------------------------------------------
+    // List appends — each returns a new request with one entry added.
+    // -----------------------------------------------------------------------
+
+    /**
+     * Returns a new request with {@code message} appended to the conversation.
+     *
+     * @param message the message to append
+     * @return a new request with the appended message; this request is unchanged
+     */
+    public ChatRequest appendMessage(ChatMessage message) {
+        List<ChatMessage> next = new ArrayList<ChatMessage>(messages.size() + 1);
+        next.addAll(messages);
+        next.add(message);
+        return new ChatRequest(
+                Collections.unmodifiableList(next),
+                tools,
+                toolChoice,
+                maxToolRounds,
+                paramsCustomizer);
+    }
+
+    /**
+     * Convenience for {@link #appendMessage(ChatMessage)} that wraps a role +
+     * content pair into a new {@link ChatMessage} and appends it.
+     *
+     * @param role    the role (e.g. {@code "system"}, {@code "user"}, {@code "assistant"})
+     * @param content the message content
+     * @return a new request with the appended message; this request is unchanged
+     */
+    public ChatRequest appendMessage(String role, String content) {
+        return appendMessage(new ChatMessage(role, content));
+    }
+
+    /**
+     * Returns a new request with {@code tool} added to the tool registry.
+     *
+     * @param tool the tool to expose to the model
+     * @return a new request with the appended tool; this request is unchanged
+     */
+    public ChatRequest appendTool(ToolDefinition tool) {
+        List<ToolDefinition> next = new ArrayList<ToolDefinition>(tools.size() + 1);
+        next.addAll(tools);
+        next.add(tool);
+        return new ChatRequest(
+                messages,
+                Collections.unmodifiableList(next),
+                toolChoice,
+                maxToolRounds,
+                paramsCustomizer);
+    }
+
+    // -----------------------------------------------------------------------
+    // Scalar withers — each returns a new request with one field replaced.
+    // -----------------------------------------------------------------------
+
+    /**
+     * Returns a new request with the {@code tool_choice} hint replaced.
+     *
+     * @param newToolChoice the hint string (typically {@code "auto"}, {@code "none"}, or
+     *     {@code "required"}), or {@code null} to clear
+     * @return a new request with the hint replaced; this request is unchanged
+     */
+    public ChatRequest withToolChoice(@Nullable String newToolChoice) {
+        return new ChatRequest(messages, tools, newToolChoice, maxToolRounds, paramsCustomizer);
+    }
+
+    /**
+     * Returns a new request with the agent-loop round cap replaced.
+     *
+     * @param newMaxToolRounds the new round cap (must be {@code > 0})
+     * @return a new request with the cap replaced; this request is unchanged
+     * @throws IllegalArgumentException if {@code newMaxToolRounds} is non-positive
+     */
+    public ChatRequest withMaxToolRounds(int newMaxToolRounds) {
+        if (newMaxToolRounds <= 0) {
+            throw new IllegalArgumentException(
+                    "maxToolRounds must be > 0 but was " + newMaxToolRounds);
+        }
+        return new ChatRequest(messages, tools, toolChoice, newMaxToolRounds, paramsCustomizer);
+    }
+
+    /**
+     * Returns a new request with the inference-parameter customiser replaced.
+     *
+     * @param newCustomizer the customiser; {@code null} clears any prior customiser
+     * @return a new request with the customiser replaced; this request is unchanged
+     */
+    public ChatRequest withInferenceCustomizer(@Nullable UnaryOperator<InferenceParameters> newCustomizer) {
+        return new ChatRequest(messages, tools, toolChoice, maxToolRounds, newCustomizer);
+    }
+
+    // -----------------------------------------------------------------------
+    // Accessors.
+    // -----------------------------------------------------------------------
 
     /**
      * Messages accessor.
-     * @return an unmodifiable view of the messages added so far
+     *
+     * @return an unmodifiable view of the messages accumulated so far
      */
     public List<ChatMessage> getMessages() {
-        return Collections.unmodifiableList(messages);
+        return messages;
     }
 
     /**
      * Tools accessor.
-     * @return an unmodifiable view of the tool definitions added so far
+     *
+     * @return an unmodifiable view of the tool definitions accumulated so far
      */
     public List<ToolDefinition> getTools() {
-        return Collections.unmodifiableList(tools);
+        return tools;
     }
 
     /**
-     * Tool choice accessor.
-     * @return the {@code tool_choice} hint, or {@code null} when unset
+     * Tool-choice hint accessor.
+     *
+     * @return the {@code tool_choice} hint, or {@link Optional#empty()} when unset
      */
-    public @Nullable String getToolChoice() {
-        return toolChoice;
+    public Optional<String> getToolChoice() {
+        return Optional.ofNullable(toolChoice);
     }
 
     /**
-     * Max rounds accessor.
+     * Agent-loop round cap accessor.
+     *
      * @return the agent-loop round cap
      */
     public int getMaxToolRounds() {
         return maxToolRounds;
     }
+
+    // -----------------------------------------------------------------------
+    // JSON build helpers — read-only, do not mutate this request.
+    // -----------------------------------------------------------------------
 
     /**
      * Build the OAI-style {@code messages} array as a JSON string. Each entry carries
@@ -154,11 +276,8 @@ public final class ChatRequest {
         for (ChatMessage m : messages) {
             ObjectNode obj = MAPPER.createObjectNode();
             obj.put("role", m.getRole());
-            obj.put("content", m.getContent() == null ? "" : m.getContent());
-            final String toolCallId = m.getToolCallId();
-            if (toolCallId != null) {
-                obj.put("tool_call_id", toolCallId);
-            }
+            obj.put("content", m.getContent());
+            m.getToolCallId().ifPresent(id -> obj.put("tool_call_id", id));
             if (!m.getToolCalls().isEmpty()) {
                 ArrayNode tc = MAPPER.createArrayNode();
                 for (ToolCall call : m.getToolCalls()) {
@@ -167,7 +286,7 @@ public final class ChatRequest {
                     entry.put("type", "function");
                     ObjectNode fn = MAPPER.createObjectNode();
                     fn.put("name", call.getName());
-                    fn.put("arguments", call.getArgumentsJson() == null ? "" : call.getArgumentsJson());
+                    fn.put("arguments", call.getArgumentsJson());
                     entry.set("function", fn);
                     tc.add(entry);
                 }
@@ -191,10 +310,10 @@ public final class ChatRequest {
             entry.put("type", "function");
             ObjectNode fn = MAPPER.createObjectNode();
             fn.put("name", t.getName());
-            if (t.getDescription() != null) fn.put("description", t.getDescription());
+            fn.put("description", t.getDescription());
             try {
                 fn.set("parameters", MAPPER.readTree(t.getParametersSchemaJson()));
-            } catch (Exception e) {
+            } catch (IOException e) {
                 fn.put("parameters", t.getParametersSchemaJson());
             }
             entry.set("function", fn);
@@ -204,14 +323,14 @@ public final class ChatRequest {
     }
 
     /**
-     * Apply the optional customizer to an {@link InferenceParameters} instance.
-     * Package-private; called by {@link LlamaModel}.
+     * Apply the optional customiser to an {@link InferenceParameters} instance and
+     * return the transformed result. Package-private; called by {@link LlamaModel}.
+     * When no customiser is set, returns {@code params} unchanged.
      *
-     * @param params the parameters to mutate
+     * @param params the parameters to transform
+     * @return the (possibly new) parameters produced by the customiser, or {@code params} when no customiser is set
      */
-    void applyCustomizer(InferenceParameters params) {
-        if (paramsCustomizer != null) {
-            paramsCustomizer.accept(params);
-        }
+    InferenceParameters applyCustomizer(InferenceParameters params) {
+        return paramsCustomizer == null ? params : paramsCustomizer.apply(params);
     }
 }

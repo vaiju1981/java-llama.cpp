@@ -16,20 +16,32 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Stream;
+import lombok.ToString;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Set the system properties {@code net.ladenthin.llama.lib.path} /
- * {@code net.ladenthin.llama.lib.name} appropriately so that the library can
- * find *.dll, *.dylib and *.so files, according to the current OS (win, linux, mac).
+ * Set the system property {@code net.ladenthin.llama.lib.path} appropriately
+ * so that the library can find {@code *.dll}, {@code *.dylib} and
+ * {@code *.so} files, according to the current OS (Windows, Linux, macOS).
  *
  * <p>The library files are automatically extracted from this project's package (JAR).
+ *
+ * <p>Historically the loader also honoured a {@code net.ladenthin.llama.lib.name}
+ * property that overrode the resolved library filename. Upstream removed the
+ * code path that read it in {@code kherud/java-llama.cpp} commit {@code 6bb63e1}
+ * (&quot;add ggml shared library to binding&quot;) when the loader was extended to
+ * load multiple shared libraries (ggml + jllama) as separate files &mdash; the
+ * single-name-override model is incompatible with that. The Javadoc mention
+ * has since been a documentation lie in both upstream and this fork; it has
+ * now been removed here, and the corresponding {@code getLibName()} getter
+ * has been deleted from {@code LlamaSystemProperties}.
  *
  * <p>usage: call {@link #initialize()} before using the library.
  *
  * @author leo
  */
 @SuppressWarnings("UseOfSystemOutOrSystemErr")
+@ToString
 class LlamaLoader {
 
     private static boolean extracted = false;
@@ -255,7 +267,9 @@ class LlamaLoader {
         final Package pkg = LlamaLoader.class.getPackage();
         // LlamaLoader is in a named package, so Class.getPackage() is never null here.
         if (pkg == null) {
-            throw new IllegalStateException("LlamaLoader.class.getPackage() returned null");
+            throw new IllegalStateException(
+                    "LlamaLoader.class.getPackage() returned null (classLoader="
+                            + LlamaLoader.class.getClassLoader() + ")");
         }
         String packagePath = pkg.getName().replace('.', '/');
         return String.format("/%s/%s", packagePath, OSInfo.getNativeLibFolderPathForCurrentOS());

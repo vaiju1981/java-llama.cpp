@@ -75,10 +75,10 @@ public class LlamaModelTest {
         Map<Integer, Float> logitBias = new HashMap<>();
         logitBias.put(2, 2.0f);
         InferenceParameters params = new InferenceParameters(prefix)
-                .setTemperature(0.95f)
-                .setStopStrings("\"\"\"")
-                .setNPredict(nPredict)
-                .setTokenIdBias(logitBias);
+                .withTemperature(0.95f)
+                .withStopStrings("\"\"\"")
+                .withNPredict(nPredict)
+                .withTokenIdBias(logitBias);
 
         int generated = 0;
         for (LlamaOutput ignored : model.generate(params)) {
@@ -93,13 +93,13 @@ public class LlamaModelTest {
         Map<Integer, Float> logitBias = new HashMap<>();
         logitBias.put(2, 2.0f);
         InferenceParameters params = new InferenceParameters("")
-                .setInputPrefix(prefix)
-                .setInputSuffix(suffix)
-                .setTemperature(0.95f)
-                .setStopStrings("\"\"\"")
-                .setNPredict(nPredict)
-                .setTokenIdBias(logitBias)
-                .setSeed(42);
+                .withInputPrefix(prefix)
+                .withInputSuffix(suffix)
+                .withTemperature(0.95f)
+                .withStopStrings("\"\"\"")
+                .withNPredict(nPredict)
+                .withTokenIdBias(logitBias)
+                .withSeed(42);
 
         int generated = 0;
         for (LlamaOutput ignored : model.generate(params)) {
@@ -111,8 +111,8 @@ public class LlamaModelTest {
     @Test
     public void testGenerateGrammar() {
         InferenceParameters params = new InferenceParameters("")
-                .setGrammar("root ::= (\"a\" | \"b\")+")
-                .setNPredict(nPredict);
+                .withGrammar("root ::= (\"a\" | \"b\")+")
+                .withNPredict(nPredict);
         StringBuilder sb = new StringBuilder();
         for (LlamaOutput output : model.generate(params)) {
             sb.append(output);
@@ -129,11 +129,11 @@ public class LlamaModelTest {
         Map<Integer, Float> logitBias = new HashMap<>();
         logitBias.put(2, 2.0f);
         InferenceParameters params = new InferenceParameters(prefix)
-                .setTemperature(0.95f)
-                .setStopStrings("\"\"\"")
-                .setNPredict(nPredict)
-                .setTokenIdBias(logitBias)
-                .setSeed(42);
+                .withTemperature(0.95f)
+                .withStopStrings("\"\"\"")
+                .withNPredict(nPredict)
+                .withTokenIdBias(logitBias)
+                .withSeed(42);
 
         String output = model.complete(params);
         assertFalse(output.isEmpty());
@@ -144,13 +144,13 @@ public class LlamaModelTest {
         Map<Integer, Float> logitBias = new HashMap<>();
         logitBias.put(2, 2.0f);
         InferenceParameters params = new InferenceParameters("")
-                .setInputPrefix(prefix)
-                .setInputSuffix(suffix)
-                .setTemperature(0.95f)
-                .setStopStrings("\"\"\"")
-                .setNPredict(nPredict)
-                .setTokenIdBias(logitBias)
-                .setSeed(42);
+                .withInputPrefix(prefix)
+                .withInputSuffix(suffix)
+                .withTemperature(0.95f)
+                .withStopStrings("\"\"\"")
+                .withNPredict(nPredict)
+                .withTokenIdBias(logitBias)
+                .withSeed(42);
 
         String output = model.complete(params);
         assertFalse(output.isEmpty());
@@ -159,8 +159,8 @@ public class LlamaModelTest {
     @Test
     public void testCompleteGrammar() {
         InferenceParameters params = new InferenceParameters("")
-                .setGrammar("root ::= (\"a\" | \"b\")+")
-                .setNPredict(nPredict);
+                .withGrammar("root ::= (\"a\" | \"b\")+")
+                .withNPredict(nPredict);
         String output = model.complete(params);
         assertTrue(output.matches("[ab]+"), output + " doesn't match [ab]+");
         int generated = model.encode(output).length;
@@ -169,7 +169,7 @@ public class LlamaModelTest {
 
     @Test
     public void testCancelGenerating() {
-        InferenceParameters params = new InferenceParameters(prefix).setNPredict(nPredict);
+        InferenceParameters params = new InferenceParameters(prefix).withNPredict(nPredict);
 
         int generated = 0;
         LlamaIterator iterator = model.generate(params).iterator();
@@ -194,7 +194,7 @@ public class LlamaModelTest {
      */
     @Test
     public void testGenerateAutoCloseOnEarlyBreak() throws Exception {
-        InferenceParameters params = new InferenceParameters(prefix).setNPredict(nPredict);
+        InferenceParameters params = new InferenceParameters(prefix).withNPredict(nPredict);
 
         int collected = 0;
         try (LlamaIterable iterable = model.generate(params)) {
@@ -209,7 +209,7 @@ public class LlamaModelTest {
         assertTrue(collected >= 1, "Should have collected at least one token before break");
 
         // The model must still be usable after an early-exit close
-        String result = model.complete(new InferenceParameters(prefix).setNPredict(5));
+        String result = model.complete(new InferenceParameters(prefix).withNPredict(5));
         assertNotNull(result, "Model must be functional after autoclosed iterator");
     }
 
@@ -221,7 +221,7 @@ public class LlamaModelTest {
      */
     @Test
     public void testIteratorCloseIdempotent() {
-        InferenceParameters params = new InferenceParameters(prefix).setNPredict(3);
+        InferenceParameters params = new InferenceParameters(prefix).withNPredict(3);
 
         // Case A: drain to natural stop, then close()
         LlamaIterable a = model.generate(params);
@@ -239,7 +239,7 @@ public class LlamaModelTest {
         b.close();
 
         // Model must still be usable
-        assertNotNull(model.complete(new InferenceParameters(prefix).setNPredict(3)));
+        assertNotNull(model.complete(new InferenceParameters(prefix).withNPredict(3)));
     }
 
     /**
@@ -252,7 +252,7 @@ public class LlamaModelTest {
      */
     @Test
     public void testCompleteWithCancellationToken() throws Exception {
-        InferenceParameters params = new InferenceParameters(prefix).setNPredict(512);
+        InferenceParameters params = new InferenceParameters(prefix).withNPredict(512);
         CancellationToken token = new CancellationToken();
 
         Thread canceller = new Thread(() -> {
@@ -277,7 +277,7 @@ public class LlamaModelTest {
         assertFalse(token.isCancelled(), "token should be reset after call returns");
 
         // Model is still usable
-        assertNotNull(model.complete(new InferenceParameters(prefix).setNPredict(3)));
+        assertNotNull(model.complete(new InferenceParameters(prefix).withNPredict(3)));
     }
 
     /**
@@ -288,9 +288,9 @@ public class LlamaModelTest {
     @Test
     public void testCompleteAsync() throws Exception {
         InferenceParameters params =
-                new InferenceParameters(prefix).setNPredict(8).setSeed(42);
+                new InferenceParameters(prefix).withNPredict(8).withSeed(42);
         String sync =
-                model.complete(new InferenceParameters(prefix).setNPredict(8).setSeed(42));
+                model.complete(new InferenceParameters(prefix).withNPredict(8).withSeed(42));
         String async = model.completeAsync(params).get(30, java.util.concurrent.TimeUnit.SECONDS);
         assertEquals(sync, async);
     }
@@ -304,7 +304,7 @@ public class LlamaModelTest {
      */
     @Test
     public void testCompleteAsyncCancelPropagates() throws Exception {
-        InferenceParameters params = new InferenceParameters(prefix).setNPredict(512);
+        InferenceParameters params = new InferenceParameters(prefix).withNPredict(512);
         CancellationToken token = new CancellationToken();
         java.util.concurrent.CompletableFuture<String> future = model.completeAsync(params, token);
 
@@ -318,7 +318,7 @@ public class LlamaModelTest {
         Thread.sleep(5000);
 
         // Model is still usable
-        assertNotNull(model.complete(new InferenceParameters(prefix).setNPredict(3)));
+        assertNotNull(model.complete(new InferenceParameters(prefix).withNPredict(3)));
     }
 
     /**
@@ -329,8 +329,11 @@ public class LlamaModelTest {
      */
     @Test
     public void testSessionMultiTurn() {
-        try (Session session = new Session(model, 0, "You are a terse assistant.", params -> params.setNPredict(8)
-                .setSeed(1))) {
+        try (Session session = new Session(
+                model,
+                0,
+                "You are a terse assistant.",
+                params -> params.withNPredict(8).withSeed(1))) {
             String r1 = session.send("Say hi.");
             assertNotNull(r1);
             String r2 = session.send("Say bye.");
@@ -356,9 +359,9 @@ public class LlamaModelTest {
      */
     @Test
     public void testTypedChat() {
-        ChatRequest req = new ChatRequest()
-                .addMessage("user", "Say hi in one word.")
-                .setInferenceCustomizer(p -> p.setNPredict(8).setSeed(1));
+        ChatRequest req = ChatRequest.empty()
+                .appendMessage("user", "Say hi in one word.")
+                .withInferenceCustomizer(p -> p.withNPredict(8).withSeed(1));
         ChatResponse r = model.chat(req);
         assertNotNull(r);
         assertFalse(r.getChoices().isEmpty());
@@ -379,11 +382,11 @@ public class LlamaModelTest {
                 "echo",
                 "Echo a string",
                 "{\"type\":\"object\",\"properties\":{\"s\":{\"type\":\"string\"}},\"required\":[\"s\"]}");
-        ChatRequest req = new ChatRequest()
-                .addMessage("user", "Hello.")
-                .addTool(echo)
-                .setMaxToolRounds(2)
-                .setInferenceCustomizer(p -> p.setNPredict(8).setSeed(1));
+        ChatRequest req = ChatRequest.empty()
+                .appendMessage("user", "Hello.")
+                .appendTool(echo)
+                .withMaxToolRounds(2)
+                .withInferenceCustomizer(p -> p.withNPredict(8).withSeed(1));
         java.util.Map<String, ToolHandler> handlers = new java.util.HashMap<>();
         handlers.put("echo", args -> args);
         ChatResponse r = model.chatWithTools(req, handlers);
@@ -400,9 +403,9 @@ public class LlamaModelTest {
     @Test
     public void testCompleteBatch() {
         java.util.List<InferenceParameters> requests = java.util.Arrays.asList(
-                new InferenceParameters(prefix).setNPredict(3).setSeed(1),
-                new InferenceParameters(prefix).setNPredict(3).setSeed(2),
-                new InferenceParameters(prefix).setNPredict(3).setSeed(3));
+                new InferenceParameters(prefix).withNPredict(3).withSeed(1),
+                new InferenceParameters(prefix).withNPredict(3).withSeed(2),
+                new InferenceParameters(prefix).withNPredict(3).withSeed(3));
         java.util.List<String> results = model.completeBatch(requests);
         assertEquals(3, results.size());
         for (String r : results) {
@@ -413,8 +416,8 @@ public class LlamaModelTest {
     @Test
     public void testCompleteBatchWithStats() {
         java.util.List<InferenceParameters> requests = java.util.Arrays.asList(
-                new InferenceParameters(prefix).setNPredict(3).setSeed(1),
-                new InferenceParameters(prefix).setNPredict(3).setSeed(2));
+                new InferenceParameters(prefix).withNPredict(3).withSeed(1),
+                new InferenceParameters(prefix).withNPredict(3).withSeed(2));
         java.util.List<CompletionResult> results = model.completeBatchWithStats(requests);
         assertEquals(2, results.size());
         for (CompletionResult r : results) {
@@ -428,10 +431,12 @@ public class LlamaModelTest {
     @Test
     public void testChatBatch() {
         java.util.List<ChatRequest> requests = java.util.Arrays.asList(
-                new ChatRequest().addMessage("user", "Say hi.").setInferenceCustomizer(p -> p.setNPredict(4)
-                        .setSeed(1)),
-                new ChatRequest().addMessage("user", "Say bye.").setInferenceCustomizer(p -> p.setNPredict(4)
-                        .setSeed(2)));
+                ChatRequest.empty()
+                        .appendMessage("user", "Say hi.")
+                        .withInferenceCustomizer(p -> p.withNPredict(4).withSeed(1)),
+                ChatRequest.empty()
+                        .appendMessage("user", "Say bye.")
+                        .withInferenceCustomizer(p -> p.withNPredict(4).withSeed(2)));
         java.util.List<ChatResponse> results = model.chatBatch(requests);
         assertEquals(2, results.size());
         for (ChatResponse r : results) {
@@ -554,7 +559,7 @@ public class LlamaModelTest {
         LlamaModel.setLogger(LogFormat.TEXT, (level, msg) -> messages.add(new LogMessage(level, msg)));
 
         InferenceParameters params =
-                new InferenceParameters(prefix).setNPredict(nPredict).setSeed(42);
+                new InferenceParameters(prefix).withNPredict(nPredict).withSeed(42);
         model.complete(params);
 
         assertFalse(messages.isEmpty());
@@ -572,7 +577,7 @@ public class LlamaModelTest {
         LlamaModel.setLogger(LogFormat.JSON, (level, msg) -> messages.add(new LogMessage(level, msg)));
 
         InferenceParameters params =
-                new InferenceParameters(prefix).setNPredict(nPredict).setSeed(42);
+                new InferenceParameters(prefix).withNPredict(nPredict).withSeed(42);
         model.complete(params);
 
         assertFalse(messages.isEmpty());
@@ -589,7 +594,7 @@ public class LlamaModelTest {
     public void testLogStdout() {
         // Unfortunately, `printf` can't be easily re-directed to Java. This test only works manually, thus.
         InferenceParameters params =
-                new InferenceParameters(prefix).setNPredict(nPredict).setSeed(42);
+                new InferenceParameters(prefix).withNPredict(nPredict).withSeed(42);
 
         System.out.println("########## Log Text ##########");
         LlamaModel.setLogger(LogFormat.TEXT, null);
@@ -614,7 +619,7 @@ public class LlamaModelTest {
 
         try {
             InferenceParameters params =
-                    new InferenceParameters(prefix).setNPredict(nPredict).setSeed(42);
+                    new InferenceParameters(prefix).withNPredict(nPredict).withSeed(42);
             model.complete(params);
         } finally {
             System.out.flush();
@@ -680,11 +685,11 @@ public class LlamaModelTest {
         userMessages.add(new Pair<>("assistant", "It depends on your interests. Do you like fiction or non-fiction?"));
 
         InferenceParameters params = new InferenceParameters("A book recommendation system.")
-                .setMessages("Book", userMessages)
-                .setTemperature(0.95f)
-                .setStopStrings("\"\"\"")
-                .setNPredict(nPredict)
-                .setSeed(42);
+                .withMessages("Book", userMessages)
+                .withTemperature(0.95f)
+                .withStopStrings("\"\"\"")
+                .withNPredict(nPredict)
+                .withSeed(42);
         assertEquals(
                 model.applyTemplate(params),
                 "<|im_start|>system\nBook<|im_end|>\n<|im_start|>user\nWhat is the best book?<|im_end|>\n<|im_start|>assistant\nIt depends on your interests. Do you like fiction or non-fiction?");
@@ -700,10 +705,10 @@ public class LlamaModelTest {
         messages.add(new Pair<>("user", "Write a single word."));
 
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setNPredict(nPredict)
-                .setSeed(42)
-                .setTemperature(0.0f);
+                .withMessages(null, messages)
+                .withNPredict(nPredict)
+                .withSeed(42)
+                .withTemperature(0.0f);
 
         String response = model.chatComplete(params);
         assertNotNull(response, "Chat completion should return a non-null response");
@@ -716,10 +721,10 @@ public class LlamaModelTest {
         messages.add(new Pair<>("user", "Say hello."));
 
         InferenceParameters params = new InferenceParameters("")
-                .setMessages("You are a helpful assistant.", messages)
-                .setNPredict(nPredict)
-                .setSeed(42)
-                .setTemperature(0.0f);
+                .withMessages("You are a helpful assistant.", messages)
+                .withNPredict(nPredict)
+                .withSeed(42)
+                .withTemperature(0.0f);
 
         String response = model.chatComplete(params);
         assertNotNull(response);
@@ -732,10 +737,10 @@ public class LlamaModelTest {
         messages.add(new Pair<>("user", "Write a single word."));
 
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setNPredict(nPredict)
-                .setSeed(42)
-                .setTemperature(0.0f);
+                .withMessages(null, messages)
+                .withNPredict(nPredict)
+                .withSeed(42)
+                .withTemperature(0.0f);
 
         int generated = 0;
         StringBuilder sb = new StringBuilder();
@@ -754,7 +759,7 @@ public class LlamaModelTest {
         messages.add(new Pair<>("user", "Count from 1 to 100."));
 
         InferenceParameters params =
-                new InferenceParameters("").setMessages(null, messages).setNPredict(nPredict);
+                new InferenceParameters("").withMessages(null, messages).withNPredict(nPredict);
 
         int generated = 0;
         LlamaIterator iterator = model.generateChat(params).iterator();
@@ -781,10 +786,10 @@ public class LlamaModelTest {
         messages.add(new Pair<>("user", "And 3+3?"));
 
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setNPredict(nPredict)
-                .setSeed(42)
-                .setTemperature(0.0f);
+                .withMessages(null, messages)
+                .withNPredict(nPredict)
+                .withSeed(42)
+                .withTemperature(0.0f);
 
         String response = model.chatComplete(params);
         assertNotNull(response);
@@ -800,11 +805,11 @@ public class LlamaModelTest {
         kwargs.put("custom_var", "\"test_value\"");
 
         InferenceParameters params = new InferenceParameters("")
-                .setMessages(null, messages)
-                .setChatTemplateKwargs(kwargs)
-                .setNPredict(nPredict)
-                .setSeed(42)
-                .setTemperature(0.0f);
+                .withMessages(null, messages)
+                .withChatTemplateKwargs(kwargs)
+                .withNPredict(nPredict)
+                .withSeed(42)
+                .withTemperature(0.0f);
 
         // Template kwargs should pass through without error even if
         // the template doesn't use them — they're simply ignored.
@@ -822,7 +827,7 @@ public class LlamaModelTest {
         kwargs.put("custom_var", "\"test_value\"");
 
         InferenceParameters params =
-                new InferenceParameters("").setMessages(null, messages).setChatTemplateKwargs(kwargs);
+                new InferenceParameters("").withMessages(null, messages).withChatTemplateKwargs(kwargs);
 
         // Should not throw — kwargs are passed through to the template
         String result = model.applyTemplate(params);
@@ -846,7 +851,7 @@ public class LlamaModelTest {
         List<Pair<String, String>> messages = new ArrayList<>();
         messages.add(new Pair<>("user", "Tell me a joke"));
 
-        InferenceParameters params = new InferenceParameters("").setMessages(null, messages);
+        InferenceParameters params = new InferenceParameters("").withMessages(null, messages);
 
         String result = model.applyTemplate(params);
 
@@ -870,7 +875,7 @@ public class LlamaModelTest {
         messages.add(new Pair<>("assistant", "4"));
         messages.add(new Pair<>("user", "And 3+3?"));
 
-        InferenceParameters params = new InferenceParameters("").setMessages("Math tutor", messages);
+        InferenceParameters params = new InferenceParameters("").withMessages("Math tutor", messages);
 
         String result = model.applyTemplate(params);
 
@@ -892,7 +897,7 @@ public class LlamaModelTest {
         messages.add(new Pair<>("user", "Hello"));
 
         // empty string → setMessages skips the system block
-        InferenceParameters params = new InferenceParameters("").setMessages("", messages);
+        InferenceParameters params = new InferenceParameters("").withMessages("", messages);
 
         String result = model.applyTemplate(params);
 
@@ -911,7 +916,7 @@ public class LlamaModelTest {
         messages.add(new Pair<>("user", "Capital of France?"));
         messages.add(new Pair<>("assistant", "The capital of France is"));
 
-        InferenceParameters params = new InferenceParameters("").setMessages(null, messages);
+        InferenceParameters params = new InferenceParameters("").withMessages(null, messages);
 
         String result = model.applyTemplate(params);
 
@@ -935,8 +940,8 @@ public class LlamaModelTest {
     public void testCompleteNonAsciiPrompt() {
         // café, naïve, résumé contain multi-byte UTF-8 sequences
         InferenceParameters params = new InferenceParameters("Translate to English: café")
-                .setNPredict(nPredict)
-                .setSeed(42);
+                .withNPredict(nPredict)
+                .withSeed(42);
 
         String output = model.complete(params);
 
@@ -1083,7 +1088,7 @@ public class LlamaModelTest {
                 .setGpuLayers(gpuLayers)
                 .setFit(false))) {
             String output =
-                    m.complete(new InferenceParameters("Hello").setNPredict(5).setSeed(42));
+                    m.complete(new InferenceParameters("Hello").withNPredict(5).withSeed(42));
             assertNotNull(output);
         }
         // Background thread should be fully joined before we reach here
@@ -1135,7 +1140,7 @@ public class LlamaModelTest {
                 .setGpuLayers(gpuLayers)
                 .setGpuLayersDraft(gpuLayers))) {
             InferenceParameters params =
-                    new InferenceParameters(prefix).setNPredict(nPredict).setSeed(42);
+                    new InferenceParameters(prefix).withNPredict(nPredict).withSeed(42);
 
             // test streaming generation with speculative decoding
             int generated = 0;
@@ -1213,8 +1218,8 @@ public class LlamaModelTest {
     public void testIteratorTerminatesOnRepetitivePrompt() {
         final int iterNPredict = 30;
         InferenceParameters infer = new InferenceParameters("Repeat AAA forever: AAA AAA")
-                .setNPredict(iterNPredict)
-                .setTemperature(0.0f);
+                .withNPredict(iterNPredict)
+                .withTemperature(0.0f);
 
         int count = 0;
         try (LlamaIterable iterable = model.generate(infer)) {

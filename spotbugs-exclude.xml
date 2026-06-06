@@ -89,6 +89,20 @@ SPDX-License-Identifier: MIT
     </Match>
 
     <!--
+        Same design-intent rationale as the ModelParameters OCP block above:
+        InferenceParameters.withReasoningFormat(ReasoningFormat) intentionally
+        types its parameter to the specific ReasoningFormat enum rather than
+        the shared CliArg interface. The narrow type is the API contract;
+        widening it would silently accept any CliArg-implementing enum and
+        emit a nonsense JSON value the native code would reject.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.InferenceParameters"/>
+        <Bug pattern="OCP_OVERLY_CONCRETE_PARAMETER"/>
+        <Method name="withReasoningFormat"/>
+    </Match>
+
+    <!--
         InferenceParameters and ModelParameters are fluent builders whose
         parameters field is a Map<String, String> serving as the CLI / JSON
         wire-format passed across JNI to nlohmann/json. Every setter
@@ -171,6 +185,179 @@ SPDX-License-Identifier: MIT
         <Class name="net.ladenthin.llama.Session"/>
         <Bug pattern="EI_EXPOSE_REP2"/>
         <Method name="&lt;init&gt;"/>
+    </Match>
+
+    <!--
+        USBR_UNNECESSARY_STORE_BEFORE_RETURN on Lombok-generated equals / hashCode /
+        canEqual / toString.
+
+        Lombok's @EqualsAndHashCode and @ToString annotation processors inject the
+        textbook polynomial-hash bytecode pattern (and lombok.config already emits
+        @lombok.Generated on every synthetic member via
+        lombok.addLombokGeneratedAnnotation = true):
+
+            int result = 1;
+            result = result * 59 + ($field == null ? 43 : $field.hashCode());
+            ...
+            return result;          // USBR fires here, on the istore_N / iload_N / ireturn triplet
+
+        SpotBugs core honours @lombok.Generated and skips its own detectors on those
+        members, but the fb-contrib plugin's USBR detector does NOT &#x2014; fb-contrib
+        is a separate plugin family with its own filter pipeline. Suppressing USBR on
+        equals / hashCode / canEqual / toString matches every method name Lombok can
+        emit. The collateral cost is small: any handwritten member of those four names
+        that genuinely stores-then-immediately-returns is either a debugger-friendly
+        local-variable pattern or a micro-optimisation, both intentional here.
+
+        Cross-repo invariant — see `../workspace/policies/lombok-config.md`.
+    -->
+    <Match>
+        <Or>
+            <Method name="equals"/>
+            <Method name="hashCode"/>
+            <Method name="canEqual"/>
+            <Method name="toString"/>
+        </Or>
+        <Bug pattern="USBR_UNNECESSARY_STORE_BEFORE_RETURN"/>
+    </Match>
+
+    <!--
+        fb-contrib OPM_OVERLY_PERMISSIVE_METHOD ("Method is declared more
+        permissively than is used in the code base") suppressed PROJECT-WIDE.
+
+        Rationale (kept aligned cross-repo with BitcoinAddressFinder):
+        - Current package layout groups most production Java in
+          net.ladenthin.llama + a thin sibling package set. Any method
+          called only from same-package callers is flagged as "could be
+          package-private". Those answers are correct today but unstable:
+          once the planned package-architecture refactor splits the root
+          package into proper layers, methods that today are correctly
+          package-private will need to become public to cross the new
+          boundaries. Tightening now produces mechanical churn highly
+          likely to be reverted by the refactor.
+
+        - Cross-repo decision + per-category breakdown recorded in
+          workspace/crossrepostatus.md ("OPM scope-tightening — after
+          package refactor"). The same rule is suppressed in BAF.
+
+        TODO: re-enable this rule (delete this Match block) once the
+        package refactor has settled — at that point genuine "method
+        exposed beyond its actual call site" findings become stable
+        signals worth fixing.
+    -->
+    <Match>
+        <Bug pattern="OPM_OVERLY_PERMISSIVE_METHOD"/>
+    </Match>
+
+    <!--
+        ChatRequest is an immutable value class. Its messages/tools fields
+        are stored as Collections.unmodifiableList(...) views, so the
+        getters CANNOT actually leak the internal representation: any
+        attempt to mutate the returned list throws UnsupportedOperationException
+        (covered by ChatRequestTest.messagesAccessorIsUnmodifiable /
+        toolsAccessorIsUnmodifiable). SpotBugs flags every "return this.field"
+        from a non-array reference field as EI_EXPOSE_REP without tracking
+        whether the field was unmodifiable-wrapped at construction time;
+        the wrapping is verified by tests, so the finding is a false positive.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.ChatRequest"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+        <Or>
+            <Method name="getMessages"/>
+            <Method name="getTools"/>
+        </Or>
+    </Match>
+
+    <!--
+        LlamaModel.ctx is the per-instance native handle: a long pointer
+        into the llama.cpp context owned by THIS LlamaModel instance.
+        fb-contrib's SPP_FIELD_COULD_BE_STATIC detector observes that
+        the field is only assigned inside loadModel (called from the
+        constructor) and never reassigned, and concludes the field could
+        be promoted to static. That is incorrect: every LlamaModel wraps
+        its OWN native context, and making ctx static would cause every
+        instance to share one handle — corrupting state across parallel
+        inference calls and double-freeing on close().
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.LlamaModel"/>
+        <Bug pattern="SPP_FIELD_COULD_BE_STATIC"/>
+        <Field name="ctx"/>
+    </Match>
+
+    <!--
+        CancellationToken and ChatTranscript are lifecycle handles managed by
+        identity, not value: a CancellationToken owns a mutable cancellation
+        flag observed across threads, and ChatTranscript is an append-only
+        transcript owned by a single Session and never compared by value.
+        Both classes deliberately do NOT generate Lombok @EqualsAndHashCode
+        (documented in their Javadocs) — fb-contrib's IMC_NO_EQUALS check
+        is therefore a false positive for both.
+    -->
+    <Match>
+        <Or>
+            <Class name="net.ladenthin.llama.CancellationToken"/>
+            <Class name="net.ladenthin.llama.ChatTranscript"/>
+        </Or>
+        <Bug pattern="IMC_IMMATURE_CLASS_NO_EQUALS"/>
+    </Match>
+
+    <!--
+        TimingsLogger emits its events under the documented public logger name
+        "net.ladenthin.llama.timings" (see CLAUDE.md > System Properties Reference
+        and the README), NOT the FQN of the TimingsLogger class. That separation
+        lets operators raise/lower the per-run-timing line independently of
+        application logs. fb-contrib's LO_SUSPECT_LOG_CLASS detector flags any
+        logger whose name does not match the enclosing class FQN; here the
+        mismatch is the public contract.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.TimingsLogger"/>
+        <Bug pattern="LO_SUSPECT_LOG_CLASS"/>
+    </Match>
+
+    <!--
+        Java8CompatibilityHelper.formatted is a thin wrapper around
+        String.format that intentionally accepts runtime-supplied format
+        strings — the helper exists precisely so that Java 11+'s
+        String#formatted() can be used uniformly on the Java 8 baseline.
+        fb-contrib's FORMAT_STRING_MANIPULATION fires on any non-literal
+        format argument; the wrapper is the documented escape hatch.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.Java8CompatibilityHelper"/>
+        <Bug pattern="FORMAT_STRING_MANIPULATION"/>
+        <Method name="formatted"/>
+    </Match>
+
+    <!--
+        ToolHandler.invoke is the functional-interface contract for caller-
+        supplied tool handlers. `throws Exception` is the right shape because
+        the handler body is user code that can throw anything; LlamaModel's
+        chatWithTools agent loop catches the broad Exception and reports it
+        back to the model as a {"error":"..."} tool result rather than
+        aborting the request. Narrowing the throws clause would force every
+        handler implementation to wrap arbitrary checked exceptions for
+        no behavioural benefit.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.ToolHandler"/>
+        <Bug pattern="THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION"/>
+        <Method name="invoke"/>
+    </Match>
+
+    <!--
+        ChatMessage.requireNonNull is a precondition guard whose only
+        meaningful state to report is the parameter name itself (the value
+        is null by definition at the throw point). fb-contrib's WEM detector
+        recognises the static-string IllegalArgumentException as "weak", but
+        there is no additional state-dependent context to add at this guard.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.ChatMessage"/>
+        <Bug pattern="WEM_WEAK_EXCEPTION_MESSAGING"/>
+        <Method name="requireNonNull"/>
     </Match>
 
 </FindBugsFilter>

@@ -7,6 +7,8 @@ package net.ladenthin.llama;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
 
 /**
  * Typed result of {@link LlamaModel#chat(ChatRequest)} and
@@ -17,6 +19,8 @@ import java.util.Optional;
  * raw OAI JSON for fields not yet typed.
  * </p>
  */
+@ToString
+@EqualsAndHashCode
 public final class ChatResponse {
 
     private final String id;

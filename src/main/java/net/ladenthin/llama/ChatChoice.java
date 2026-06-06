@@ -4,10 +4,15 @@
 
 package net.ladenthin.llama;
 
+import lombok.EqualsAndHashCode;
+import lombok.ToString;
+
 /**
  * One choice in a chat completion response: the assistant message and the finish reason.
  * Mirrors the OpenAI {@code choices[i]} object.
  */
+@ToString
+@EqualsAndHashCode
 public final class ChatChoice {
 
     private final int index;

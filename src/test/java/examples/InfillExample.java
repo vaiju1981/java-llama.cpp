@@ -21,7 +21,7 @@ public class InfillExample {
         try (LlamaModel model = new LlamaModel(modelParams)) {
             System.out.print(prefix);
             InferenceParameters inferParams =
-                    new InferenceParameters("").setInputPrefix(prefix).setInputSuffix(suffix);
+                    new InferenceParameters("").withInputPrefix(prefix).withInputSuffix(suffix);
             for (LlamaOutput output : model.generate(inferParams)) {
                 System.out.print(output);
             }

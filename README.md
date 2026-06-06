@@ -1,6 +1,7 @@
 **Build:**  
 ![Java 8+](https://img.shields.io/badge/Java-8%2B-informational)  
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Android-lightgrey)  
+[![llama.cpp b9495](https://img.shields.io/badge/llama.cpp-%23b9495-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9495)  
 [![JPMS](https://img.shields.io/badge/JPMS-modular%20JAR-25A162)](https://openjdk.org/projects/jigsaw/)  
 ![JUnit](https://img.shields.io/badge/tested%20with-JUnit6-25A162)  
 [![JSpecify](https://img.shields.io/badge/JSpecify-1.0.0%20%40NullMarked-25A162)](https://jspecify.dev)  
@@ -8,6 +9,7 @@
 [![Checker Framework](https://img.shields.io/badge/Checker%20Framework-Nullness-25A162)](https://checkerframework.org)  
 [![Error Prone](https://img.shields.io/badge/Error%20Prone-12%20patterns%20at%20ERROR-25A162)](https://errorprone.info)  
 [![Maven Enforcer](https://img.shields.io/badge/Maven%20Enforcer-strict-25A162)](https://maven.apache.org/enforcer/)  
+[![Lombok](https://img.shields.io/badge/Lombok-1.18.46-bc3f3c)](https://projectlombok.org/)  
 [![jqwik](https://img.shields.io/badge/tested%20with-jqwik-1f6feb)](https://jqwik.net)  
 [![ArchUnit](https://img.shields.io/badge/tested%20with-ArchUnit-c71a36)](https://www.archunit.org)  
 [![SpotBugs](https://img.shields.io/badge/analyzed%20with-SpotBugs-3b5998)](https://spotbugs.github.io)  
@@ -15,7 +17,6 @@
 [![Lincheck](https://img.shields.io/badge/tested%20with-Lincheck-7F52FF)](https://github.com/JetBrains/lincheck)  
 [![vmlens](https://img.shields.io/badge/tested%20with-vmlens-ff6f00)](https://vmlens.com)  
 [![JMH](https://img.shields.io/badge/benchmarked%20with-JMH-25A162)](https://openjdk.org/projects/code-tools/jmh/)  
-[![llama.cpp b9495](https://img.shields.io/badge/llama.cpp-%23b9495-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9495)  
 [![Publish](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/publish.yml/badge.svg)](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/publish.yml)  
 [![CodeQL](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/codeql.yml/badge.svg)](https://github.com/bernardladenthin/java-llama.cpp/actions/workflows/codeql.yml)  
 
@@ -249,15 +250,20 @@ The application will search in the following order in the following locations:
 
 #### System Properties Reference
 
-All `net.ladenthin.llama.*` system properties are resolved by `LlamaSystemProperties`.
+Every `net.ladenthin.llama.*` system property recognised by the library, deep-scanned from the source. Runtime properties are resolved through `LlamaSystemProperties`; test-only properties are declared in the test sources (`TestConstants`) and consumed by individual test classes.
 
-| Property | Description |
-|---|---|
-| `net.ladenthin.llama.lib.path` | Directory containing the native `jllama` shared library. Checked first, before `java.library.path`. |
-| `net.ladenthin.llama.lib.name` | Override the native library filename (default is platform-determined, e.g. `jllama.so`). |
-| `net.ladenthin.llama.tmpdir` | Custom temporary directory used when extracting the native library from the JAR. Falls back to `java.io.tmpdir`. |
-| `net.ladenthin.llama.osinfo.architecture` | Override the OS/architecture string used to locate the bundled library inside the JAR (e.g. `Linux/x86_64`). Useful for non-standard JVM environments. |
-| `net.ladenthin.llama.test.ngl` | Number of GPU layers used during testing. Parsed by the test suite; not relevant for production use. |
+| Property | Default | Scope | Consumer | Description |
+|---|---|---|---|---|
+| `net.ladenthin.llama.lib.path` | unset (falls back to `java.library.path`) | runtime | `LlamaLoader` | Directory containing the native `jllama` shared library. Checked first, before `java.library.path`. Set with `-Dnet.ladenthin.llama.lib.path=/path/to/dir`. |
+| `net.ladenthin.llama.tmpdir` | unset (falls back to `java.io.tmpdir`) | runtime | `LlamaLoader` | Custom temporary directory used when extracting the native library from the JAR. |
+| `net.ladenthin.llama.osinfo.architecture` | unset (uses `os.arch`) | runtime | `OSInfo` | Override for the architecture string used to locate the bundled library inside the JAR. Useful when `os.arch` reports an unexpected value (e.g. inside dockcross / chrooted environments). |
+| `net.ladenthin.llama.test.ngl` | `43` | test | `LlamaModelTest`, `RerankingModelTest`, `ChatScenarioTest`, `ChatAdvancedTest`, `ErrorHandlingTest`, `SessionConcurrencyTest`, `ConfigureParallelInferenceTest`, `MultimodalIntegrationTest` (via `Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL)`) | Number of GPU layers used during testing. Pin to `0` on CPU-only hosts: `mvn test -Dnet.ladenthin.llama.test.ngl=0`. |
+| `net.ladenthin.llama.nomic.path` | unset (test self-skips) | test | `LlamaEmbeddingsTest#testNomicEmbedLoads` | Path to a Nomic embedding model (`nomic-embed-text-v1.5.f16.gguf` or a compatible BERT-family encoder). Regression test for upstream issue #98 (BERT-encoder `result_output` assertion). |
+| `net.ladenthin.llama.vision.model` | unset (test self-skips) | test | `MultimodalIntegrationTest` (closes #103 / #34) | Path to a vision-capable model GGUF. Any vision-capable GGUF works; CI default is `SmolVLM-500M-Instruct-Q8_0.gguf`. |
+| `net.ladenthin.llama.vision.mmproj` | unset (test self-skips) | test | `MultimodalIntegrationTest` | Matching mmproj GGUF for the vision model. |
+| `net.ladenthin.llama.vision.image` | `src/test/resources/images/test-image.jpg` (a CC-BY-4.0 / MIT-granted photo committed to the repo) | test | `MultimodalIntegrationTest` | Visual prompt image. Any png/jpeg/webp/gif works; the extension drives MIME detection. |
+
+`MultimodalIntegrationTest` self-skips when any of the three `vision.*` properties points at a missing path, so a partial setup (just the vision model + the committed image, no mmproj) lets the test class load without erroring.
 
 ## Documentation
 
@@ -410,6 +416,67 @@ try (LlamaModel model = new LlamaModel(modelParams)) {
     model.generate(inferParams);
 }
 ```
+
+### Reactive integration (Reactor, RxJava, Kotlin Flow, Akka)
+
+`LlamaIterable` (returned by `model.generate(...)` and `model.generateChat(...)`)
+implements `Iterable<LlamaOutput> & AutoCloseable`, so every mainstream reactive
+library wraps it in a few lines without `java-llama.cpp` pulling in a runtime
+reactive dependency.
+
+**Always wrap with the library's resource-management primitive** — `Flux.using`,
+`Flowable.using`, Kotlin `use {}`, etc. — so that subscription cancellation
+flows into `LlamaIterable.close()` and from there into llama.cpp's native
+`cancelCompletion`. A plain `Flux.fromIterable(iterable)` or `for (x in iter)`
+loop will NOT close the iterable on cancel; the native task slot stays
+occupied until the model is closed.
+
+#### Project Reactor (Spring WebFlux)
+```java
+Flux<LlamaOutput> tokens = Flux.using(
+        () -> model.generate(params),
+        Flux::fromIterable,
+        LlamaIterable::close)
+    .subscribeOn(Schedulers.boundedElastic());
+```
+
+#### RxJava 3 (also for RxAndroid)
+```java
+Flowable<LlamaOutput> tokens = Flowable.using(
+        () -> model.generate(params),
+        Flowable::fromIterable,
+        LlamaIterable::close)
+    .subscribeOn(Schedulers.io());
+```
+
+#### Kotlin Flow (Android / coroutines)
+```kotlin
+fun llama(model: LlamaModel, params: InferenceParameters) = flow {
+    model.generate(params).use { iterable ->
+        for (output in iterable) emit(output)
+    }
+}.flowOn(Dispatchers.IO)
+```
+The companion Android sample [LLaMAndroid](https://github.com/Rattlyy/LLaMAndroid)
+demonstrates the `flow { for (output in model.generate(params)) emit(output) }`
+shape against the upstream binding. Wrap the `for` loop in
+`.use { }` if your collector may cancel mid-stream — otherwise the native task
+slot will not be released until the model is closed.
+
+#### Akka Streams
+```scala
+val tokens: Source[LlamaOutput, NotUsed] = Source
+    .fromIterator(() => model.generate(params).iterator())
+    .async("blocking-io-dispatcher")
+```
+
+**Why no built-in `Publisher`?** Earlier snapshots of this fork shipped a
+hand-rolled `LlamaModel.streamPublisher(...)` returning a Reactive Streams
+`Publisher<LlamaOutput>`. Since every reactive library bridges blocking
+iterables in a few lines via its own resource-management primitive, the binding
+now stays free of any reactive runtime dependency — pick whichever library your
+app already uses. The pattern is verified end-to-end by
+`ReactorIntegrationTest` in the test sources.
 
 ### Logging
 

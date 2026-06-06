@@ -95,12 +95,12 @@ public class ChatResponseTest {
 
     @Test
     public void buildMessagesJsonRoundTripsToolTurns() {
-        ChatRequest req = new ChatRequest()
-                .addMessage("system", "be terse")
-                .addMessage("user", "two plus two?")
-                .addMessage(ChatMessage.assistantToolCalls(
+        ChatRequest req = ChatRequest.empty()
+                .appendMessage("system", "be terse")
+                .appendMessage("user", "two plus two?")
+                .appendMessage(ChatMessage.assistantToolCalls(
                         "", java.util.Collections.singletonList(new ToolCall("c1", "add", "{\"a\":2,\"b\":2}"))))
-                .addMessage(ChatMessage.toolResult("c1", "4"));
+                .appendMessage(ChatMessage.toolResult("c1", "4"));
 
         String msgs = req.buildMessagesJson();
         assertTrue(msgs.contains("\"tool_calls\""), msgs);
@@ -110,14 +110,14 @@ public class ChatResponseTest {
 
     @Test
     public void buildToolsJsonEmptyWhenNoTools() {
-        ChatRequest req = new ChatRequest().addMessage("user", "hi");
+        ChatRequest req = ChatRequest.empty().appendMessage("user", "hi");
         assertTrue(req.buildToolsJson().isEmpty());
     }
 
     @Test
     public void buildToolsJsonInlinesParameterSchema() {
-        ChatRequest req = new ChatRequest()
-                .addTool(new ToolDefinition(
+        ChatRequest req = ChatRequest.empty()
+                .appendTool(new ToolDefinition(
                         "echo", "Echo a string", "{\"type\":\"object\",\"properties\":{\"s\":{\"type\":\"string\"}}}"));
         String tools = req.buildToolsJson().orElseThrow();
         assertTrue(tools.contains("\"type\":\"function\""), tools);

@@ -51,13 +51,14 @@ SPDX-License-Identifier: MIT
 	<properties>
 		<jna.version>5.18.1</jna.version>
 		<jspecify.version>1.0.0</jspecify.version>
+		<lombok.version>1.18.46</lombok.version>
 		<errorprone.version>2.49.0</errorprone.version>
 		<nullaway.version>0.13.4</nullaway.version>
-		<checker.version>4.1.0</checker.version>
+		<checker.version>4.2.0</checker.version>
 		<jackson.version>2.22.0</jackson.version>
-		<reactive-streams.version>1.0.4</reactive-streams.version>
+		<reactor.version>3.6.11</reactor.version>
 		<slf4j.version>2.0.18</slf4j.version>
-		<logback.version>1.5.33</logback.version>
+		<logback.version>1.5.34</logback.version>
 		<animal-sniffer.version>1.27</animal-sniffer.version>
 		<junit.version>6.1.0</junit.version>
 		<jmh.version>1.37</jmh.version>
@@ -75,10 +76,10 @@ SPDX-License-Identifier: MIT
 		<jqwik.version>1.9.3</jqwik.version>
 		<archunit.version>1.4.2</archunit.version>
 		<spotbugs.version>4.9.8.3</spotbugs.version>
-		<fb-contrib.version>7.6.4</fb-contrib.version>
+		<fb-contrib.version>7.7.4</fb-contrib.version>
 		<findsecbugs.version>1.14.0</findsecbugs.version>
 		<spotless.version>3.6.0</spotless.version>
-		<palantir-java-format.version>2.66.0</palantir-java-format.version>
+		<palantir-java-format.version>2.91.0</palantir-java-format.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.build.outputTimestamp>${git.commit.time}</project.build.outputTimestamp>
 	</properties>
@@ -100,6 +101,12 @@ SPDX-License-Identifier: MIT
 	</dependencyManagement>
 
 	<dependencies>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<version>${lombok.version}</version>
+			<scope>provided</scope>
+		</dependency>
 		<dependency>
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter</artifactId>
@@ -132,14 +139,6 @@ SPDX-License-Identifier: MIT
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
 			<version>${jackson.version}</version>
-		</dependency>
-		<!-- Reactive Streams API used by LlamaPublisher to expose token streams as a
-		     Publisher<LlamaOutput>. Java 8 compatible, ~5 KB, supplies the standard
-		     interfaces that Reactor / RxJava / Kotlin coroutines bridge to. -->
-		<dependency>
-			<groupId>org.reactivestreams</groupId>
-			<artifactId>reactive-streams</artifactId>
-			<version>${reactive-streams.version}</version>
 		</dependency>
 		<!-- Required by OSInfo (vendored from xerial/sqlite-jdbc) for log emission. -->
 		<dependency>
@@ -193,6 +192,23 @@ SPDX-License-Identifier: MIT
 			<groupId>io.github.hakky54</groupId>
 			<artifactId>logcaptor</artifactId>
 			<version>${logcaptor.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<!-- Test-only Project Reactor used by ReactorIntegrationTest to prove the
+		     "wrap LlamaIterable with Flux.fromIterable + subscribeOn" pattern works
+		     end-to-end (backpressure, AutoCloseable cancel propagation). NOT a runtime
+		     dependency — consumers bring whichever reactive lib they already use
+		     (Reactor / RxJava / Kotlin Flow / Akka — see README "Reactive integration"). -->
+		<dependency>
+			<groupId>io.projectreactor</groupId>
+			<artifactId>reactor-core</artifactId>
+			<version>${reactor.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.projectreactor</groupId>
+			<artifactId>reactor-test</artifactId>
+			<version>${reactor.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
@@ -273,7 +289,7 @@ SPDX-License-Identifier: MIT
 				<plugin>
 					<groupId>org.pitest</groupId>
 					<artifactId>pitest-maven</artifactId>
-					<version>1.25.1</version>
+					<version>1.25.3</version>
 				</plugin>
 				<plugin>
 					<groupId>org.sonatype.central</groupId>
@@ -370,14 +386,23 @@ SPDX-License-Identifier: MIT
 						  so it acts as a second-opinion verifier on the same JSpecify
 						  annotations.
 						-->
+						<!-- Explicit processor list: Lombok (two SPI classes) + Checker Framework's
+							 Nullness Checker as a 2nd nullness pass alongside NullAway. The explicit
+							 -processor argument overrides SPI discovery, so every processor we want
+							 to run must be listed here. -->
 						<arg>-processor</arg>
-						<arg>org.checkerframework.checker.nullness.NullnessChecker</arg>
+						<arg>lombok.launch.AnnotationProcessorHider$AnnotationProcessor,lombok.launch.AnnotationProcessorHider$ClaimingProcessor,org.checkerframework.checker.nullness.NullnessChecker</arg>
 						<arg>-XDaddTypeAnnotationsToSymbol=true</arg>
 						<arg>-XDcompilePolicy=simple</arg>
 						<arg>--should-stop=ifError=FLOW</arg>
 						<arg>-Xplugin:ErrorProne -Xep:NullAway:ERROR -XepOpt:NullAway:OnlyNullMarked=true -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:CheckOptionalEmptiness=true -XepOpt:NullAway:AcknowledgeRestrictiveAnnotations=true -XepOpt:NullAway:AcknowledgeAndroidRecent=true -XepOpt:NullAway:AssertsEnabled=true -Xep:BoxedPrimitiveEquality:ERROR -Xep:EqualsHashCode:ERROR -Xep:EqualsIncompatibleType:ERROR -Xep:IdentityBinaryExpression:ERROR -Xep:SelfAssignment:ERROR -Xep:SelfComparison:ERROR -Xep:SelfEquals:ERROR -Xep:DeadException:ERROR -Xep:FormatString:ERROR -Xep:InvalidPatternSyntax:ERROR -Xep:OptionalEquality:ERROR -Xep:ImpossibleNullComparison:ERROR</arg>
 					</compilerArgs>
 					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+							<version>${lombok.version}</version>
+						</path>
 						<path>
 							<groupId>com.google.errorprone</groupId>
 							<artifactId>error_prone_core</artifactId>
@@ -569,8 +594,8 @@ SPDX-License-Identifier: MIT
 				<groupId>com.github.spotbugs</groupId>
 				<artifactId>spotbugs-maven-plugin</artifactId>
 				<configuration>
-					<effort>Default</effort>
-					<threshold>Default</threshold>
+					<effort>Max</effort>
+					<threshold>Low</threshold>
 					<failOnError>true</failOnError>
 					<includeTests>false</includeTests>
 					<excludeFilterFile>spotbugs-exclude.xml</excludeFilterFile>

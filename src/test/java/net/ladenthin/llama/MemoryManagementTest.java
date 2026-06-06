@@ -121,9 +121,9 @@ public class MemoryManagementTest {
     @Test
     public void testContextShiftingAllowsContinuedGeneration() {
         InferenceParameters params = new InferenceParameters(SHORT_PROMPT)
-                .setNPredict(25)
-                .setIgnoreEos(true) // prevent early stop so the shift is reliably triggered
-                .setSeed(42);
+                .withNPredict(25)
+                .withIgnoreEos(true) // prevent early stop so the shift is reliably triggered
+                .withSeed(42);
 
         String output = smallCtxModel.complete(params);
 
@@ -143,14 +143,14 @@ public class MemoryManagementTest {
     public void testContextShiftFollowedByFreshGeneration() {
         // First call: triggers context shift
         InferenceParameters shiftParams = new InferenceParameters(SHORT_PROMPT)
-                .setNPredict(25)
-                .setIgnoreEos(true)
-                .setSeed(1);
+                .withNPredict(25)
+                .withIgnoreEos(true)
+                .withSeed(1);
         smallCtxModel.complete(shiftParams);
 
         // Second call: independent generation on the same model after the shift
         InferenceParameters freshParams =
-                new InferenceParameters("x = ").setNPredict(5).setSeed(2);
+                new InferenceParameters("x = ").withNPredict(5).withSeed(2);
         String output = smallCtxModel.complete(freshParams);
 
         assertNotNull(output);
@@ -173,10 +173,10 @@ public class MemoryManagementTest {
     @Test
     public void testPromptCacheGivesDeterministicOutput() {
         InferenceParameters params = new InferenceParameters(CACHE_PREFIX_PROMPT)
-                .setCachePrompt(true)
-                .setNPredict(10)
-                .setTemperature(0f) // greedy decoding: fully deterministic
-                .setSeed(42);
+                .withCachePrompt(true)
+                .withNPredict(10)
+                .withTemperature(0f) // greedy decoding: fully deterministic
+                .withSeed(42);
 
         String first = model.complete(params);
         String second = model.complete(params);
@@ -196,10 +196,10 @@ public class MemoryManagementTest {
     @Test
     public void testNoCachePromptAlsoDeterministic() {
         InferenceParameters params = new InferenceParameters(CACHE_PREFIX_PROMPT)
-                .setCachePrompt(false)
-                .setNPredict(10)
-                .setTemperature(0f)
-                .setSeed(42);
+                .withCachePrompt(false)
+                .withNPredict(10)
+                .withTemperature(0f)
+                .withSeed(42);
 
         String first = model.complete(params);
         String second = model.complete(params);
@@ -226,16 +226,16 @@ public class MemoryManagementTest {
     public void testPromptCachePrefixReuseSucceeds() {
         // Warm the cache with the prefix prompt
         InferenceParameters warmup = new InferenceParameters(CACHE_PREFIX_PROMPT)
-                .setCachePrompt(true)
-                .setNPredict(5)
-                .setSeed(1);
+                .withCachePrompt(true)
+                .withNPredict(5)
+                .withSeed(1);
         model.complete(warmup);
 
         // Extend the prompt; the prefix is now in the KV cache and must be reused
         InferenceParameters extended = new InferenceParameters(CACHE_EXTENDED_PROMPT)
-                .setCachePrompt(true)
-                .setNPredict(10)
-                .setSeed(2);
+                .withCachePrompt(true)
+                .withNPredict(10)
+                .withSeed(2);
         String output = model.complete(extended);
 
         assertNotNull(output);
@@ -250,10 +250,10 @@ public class MemoryManagementTest {
     @Test
     public void testPromptCacheStableAcrossMultipleCalls() {
         InferenceParameters params = new InferenceParameters(SHORT_PROMPT)
-                .setCachePrompt(true)
-                .setNPredict(8)
-                .setTemperature(0f)
-                .setSeed(77);
+                .withCachePrompt(true)
+                .withNPredict(8)
+                .withTemperature(0f)
+                .withSeed(77);
 
         String first = model.complete(params);
         String second = model.complete(params);
@@ -297,10 +297,10 @@ public class MemoryManagementTest {
         // With ctxSize=32 and nPredict=25 the window is reliably exceeded, so the shift fires
         // with the non-trivial n_keep_eff = 5 + add_bos_token path.
         InferenceParameters params = new InferenceParameters(SHORT_PROMPT)
-                .setNKeep(5)
-                .setNPredict(25)
-                .setIgnoreEos(true)
-                .setSeed(42);
+                .withNKeep(5)
+                .withNPredict(25)
+                .withIgnoreEos(true)
+                .withSeed(42);
 
         String output = smallCtxModel.complete(params);
 
@@ -336,9 +336,9 @@ public class MemoryManagementTest {
     public void testPromptCacheCompleteMissAfterWarmup() {
         // Step 1: warm the cache with a distinct prompt so cache_tokens is fully populated.
         InferenceParameters warmup = new InferenceParameters(CACHE_PREFIX_PROMPT)
-                .setCachePrompt(true)
-                .setNPredict(5)
-                .setSeed(1);
+                .withCachePrompt(true)
+                .withNPredict(5)
+                .withSeed(1);
         model.complete(warmup);
 
         // Step 2: call with a completely disjoint prompt.
@@ -347,10 +347,10 @@ public class MemoryManagementTest {
         // be silently discarded / overwritten.
         final String disjointPrompt = "x = ";
         InferenceParameters missParams = new InferenceParameters(disjointPrompt)
-                .setCachePrompt(true)
-                .setNPredict(8)
-                .setTemperature(0f)
-                .setSeed(99);
+                .withCachePrompt(true)
+                .withNPredict(8)
+                .withTemperature(0f)
+                .withSeed(99);
         String afterMiss = model.complete(missParams);
 
         assertNotNull(afterMiss);
@@ -365,10 +365,10 @@ public class MemoryManagementTest {
                 .setGpuLayers(gpuLayers)
                 .setFit(false))) {
             InferenceParameters freshParams = new InferenceParameters(disjointPrompt)
-                    .setCachePrompt(true)
-                    .setNPredict(8)
-                    .setTemperature(0f)
-                    .setSeed(99);
+                    .withCachePrompt(true)
+                    .withNPredict(8)
+                    .withTemperature(0f)
+                    .withSeed(99);
             String fresh = freshModel.complete(freshParams);
 
             assertEquals(
