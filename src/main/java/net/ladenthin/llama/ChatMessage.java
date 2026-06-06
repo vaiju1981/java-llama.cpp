@@ -77,10 +77,17 @@ public final class ChatMessage {
     public ChatMessage(String role, List<ContentPart> parts) {
         this(
                 role,
-                concatText(parts),
+                concatText(requireNonNull(parts)),
                 null,
                 Collections.<ToolCall>emptyList(),
                 Collections.unmodifiableList(new java.util.ArrayList<ContentPart>(requireNonEmpty(parts))));
+    }
+
+    private static List<ContentPart> requireNonNull(List<ContentPart> parts) {
+        if (parts == null) {
+            throw new IllegalArgumentException("parts must not be null");
+        }
+        return parts;
     }
 
     private ChatMessage(
