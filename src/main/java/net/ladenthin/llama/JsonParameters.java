@@ -10,7 +10,7 @@ import java.util.Map;
 import lombok.EqualsAndHashCode;
 import net.ladenthin.llama.args.CliArg;
 import net.ladenthin.llama.json.ParameterJsonSerializer;
-import org.checkerframework.checker.nullness.qual.PolyNull;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The Java library re-uses most of the llama.cpp server code, which mostly works with JSONs. Thus, the complexity and
@@ -53,14 +53,34 @@ abstract class JsonParameters {
         return builder.toString();
     }
 
-    // @PolyNull lets the Checker Framework see that null in returns null and non-null
-    // in returns non-null. NullAway has no equivalent qualifier and reads the return as
-    // @NonNull (under @NullMarked), so we suppress the NullAway-only complaint here.
-    @SuppressWarnings("NullAway")
-    @PolyNull
-    String toJsonString(@PolyNull String text) {
-        if (text == null) return null;
+    /**
+     * Serialize a non-null string to its JSON string form. Use
+     * {@link #putOptionalJson(String, String)} when the input may be null and the
+     * caller wants null to behave as "do not set this parameter".
+     *
+     * @param text the non-null input
+     * @return the JSON-encoded string
+     */
+    String toJsonString(String text) {
         return serializer.toJsonString(text);
+    }
+
+    /**
+     * Conditionally store a JSON-encoded string under {@code key}: when {@code text}
+     * is {@code null} the call is a no-op; otherwise the value is JSON-encoded and
+     * inserted into the parameters map. This replaces the prior {@code @PolyNull}
+     * pattern that put {@code null} entries into the map — operationally identical
+     * for the native side (a missing key and a {@code null} value both signal
+     * "use the default") but easier for NullAway, the Checker Framework, and
+     * fb-contrib to read directly from plain {@code @Nullable}.
+     *
+     * @param key  the parameter key
+     * @param text the optional input; {@code null} means "leave the parameter unset"
+     */
+    final void putOptionalJson(String key, @Nullable String text) {
+        if (text != null) {
+            parameters.put(key, serializer.toJsonString(text));
+        }
     }
 
     /**

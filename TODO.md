@@ -90,7 +90,15 @@ These are JNI plumbing items for upstream API additions. Policy: add only after 
 - **`-parameters` javac arg** — `4350cf2`.
 - **`--release N`** — `4350cf2` (`<release>8</release>`).
 - **Mutation-testing threshold enforcement (PIT)** — `62f8a00` + `bb93a8f` (docs) + `3bfa51f` (README badge). "Single class, full plumbing" pattern: PIT runs every CI build with `<mutationThreshold>100</mutationThreshold>`, `<targetClasses>` narrowed to `net.ladenthin.llama.Pair`.
-- **Checker Framework as a second static-nullness pass** — `c63870b`. `toJsonString` uses `@PolyNull`; native-method constructor calls in `LlamaModel` carry `@SuppressWarnings("method.invocation")`; `Pair.equals` and `Usage.equals` declare `@Nullable Object`; `LlamaSystemProperties` getters return `@Nullable String`; `getPackage()` and resource-stream null derefs are guarded.
+- **Checker Framework as a second static-nullness pass** — `c63870b`. The original
+  `@PolyNull` on `JsonParameters.toJsonString` was simplified to plain `@Nullable`
+  (the only `@PolyNull` site in production; eliminated in a later cleanup).
+  Native-method constructor calls in `LlamaModel` carry
+  `@SuppressWarnings("method.invocation")` (Checker's `@UnderInitialization`
+  cannot see that the native callee does not dereference `this`); `Pair.equals`
+  and `Usage.equals` declare `@Nullable Object`; `LlamaSystemProperties` getters
+  return `@Nullable String`; `getPackage()` and resource-stream null derefs are
+  guarded.
 - **JPMS `module-info.java` with module-level `@NullMarked`** — `0fd066a` + `9528e79`. The module `net.ladenthin.llama` exports the three hand-written public packages (`net.ladenthin.llama`, `.args`, `.json`). Two-execution `maven-compiler-plugin` pattern; module-level `@NullMarked` lives on the module descriptor.
 - **Banned-API enforcement** — Maven Enforcer (`8baae0c`), ArchUnit `System.exit` / `new Random` / `Thread.sleep` (`329d764`), `sun.*` / `com.sun.*` / `jdk.internal.*` (`e6069da`).
 - **ArchUnit public-fields-final** — `7b6667d`.

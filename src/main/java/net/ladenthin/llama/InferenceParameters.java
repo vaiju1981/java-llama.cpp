@@ -88,8 +88,8 @@ public final class InferenceParameters extends JsonParameters {
      * @param prompt the prompt to start generation with
      * @return this builder
      */
-    public InferenceParameters setPrompt(String prompt) {
-        parameters.put(PARAM_PROMPT, toJsonString(prompt));
+    public InferenceParameters setPrompt(@Nullable String prompt) {
+        putOptionalJson(PARAM_PROMPT, prompt);
         return this;
     }
 
@@ -99,8 +99,8 @@ public final class InferenceParameters extends JsonParameters {
      * @param inputPrefix the prefix for infilling
      * @return this builder
      */
-    public InferenceParameters setInputPrefix(String inputPrefix) {
-        parameters.put(PARAM_INPUT_PREFIX, toJsonString(inputPrefix));
+    public InferenceParameters setInputPrefix(@Nullable String inputPrefix) {
+        putOptionalJson(PARAM_INPUT_PREFIX, inputPrefix);
         return this;
     }
 
@@ -110,8 +110,8 @@ public final class InferenceParameters extends JsonParameters {
      * @param inputSuffix the suffix for infilling
      * @return this builder
      */
-    public InferenceParameters setInputSuffix(String inputSuffix) {
-        parameters.put(PARAM_INPUT_SUFFIX, toJsonString(inputSuffix));
+    public InferenceParameters setInputSuffix(@Nullable String inputSuffix) {
+        putOptionalJson(PARAM_INPUT_SUFFIX, inputSuffix);
         return this;
     }
 
@@ -345,8 +345,8 @@ public final class InferenceParameters extends JsonParameters {
      * @param grammar the BNF-like grammar string
      * @return this builder
      */
-    public InferenceParameters setGrammar(String grammar) {
-        parameters.put(PARAM_GRAMMAR, toJsonString(grammar));
+    public InferenceParameters setGrammar(@Nullable String grammar) {
+        putOptionalJson(PARAM_GRAMMAR, grammar);
         return this;
     }
 
@@ -374,8 +374,8 @@ public final class InferenceParameters extends JsonParameters {
      * @param penaltyPrompt the string portion of the prompt to penalize for repetition
      * @return this builder
      */
-    public InferenceParameters setPenaltyPrompt(String penaltyPrompt) {
-        parameters.put(PARAM_PENALTY_PROMPT, toJsonString(penaltyPrompt));
+    public InferenceParameters setPenaltyPrompt(@Nullable String penaltyPrompt) {
+        putOptionalJson(PARAM_PENALTY_PROMPT, penaltyPrompt);
         return this;
     }
 
@@ -536,8 +536,8 @@ public final class InferenceParameters extends JsonParameters {
      * @param chatTemplate the Jinja-style chat template to use
      * @return this builder
      */
-    public InferenceParameters setChatTemplate(String chatTemplate) {
-        parameters.put(PARAM_CHAT_TEMPLATE, toJsonString(chatTemplate));
+    public InferenceParameters setChatTemplate(@Nullable String chatTemplate) {
+        putOptionalJson(PARAM_CHAT_TEMPLATE, chatTemplate);
         return this;
     }
 
@@ -632,8 +632,8 @@ public final class InferenceParameters extends JsonParameters {
      * @param toolChoice the hint string (typically {@code "auto"}, {@code "none"}, or {@code "required"})
      * @return this builder
      */
-    public InferenceParameters setToolChoice(String toolChoice) {
-        parameters.put("tool_choice", toJsonString(toolChoice));
+    public InferenceParameters setToolChoice(@Nullable String toolChoice) {
+        putOptionalJson("tool_choice", toolChoice);
         return this;
     }
 
