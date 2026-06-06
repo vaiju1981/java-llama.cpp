@@ -532,10 +532,7 @@ public class LlamaModel implements AutoCloseable {
         InferenceParameters params = new InferenceParameters("").setMessagesJson(request.buildMessagesJson());
         request.buildToolsJson().ifPresent(toolsJson -> {
             params.setToolsJson(toolsJson);
-            final String toolChoice = request.getToolChoice();
-            if (toolChoice != null) {
-                params.setToolChoice(toolChoice);
-            }
+            request.getToolChoice().ifPresent(params::setToolChoice);
             params.setUseChatTemplate(true);
         });
         request.applyCustomizer(params);

@@ -142,10 +142,10 @@ public final class ChatRequest {
 
     /**
      * Tool choice accessor.
-     * @return the {@code tool_choice} hint, or {@code null} when unset
+     * @return the {@code tool_choice} hint, or {@link Optional#empty()} when unset
      */
-    public @Nullable String getToolChoice() {
-        return toolChoice;
+    public Optional<String> getToolChoice() {
+        return Optional.ofNullable(toolChoice);
     }
 
     /**
@@ -169,10 +169,7 @@ public final class ChatRequest {
             ObjectNode obj = MAPPER.createObjectNode();
             obj.put("role", m.getRole());
             obj.put("content", m.getContent());
-            final String toolCallId = m.getToolCallId();
-            if (toolCallId != null) {
-                obj.put("tool_call_id", toolCallId);
-            }
+            m.getToolCallId().ifPresent(id -> obj.put("tool_call_id", id));
             if (!m.getToolCalls().isEmpty()) {
                 ArrayNode tc = MAPPER.createArrayNode();
                 for (ToolCall call : m.getToolCalls()) {

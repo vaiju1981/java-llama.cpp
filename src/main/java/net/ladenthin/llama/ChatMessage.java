@@ -166,10 +166,10 @@ public final class ChatMessage {
 
     /**
      * Tool-call id for tool-result turns.
-     * @return the originating tool call id, or {@code null} for non-tool messages
+     * @return the originating tool call id, or {@link Optional#empty()} for non-tool messages
      */
-    public @Nullable String getToolCallId() {
-        return toolCallId;
+    public Optional<String> getToolCallId() {
+        return Optional.ofNullable(toolCallId);
     }
 
     /**
