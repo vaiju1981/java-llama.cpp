@@ -420,17 +420,17 @@ public class LlamaModel implements AutoCloseable {
     }
 
     // don't overload native methods since the C++ function names get nasty
-    native int requestCompletion(String params) throws LlamaException;
+    native int requestCompletion(String params);
 
-    native String receiveCompletionJson(int taskId) throws LlamaException;
+    native String receiveCompletionJson(int taskId);
 
     native void cancelCompletion(int taskId);
 
     native byte[] decodeBytes(int[] tokens);
 
-    private native void loadModel(String... parameters) throws LlamaException;
+    private native void loadModel(String... parameters);
 
-    private native void loadModelWithProgress(String[] parameters, LoadProgressCallback callback) throws LlamaException;
+    private native void loadModelWithProgress(String[] parameters, LoadProgressCallback callback);
 
     private native void delete();
 
@@ -483,7 +483,7 @@ public class LlamaModel implements AutoCloseable {
         return new LlamaOutput(query, probabilities, true, StopReason.EOS);
     }
 
-    native String handleRerank(String query, String... documents) throws LlamaException;
+    native String handleRerank(String query, String... documents);
 
     /**
      * Applies the chat template to the given inference parameters and returns the formatted string.
@@ -654,7 +654,7 @@ public class LlamaModel implements AutoCloseable {
      * @param paramsJson JSON string with at least a "prompt" field
      * @return JSON response from the server
      */
-    public native String handleCompletions(String paramsJson) throws LlamaException;
+    public native String handleCompletions(String paramsJson);
 
     /**
      * Run an OpenAI-compatible completion (mirrors /v1/completions endpoint).
@@ -663,7 +663,7 @@ public class LlamaModel implements AutoCloseable {
      * @param paramsJson JSON string with OAI-compatible completion parameters
      * @return JSON response in OAI format
      */
-    public native String handleCompletionsOai(String paramsJson) throws LlamaException;
+    public native String handleCompletionsOai(String paramsJson);
 
     /**
      * Run a text infill completion with explicit prefix/suffix.
@@ -672,7 +672,7 @@ public class LlamaModel implements AutoCloseable {
      * @param paramsJson JSON string with infill parameters
      * @return JSON response from the server
      */
-    public native String handleInfill(String paramsJson) throws LlamaException;
+    public native String handleInfill(String paramsJson);
 
     /**
      * Generate embeddings for the given input. The request JSON should contain
@@ -682,7 +682,7 @@ public class LlamaModel implements AutoCloseable {
      * @param oaiCompat whether to format the response in OAI-compatible format
      * @return JSON response with embedding vectors
      */
-    public native String handleEmbeddings(String paramsJson, boolean oaiCompat) throws LlamaException;
+    public native String handleEmbeddings(String paramsJson, boolean oaiCompat);
 
     /**
      * Tokenize text content, optionally including token piece information.
@@ -692,7 +692,7 @@ public class LlamaModel implements AutoCloseable {
      * @param withPieces whether to include token piece strings in the response
      * @return JSON response with token data
      */
-    public native String handleTokenize(String content, boolean addSpecial, boolean withPieces) throws LlamaException;
+    public native String handleTokenize(String content, boolean addSpecial, boolean withPieces);
 
     /**
      * Detokenize an array of token IDs back to text.
@@ -700,7 +700,7 @@ public class LlamaModel implements AutoCloseable {
      * @param tokens array of token IDs
      * @return JSON response with the decoded text
      */
-    public native String handleDetokenize(int[] tokens) throws LlamaException;
+    public native String handleDetokenize(int[] tokens);
 
     // ------------------------------------------------------------------
     // Server management
@@ -736,7 +736,7 @@ public class LlamaModel implements AutoCloseable {
      * @return parsed POJO of type {@code T}
      * @throws LlamaException when the response is not valid JSON for the target type
      */
-    public <T> T completeAsJson(Class<T> type, String schema, InferenceParameters parameters) throws LlamaException {
+    public <T> T completeAsJson(Class<T> type, String schema, InferenceParameters parameters) {
         parameters.setJsonSchema(schema);
         return completeAsJson(type, parameters);
     }
@@ -754,7 +754,7 @@ public class LlamaModel implements AutoCloseable {
      * @return parsed POJO of type {@code T}
      * @throws LlamaException when the response is not valid JSON for the target type
      */
-    public <T> T completeAsJson(Class<T> type, InferenceParameters parameters) throws LlamaException {
+    public <T> T completeAsJson(Class<T> type, InferenceParameters parameters) {
         String raw = complete(parameters);
         try {
             return OBJECT_MAPPER.readValue(raw, type);
@@ -772,7 +772,7 @@ public class LlamaModel implements AutoCloseable {
      * @return parsed {@link ServerMetrics}
      * @throws LlamaException if the native call fails or the response cannot be parsed
      */
-    public ServerMetrics getMetricsTyped() throws LlamaException {
+    public ServerMetrics getMetricsTyped() {
         try {
             return new ServerMetrics(OBJECT_MAPPER.readTree(getMetrics()));
         } catch (java.io.IOException e) {
@@ -792,7 +792,7 @@ public class LlamaModel implements AutoCloseable {
      * @return {@link ModelMeta} parsed from the native {@code model_meta()} response
      * @throws LlamaException if the native call fails or the response cannot be parsed
      */
-    public ModelMeta getModelMeta() throws LlamaException {
+    public ModelMeta getModelMeta() {
         try {
             return new ModelMeta(OBJECT_MAPPER.readTree(getModelMetaJson()));
         } catch (java.io.IOException e) {
@@ -800,7 +800,7 @@ public class LlamaModel implements AutoCloseable {
         }
     }
 
-    native String getModelMetaJson() throws LlamaException;
+    native String getModelMetaJson();
 
     /**
      * Erase the KV cache for a specific slot.
@@ -846,11 +846,11 @@ public class LlamaModel implements AutoCloseable {
      * @param configJson JSON configuration string
      * @return true if configuration was applied successfully
      */
-    public native boolean configureParallelInference(String configJson) throws LlamaException;
+    public native boolean configureParallelInference(String configJson);
 
-    native String handleSlotAction(int action, int slotId, @Nullable String filename) throws LlamaException;
+    native String handleSlotAction(int action, int slotId, @Nullable String filename);
 
-    native String handleChatCompletions(String params) throws LlamaException;
+    native String handleChatCompletions(String params);
 
-    native int requestChatCompletion(String params) throws LlamaException;
+    native int requestChatCompletion(String params);
 }
