@@ -205,4 +205,32 @@ SPDX-License-Identifier: MIT
         <Bug pattern="USBR_UNNECESSARY_STORE_BEFORE_RETURN"/>
     </Match>
 
+    <!--
+        fb-contrib OPM_OVERLY_PERMISSIVE_METHOD ("Method is declared more
+        permissively than is used in the code base") suppressed PROJECT-WIDE.
+
+        Rationale (kept aligned cross-repo with BitcoinAddressFinder):
+        - Current package layout groups most production Java in
+          net.ladenthin.llama + a thin sibling package set. Any method
+          called only from same-package callers is flagged as "could be
+          package-private". Those answers are correct today but unstable:
+          once the planned package-architecture refactor splits the root
+          package into proper layers, methods that today are correctly
+          package-private will need to become public to cross the new
+          boundaries. Tightening now produces mechanical churn highly
+          likely to be reverted by the refactor.
+
+        - Cross-repo decision + per-category breakdown recorded in
+          workspace/crossrepostatus.md ("OPM scope-tightening — after
+          package refactor"). The same rule is suppressed in BAF.
+
+        TODO: re-enable this rule (delete this Match block) once the
+        package refactor has settled — at that point genuine "method
+        exposed beyond its actual call site" findings become stable
+        signals worth fixing.
+    -->
+    <Match>
+        <Bug pattern="OPM_OVERLY_PERMISSIVE_METHOD"/>
+    </Match>
+
 </FindBugsFilter>
