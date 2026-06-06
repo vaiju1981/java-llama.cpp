@@ -233,4 +233,24 @@ SPDX-License-Identifier: MIT
         <Bug pattern="OPM_OVERLY_PERMISSIVE_METHOD"/>
     </Match>
 
+    <!--
+        ChatRequest is an immutable value class. Its messages/tools fields
+        are stored as Collections.unmodifiableList(...) views, so the
+        getters CANNOT actually leak the internal representation: any
+        attempt to mutate the returned list throws UnsupportedOperationException
+        (covered by ChatRequestTest.messagesAccessorIsUnmodifiable /
+        toolsAccessorIsUnmodifiable). SpotBugs flags every "return this.field"
+        from a non-array reference field as EI_EXPOSE_REP without tracking
+        whether the field was unmodifiable-wrapped at construction time;
+        the wrapping is verified by tests, so the finding is a false positive.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.ChatRequest"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+        <Or>
+            <Method name="getMessages"/>
+            <Method name="getTools"/>
+        </Or>
+    </Match>
+
 </FindBugsFilter>

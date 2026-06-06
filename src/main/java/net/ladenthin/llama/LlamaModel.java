@@ -563,7 +563,8 @@ public class LlamaModel implements AutoCloseable {
             throw new IllegalArgumentException("ChatRequest.maxToolRounds must be >= 1 (got " + maxRounds + "); "
                     + "chatWithTools always issues at least one chat call.");
         }
-        ChatResponse last = chat(request);
+        ChatRequest current = request;
+        ChatResponse last = chat(current);
         for (int round = 1; round < maxRounds; round++) {
             Optional<ChatMessage> assistantOpt = last.getFirstMessage();
             // NOTE: inline !isPresent() here (not compatibilityHelper.isEmpty) so NullAway's
@@ -572,7 +573,7 @@ public class LlamaModel implements AutoCloseable {
                 return last;
             }
             ChatMessage assistant = assistantOpt.get();
-            request.addMessage(assistant);
+            current = current.appendMessage(assistant);
             for (ToolCall call : assistant.getToolCalls()) {
                 ToolHandler handler = handlers.get(call.getName());
                 String result;
@@ -588,9 +589,9 @@ public class LlamaModel implements AutoCloseable {
                                 + "}";
                     }
                 }
-                request.addMessage(ChatMessage.toolResult(call.getId(), result));
+                current = current.appendMessage(ChatMessage.toolResult(call.getId(), result));
             }
-            last = chat(request);
+            last = chat(current);
         }
         return last;
     }

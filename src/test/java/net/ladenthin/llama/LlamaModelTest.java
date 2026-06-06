@@ -359,9 +359,9 @@ public class LlamaModelTest {
      */
     @Test
     public void testTypedChat() {
-        ChatRequest req = new ChatRequest()
-                .addMessage("user", "Say hi in one word.")
-                .setInferenceCustomizer(p -> p.setNPredict(8).setSeed(1));
+        ChatRequest req = ChatRequest.empty()
+                .appendMessage("user", "Say hi in one word.")
+                .withInferenceCustomizer(p -> p.setNPredict(8).setSeed(1));
         ChatResponse r = model.chat(req);
         assertNotNull(r);
         assertFalse(r.getChoices().isEmpty());
@@ -382,11 +382,11 @@ public class LlamaModelTest {
                 "echo",
                 "Echo a string",
                 "{\"type\":\"object\",\"properties\":{\"s\":{\"type\":\"string\"}},\"required\":[\"s\"]}");
-        ChatRequest req = new ChatRequest()
-                .addMessage("user", "Hello.")
-                .addTool(echo)
-                .setMaxToolRounds(2)
-                .setInferenceCustomizer(p -> p.setNPredict(8).setSeed(1));
+        ChatRequest req = ChatRequest.empty()
+                .appendMessage("user", "Hello.")
+                .appendTool(echo)
+                .withMaxToolRounds(2)
+                .withInferenceCustomizer(p -> p.setNPredict(8).setSeed(1));
         java.util.Map<String, ToolHandler> handlers = new java.util.HashMap<>();
         handlers.put("echo", args -> args);
         ChatResponse r = model.chatWithTools(req, handlers);
@@ -431,12 +431,12 @@ public class LlamaModelTest {
     @Test
     public void testChatBatch() {
         java.util.List<ChatRequest> requests = java.util.Arrays.asList(
-                new ChatRequest()
-                        .addMessage("user", "Say hi.")
-                        .setInferenceCustomizer(p -> p.setNPredict(4).setSeed(1)),
-                new ChatRequest()
-                        .addMessage("user", "Say bye.")
-                        .setInferenceCustomizer(p -> p.setNPredict(4).setSeed(2)));
+                ChatRequest.empty()
+                        .appendMessage("user", "Say hi.")
+                        .withInferenceCustomizer(p -> p.setNPredict(4).setSeed(1)),
+                ChatRequest.empty()
+                        .appendMessage("user", "Say bye.")
+                        .withInferenceCustomizer(p -> p.setNPredict(4).setSeed(2)));
         java.util.List<ChatResponse> results = model.chatBatch(requests);
         assertEquals(2, results.size());
         for (ChatResponse r : results) {
