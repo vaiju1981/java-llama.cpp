@@ -236,13 +236,16 @@ public class LlamaModel implements AutoCloseable {
      * @param token cancellation handle bound to the underlying inference loop
      * @return a future completed with whatever text was generated up to the point of stop or cancellation
      */
+    // The whenComplete return value is deliberately discarded: it is a
+    // fire-and-forget cancellation callback attached to `future`, and `future`
+    // (not the chained stage) is what the caller observes. The suppression sits
+    // on the method instead of on a local variable because the local-variable
+    // form triggered fb-contrib DLS_DEAD_LOCAL_STORE — see workspace/crossrepostatus.md
+    // "FireAndForget DLS reckoning" row for the cross-repo policy.
+    @SuppressWarnings("FutureReturnValueIgnored")
     public CompletableFuture<String> completeAsync(InferenceParameters parameters, CancellationToken token) {
         CompletableFuture<String> future = CompletableFuture.supplyAsync(() -> complete(parameters, token));
-        // whenComplete returns a new stage that we deliberately discard: this is a
-        // fire-and-forget cancellation callback attached to `future`, which is what
-        // the caller observes.
-        @SuppressWarnings("FutureReturnValueIgnored")
-        final CompletableFuture<String> cancelHook = future.whenComplete((result, ex) -> {
+        future.whenComplete((result, ex) -> {
             if (ex instanceof java.util.concurrent.CancellationException) {
                 token.cancel();
             }

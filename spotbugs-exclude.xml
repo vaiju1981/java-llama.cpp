@@ -208,6 +208,8 @@ SPDX-License-Identifier: MIT
         emit. The collateral cost is small: any handwritten member of those four names
         that genuinely stores-then-immediately-returns is either a debugger-friendly
         local-variable pattern or a micro-optimisation, both intentional here.
+
+        Cross-repo invariant — see `../workspace/policies/lombok-config.md`.
     -->
     <Match>
         <Or>
@@ -265,6 +267,23 @@ SPDX-License-Identifier: MIT
             <Method name="getMessages"/>
             <Method name="getTools"/>
         </Or>
+    </Match>
+
+    <!--
+        LlamaModel.ctx is the per-instance native handle: a long pointer
+        into the llama.cpp context owned by THIS LlamaModel instance.
+        fb-contrib's SPP_FIELD_COULD_BE_STATIC detector observes that
+        the field is only assigned inside loadModel (called from the
+        constructor) and never reassigned, and concludes the field could
+        be promoted to static. That is incorrect: every LlamaModel wraps
+        its OWN native context, and making ctx static would cause every
+        instance to share one handle — corrupting state across parallel
+        inference calls and double-freeing on close().
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.LlamaModel"/>
+        <Bug pattern="SPP_FIELD_COULD_BE_STATIC"/>
+        <Field name="ctx"/>
     </Match>
 
 </FindBugsFilter>
