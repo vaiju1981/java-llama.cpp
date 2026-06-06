@@ -59,7 +59,9 @@ public final class LlamaPublisher implements Publisher<LlamaOutput> {
     @Override
     public void subscribe(Subscriber<? super LlamaOutput> subscriber) {
         if (subscriber == null) {
-            throw new NullPointerException("subscriber");
+            throw new NullPointerException(
+                    "reactive-streams §1.9: subscriber must not be null (caller thread="
+                            + Thread.currentThread().getName() + ")");
         }
         if (!subscribed.compareAndSet(false, true)) {
             EmptySubscription.signalError(

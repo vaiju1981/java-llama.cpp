@@ -183,7 +183,7 @@ public class ParameterJsonSerializer {
      * @param values the token IDs to include
      * @return a Jackson {@link ArrayNode} of integer values
      */
-    public ArrayNode buildIntArray(int[] values) {
+    public ArrayNode buildIntArray(int... values) {
         ArrayNode arr = OBJECT_MAPPER.createArrayNode();
         for (int v : values) arr.add(v);
         return arr;

@@ -376,7 +376,7 @@ public class LlamaModel implements AutoCloseable {
      * @param tokens an array of tokens
      * @return the token ids decoded to a string
      */
-    public String decode(int[] tokens) {
+    public String decode(int... tokens) {
         byte[] bytes = decodeBytes(tokens);
         return new String(bytes, StandardCharsets.UTF_8);
     }
@@ -426,7 +426,7 @@ public class LlamaModel implements AutoCloseable {
 
     native void cancelCompletion(int taskId);
 
-    native byte[] decodeBytes(int[] tokens);
+    native byte[] decodeBytes(int... tokens);
 
     private native void loadModel(String... parameters);
 
@@ -700,7 +700,7 @@ public class LlamaModel implements AutoCloseable {
      * @param tokens array of token IDs
      * @return JSON response with the decoded text
      */
-    public native String handleDetokenize(int[] tokens);
+    public native String handleDetokenize(int... tokens);
 
     // ------------------------------------------------------------------
     // Server management

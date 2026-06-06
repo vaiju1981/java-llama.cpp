@@ -92,7 +92,8 @@ public final class ContentPart {
         Objects.requireNonNull(bytes, "bytes");
         Objects.requireNonNull(mimeType, "mimeType");
         if (mimeType.isEmpty()) {
-            throw new IllegalArgumentException("mimeType must not be empty");
+            throw new IllegalArgumentException(
+                    "mimeType must not be empty (bytes.length=" + bytes.length + ")");
         }
         String encoded = Base64.getEncoder().encodeToString(bytes);
         return new ContentPart(Type.IMAGE_URL, null, "data:" + mimeType + ";base64," + encoded);

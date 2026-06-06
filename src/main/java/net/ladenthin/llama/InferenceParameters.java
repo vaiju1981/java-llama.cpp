@@ -388,7 +388,7 @@ public final class InferenceParameters extends JsonParameters {
      * @param tokens the token ids of the prompt portion to penalize for repetition
      * @return this builder
      */
-    public InferenceParameters setPenaltyPrompt(int[] tokens) {
+    public InferenceParameters setPenaltyPrompt(int... tokens) {
         if (tokens.length > 0) {
             parameters.put(
                     PARAM_PENALTY_PROMPT, serializer.buildIntArray(tokens).toString());

@@ -267,7 +267,9 @@ class LlamaLoader {
         final Package pkg = LlamaLoader.class.getPackage();
         // LlamaLoader is in a named package, so Class.getPackage() is never null here.
         if (pkg == null) {
-            throw new IllegalStateException("LlamaLoader.class.getPackage() returned null");
+            throw new IllegalStateException(
+                    "LlamaLoader.class.getPackage() returned null (classLoader="
+                            + LlamaLoader.class.getClassLoader() + ")");
         }
         String packagePath = pkg.getName().replace('.', '/');
         return String.format("/%s/%s", packagePath, OSInfo.getNativeLibFolderPathForCurrentOS());

@@ -105,7 +105,7 @@ public final class ChatRequest {
      */
     public ChatRequest setMaxToolRounds(int maxToolRounds) {
         if (maxToolRounds <= 0) {
-            throw new IllegalArgumentException("maxToolRounds must be > 0");
+            throw new IllegalArgumentException("maxToolRounds must be > 0 but was " + maxToolRounds);
         }
         this.maxToolRounds = maxToolRounds;
         return this;

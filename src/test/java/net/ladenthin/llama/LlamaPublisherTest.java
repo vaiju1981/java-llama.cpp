@@ -196,7 +196,9 @@ public class LlamaPublisherTest {
             new LlamaPublisher(null, null, false).subscribe(null);
             fail("expected NPE");
         } catch (NullPointerException expected) {
-            assertEquals("subscriber", expected.getMessage());
+            assertTrue(
+                    expected.getMessage().startsWith("reactive-streams §1.9: subscriber must not be null"),
+                    "actual: " + expected.getMessage());
         }
     }
 }
