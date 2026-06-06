@@ -97,10 +97,8 @@ public final class ChatMessage {
     }
 
     private static List<ContentPart> requireNonEmpty(List<ContentPart> parts) {
-        if (parts == null || parts.isEmpty()) {
-            throw new IllegalArgumentException(
-                    "parts must not be null or empty (was "
-                            + (parts == null ? "null" : "size=0") + ")");
+        if (parts.isEmpty()) {
+            throw new IllegalArgumentException("parts must not be empty (size=" + parts.size() + ")");
         }
         return parts;
     }
