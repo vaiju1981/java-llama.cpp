@@ -4,8 +4,6 @@
 
 package net.ladenthin.llama;
 
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 import lombok.ToString;
@@ -45,8 +43,14 @@ public final class Session implements AutoCloseable {
     private final LlamaModel model;
 
     private final int slotId;
-    private final @Nullable String systemMessage;
-    private final List<Pair<String, String>> turns = new ArrayList<Pair<String, String>>();
+
+    /**
+     * Append-only transcript with two-phase commit semantics. See the
+     * {@link ChatTranscript} class Javadoc for the full invariant statement
+     * and the {@code ChatTranscriptTest} class for the running-documentation
+     * tests that pin the contract.
+     */
+    private final ChatTranscript transcript;
 
     // Lambda Consumer — toString is the implementation hash, not useful in logs.
     @ToString.Exclude
@@ -86,7 +90,7 @@ public final class Session implements AutoCloseable {
             @Nullable Consumer<InferenceParameters> paramsCustomizer) {
         this.model = model;
         this.slotId = slotId;
-        this.systemMessage = systemMessage;
+        this.transcript = new ChatTranscript(systemMessage);
         this.paramsCustomizer = paramsCustomizer;
     }
 
@@ -101,19 +105,18 @@ public final class Session implements AutoCloseable {
             if (streamingActive) {
                 throw new IllegalStateException(
                         "stream in progress on slot " + slotId
-                                + " (transcript=" + turns.size() + " turns)"
+                                + " (transcript=" + transcript.size() + " turns)"
                                 + "; call commitStreamedReply(...) before send(...)");
             }
-            turns.add(new Pair<String, String>("user", userMessage));
-            InferenceParameters params = buildParams();
-            try {
-                String reply = model.chatCompleteText(params);
-                turns.add(new Pair<String, String>("assistant", reply));
-                return reply;
-            } catch (RuntimeException e) {
-                turns.remove(turns.size() - 1);
-                throw e;
-            }
+            // Two-phase commit: build the wire-format with the pending user turn
+            // outside the transcript via messagesWithPendingUserTurn(...). On
+            // model success, commit BOTH turns atomically through appendRound(...).
+            // On model failure, nothing was committed — no rollback logic needed.
+            // Invariant pinned by ChatTranscriptTest.
+            InferenceParameters params = buildParamsWithPendingUserTurn(userMessage);
+            String reply = model.chatCompleteText(params);
+            transcript.appendRound(userMessage, reply);
+            return reply;
         }
     }
 
@@ -131,18 +134,16 @@ public final class Session implements AutoCloseable {
             if (streamingActive) {
                 throw new IllegalStateException(
                         "stream in progress on slot " + slotId
-                                + " (transcript=" + turns.size() + " turns)"
+                                + " (transcript=" + transcript.size() + " turns)"
                                 + "; call commitStreamedReply(...) before stream(...)");
             }
-            turns.add(new Pair<String, String>("user", userMessage));
-            try {
-                LlamaIterable iterable = model.generateChat(buildParams());
-                streamingActive = true;
-                return iterable;
-            } catch (RuntimeException e) {
-                turns.remove(turns.size() - 1);
-                throw e;
-            }
+            // Two-phase commit: see send(). The user turn is committed only after
+            // generateChat successfully returns the iterable; the assistant turn is
+            // committed separately by commitStreamedReply(...).
+            LlamaIterable iterable = model.generateChat(buildParamsWithPendingUserTurn(userMessage));
+            transcript.appendUserTurn(userMessage);
+            streamingActive = true;
+            return iterable;
         }
     }
 
@@ -157,10 +158,10 @@ public final class Session implements AutoCloseable {
             if (!streamingActive) {
                 throw new IllegalStateException(
                         "no stream in progress on slot " + slotId
-                                + " (transcript=" + turns.size() + " turns)"
+                                + " (transcript=" + transcript.size() + " turns)"
                                 + "; call stream(...) first");
             }
-            turns.add(new Pair<String, String>("assistant", assistantText));
+            transcript.appendAssistantTurn(assistantText);
             streamingActive = false;
         }
     }
@@ -176,7 +177,7 @@ public final class Session implements AutoCloseable {
             if (streamingActive) {
                 throw new IllegalStateException(
                         "stream in progress on slot " + slotId
-                                + " (transcript=" + turns.size() + " turns)"
+                                + " (transcript=" + transcript.size() + " turns)"
                                 + "; call commitStreamedReply(...) before save(...)");
             }
             return model.saveSlot(slotId, filepath);
@@ -194,7 +195,7 @@ public final class Session implements AutoCloseable {
             if (streamingActive) {
                 throw new IllegalStateException(
                         "stream in progress on slot " + slotId
-                                + " (transcript=" + turns.size() + " turns)"
+                                + " (transcript=" + transcript.size() + " turns)"
                                 + "; call commitStreamedReply(...) before restore(...)");
             }
             return model.restoreSlot(slotId, filepath);
@@ -207,14 +208,7 @@ public final class Session implements AutoCloseable {
      */
     public List<ChatMessage> getMessages() {
         synchronized (lock) {
-            List<ChatMessage> out = new ArrayList<ChatMessage>(turns.size() + 1);
-            if (systemMessage != null && !systemMessage.isEmpty()) {
-                out.add(new ChatMessage("system", systemMessage));
-            }
-            for (Pair<String, String> p : turns) {
-                out.add(new ChatMessage(p.getKey(), p.getValue()));
-            }
-            return Collections.unmodifiableList(out);
+            return transcript.snapshot();
         }
     }
 
@@ -226,9 +220,21 @@ public final class Session implements AutoCloseable {
         }
     }
 
-    private InferenceParameters buildParams() {
-        InferenceParameters params =
-                new InferenceParameters("").setMessages(systemMessage, new ArrayList<Pair<String, String>>(turns));
+    /**
+     * Build inference parameters with a pending user turn appended to the existing
+     * transcript — without mutating the underlying {@link ChatTranscript}. The
+     * actual transcript mutation happens AFTER the model call returns successfully,
+     * either via {@link ChatTranscript#appendRound(String, String)} (send path)
+     * or {@link ChatTranscript#appendUserTurn(String)} (stream path).
+     *
+     * @param pendingUserMessage the user turn to include in the wire format
+     * @return inference parameters carrying transcript + pending user turn
+     */
+    private InferenceParameters buildParamsWithPendingUserTurn(String pendingUserMessage) {
+        InferenceParameters params = new InferenceParameters("")
+                .setMessages(
+                        transcript.getSystemMessage(),
+                        transcript.messagesWithPendingUserTurn(pendingUserMessage));
         if (paramsCustomizer != null) {
             paramsCustomizer.accept(params);
         }
