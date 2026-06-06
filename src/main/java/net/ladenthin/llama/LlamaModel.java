@@ -42,6 +42,9 @@ import org.jspecify.annotations.Nullable;
 @ToString
 public class LlamaModel implements AutoCloseable {
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper OBJECT_MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     static {
         LlamaLoader.initialize();
     }
@@ -696,9 +699,6 @@ public class LlamaModel implements AutoCloseable {
     public String getMetrics() {
         return handleSlotAction(0, 0, null);
     }
-
-    private static final com.fasterxml.jackson.databind.ObjectMapper OBJECT_MAPPER =
-            new com.fasterxml.jackson.databind.ObjectMapper();
 
     /**
      * Run {@link #complete(InferenceParameters)} constrained to the supplied JSON Schema

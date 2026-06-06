@@ -286,4 +286,78 @@ SPDX-License-Identifier: MIT
         <Field name="ctx"/>
     </Match>
 
+    <!--
+        CancellationToken and ChatTranscript are lifecycle handles managed by
+        identity, not value: a CancellationToken owns a mutable cancellation
+        flag observed across threads, and ChatTranscript is an append-only
+        transcript owned by a single Session and never compared by value.
+        Both classes deliberately do NOT generate Lombok @EqualsAndHashCode
+        (documented in their Javadocs) — fb-contrib's IMC_NO_EQUALS check
+        is therefore a false positive for both.
+    -->
+    <Match>
+        <Or>
+            <Class name="net.ladenthin.llama.CancellationToken"/>
+            <Class name="net.ladenthin.llama.ChatTranscript"/>
+        </Or>
+        <Bug pattern="IMC_IMMATURE_CLASS_NO_EQUALS"/>
+    </Match>
+
+    <!--
+        TimingsLogger emits its events under the documented public logger name
+        "net.ladenthin.llama.timings" (see CLAUDE.md > System Properties Reference
+        and the README), NOT the FQN of the TimingsLogger class. That separation
+        lets operators raise/lower the per-run-timing line independently of
+        application logs. fb-contrib's LO_SUSPECT_LOG_CLASS detector flags any
+        logger whose name does not match the enclosing class FQN; here the
+        mismatch is the public contract.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.TimingsLogger"/>
+        <Bug pattern="LO_SUSPECT_LOG_CLASS"/>
+    </Match>
+
+    <!--
+        Java8CompatibilityHelper.formatted is a thin wrapper around
+        String.format that intentionally accepts runtime-supplied format
+        strings — the helper exists precisely so that Java 11+'s
+        String#formatted() can be used uniformly on the Java 8 baseline.
+        fb-contrib's FORMAT_STRING_MANIPULATION fires on any non-literal
+        format argument; the wrapper is the documented escape hatch.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.Java8CompatibilityHelper"/>
+        <Bug pattern="FORMAT_STRING_MANIPULATION"/>
+        <Method name="formatted"/>
+    </Match>
+
+    <!--
+        ToolHandler.invoke is the functional-interface contract for caller-
+        supplied tool handlers. `throws Exception` is the right shape because
+        the handler body is user code that can throw anything; LlamaModel's
+        chatWithTools agent loop catches the broad Exception and reports it
+        back to the model as a {"error":"..."} tool result rather than
+        aborting the request. Narrowing the throws clause would force every
+        handler implementation to wrap arbitrary checked exceptions for
+        no behavioural benefit.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.ToolHandler"/>
+        <Bug pattern="THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION"/>
+        <Method name="invoke"/>
+    </Match>
+
+    <!--
+        ChatMessage.requireNonNull is a precondition guard whose only
+        meaningful state to report is the parameter name itself (the value
+        is null by definition at the throw point). fb-contrib's WEM detector
+        recognises the static-string IllegalArgumentException as "weak", but
+        there is no additional state-dependent context to add at this guard.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.ChatMessage"/>
+        <Bug pattern="WEM_WEAK_EXCEPTION_MESSAGING"/>
+        <Method name="requireNonNull"/>
+    </Match>
+
 </FindBugsFilter>

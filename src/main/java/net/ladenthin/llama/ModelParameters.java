@@ -23,9 +23,6 @@ import net.ladenthin.llama.json.ParameterJsonSerializer;
 @EqualsAndHashCode(callSuper = true)
 public final class ModelParameters extends CliParameters {
 
-    @EqualsAndHashCode.Exclude
-    private final ParameterJsonSerializer serializer = new ParameterJsonSerializer();
-
     private static final String ARG_FIT = "--fit";
     static final String ARG_POOLING = "--pooling";
     /** CLI value enabling {@code --fit} (automatic device-memory fitting). */
@@ -34,6 +31,9 @@ public final class ModelParameters extends CliParameters {
     public static final String FIT_OFF = "off";
     /** Mirrors the llama.cpp default: {@code fit_params = true}. */
     public static final String DEFAULT_FIT_VALUE = FIT_ON;
+
+    @EqualsAndHashCode.Exclude
+    private final ParameterJsonSerializer serializer = new ParameterJsonSerializer();
 
     /** Creates a new {@link ModelParameters} with {@code --fit=on} preset. */
     public ModelParameters() {
