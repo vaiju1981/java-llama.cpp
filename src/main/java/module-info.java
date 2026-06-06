@@ -26,10 +26,10 @@
  * <p>{@code requires static org.jspecify} is needed only at compile time of this
  * descriptor; JSpecify annotations carry {@code RetentionPolicy.CLASS} so module-path
  * consumers never need jspecify on their runtime path. Checker Framework qualifiers and
- * the Codehaus animal-sniffer annotation are likewise compile-time only. Jackson, SLF4J,
- * and Reactive Streams API are referenced from ordinary sources only; javac in the
- * separate {@code module-info-compile} execution compiles {@code module-info.java} in
- * isolation and therefore does not need their module names. Consumers that put this jar
+ * the Codehaus animal-sniffer annotation are likewise compile-time only. Jackson and
+ * SLF4J are referenced from ordinary sources only; javac in the separate
+ * {@code module-info-compile} execution compiles {@code module-info.java} in isolation
+ * and therefore does not need their module names. Consumers that put this jar
  * on the module path will load these dependencies through their own {@code requires}
  * graph; consumers on the classpath are unaffected.</p>
  *

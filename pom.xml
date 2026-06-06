@@ -56,7 +56,7 @@ SPDX-License-Identifier: MIT
 		<nullaway.version>0.13.4</nullaway.version>
 		<checker.version>4.2.0</checker.version>
 		<jackson.version>2.22.0</jackson.version>
-		<reactive-streams.version>1.0.4</reactive-streams.version>
+		<reactor.version>3.6.11</reactor.version>
 		<slf4j.version>2.0.18</slf4j.version>
 		<logback.version>1.5.34</logback.version>
 		<animal-sniffer.version>1.27</animal-sniffer.version>
@@ -140,14 +140,6 @@ SPDX-License-Identifier: MIT
 			<artifactId>jackson-databind</artifactId>
 			<version>${jackson.version}</version>
 		</dependency>
-		<!-- Reactive Streams API used by LlamaPublisher to expose token streams as a
-		     Publisher<LlamaOutput>. Java 8 compatible, ~5 KB, supplies the standard
-		     interfaces that Reactor / RxJava / Kotlin coroutines bridge to. -->
-		<dependency>
-			<groupId>org.reactivestreams</groupId>
-			<artifactId>reactive-streams</artifactId>
-			<version>${reactive-streams.version}</version>
-		</dependency>
 		<!-- Required by OSInfo (vendored from xerial/sqlite-jdbc) for log emission. -->
 		<dependency>
 			<groupId>org.slf4j</groupId>
@@ -200,6 +192,23 @@ SPDX-License-Identifier: MIT
 			<groupId>io.github.hakky54</groupId>
 			<artifactId>logcaptor</artifactId>
 			<version>${logcaptor.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<!-- Test-only Project Reactor used by ReactorIntegrationTest to prove the
+		     "wrap LlamaIterable with Flux.fromIterable + subscribeOn" pattern works
+		     end-to-end (backpressure, AutoCloseable cancel propagation). NOT a runtime
+		     dependency — consumers bring whichever reactive lib they already use
+		     (Reactor / RxJava / Kotlin Flow / Akka — see README "Reactive integration"). -->
+		<dependency>
+			<groupId>io.projectreactor</groupId>
+			<artifactId>reactor-core</artifactId>
+			<version>${reactor.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>io.projectreactor</groupId>
+			<artifactId>reactor-test</artifactId>
+			<version>${reactor.version}</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>

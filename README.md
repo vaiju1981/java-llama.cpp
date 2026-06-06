@@ -417,6 +417,67 @@ try (LlamaModel model = new LlamaModel(modelParams)) {
 }
 ```
 
+### Reactive integration (Reactor, RxJava, Kotlin Flow, Akka)
+
+`LlamaIterable` (returned by `model.generate(...)` and `model.generateChat(...)`)
+implements `Iterable<LlamaOutput> & AutoCloseable`, so every mainstream reactive
+library wraps it in a few lines without `java-llama.cpp` pulling in a runtime
+reactive dependency.
+
+**Always wrap with the library's resource-management primitive** — `Flux.using`,
+`Flowable.using`, Kotlin `use {}`, etc. — so that subscription cancellation
+flows into `LlamaIterable.close()` and from there into llama.cpp's native
+`cancelCompletion`. A plain `Flux.fromIterable(iterable)` or `for (x in iter)`
+loop will NOT close the iterable on cancel; the native task slot stays
+occupied until the model is closed.
+
+#### Project Reactor (Spring WebFlux)
+```java
+Flux<LlamaOutput> tokens = Flux.using(
+        () -> model.generate(params),
+        Flux::fromIterable,
+        LlamaIterable::close)
+    .subscribeOn(Schedulers.boundedElastic());
+```
+
+#### RxJava 3 (also for RxAndroid)
+```java
+Flowable<LlamaOutput> tokens = Flowable.using(
+        () -> model.generate(params),
+        Flowable::fromIterable,
+        LlamaIterable::close)
+    .subscribeOn(Schedulers.io());
+```
+
+#### Kotlin Flow (Android / coroutines)
+```kotlin
+fun llama(model: LlamaModel, params: InferenceParameters) = flow {
+    model.generate(params).use { iterable ->
+        for (output in iterable) emit(output)
+    }
+}.flowOn(Dispatchers.IO)
+```
+The companion Android sample [LLaMAndroid](https://github.com/Rattlyy/LLaMAndroid)
+demonstrates the `flow { for (output in model.generate(params)) emit(output) }`
+shape against the upstream binding. Wrap the `for` loop in
+`.use { }` if your collector may cancel mid-stream — otherwise the native task
+slot will not be released until the model is closed.
+
+#### Akka Streams
+```scala
+val tokens: Source[LlamaOutput, NotUsed] = Source
+    .fromIterator(() => model.generate(params).iterator())
+    .async("blocking-io-dispatcher")
+```
+
+**Why no built-in `Publisher`?** Earlier snapshots of this fork shipped a
+hand-rolled `LlamaModel.streamPublisher(...)` returning a Reactive Streams
+`Publisher<LlamaOutput>`. Since every reactive library bridges blocking
+iterables in a few lines via its own resource-management primitive, the binding
+now stays free of any reactive runtime dependency — pick whichever library your
+app already uses. The pattern is verified end-to-end by
+`ReactorIntegrationTest` in the test sources.
+
 ### Logging
 
 Per default, logs are written to stdout.

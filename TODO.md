@@ -69,6 +69,22 @@ These are JNI plumbing items for upstream API additions. Policy: add only after 
 
 ## Done (kept for history)
 
+- **Reactive `LlamaPublisher` removed in favour of consumer-side adapters.**
+  The hand-rolled `LlamaPublisher` + `LlamaModel.streamPublisher` /
+  `streamChatPublisher` (shipped in PR #188 as §2.3 of the Kotlin SDK
+  feature comparison) had zero non-test callers. `LlamaIterable` is
+  already `Iterable<LlamaOutput> & AutoCloseable`, and every mainstream
+  reactive library wraps it in a few lines via its own resource-management
+  primitive (`Flux.using`, `Flowable.using`, Kotlin `use {}`). The real-world
+  Android consumer [LLaMAndroid](https://github.com/Rattlyy/LLaMAndroid)
+  already uses `LlamaIterable` inside a Kotlin `flow {}` block — bypassing
+  the publisher entirely. README "Reactive integration" section documents
+  the Reactor / RxJava 3 / Kotlin Flow / Akka patterns; correctness is
+  pinned end-to-end by a new `ReactorIntegrationTest` using
+  test-scope `reactor-core` (zero runtime deps added; `org.reactivestreams`
+  runtime dep dropped). Cleared 6 fb-contrib Max+Low findings on
+  `LlamaPublisher$LlamaSubscription` as a side effect.
+
 - **Error Prone bug-pattern promotions to `ERROR`** — `855f447` (12 patterns promoted; `-Xlint:all` enabled).
 - **`javac -Werror` + `-Xlint:all,-serial,-options,-classfile,-processing`** — `3e2efbb`. ~20 EP warnings addressed first (EqualsGetClass on `Pair` via instanceof; MissingOverride on `PoolingType` / `RopeScalingType`; JdkObsolete `LinkedList` → `ArrayList` in `LlamaLoader`; StringSplitter inline-suppressed; 3× StringCaseLocaleUsage `Locale.ROOT` in `OSInfo`; EmptyCatch in `OSInfo.isAlpineLinux`; FutureReturnValueIgnored in `LlamaModel.completeAsync`; Finalize on `LlamaModel.finalize`; MixedMutabilityReturnType in 4 parser methods; EnumOrdinal in `InferenceParameters.setMiroStat`; EscapedEntity in `InferenceParameters` javadoc; 4× TypeParameterUnusedInFormals; AnnotateFormatMethod on `Java8CompatibilityHelper.formatted`; SafeVarargs + varargs on `Java8CompatibilityHelper.listOf`).
 - **`-parameters` javac arg** — `4350cf2`.
