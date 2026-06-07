@@ -14,6 +14,9 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import net.ladenthin.llama.parameters.InferenceParameters;
+import net.ladenthin.llama.parameters.ModelParameters;
+import net.ladenthin.llama.value.LlamaOutput;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import reactor.core.publisher.Flux;
@@ -55,8 +58,7 @@ class ReactorIntegrationTest {
     @Test
     void mockIterable_requestBackpressureAndCancelClose() {
         AtomicBoolean closed = new AtomicBoolean(false);
-        List<LlamaOutput> tokens =
-                Arrays.asList(out("a"), out("b"), out("c"), out("d"), out("e"));
+        List<LlamaOutput> tokens = Arrays.asList(out("a"), out("b"), out("c"), out("d"), out("e"));
 
         // Flux.fromIterable(iterable) does NOT auto-close AutoCloseable iterables on cancel —
         // the canonical Reactor pattern for that is Flux.using(supplier, builder, cleanup).
@@ -90,8 +92,7 @@ class ReactorIntegrationTest {
     @Test
     void realModel_cancelPropagatesToNativeCompletion() {
         Assumptions.assumeTrue(
-                new File(TestConstants.MODEL_PATH).exists(),
-                "real-model test requires " + TestConstants.MODEL_PATH);
+                new File(TestConstants.MODEL_PATH).exists(), "real-model test requires " + TestConstants.MODEL_PATH);
 
         ModelParameters mp = new ModelParameters()
                 .setModel(TestConstants.MODEL_PATH)
@@ -99,8 +100,9 @@ class ReactorIntegrationTest {
         try (LlamaModel model = new LlamaModel(mp)) {
             // First: stream via Reactor with Flux.using for proper cleanup, take 3 tokens, cancel.
             String first = Flux.using(
-                            () -> model.generate(
-                                    new InferenceParameters("Q: 1+1=").withNPredict(20).withTemperature(0.0f)),
+                            () -> model.generate(new InferenceParameters("Q: 1+1=")
+                                    .withNPredict(20)
+                                    .withTemperature(0.0f)),
                             Flux::fromIterable,
                             LlamaIterable::close)
                     .subscribeOn(Schedulers.boundedElastic())
@@ -116,8 +118,8 @@ class ReactorIntegrationTest {
             // first generation's slot was released by Flux.using's cleanup function
             // routing through LlamaIterable.close() -> LlamaIterator.close() ->
             // native cancelCompletion.
-            String second = model.complete(
-                    new InferenceParameters("Hi").withNPredict(2).withTemperature(0.0f));
+            String second =
+                    model.complete(new InferenceParameters("Hi").withNPredict(2).withTemperature(0.0f));
             assertNotNull(second);
         }
     }

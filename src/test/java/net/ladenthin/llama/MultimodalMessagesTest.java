@@ -16,7 +16,10 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import net.ladenthin.llama.json.ParameterJsonSerializer;
+import net.ladenthin.llama.parameters.InferenceParameters;
+import net.ladenthin.llama.parameters.ParameterJsonSerializer;
+import net.ladenthin.llama.value.ChatMessage;
+import net.ladenthin.llama.value.ContentPart;
 import org.junit.jupiter.api.Test;
 
 @ClaudeGenerated(
@@ -144,8 +147,8 @@ public class MultimodalMessagesTest {
     @Test
     public void inferenceParametersAcceptsMultimodalMessages() {
         InferenceParameters params = new InferenceParameters("")
-                .withMessages(Collections.singletonList(
-                        ChatMessage.userMultimodal(ContentPart.text("hi"), ContentPart.imageUrl("data:image/png;base64,QQ"))));
+                .withMessages(Collections.singletonList(ChatMessage.userMultimodal(
+                        ContentPart.text("hi"), ContentPart.imageUrl("data:image/png;base64,QQ"))));
         // setMessages encodes into the parameters map under "messages"; verify the
         // resulting JSON has the array form, which is what the upstream OAI chat
         // parser expects for multimodal routing.

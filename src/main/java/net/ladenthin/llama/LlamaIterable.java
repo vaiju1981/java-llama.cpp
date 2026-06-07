@@ -6,6 +6,8 @@
 package net.ladenthin.llama;
 
 import lombok.ToString;
+import net.ladenthin.llama.parameters.InferenceParameters;
+import net.ladenthin.llama.value.LlamaOutput;
 
 /**
  * An {@link Iterable} wrapper around {@link LlamaIterator} returned by

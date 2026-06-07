@@ -6,6 +6,7 @@ package net.ladenthin.llama;
 import net.jqwik.api.ForAll;
 import net.jqwik.api.Property;
 import net.jqwik.api.constraints.FloatRange;
+import net.ladenthin.llama.parameters.InferenceParameters;
 
 public class LlamaParameterProperties {
 

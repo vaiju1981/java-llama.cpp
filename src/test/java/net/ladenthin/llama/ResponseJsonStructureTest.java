@@ -9,6 +9,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.io.File;
 import net.ladenthin.llama.args.PoolingType;
+import net.ladenthin.llama.parameters.InferenceParameters;
+import net.ladenthin.llama.parameters.ModelParameters;
+import net.ladenthin.llama.value.Pair;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;

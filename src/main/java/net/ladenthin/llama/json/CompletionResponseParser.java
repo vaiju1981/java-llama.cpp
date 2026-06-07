@@ -13,14 +13,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import net.ladenthin.llama.CompletionResult;
-import net.ladenthin.llama.InferenceParameters;
-import net.ladenthin.llama.LlamaOutput;
-import net.ladenthin.llama.StopReason;
-import net.ladenthin.llama.Timings;
-import net.ladenthin.llama.TimingsLogger;
-import net.ladenthin.llama.TokenLogprob;
-import net.ladenthin.llama.Usage;
+import net.ladenthin.llama.value.CompletionResult;
+import net.ladenthin.llama.value.LlamaOutput;
+import net.ladenthin.llama.value.StopReason;
+import net.ladenthin.llama.value.Timings;
+import net.ladenthin.llama.value.TokenLogprob;
+import net.ladenthin.llama.value.Usage;
 
 /**
  * Pure JSON transforms for native completion/streaming responses.
@@ -39,7 +37,7 @@ import net.ladenthin.llama.Usage;
  * }
  * }</pre>
  *
- * <p>When inference is configured with {@link InferenceParameters#withNProbs(int)} &gt; 0,
+ * <p>When inference is configured with {@link net.ladenthin.llama.parameters.InferenceParameters#withNProbs(int)} &gt; 0,
  * each chunk additionally carries a {@code completion_probabilities} array:
  * <pre>{@code
  * {
@@ -63,12 +61,12 @@ public class CompletionResponseParser {
     public static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     /**
-     * Parse a {@link LlamaOutput} from a raw JSON string returned by the native
+     * Parse a {@link net.ladenthin.llama.value.LlamaOutput} from a raw JSON string returned by the native
      * {@code receiveCompletionJson} method. Delegates to {@link #parse(JsonNode)} after
      * a single {@code readTree} call so the string is parsed only once.
      *
      * @param json raw JSON string from the native completion response
-     * @return parsed {@link LlamaOutput}; empty output on parse failure
+     * @return parsed {@link net.ladenthin.llama.value.LlamaOutput}; empty output on parse failure
      */
     public LlamaOutput parse(String json) {
         try {
@@ -84,11 +82,11 @@ public class CompletionResponseParser {
     }
 
     /**
-     * Parse a {@link LlamaOutput} from a pre-parsed {@link JsonNode}.
+     * Parse a {@link net.ladenthin.llama.value.LlamaOutput} from a pre-parsed {@link JsonNode}.
      * Callers that already hold a parsed node should prefer this overload to avoid re-parsing.
      *
      * @param node pre-parsed completion response node
-     * @return parsed {@link LlamaOutput}
+     * @return parsed {@link net.ladenthin.llama.value.LlamaOutput}
      */
     public LlamaOutput parse(JsonNode node) {
         String content = extractContent(node);
@@ -148,15 +146,15 @@ public class CompletionResponseParser {
     }
 
     /**
-     * Parse the {@code completion_probabilities} array into a list of typed {@link TokenLogprob}
+     * Parse the {@code completion_probabilities} array into a list of typed {@link net.ladenthin.llama.value.TokenLogprob}
      * entries, preserving order, token ids, and the nested alternatives array
      * ({@code top_probs} for post-sampling mode or {@code top_logprobs} for pre-sampling).
      *
      * <p>Returns an empty list when the field is absent or empty. Requires
-     * {@link InferenceParameters#withNProbs(int)} to be configured.
+     * {@link net.ladenthin.llama.parameters.InferenceParameters#withNProbs(int)} to be configured.
      *
      * @param root the top-level completion response node
-     * @return list of {@link TokenLogprob}; empty when no probability data is present
+     * @return list of {@link net.ladenthin.llama.value.TokenLogprob}; empty when no probability data is present
      */
     public List<TokenLogprob> parseLogprobs(JsonNode root) {
         JsonNode array = root.path("completion_probabilities");
@@ -173,16 +171,16 @@ public class CompletionResponseParser {
     }
 
     /**
-     * Parse a {@link CompletionResult} from the non-streaming, non-OAI completion JSON
+     * Parse a {@link net.ladenthin.llama.value.CompletionResult} from the non-streaming, non-OAI completion JSON
      * emitted by {@code server_task_result_cmpl_final::to_json_non_oaicompat}.
      * <p>
      * Maps {@code content} → text, {@code tokens_evaluated}/{@code tokens_predicted} →
-     * {@link Usage}, the {@code timings} sub-object → {@link Timings},
-     * {@code completion_probabilities} → {@link TokenLogprob} list, and
-     * {@code stop_type} → {@link StopReason}.
+     * {@link net.ladenthin.llama.value.Usage}, the {@code timings} sub-object → {@link net.ladenthin.llama.value.Timings},
+     * {@code completion_probabilities} → {@link net.ladenthin.llama.value.TokenLogprob} list, and
+     * {@code stop_type} → {@link net.ladenthin.llama.value.StopReason}.
      *
      * @param json raw JSON string from the native completion response
-     * @return a populated {@link CompletionResult}; fields default to empty/zero on parse failure
+     * @return a populated {@link net.ladenthin.llama.value.CompletionResult}; fields default to empty/zero on parse failure
      */
     public CompletionResult parseCompletionResult(String json) {
         try {

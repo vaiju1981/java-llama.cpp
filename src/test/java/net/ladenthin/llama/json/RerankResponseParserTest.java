@@ -10,7 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.List;
-import net.ladenthin.llama.Pair;
+import net.ladenthin.llama.value.Pair;
 import org.junit.jupiter.api.Test;
 
 /**

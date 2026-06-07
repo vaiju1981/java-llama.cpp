@@ -6,7 +6,7 @@
 package net.ladenthin.llama.args;
 
 /**
- * Pooling strategy applied to token embeddings when {@link net.ladenthin.llama.ModelParameters#enableEmbedding()}
+ * Pooling strategy applied to token embeddings when {@link net.ladenthin.llama.parameters.ModelParameters#enableEmbedding()}
  * is active.
  *
  * <p>The string constants stored in each enum constant are the exact values accepted by the
@@ -29,7 +29,7 @@ public enum PoolingType implements CliArg {
      *
      * <p>Maps to {@code LLAMA_POOLING_TYPE_UNSPECIFIED = -1} in {@code include/llama.h}.
      * This value has no corresponding CLI string; passing it to
-     * {@link net.ladenthin.llama.ModelParameters#setPoolingType(PoolingType)} intentionally
+     * {@link net.ladenthin.llama.parameters.ModelParameters#setPoolingType(PoolingType)} intentionally
      * omits the {@code --pooling} flag so llama.cpp chooses the pooling strategy itself.
      */
     UNSPECIFIED("unspecified"),
@@ -68,7 +68,7 @@ public enum PoolingType implements CliArg {
 
     /**
      * Rank pooling – used by re-ranking models to produce a relevance score.
-     * Requires a model loaded with {@link net.ladenthin.llama.ModelParameters#enableReranking()};
+     * Requires a model loaded with {@link net.ladenthin.llama.parameters.ModelParameters#enableReranking()};
      * not applicable to plain embedding models.
      *
      * <p>CLI string: {@code "rank"} — maps to {@code LLAMA_POOLING_TYPE_RANK = 4}.

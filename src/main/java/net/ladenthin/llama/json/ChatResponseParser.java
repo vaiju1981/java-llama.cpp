@@ -11,13 +11,12 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import net.ladenthin.llama.ChatChoice;
-import net.ladenthin.llama.ChatMessage;
-import net.ladenthin.llama.ChatResponse;
-import net.ladenthin.llama.Timings;
-import net.ladenthin.llama.TimingsLogger;
-import net.ladenthin.llama.ToolCall;
-import net.ladenthin.llama.Usage;
+import net.ladenthin.llama.value.ChatChoice;
+import net.ladenthin.llama.value.ChatMessage;
+import net.ladenthin.llama.value.ChatResponse;
+import net.ladenthin.llama.value.Timings;
+import net.ladenthin.llama.value.ToolCall;
+import net.ladenthin.llama.value.Usage;
 
 /**
  * Pure JSON transforms for OAI-compatible chat completion responses.
@@ -139,12 +138,12 @@ public class ChatResponseParser {
     }
 
     /**
-     * Parse a full OAI chat completion JSON string into a typed {@link ChatResponse}.
-     * Carries the {@code id}, choices, {@link Usage}, and {@link Timings}. The original
-     * JSON is preserved on {@link ChatResponse#getRawJson()}.
+     * Parse a full OAI chat completion JSON string into a typed {@link net.ladenthin.llama.value.ChatResponse}.
+     * Carries the {@code id}, choices, {@link net.ladenthin.llama.value.Usage}, and {@link net.ladenthin.llama.value.Timings}. The original
+     * JSON is preserved on {@link net.ladenthin.llama.value.ChatResponse#getRawJson()}.
      *
      * @param json the OAI-compatible chat completion JSON string
-     * @return a parsed {@link ChatResponse} (empty choices on malformed input)
+     * @return a parsed {@link net.ladenthin.llama.value.ChatResponse} (empty choices on malformed input)
      */
     public ChatResponse parseResponse(String json) {
         try {

@@ -10,11 +10,11 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import net.ladenthin.llama.InferenceParameters;
 import net.ladenthin.llama.LlamaModel;
-import net.ladenthin.llama.LlamaOutput;
-import net.ladenthin.llama.ModelParameters;
-import net.ladenthin.llama.Pair;
+import net.ladenthin.llama.parameters.InferenceParameters;
+import net.ladenthin.llama.parameters.ModelParameters;
+import net.ladenthin.llama.value.LlamaOutput;
+import net.ladenthin.llama.value.Pair;
 import org.junit.jupiter.api.Disabled;
 
 // Model file (models/codellama-7b.Q2_K.gguf) is not available in the models directory

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 
 /**
- * Typed enums for CLI-arg-valued options consumed by {@link net.ladenthin.llama.CliParameters}.
+ * Typed enums for CLI-arg-valued options consumed by {@link net.ladenthin.llama.parameters.CliParameters}.
  *
  * <p>JSpecify {@code @NullMarked} is declared at module level in
  * {@code module-info.java} and applies to this package transitively.

@@ -9,11 +9,11 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import net.ladenthin.llama.InferenceParameters;
 import net.ladenthin.llama.LlamaModel;
-import net.ladenthin.llama.LlamaOutput;
-import net.ladenthin.llama.ModelParameters;
 import net.ladenthin.llama.args.MiroStat;
+import net.ladenthin.llama.parameters.InferenceParameters;
+import net.ladenthin.llama.parameters.ModelParameters;
+import net.ladenthin.llama.value.LlamaOutput;
 
 @SuppressWarnings("InfiniteLoopStatement")
 public class MainExample {

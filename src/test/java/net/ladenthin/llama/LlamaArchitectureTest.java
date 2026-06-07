@@ -5,6 +5,7 @@ package net.ladenthin.llama;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.fields;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
+import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
 import com.tngtech.archunit.core.importer.ImportOption;
@@ -63,22 +64,9 @@ public class LlamaArchitectureTest {
     /**
      * The {@code args} sub-package is a true leaf: pure enums / constants
      * ({@code Sampler}, {@code PoolingType}, {@code ModelFlag}, …). It must not
-     * import anything from elsewhere in the project — neither the root API
-     * package nor the {@code json} parser package.
-     *
-     * <p>This pins the only stackable layer relationship in jllama. The
-     * traditional {@code layeredArchitecture()} 3-layer rule (Args → Json → Api)
-     * was attempted and rejected: {@code json} parsers/serializers genuinely
-     * depend on root-package DTOs ({@code Pair}, {@code ChatMessage},
-     * {@code ContentPart}) AND the root API genuinely depends on {@code json}
-     * parsers — they are <em>peers in the public API layer</em>, not a
-     * stackable hierarchy. Splitting the DTOs into a dedicated
-     * {@code net.ladenthin.llama.value} package would enable real layering,
-     * but breaks the published public-API FQNs ({@code net.ladenthin.llama.Pair}
-     * etc.) and is out of scope for an ArchUnit rule.
-     *
-     * <p>So the only real architectural invariant worth enforcing here is "args
-     * stays a leaf" — and that is what this rule does.
+     * import anything from elsewhere in the project. Subsumed by the
+     * {@link #layeredArchitecture} rule below (args is in the Foundation layer),
+     * but kept as a precise, fast-failing guard for this specific leaf.
      */
     @ArchTest
     static final ArchRule argsPackageIsALeaf = noClasses()
@@ -86,7 +74,57 @@ public class LlamaArchitectureTest {
             .resideInAPackage("net.ladenthin.llama.args..")
             .should()
             .dependOnClassesThat()
-            .resideInAnyPackage("net.ladenthin.llama", "net.ladenthin.llama.json..");
+            .resideInAnyPackage(
+                    "net.ladenthin.llama",
+                    "net.ladenthin.llama.callback..",
+                    "net.ladenthin.llama.exception..",
+                    "net.ladenthin.llama.json..",
+                    "net.ladenthin.llama.loader..",
+                    "net.ladenthin.llama.parameters..",
+                    "net.ladenthin.llama.value..");
+
+    /**
+     * Strict layered architecture. The flat root package was split into layered packages so the
+     * boundaries align with packages; dependencies flow strictly top-to-bottom:
+     *
+     * <pre>
+     *   Api          net.ladenthin.llama          (LlamaModel, Session, iterators)
+     *   Loader       loader                       (native-lib loading, OS/process infra)
+     *   Marshalling  json, parameters             (response parsers, parameter builders/serializer)
+     *   Foundation   value, callback, exception, args
+     * </pre>
+     *
+     * <p>The DTO/parser tangle that previously blocked this rule (see the git history of the
+     * {@code argsPackageIsALeaf} comment) was resolved by extracting the value types into
+     * {@code value}, moving {@code TimingsLogger} into {@code json} (its only consumer) and
+     * {@code ParameterJsonSerializer} into {@code parameters} (a parameter serializer), and
+     * moving {@code ChatRequest} into {@code parameters} (it carries an {@code InferenceParameters}
+     * customizer). {@code json} and {@code parameters} are peers in the Marshalling layer.
+     * {@code consideringOnlyDependenciesInLayers()} ignores external libraries.
+     */
+    @ArchTest
+    static final ArchRule layeredArchitecture = layeredArchitecture()
+            .consideringOnlyDependenciesInLayers()
+            .layer("Api")
+            .definedBy("net.ladenthin.llama")
+            .layer("Loader")
+            .definedBy("net.ladenthin.llama.loader..")
+            .layer("Marshalling")
+            .definedBy("net.ladenthin.llama.json..", "net.ladenthin.llama.parameters..")
+            .layer("Foundation")
+            .definedBy(
+                    "net.ladenthin.llama.value..",
+                    "net.ladenthin.llama.callback..",
+                    "net.ladenthin.llama.exception..",
+                    "net.ladenthin.llama.args..")
+            .whereLayer("Api")
+            .mayNotBeAccessedByAnyLayer()
+            .whereLayer("Loader")
+            .mayOnlyBeAccessedByLayers("Api")
+            .whereLayer("Marshalling")
+            .mayOnlyBeAccessedByLayers("Api", "Loader")
+            .whereLayer("Foundation")
+            .mayOnlyBeAccessedByLayers("Api", "Loader", "Marshalling");
 
     /**
      * Production code must not import unsupported / internal JDK packages.

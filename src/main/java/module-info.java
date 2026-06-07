@@ -10,7 +10,7 @@
  * ({@code net.ladenthin.llama}, {@code net.ladenthin.llama.args},
  * {@code net.ladenthin.llama.json}). The native libraries shipped under
  * {@code /net/ladenthin/llama/{OS}/{ARCH}/} are loaded by
- * {@link net.ladenthin.llama.LlamaLoader} via
+ * {@link net.ladenthin.llama.loader.LlamaLoader} via
  * {@link Class#getResourceAsStream(String)} on its own class object, so the resources
  * are looked up in this module and do <em>not</em> need to be {@code opens}'d.</p>
  *
@@ -48,5 +48,11 @@ module net.ladenthin.llama {
 
     exports net.ladenthin.llama;
     exports net.ladenthin.llama.args;
+    exports net.ladenthin.llama.callback;
+    exports net.ladenthin.llama.exception;
     exports net.ladenthin.llama.json;
+    exports net.ladenthin.llama.parameters;
+    exports net.ladenthin.llama.value;
+// net.ladenthin.llama.loader is intentionally NOT exported: native-library loading,
+// OS detection and process/system-property infrastructure are internal to the module.
 }

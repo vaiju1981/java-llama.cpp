@@ -9,6 +9,8 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 import lombok.ToString;
 import net.ladenthin.llama.json.CompletionResponseParser;
+import net.ladenthin.llama.parameters.InferenceParameters;
+import net.ladenthin.llama.value.LlamaOutput;
 
 /**
  * This iterator is used by {@link LlamaModel#generate(InferenceParameters)} and

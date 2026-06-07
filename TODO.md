@@ -69,11 +69,40 @@ These are JNI plumbing items for upstream API additions. Policy: add only after 
   (`07109cc`): 25 sites. The same rule is suppressed in BAF
   (`52c8c95`) for identical reasons.
 
-- **Additional ArchUnit rules to consider** — layered-architecture rules (`layeredArchitecture().consideringAllDependencies()`), per-module banned-imports lists, public-API-surface constraints (no public mutable static state, etc.). Partial progress: `7b6667d` covers the "no public field that is not final" sub-rule.
+- **Additional ArchUnit rules to consider** — the full **`layeredArchitecture()`** rule is now DONE (see "Done" history below; the flat root package was split into layered packages). Still open: per-module banned-imports lists, public-API-surface constraints (no public mutable static state, etc.). Partial progress: `7b6667d` covers the "no public field that is not final" sub-rule.
 
 - **Cross-repo code-quality TODOs** — see [`../workspace/policies/code-quality-todos.md`](../workspace/policies/code-quality-todos.md) for the canonical `@VisibleForTesting` design-fit review, package hierarchy review, and class/method naming review. This repo has no `@VisibleForTesting` usages today; package and naming reviews remain open.
 
 ## Done (kept for history)
+
+### Layered package restructure (flat root package → layered hierarchy)
+
+The flat `net.ladenthin.llama` root package was split (via `git mv`, history
+preserved) into layered packages so boundaries align with the layers, enforced
+by a new `layeredArchitecture()` ArchUnit rule (Api → Loader → Marshalling →
+Foundation):
+
+- **Foundation**: `value` (18 DTOs: ChatMessage, ContentPart, Pair, LlamaOutput,
+  …), `callback` (CancellationToken, LoadProgressCallback, ToolHandler),
+  `exception` (LlamaException, ModelUnavailableException), `args` (existing leaf).
+- **Marshalling**: `json` (response parsers + `TimingsLogger`, its only consumer),
+  `parameters` (Inference/Model/Json/Cli parameters + `ParameterJsonSerializer` +
+  `ChatRequest`).
+- **Loader** (internal, NOT exported): `loader` (LlamaLoader, OSInfo,
+  ProcessRunner, NativeLibraryPermissionSetter, Java8CompatibilityHelper,
+  SkipDownloadFailureTranslator, LlamaSystemProperties).
+- **Api** (root): LlamaModel, Session, LlamaIterable, LlamaIterator.
+
+Cycle-breaking moves: `TimingsLogger` root→`json`, `ParameterJsonSerializer`
+`json`→`parameters`, `ChatRequest` root→`parameters` (it carries an
+`InferenceParameters` customizer). Test classes mirrored into their subjects'
+packages; cross-layer members promoted to `public`. Cross-package Javadoc
+`{@link}` references fully-qualified (palantir's `removeUnusedImports` strips
+javadoc-only imports). `module-info` exports the new public-API packages and
+keeps `loader` internal. All 11 ArchUnit rules green; `javadoc:jar` clean.
+
+**Breaking change**: public-API FQNs changed (e.g. `net.ladenthin.llama.ChatMessage`
+→ `net.ladenthin.llama.value.ChatMessage`) — ship under a major version bump.
 
 - **Reactive `LlamaPublisher` removed in favour of consumer-side adapters.**
   The hand-rolled `LlamaPublisher` + `LlamaModel.streamPublisher` /

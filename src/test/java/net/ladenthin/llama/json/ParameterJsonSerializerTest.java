@@ -15,8 +15,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import net.ladenthin.llama.Pair;
 import net.ladenthin.llama.args.Sampler;
+import net.ladenthin.llama.parameters.ParameterJsonSerializer;
+import net.ladenthin.llama.value.Pair;
 import org.junit.jupiter.api.Test;
 
 /**

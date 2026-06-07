@@ -15,9 +15,28 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
 import lombok.ToString;
 import net.ladenthin.llama.args.LogFormat;
+import net.ladenthin.llama.callback.CancellationToken;
+import net.ladenthin.llama.callback.LoadProgressCallback;
+import net.ladenthin.llama.callback.ToolHandler;
+import net.ladenthin.llama.exception.LlamaException;
 import net.ladenthin.llama.json.ChatResponseParser;
 import net.ladenthin.llama.json.CompletionResponseParser;
 import net.ladenthin.llama.json.RerankResponseParser;
+import net.ladenthin.llama.loader.LlamaLoader;
+import net.ladenthin.llama.loader.SkipDownloadFailureTranslator;
+import net.ladenthin.llama.parameters.ChatRequest;
+import net.ladenthin.llama.parameters.InferenceParameters;
+import net.ladenthin.llama.parameters.ModelParameters;
+import net.ladenthin.llama.value.ChatMessage;
+import net.ladenthin.llama.value.ChatResponse;
+import net.ladenthin.llama.value.CompletionResult;
+import net.ladenthin.llama.value.LlamaOutput;
+import net.ladenthin.llama.value.LogLevel;
+import net.ladenthin.llama.value.ModelMeta;
+import net.ladenthin.llama.value.Pair;
+import net.ladenthin.llama.value.ServerMetrics;
+import net.ladenthin.llama.value.StopReason;
+import net.ladenthin.llama.value.ToolCall;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -29,7 +48,7 @@ import org.jspecify.annotations.Nullable;
  * <ul>
  *     <li>Streaming answers (and probabilities) via {@link #generate(InferenceParameters)}</li>
  *     <li>Creating whole responses to prompts via {@link #complete(InferenceParameters)}</li>
- *     <li>Creating embeddings via {@link #embed(String)} (make sure to configure {@link ModelParameters#enableEmbedding()}</li>
+ *     <li>Creating embeddings via {@link #embed(String)} (make sure to configure {@link net.ladenthin.llama.parameters.ModelParameters#enableEmbedding()}</li>
  *     <li>Accessing the tokenizer via {@link #encode(String)} and {@link #decode(int[])}</li>
  * </ul>
  *
@@ -57,19 +76,19 @@ public class LlamaModel implements AutoCloseable {
     private final RerankResponseParser rerankParser = new RerankResponseParser();
 
     /**
-     * Load with the given {@link ModelParameters}. Make sure to either set
+     * Load with the given {@link net.ladenthin.llama.parameters.ModelParameters}. Make sure to either set
      * <ul>
-     *     <li>{@link ModelParameters#setModel(String)}</li>
-     *     <li>{@link ModelParameters#setModelUrl(String)}</li>
-     *     <li>{@link ModelParameters#setHfRepo(String)}, {@link ModelParameters#setHfFile(String)}</li>
+     *     <li>{@link net.ladenthin.llama.parameters.ModelParameters#setModel(String)}</li>
+     *     <li>{@link net.ladenthin.llama.parameters.ModelParameters#setModelUrl(String)}</li>
+     *     <li>{@link net.ladenthin.llama.parameters.ModelParameters#setHfRepo(String)}, {@link net.ladenthin.llama.parameters.ModelParameters#setHfFile(String)}</li>
      * </ul>
      *
      * @param parameters the set of options
-     * @throws ModelUnavailableException if {@link ModelParameters#setSkipDownload(boolean)
+     * @throws net.ladenthin.llama.exception.ModelUnavailableException if {@link net.ladenthin.llama.parameters.ModelParameters#setSkipDownload(boolean)
      *                                   setSkipDownload(true)} (or
      *                                   {@link net.ladenthin.llama.args.ModelFlag#SKIP_DOWNLOAD})
      *                                   is set and the configured model file is missing or invalid
-     * @throws LlamaException            for any other load failure
+     * @throws net.ladenthin.llama.exception.LlamaException            for any other load failure
      */
     // loadModel is a native method; it does not call back into Java with this,
     // so the @UnderInitialization receiver warning is a CF false positive.
@@ -86,11 +105,11 @@ public class LlamaModel implements AutoCloseable {
      * Load the model and forward progress updates to {@code progress}. The callback is
      * invoked synchronously on the constructor thread by the native loader and may
      * return {@code false} to abort the load (in which case this constructor throws
-     * {@link LlamaException}).
+     * {@link net.ladenthin.llama.exception.LlamaException}).
      *
      * @param parameters the set of options
      * @param progress   load progress sink; {@code null} disables the callback
-     * @throws LlamaException if loading fails or the callback aborts
+     * @throws net.ladenthin.llama.exception.LlamaException if loading fails or the callback aborts
      */
     // loadModel / loadModelWithProgress are native methods; they do not call back
     // into Java with this, so the @UnderInitialization receiver warning is a CF
@@ -124,13 +143,13 @@ public class LlamaModel implements AutoCloseable {
 
     /**
      * Typed variant of {@link #complete(InferenceParameters)} that surfaces per-completion
-     * {@link Usage}, {@link Timings}, {@link TokenLogprob} entries, and {@link StopReason}.
+     * {@link net.ladenthin.llama.value.Usage}, {@link net.ladenthin.llama.value.Timings}, {@link net.ladenthin.llama.value.TokenLogprob} entries, and {@link net.ladenthin.llama.value.StopReason}.
      * <p>
-     * Logprobs are populated only when {@link InferenceParameters#withNProbs(int)} is &gt; 0.
-     * The raw native JSON is preserved on {@link CompletionResult#getRawJson()}.
+     * Logprobs are populated only when {@link net.ladenthin.llama.parameters.InferenceParameters#withNProbs(int)} is &gt; 0.
+     * The raw native JSON is preserved on {@link net.ladenthin.llama.value.CompletionResult#getRawJson()}.
      *
      * @param parameters the inference configuration
-     * @return a populated {@link CompletionResult}
+     * @return a populated {@link net.ladenthin.llama.value.CompletionResult}
      */
     public CompletionResult completeWithStats(InferenceParameters parameters) {
         InferenceParameters nonStreaming = parameters.withStream(false);
@@ -141,7 +160,7 @@ public class LlamaModel implements AutoCloseable {
 
     /**
      * Cancellable variant of {@link #complete(InferenceParameters)}. Runs in streaming mode
-     * internally so the inference loop can observe a {@link CancellationToken#cancel()} call
+     * internally so the inference loop can observe a {@link net.ladenthin.llama.callback.CancellationToken#cancel()} call
      * from another thread and return early with whatever text was accumulated so far.
      * <p>
      * The token is rebound to this call (any prior {@code cancel} state is cleared on entry).
@@ -149,13 +168,13 @@ public class LlamaModel implements AutoCloseable {
      * </p>
      *
      * @param parameters the inference configuration (its {@code stream} flag will be set to true)
-     * @param token cancellation handle; {@link CancellationToken#cancel()} aborts the loop
+     * @param token cancellation handle; {@link net.ladenthin.llama.callback.CancellationToken#cancel()} aborts the loop
      * @return the text generated up to the point of stop or cancellation
      */
     /**
      * Dispatch a list of completion requests in parallel and return the generated texts
      * in the same order. Each request is sent immediately; the native scheduler dispatches
-     * tasks across whatever slot count {@link ModelParameters#setParallel(int)} was
+     * tasks across whatever slot count {@link net.ladenthin.llama.parameters.ModelParameters#setParallel(int)} was
      * configured with. With a default single-slot model the requests still run, but
      * sequentially.
      *
@@ -177,7 +196,7 @@ public class LlamaModel implements AutoCloseable {
 
     /**
      * Like {@link #completeBatch(java.util.Collection)} but each result carries
-     * {@link CompletionResult}'s typed Usage, Timings, logprobs, and stop reason.
+     * {@link net.ladenthin.llama.value.CompletionResult}'s typed Usage, Timings, logprobs, and stop reason.
      *
      * @param requests the inference parameter blocks (must be distinct instances)
      * @return parsed completion results in input order
@@ -197,7 +216,7 @@ public class LlamaModel implements AutoCloseable {
 
     /**
      * Dispatch a list of typed chat requests in parallel and return the parsed responses
-     * in the same order. Requires {@link ModelParameters#setParallel(int)} &gt; 1 for
+     * in the same order. Requires {@link net.ladenthin.llama.parameters.ModelParameters#setParallel(int)} &gt; 1 for
      * actual parallelism; otherwise the calls run sequentially on the single slot.
      *
      * @param requests the typed chat requests (must be distinct instances)
@@ -216,7 +235,6 @@ public class LlamaModel implements AutoCloseable {
         return out;
     }
 
-
     /**
      * Asynchronous variant of {@link #complete(InferenceParameters)}. Runs the inference on
      * the common {@link java.util.concurrent.ForkJoinPool} so it does not block the calling
@@ -232,8 +250,8 @@ public class LlamaModel implements AutoCloseable {
 
     /**
      * Cancellable async variant. The returned future is wired to the supplied
-     * {@link CancellationToken}: calling {@code future.cancel(true)} also invokes
-     * {@link CancellationToken#cancel()} so the inference loop returns early.
+     * {@link net.ladenthin.llama.callback.CancellationToken}: calling {@code future.cancel(true)} also invokes
+     * {@link net.ladenthin.llama.callback.CancellationToken#cancel()} so the inference loop returns early.
      *
      * @param parameters the inference configuration
      * @param token cancellation handle bound to the underlying inference loop
@@ -278,7 +296,7 @@ public class LlamaModel implements AutoCloseable {
 
     /**
      * Cancellable variant of {@link #complete(InferenceParameters)}. Runs in streaming mode
-     * internally so the inference loop can observe a {@link CancellationToken#cancel()} call
+     * internally so the inference loop can observe a {@link net.ladenthin.llama.callback.CancellationToken#cancel()} call
      * from another thread between token boundaries and return early with whatever text was
      * accumulated so far.
      *
@@ -341,7 +359,7 @@ public class LlamaModel implements AutoCloseable {
      *
      * @param prompt the string to embed
      * @return an embedding float array
-     * @throws IllegalStateException if embedding mode was not activated (see {@link ModelParameters#enableEmbedding()})
+     * @throws IllegalStateException if embedding mode was not activated (see {@link net.ladenthin.llama.parameters.ModelParameters#enableEmbedding()})
      */
     public native float[] embed(String prompt);
 
@@ -422,7 +440,7 @@ public class LlamaModel implements AutoCloseable {
     private static native byte[] jsonSchemaToGrammarBytes(String schema);
 
     /**
-     * Converts a JSON schema to a grammar string usable by {@link ModelParameters#setGrammar(String)}.
+     * Converts a JSON schema to a grammar string usable by {@link net.ladenthin.llama.parameters.ModelParameters#setGrammar(String)}.
      *
      * @param schema the JSON schema as a string
      * @return the converted grammar string
@@ -449,7 +467,7 @@ public class LlamaModel implements AutoCloseable {
     }
 
     /**
-     * Rerank the given documents against the query, returning a {@link LlamaOutput} with scored documents
+     * Rerank the given documents against the query, returning a {@link net.ladenthin.llama.value.LlamaOutput} with scored documents
      * in the probabilities map.
      *
      * @param query the query string
@@ -505,7 +523,7 @@ public class LlamaModel implements AutoCloseable {
      *
      * @param parameters the inference parameters including messages
      * @return the model's response as a JSON string containing the completion result
-     * @throws LlamaException if the model was loaded in embedding mode or if inference fails
+     * @throws net.ladenthin.llama.exception.LlamaException if the model was loaded in embedding mode or if inference fails
      */
     public String chatComplete(InferenceParameters parameters) {
         InferenceParameters nonStreaming = parameters.withStream(false);
@@ -520,23 +538,22 @@ public class LlamaModel implements AutoCloseable {
      *
      * @param parameters the inference parameters including messages
      * @return the assistant's reply text (extracted from {@code choices[0].message.content})
-     * @throws LlamaException if the model was loaded in embedding mode or if inference fails
+     * @throws net.ladenthin.llama.exception.LlamaException if the model was loaded in embedding mode or if inference fails
      */
     public String chatCompleteText(InferenceParameters parameters) {
         return chatParser.extractChoiceContent(chatComplete(parameters));
     }
 
     /**
-     * Typed chat completion: serialize a {@link ChatRequest} (with optional tools), call
-     * the native chat endpoint, and return a parsed {@link ChatResponse} carrying typed
-     * {@link Usage}, {@link Timings}, and {@link ChatChoice} list.
+     * Typed chat completion: serialize a {@link net.ladenthin.llama.parameters.ChatRequest} (with optional tools), call
+     * the native chat endpoint, and return a parsed {@link net.ladenthin.llama.value.ChatResponse} carrying typed
+     * {@link net.ladenthin.llama.value.Usage}, {@link net.ladenthin.llama.value.Timings}, and {@link net.ladenthin.llama.value.ChatChoice} list.
      *
      * @param request the typed request (messages + optional tools)
      * @return the parsed typed response
      */
     public ChatResponse chat(ChatRequest request) {
-        InferenceParameters params = InferenceParameters.empty()
-                .withMessagesJson(request.buildMessagesJson());
+        InferenceParameters params = InferenceParameters.empty().withMessagesJson(request.buildMessagesJson());
         Optional<String> toolsJsonOpt = request.buildToolsJson();
         if (toolsJsonOpt.isPresent()) {
             params = params.withToolsJson(toolsJsonOpt.get()).withUseChatTemplate(true);
@@ -552,10 +569,10 @@ public class LlamaModel implements AutoCloseable {
 
     /**
      * Tool-calling agent loop. Repeatedly calls {@link #chat(ChatRequest)}; on each
-     * response that includes {@code tool_calls}, invokes the matching {@link ToolHandler}
+     * response that includes {@code tool_calls}, invokes the matching {@link net.ladenthin.llama.callback.ToolHandler}
      * for every call, appends the assistant turn and tool-result turns to the request's
      * message list, and loops until either the model responds without tool calls or the
-     * round cap from {@link ChatRequest#getMaxToolRounds()} is reached.
+     * round cap from {@link net.ladenthin.llama.parameters.ChatRequest#getMaxToolRounds()} is reached.
      * <p>
      * Handler exceptions are caught and reported back to the model as
      * {@code {"error":"..."}} tool results so the loop can continue. Unknown tool names
@@ -564,7 +581,7 @@ public class LlamaModel implements AutoCloseable {
      *
      * @param request  the typed request; must declare tools that the model can call
      * @param handlers map from tool name to handler
-     * @return the final {@link ChatResponse} when the model stops issuing tool calls
+     * @return the final {@link net.ladenthin.llama.value.ChatResponse} when the model stops issuing tool calls
      *         (or the last response when the round cap is hit)
      */
     public ChatResponse chatWithTools(ChatRequest request, java.util.Map<String, ToolHandler> handlers) {
@@ -626,7 +643,7 @@ public class LlamaModel implements AutoCloseable {
      *
      * @param parameters the inference parameters including messages
      * @return iterable LLM outputs with the chat template applied
-     * @throws LlamaException if inference fails
+     * @throws net.ladenthin.llama.exception.LlamaException if inference fails
      */
     public LlamaIterable generateChat(InferenceParameters parameters) {
         return new LlamaIterable(new LlamaIterator(this, parameters, true));
@@ -703,7 +720,7 @@ public class LlamaModel implements AutoCloseable {
     /**
      * Run {@link #complete(InferenceParameters)} constrained to the supplied JSON Schema
      * and deserialize the result into an instance of {@code type}. The schema is applied
-     * via {@link InferenceParameters#withJsonSchema(String)} for the duration of this call;
+     * via {@link net.ladenthin.llama.parameters.InferenceParameters#withJsonSchema(String)} for the duration of this call;
      * the supplied {@code parameters} object is mutated.
      * <p>
      * Callers are responsible for producing a JSON Schema that matches the target type;
@@ -716,7 +733,7 @@ public class LlamaModel implements AutoCloseable {
      * @param parameters inference parameters (a new derivation with the schema set is used)
      * @param <T>        target type
      * @return parsed POJO of type {@code T}
-     * @throws LlamaException when the response is not valid JSON for the target type
+     * @throws net.ladenthin.llama.exception.LlamaException when the response is not valid JSON for the target type
      */
     public <T> T completeAsJson(Class<T> type, String schema, InferenceParameters parameters) {
         return completeAsJson(type, parameters.withJsonSchema(schema));
@@ -725,15 +742,15 @@ public class LlamaModel implements AutoCloseable {
     /**
      * Run {@link #complete(InferenceParameters)} and deserialize the result as JSON into
      * {@code type}. The {@code parameters} object should already have a JSON Schema set
-     * via {@link InferenceParameters#withJsonSchema(String)} or a grammar via
-     * {@link InferenceParameters#withGrammar(String)} — otherwise the model output is
+     * via {@link net.ladenthin.llama.parameters.InferenceParameters#withJsonSchema(String)} or a grammar via
+     * {@link net.ladenthin.llama.parameters.InferenceParameters#withGrammar(String)} — otherwise the model output is
      * unlikely to parse.
      *
      * @param type       the target POJO class for Jackson deserialization
      * @param parameters inference parameters (schema/grammar already set by the caller)
      * @param <T>        target type
      * @return parsed POJO of type {@code T}
-     * @throws LlamaException when the response is not valid JSON for the target type
+     * @throws net.ladenthin.llama.exception.LlamaException when the response is not valid JSON for the target type
      */
     public <T> T completeAsJson(Class<T> type, InferenceParameters parameters) {
         String raw = complete(parameters);
@@ -747,11 +764,11 @@ public class LlamaModel implements AutoCloseable {
 
     /**
      * Typed accessor for {@link #getMetrics()}. Parses the raw JSON into a
-     * {@link ServerMetrics} view that exposes cumulative {@link Usage} and
-     * {@link Timings}, slot counts, and a passthrough to the underlying JSON.
+     * {@link net.ladenthin.llama.value.ServerMetrics} view that exposes cumulative {@link net.ladenthin.llama.value.Usage} and
+     * {@link net.ladenthin.llama.value.Timings}, slot counts, and a passthrough to the underlying JSON.
      *
-     * @return parsed {@link ServerMetrics}
-     * @throws LlamaException if the native call fails or the response cannot be parsed
+     * @return parsed {@link net.ladenthin.llama.value.ServerMetrics}
+     * @throws net.ladenthin.llama.exception.LlamaException if the native call fails or the response cannot be parsed
      */
     public ServerMetrics getMetricsTyped() {
         try {
@@ -765,13 +782,13 @@ public class LlamaModel implements AutoCloseable {
      * Returns model metadata with typed accessors for vocab, context, embedding,
      * parameter count, size, and modality support flags (vision, audio).
      * <p>
-     * The returned {@link ModelMeta} wraps the raw JSON from the native layer.
-     * Call {@link ModelMeta#toString()} to re-serialize to compact JSON for use
+     * The returned {@link net.ladenthin.llama.value.ModelMeta} wraps the raw JSON from the native layer.
+     * Call {@link net.ladenthin.llama.value.ModelMeta#toString()} to re-serialize to compact JSON for use
      * in {@code assertEquals}.
      * </p>
      *
-     * @return {@link ModelMeta} parsed from the native {@code model_meta()} response
-     * @throws LlamaException if the native call fails or the response cannot be parsed
+     * @return {@link net.ladenthin.llama.value.ModelMeta} parsed from the native {@code model_meta()} response
+     * @throws net.ladenthin.llama.exception.LlamaException if the native call fails or the response cannot be parsed
      */
     public ModelMeta getModelMeta() {
         try {

@@ -4,7 +4,7 @@
 package net.ladenthin.llama.benchmark;
 
 import java.util.concurrent.TimeUnit;
-import net.ladenthin.llama.InferenceParameters;
+import net.ladenthin.llama.parameters.InferenceParameters;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
