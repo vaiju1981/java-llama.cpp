@@ -158,14 +158,15 @@ public class CompletionResponseParser {
      */
     public List<TokenLogprob> parseLogprobs(JsonNode root) {
         JsonNode array = root.path("completion_probabilities");
-        if (!array.isArray() || array.size() == 0) {
-            // Return a mutable empty ArrayList to keep the return type consistent
-            // with the non-empty branch below (Error Prone MixedMutabilityReturnType).
-            return new ArrayList<>();
-        }
-        List<TokenLogprob> result = new ArrayList<TokenLogprob>(array.size());
-        for (JsonNode entry : array) {
-            result.add(parseLogprobEntry(entry));
+        // Single mutable-ArrayList return: an empty (or absent) array falls
+        // through the loop and returns the same empty ArrayList, keeping the
+        // return type consistent (Error Prone MixedMutabilityReturnType) and
+        // leaving no equivalent empty-branch mutant for PIT to flag.
+        List<TokenLogprob> result = new ArrayList<>();
+        if (array.isArray()) {
+            for (JsonNode entry : array) {
+                result.add(parseLogprobEntry(entry));
+            }
         }
         return result;
     }
@@ -219,14 +220,14 @@ public class CompletionResponseParser {
         if (!top.isArray()) {
             top = entry.path("top_logprobs");
         }
-        List<TokenLogprob> topLogprobs;
-        if (top.isArray() && top.size() > 0) {
-            topLogprobs = new ArrayList<TokenLogprob>(top.size());
+        // Single mutable-ArrayList accumulation: a missing or empty nested array
+        // skips the loop and yields an empty ArrayList, so there is no equivalent
+        // empty-branch mutant (the prior emptyList()/ArrayList ternary left one).
+        List<TokenLogprob> topLogprobs = new ArrayList<>();
+        if (top.isArray()) {
             for (JsonNode t : top) {
                 topLogprobs.add(parseLogprobEntry(t));
             }
-        } else {
-            topLogprobs = Collections.emptyList();
         }
         return new TokenLogprob(token, tokenId, logprob, topLogprobs);
     }

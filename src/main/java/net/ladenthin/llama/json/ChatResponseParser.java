@@ -163,36 +163,40 @@ public class ChatResponseParser {
     }
 
     private List<ChatChoice> parseChoices(JsonNode arr) {
-        // Mutable ArrayList on both branches keeps the return-type contract consistent
-        // (Error Prone MixedMutabilityReturnType).
-        if (!arr.isArray() || arr.size() == 0) return new ArrayList<>();
-        List<ChatChoice> out = new ArrayList<ChatChoice>(arr.size());
-        for (JsonNode c : arr) {
-            int index = c.path("index").asInt(0);
-            JsonNode msg = c.path("message");
-            String role = msg.path("role").asText("assistant");
-            String content = msg.path("content").asText("");
-            List<ToolCall> toolCalls = parseToolCalls(msg.path("tool_calls"));
-            ChatMessage message = toolCalls.isEmpty()
-                    ? new ChatMessage(role, content)
-                    : ChatMessage.assistantToolCalls(content, toolCalls);
-            String finishReason = c.path("finish_reason").asText("");
-            out.add(new ChatChoice(index, message, finishReason));
+        // Single mutable-ArrayList return: an empty (or non-array) input falls
+        // through the loop and returns the same empty ArrayList, keeping the
+        // return-type contract consistent (Error Prone MixedMutabilityReturnType)
+        // and leaving no equivalent empty-branch mutant for PIT to flag.
+        List<ChatChoice> out = new ArrayList<>();
+        if (arr.isArray()) {
+            for (JsonNode c : arr) {
+                int index = c.path("index").asInt(0);
+                JsonNode msg = c.path("message");
+                String role = msg.path("role").asText("assistant");
+                String content = msg.path("content").asText("");
+                List<ToolCall> toolCalls = parseToolCalls(msg.path("tool_calls"));
+                ChatMessage message = toolCalls.isEmpty()
+                        ? new ChatMessage(role, content)
+                        : ChatMessage.assistantToolCalls(content, toolCalls);
+                String finishReason = c.path("finish_reason").asText("");
+                out.add(new ChatChoice(index, message, finishReason));
+            }
         }
         return out;
     }
 
     private List<ToolCall> parseToolCalls(JsonNode arr) {
-        if (!arr.isArray() || arr.size() == 0) return new ArrayList<>();
-        List<ToolCall> out = new ArrayList<ToolCall>(arr.size());
-        for (JsonNode tc : arr) {
-            String id = tc.path("id").asText("");
-            JsonNode fn = tc.path("function");
-            String name = fn.path("name").asText("");
-            JsonNode argsNode = fn.path("arguments");
-            // OAI emits arguments as a string; some shapes emit a nested object.
-            String args = argsNode.isTextual() ? argsNode.asText("") : argsNode.toString();
-            out.add(new ToolCall(id, name, args));
+        List<ToolCall> out = new ArrayList<>();
+        if (arr.isArray()) {
+            for (JsonNode tc : arr) {
+                String id = tc.path("id").asText("");
+                JsonNode fn = tc.path("function");
+                String name = fn.path("name").asText("");
+                JsonNode argsNode = fn.path("arguments");
+                // OAI emits arguments as a string; some shapes emit a nested object.
+                String args = argsNode.isTextual() ? argsNode.asText("") : argsNode.toString();
+                out.add(new ToolCall(id, name, args));
+            }
         }
         return out;
     }
