@@ -56,6 +56,25 @@ jobs:
   # Cross-compile jobs (Docker / dockcross) — produce release artifacts, no testing
   # ---------------------------------------------------------------------------
 
+  code-style:
+    name: Code style (spotless) + package graph
+    needs: startgate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: temurin
+      - name: Spotless check (fail fast on format violations)
+        run: mvn -B --no-transfer-progress spotless:check
+      - name: Print internal package dependency graph (jdeps, informational)
+        continue-on-error: true
+        run: |
+          mvn -B --no-transfer-progress -DskipTests -Denforcer.skip=true compile
+          echo "=== internal package dependency graph (jdeps, bytecode) ==="
+          jdeps -verbose:package target/classes | grep 'net.ladenthin.llama' || true
+
   crosscompile-linux-x86_64-cuda:
     name: Cross-Compile manylinux_2_28 x86_64 (CUDA)
     needs: startgate
@@ -822,7 +841,7 @@ jobs:
 
   publish-snapshot:
     name: Publish Snapshot to Central
-    needs: [check-snapshot, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl]
+    needs: [check-snapshot, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, code-style]
     if: needs.check-snapshot.result == 'success'
     runs-on: ubuntu-latest
     environment: maven-central
@@ -898,7 +917,7 @@ jobs:
   publish-release:
     name: Publish Release to Central
     if: needs.check-tag.result == 'success'
-    needs: [check-tag, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl]
+    needs: [check-tag, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, code-style]
     runs-on: ubuntu-latest
     environment: maven-central
     permissions:
