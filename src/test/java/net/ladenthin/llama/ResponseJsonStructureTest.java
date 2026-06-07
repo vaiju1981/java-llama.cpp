@@ -302,9 +302,7 @@ public class ResponseJsonStructureTest {
         assertThat(
                 "finish_reason should be 'length' or 'stop'",
                 result,
-                anyOf(
-                        containsString("\"finish_reason\":\"length\""),
-                        containsString("\"finish_reason\":\"stop\"")));
+                anyOf(containsString("\"finish_reason\":\"length\""), containsString("\"finish_reason\":\"stop\"")));
     }
 
     // -------------------------------------------------------------------------
@@ -373,7 +371,8 @@ public class ResponseJsonStructureTest {
         String json = "{\"input\":\"hello world\"}";
         String result = model.handleEmbeddings(json, true);
         assertThat("OAI embedding must contain 'data'", result, containsString("\"data\""));
-        assertThat("OAI embedding must contain 'object':'embedding'", result, containsString("\"object\":\"embedding\""));
+        assertThat(
+                "OAI embedding must contain 'object':'embedding'", result, containsString("\"object\":\"embedding\""));
         assertThat("OAI embedding must contain 'embedding' array", result, containsString("\"embedding\""));
         assertThat("OAI embedding must contain 'usage'", result, containsString("\"usage\""));
     }

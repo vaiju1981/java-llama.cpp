@@ -125,7 +125,10 @@ public class MultimodalMessagesTest {
         assertThat(arr.size(), is(1));
         JsonNode msg = arr.get(0);
         assertThat(msg.get("role").asText(), is("user"));
-        assertThat("content must remain a string for legacy messages", msg.get("content").isTextual(), is(true));
+        assertThat(
+                "content must remain a string for legacy messages",
+                msg.get("content").isTextual(),
+                is(true));
         assertThat(msg.get("content").asText(), is("plain text"));
     }
 

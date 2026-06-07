@@ -42,7 +42,8 @@ public class ChatMessageTest {
 
     @Test
     public void toStringToolCallsBranch() {
-        ChatMessage m = ChatMessage.assistantToolCalls("thinking", Collections.singletonList(new ToolCall("c1", "f", "{}")));
+        ChatMessage m =
+                ChatMessage.assistantToolCalls("thinking", Collections.singletonList(new ToolCall("c1", "f", "{}")));
         assertThat(m.toString(), is("assistant (tool_calls=1): thinking"));
     }
 
@@ -64,7 +65,8 @@ public class ChatMessageTest {
 
     @Test
     public void assistantToolCallsKeepsNonNullContent() {
-        ChatMessage m = ChatMessage.assistantToolCalls("reason", Collections.singletonList(new ToolCall("c1", "f", "{}")));
+        ChatMessage m =
+                ChatMessage.assistantToolCalls("reason", Collections.singletonList(new ToolCall("c1", "f", "{}")));
         assertThat(m.getContent(), is("reason"));
     }
 

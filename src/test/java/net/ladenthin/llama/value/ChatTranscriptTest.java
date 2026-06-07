@@ -57,10 +57,7 @@ class ChatTranscriptTest {
         // Phase 1: build wire-format (model would see this).
         List<Pair<String, String>> wire = t.messagesWithPendingUserTurn(userMessage);
         // The wire format must contain the pending turn the model is about to answer.
-        assertThat(
-                "wire-format must carry the pending user turn",
-                wire,
-                hasItem(new Pair<>("user", userMessage)));
+        assertThat("wire-format must carry the pending user turn", wire, hasItem(new Pair<>("user", userMessage)));
         // Phase 2: model returned successfully — commit both turns atomically.
         t.appendRound(userMessage, assistantReply);
     }
@@ -200,7 +197,8 @@ class ChatTranscriptTest {
             // Two-phase commit: the pending user turn never landed in the transcript.
             // (The system message snapshot entry was there before and is still there.)
             assertThat("transcript MUST NOT contain the pending user turn after model failure", t.size(), is(0));
-            assertThat("snapshot size unchanged by the failed call", t.snapshot().size(), is(snapshotSizeBefore));
+            assertThat(
+                    "snapshot size unchanged by the failed call", t.snapshot().size(), is(snapshotSizeBefore));
         }
 
         @Test

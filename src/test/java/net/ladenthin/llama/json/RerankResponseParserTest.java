@@ -112,6 +112,18 @@ public class RerankResponseParserTest {
     }
 
     @Test
+    public void testParseNode_notArray_returnsMutableEmptyList() throws Exception {
+        // The non-array branch returns a MUTABLE empty list (matches the non-empty path,
+        // for Error Prone MixedMutabilityReturnType). Mutating it must succeed — which also
+        // kills the EmptyObjectReturnVals mutant that would return an immutable emptyList().
+        JsonNode obj = MAPPER.readTree("{\"document\":\"x\",\"score\":0.5}");
+        List<Pair<String, Float>> result = parser.parse(obj);
+        assertThat(result, is(empty()));
+        result.add(new Pair<>("added", 1.0f));
+        assertThat(result, hasSize(1));
+    }
+
+    @Test
     public void testParseNode_missingScore_defaultsToZero() throws Exception {
         JsonNode arr = MAPPER.readTree("[{\"document\":\"doc\",\"index\":0}]");
         List<Pair<String, Float>> result = parser.parse(arr);
