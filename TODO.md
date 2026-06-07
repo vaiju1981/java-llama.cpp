@@ -69,7 +69,7 @@ These are JNI plumbing items for upstream API additions. Policy: add only after 
   (`07109cc`): 25 sites. The same rule is suppressed in BAF
   (`52c8c95`) for identical reasons.
 
-- **Additional ArchUnit rules to consider** — the full **`layeredArchitecture()`** rule is now DONE (see "Done" history below; the flat root package was split into layered packages). Still open: per-module banned-imports lists, public-API-surface constraints (no public mutable static state, etc.). Partial progress: `7b6667d` covers the "no public field that is not final" sub-rule.
+- **Additional ArchUnit rules to consider** — the full **`layeredArchitecture()`** rule and a **per-module banned-import** rule (`jacksonBannedFromContractsAndLoader` — Jackson kept out of `args`/`callback`/`exception`/`loader`) are now DONE. Still open: more per-module banned-imports if useful, public-API-surface constraints (no public mutable static state, etc.). Partial progress: `7b6667d` covers the "no public field that is not final" sub-rule.
 
 - **Cross-repo code-quality TODOs** — see [`../workspace/policies/code-quality-todos.md`](../workspace/policies/code-quality-todos.md) for the canonical `@VisibleForTesting` design-fit review, package hierarchy review, and class/method naming review. This repo has no `@VisibleForTesting` usages today; package and naming reviews remain open.
 

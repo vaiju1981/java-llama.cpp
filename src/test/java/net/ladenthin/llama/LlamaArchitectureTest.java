@@ -190,4 +190,24 @@ public class LlamaArchitectureTest {
             .orShould()
             .callMethod(Thread.class, "sleep", long.class, int.class)
             .allowEmptyShould(true);
+
+    /**
+     * Per-module banned import: the foundation contracts ({@code args}, {@code callback},
+     * {@code exception}) and the {@code loader} infrastructure must stay free of the Jackson
+     * JSON library ({@code com.fasterxml.jackson..}). JSON marshalling is the job of
+     * {@code value} / {@code json} / {@code parameters} (and the root {@code Api}, which drives
+     * them); these layers carry only plain typed data and native-loading logic.
+     */
+    @ArchTest
+    static final ArchRule jacksonBannedFromContractsAndLoader = noClasses()
+            .that()
+            .resideInAnyPackage(
+                    "net.ladenthin.llama.args..",
+                    "net.ladenthin.llama.callback..",
+                    "net.ladenthin.llama.exception..",
+                    "net.ladenthin.llama.loader..")
+            .should()
+            .dependOnClassesThat()
+            .resideInAPackage("com.fasterxml.jackson..")
+            .allowEmptyShould(true);
 }
