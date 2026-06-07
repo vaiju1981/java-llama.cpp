@@ -41,11 +41,13 @@ public class LogLevelTest {
     }
 
     @Test
-    public void testOrdinalOrder() {
-        // Log levels must be ordered from least to most severe
-        assertTrue(LogLevel.DEBUG.ordinal() < LogLevel.INFO.ordinal());
-        assertTrue(LogLevel.INFO.ordinal() < LogLevel.WARN.ordinal());
-        assertTrue(LogLevel.WARN.ordinal() < LogLevel.ERROR.ordinal());
+    public void testDeclarationOrder() {
+        // Declared from least to most severe; the order is part of the contract
+        // (mirrors llama.cpp's native log-level severity). values() returns the
+        // constants in declaration order, so this pins the full order without
+        // depending on Enum.ordinal() (Error Prone EnumOrdinal).
+        assertArrayEquals(
+                new LogLevel[] {LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR}, LogLevel.values());
     }
 
     @Test

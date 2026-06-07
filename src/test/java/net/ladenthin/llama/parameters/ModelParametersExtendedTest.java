@@ -1031,7 +1031,9 @@ public class ModelParametersExtendedTest {
     public void testSetMirostatAllValues() {
         for (MiroStat m : MiroStat.values()) {
             ModelParameters p = new ModelParameters().setMirostat(m);
-            assertThat(p.parameters.get("--mirostat"), is(String.valueOf(m.ordinal())));
+            // Assert against the enum's CLI arg-value contract (what setMirostat
+            // actually writes), not Enum.ordinal() (Error Prone EnumOrdinal).
+            assertThat(p.parameters.get("--mirostat"), is(m.getArgValue()));
         }
     }
 
