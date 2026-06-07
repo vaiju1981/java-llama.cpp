@@ -5,7 +5,11 @@
 
 package net.ladenthin.llama.exception;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 import net.ladenthin.llama.ClaudeGenerated;
 import org.junit.jupiter.api.Test;
@@ -20,33 +24,33 @@ public class ModelUnavailableExceptionTest {
     @Test
     public void testMessageIsPreserved() {
         ModelUnavailableException ex = new ModelUnavailableException("model file missing");
-        assertEquals("model file missing", ex.getMessage());
+        assertThat(ex.getMessage(), is("model file missing"));
     }
 
     @Test
     public void testMessageAndCausePreserved() {
         Throwable cause = new IllegalStateException("skip-download set");
         ModelUnavailableException ex = new ModelUnavailableException("model file missing", cause);
-        assertEquals("model file missing", ex.getMessage());
-        assertSame(cause, ex.getCause());
+        assertThat(ex.getMessage(), is("model file missing"));
+        assertThat(ex.getCause(), is(sameInstance(cause)));
     }
 
     @Test
     public void testIsLlamaException() {
         ModelUnavailableException ex = new ModelUnavailableException("error");
-        assertTrue(ex instanceof LlamaException);
+        assertThat(ex, is(instanceOf(LlamaException.class)));
     }
 
     @Test
     public void testIsRuntimeException() {
         ModelUnavailableException ex = new ModelUnavailableException("error");
-        assertTrue(ex instanceof RuntimeException);
+        assertThat(ex, is(instanceOf(RuntimeException.class)));
     }
 
     @Test
     public void testNullMessage() {
         ModelUnavailableException ex = new ModelUnavailableException(null);
-        assertNull(ex.getMessage());
+        assertThat(ex.getMessage(), is(nullValue()));
     }
 
     @Test
@@ -55,9 +59,9 @@ public class ModelUnavailableExceptionTest {
         try {
             throw new ModelUnavailableException("thrown");
         } catch (LlamaException e) {
-            assertEquals("thrown", e.getMessage());
+            assertThat(e.getMessage(), is("thrown"));
             caught = true;
         }
-        assertTrue(caught, "Expected ModelUnavailableException to be catchable as LlamaException");
+        assertThat("Expected ModelUnavailableException to be catchable as LlamaException", caught, is(true));
     }
 }

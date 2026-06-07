@@ -4,8 +4,12 @@
 
 package net.ladenthin.llama.value;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import net.ladenthin.llama.ClaudeGenerated;
@@ -31,24 +35,24 @@ public class ChatResponseTest {
                 + "\"predicted_n\":5,\"predicted_ms\":50.0,\"predicted_per_second\":100.0}}";
         ChatResponse r = parser.parseResponse(json);
 
-        assertEquals("chatcmpl-1", r.getId());
-        assertEquals(1, r.getChoices().size());
+        assertThat(r.getId(), is("chatcmpl-1"));
+        assertThat(r.getChoices(), hasSize(1));
         ChatChoice c = r.getChoices().get(0);
-        assertEquals(0, c.getIndex());
-        assertEquals("assistant", c.getMessage().getRole());
-        assertEquals("Hello!", c.getMessage().getContent());
-        assertEquals("stop", c.getFinishReason());
-        assertTrue(c.getMessage().getToolCalls().isEmpty());
+        assertThat(c.getIndex(), is(0));
+        assertThat(c.getMessage().getRole(), is("assistant"));
+        assertThat(c.getMessage().getContent(), is("Hello!"));
+        assertThat(c.getFinishReason(), is("stop"));
+        assertThat(c.getMessage().getToolCalls(), is(empty()));
 
-        assertEquals(12L, r.getUsage().getPromptTokens());
-        assertEquals(5L, r.getUsage().getCompletionTokens());
-        assertEquals(17L, r.getUsage().getTotalTokens());
+        assertThat(r.getUsage().getPromptTokens(), is(12L));
+        assertThat(r.getUsage().getCompletionTokens(), is(5L));
+        assertThat(r.getUsage().getTotalTokens(), is(17L));
 
-        assertEquals(12, r.getTimings().getPromptN());
+        assertThat(r.getTimings().getPromptN(), is(12));
         assertEquals(100.0, r.getTimings().getPromptMs(), 1e-9);
         assertEquals(100.0, r.getTimings().getPredictedPerSecond(), 1e-9);
 
-        assertEquals("Hello!", r.getFirstContent());
+        assertThat(r.getFirstContent(), is("Hello!"));
     }
 
     @Test
@@ -63,14 +67,14 @@ public class ChatResponseTest {
                 + "\"usage\":{\"prompt_tokens\":3,\"completion_tokens\":7}}";
         ChatResponse r = parser.parseResponse(json);
         ChatMessage m = r.getFirstMessage().orElseThrow();
-        assertEquals("assistant", m.getRole());
+        assertThat(m.getRole(), is("assistant"));
         List<ToolCall> tc = m.getToolCalls();
-        assertEquals(2, tc.size());
-        assertEquals("call_a", tc.get(0).getId());
-        assertEquals("get_weather", tc.get(0).getName());
-        assertEquals("{\"city\":\"Berlin\"}", tc.get(0).getArgumentsJson());
-        assertEquals("get_time", tc.get(1).getName());
-        assertEquals("tool_calls", r.getChoices().get(0).getFinishReason());
+        assertThat(tc, hasSize(2));
+        assertThat(tc.get(0).getId(), is("call_a"));
+        assertThat(tc.get(0).getName(), is("get_weather"));
+        assertThat(tc.get(0).getArgumentsJson(), is("{\"city\":\"Berlin\"}"));
+        assertThat(tc.get(1).getName(), is("get_time"));
+        assertThat(r.getChoices().get(0).getFinishReason(), is("tool_calls"));
     }
 
     @Test
@@ -83,16 +87,16 @@ public class ChatResponseTest {
         ChatResponse r = parser.parseResponse(json);
         String args = r.getFirstMessage().orElseThrow().getToolCalls().get(0).getArgumentsJson();
         // exact text isn't guaranteed, but must contain both fields
-        assertTrue(args.contains("\"a\":1"), "expected serialized object, got: " + args);
-        assertTrue(args.contains("\"b\":2"));
+        assertThat("expected serialized object, got: " + args, args, containsString("\"a\":1"));
+        assertThat(args, containsString("\"b\":2"));
     }
 
     @Test
     public void malformedInputYieldsEmptyResponse() {
         ChatResponse r = parser.parseResponse("{not json");
-        assertEquals("", r.getId());
-        assertTrue(r.getChoices().isEmpty());
-        assertEquals(0L, r.getUsage().getTotalTokens());
+        assertThat(r.getId(), is(""));
+        assertThat(r.getChoices(), is(empty()));
+        assertThat(r.getUsage().getTotalTokens(), is(0L));
     }
 
     @Test
@@ -105,15 +109,15 @@ public class ChatResponseTest {
                 .appendMessage(ChatMessage.toolResult("c1", "4"));
 
         String msgs = req.buildMessagesJson();
-        assertTrue(msgs.contains("\"tool_calls\""), msgs);
-        assertTrue(msgs.contains("\"tool_call_id\":\"c1\""), msgs);
-        assertTrue(msgs.contains("\"name\":\"add\""), msgs);
+        assertThat(msgs, msgs, containsString("\"tool_calls\""));
+        assertThat(msgs, msgs, containsString("\"tool_call_id\":\"c1\""));
+        assertThat(msgs, msgs, containsString("\"name\":\"add\""));
     }
 
     @Test
     public void buildToolsJsonEmptyWhenNoTools() {
         ChatRequest req = ChatRequest.empty().appendMessage("user", "hi");
-        assertTrue(req.buildToolsJson().isEmpty());
+        assertThat(req.buildToolsJson().isPresent(), is(false));
     }
 
     @Test
@@ -122,8 +126,8 @@ public class ChatResponseTest {
                 .appendTool(new ToolDefinition(
                         "echo", "Echo a string", "{\"type\":\"object\",\"properties\":{\"s\":{\"type\":\"string\"}}}"));
         String tools = req.buildToolsJson().orElseThrow();
-        assertTrue(tools.contains("\"type\":\"function\""), tools);
-        assertTrue(tools.contains("\"name\":\"echo\""), tools);
-        assertTrue(tools.contains("\"properties\""), tools);
+        assertThat(tools, tools, containsString("\"type\":\"function\""));
+        assertThat(tools, tools, containsString("\"name\":\"echo\""));
+        assertThat(tools, tools, containsString("\"properties\""));
     }
 }

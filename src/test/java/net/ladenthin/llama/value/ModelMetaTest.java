@@ -5,7 +5,9 @@
 
 package net.ladenthin.llama.value;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import net.ladenthin.llama.ClaudeGenerated;
@@ -33,12 +35,12 @@ public class ModelMetaTest {
                 + "\"modalities\":{\"vision\":false,\"audio\":false},"
                 + "\"architecture\":\"llama\",\"name\":\"CodeLlama-7B\"}");
 
-        assertEquals(1, meta.getVocabType());
-        assertEquals(32016, meta.getNVocab());
-        assertEquals(16384, meta.getNCtxTrain());
-        assertEquals(4096, meta.getNEmbd());
-        assertEquals(6738546688L, meta.getNParams());
-        assertEquals(2825274880L, meta.getSize());
+        assertThat(meta.getVocabType(), is(1));
+        assertThat(meta.getNVocab(), is(32016));
+        assertThat(meta.getNCtxTrain(), is(16384));
+        assertThat(meta.getNEmbd(), is(4096));
+        assertThat(meta.getNParams(), is(6738546688L));
+        assertThat(meta.getSize(), is(2825274880L));
     }
 
     @Test
@@ -47,15 +49,15 @@ public class ModelMetaTest {
                 + "\"n_embd\":512,\"n_params\":1000000,\"size\":500000,"
                 + "\"modalities\":{\"vision\":false,\"audio\":false},"
                 + "\"architecture\":\"llama\",\"name\":\"\"}");
-        assertFalse(textOnly.supportsVision());
-        assertFalse(textOnly.supportsAudio());
+        assertThat(textOnly.supportsVision(), is(false));
+        assertThat(textOnly.supportsAudio(), is(false));
 
         ModelMeta multimodal = parse("{\"vocab_type\":1,\"n_vocab\":100,\"n_ctx_train\":4096,"
                 + "\"n_embd\":512,\"n_params\":1000000,\"size\":500000,"
                 + "\"modalities\":{\"vision\":true,\"audio\":true},"
                 + "\"architecture\":\"gemma3\",\"name\":\"Gemma-3\"}");
-        assertTrue(multimodal.supportsVision());
-        assertTrue(multimodal.supportsAudio());
+        assertThat(multimodal.supportsVision(), is(true));
+        assertThat(multimodal.supportsAudio(), is(true));
     }
 
     @Test
@@ -65,7 +67,7 @@ public class ModelMetaTest {
                 + "\"modalities\":{\"vision\":false,\"audio\":false},"
                 + "\"architecture\":\"llama\",\"name\":\"CodeLlama-7B\"}");
 
-        assertEquals("llama", meta.getArchitecture());
+        assertThat(meta.getArchitecture(), is("llama"));
     }
 
     @Test
@@ -75,7 +77,7 @@ public class ModelMetaTest {
                 + "\"modalities\":{\"vision\":false,\"audio\":false},"
                 + "\"architecture\":\"mistral\",\"name\":\"Mistral-7B-v0.1\"}");
 
-        assertEquals("Mistral-7B-v0.1", meta.getModelName());
+        assertThat(meta.getModelName(), is("Mistral-7B-v0.1"));
     }
 
     @Test
@@ -84,7 +86,7 @@ public class ModelMetaTest {
                 + "\"n_embd\":512,\"n_params\":1000000,\"size\":500000,"
                 + "\"modalities\":{\"vision\":false,\"audio\":false}}");
 
-        assertEquals("", meta.getArchitecture());
+        assertThat(meta.getArchitecture(), is(""));
     }
 
     @Test
@@ -93,7 +95,7 @@ public class ModelMetaTest {
                 + "\"n_embd\":512,\"n_params\":1000000,\"size\":500000,"
                 + "\"modalities\":{\"vision\":false,\"audio\":false}}");
 
-        assertEquals("", meta.getModelName());
+        assertThat(meta.getModelName(), is(""));
     }
 
     @Test
@@ -104,7 +106,7 @@ public class ModelMetaTest {
                     + "\"modalities\":{\"vision\":false,\"audio\":false},"
                     + "\"architecture\":\""
                     + arch + "\",\"name\":\"\"}");
-            assertEquals(arch, meta.getArchitecture());
+            assertThat(meta.getArchitecture(), is(arch));
         }
     }
 
@@ -116,9 +118,9 @@ public class ModelMetaTest {
                 + "\"architecture\":\"llama\",\"name\":\"CodeLlama-7B\"}");
 
         String json = meta.toString();
-        assertTrue(json.contains("\"architecture\""));
-        assertTrue(json.contains("\"name\""));
-        assertTrue(json.contains("\"llama\""));
-        assertTrue(json.contains("\"CodeLlama-7B\""));
+        assertThat(json, containsString("\"architecture\""));
+        assertThat(json, containsString("\"name\""));
+        assertThat(json, containsString("\"llama\""));
+        assertThat(json, containsString("\"CodeLlama-7B\""));
     }
 }

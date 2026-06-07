@@ -5,7 +5,10 @@
 
 package net.ladenthin.llama.exception;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 import net.ladenthin.llama.ClaudeGenerated;
 import org.junit.jupiter.api.Test;
@@ -19,25 +22,25 @@ public class LlamaExceptionTest {
     @Test
     public void testMessageIsPreserved() {
         LlamaException ex = new LlamaException("something went wrong");
-        assertEquals("something went wrong", ex.getMessage());
+        assertThat(ex.getMessage(), is("something went wrong"));
     }
 
     @Test
     public void testIsRuntimeException() {
         LlamaException ex = new LlamaException("error");
-        assertTrue(ex instanceof RuntimeException);
+        assertThat(ex, is(instanceOf(RuntimeException.class)));
     }
 
     @Test
     public void testEmptyMessage() {
         LlamaException ex = new LlamaException("");
-        assertEquals("", ex.getMessage());
+        assertThat(ex.getMessage(), is(""));
     }
 
     @Test
     public void testNullMessage() {
         LlamaException ex = new LlamaException(null);
-        assertNull(ex.getMessage());
+        assertThat(ex.getMessage(), is(nullValue()));
     }
 
     @Test
@@ -46,9 +49,9 @@ public class LlamaExceptionTest {
         try {
             throw new LlamaException("thrown");
         } catch (LlamaException e) {
-            assertEquals("thrown", e.getMessage());
+            assertThat(e.getMessage(), is("thrown"));
             caught = true;
         }
-        assertTrue(caught, "Expected LlamaException to be thrown");
+        assertThat("Expected LlamaException to be thrown", caught, is(true));
     }
 }

@@ -4,13 +4,14 @@
 
 package net.ladenthin.llama.parameters;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import net.ladenthin.llama.value.ToolDefinition;
 import org.junit.jupiter.api.DisplayName;
@@ -33,43 +34,43 @@ class ChatRequestTest {
         void appendMessageReturnsNewInstance() {
             ChatRequest original = ChatRequest.empty();
             ChatRequest derived = original.appendMessage("user", "hi");
-            assertNotSame(original, derived);
-            assertEquals(0, original.getMessages().size(), "original is untouched");
-            assertEquals(1, derived.getMessages().size(), "derived has the message");
+            assertThat(derived, is(not(sameInstance(original))));
+            assertThat("original is untouched", original.getMessages(), is(empty()));
+            assertThat("derived has the message", derived.getMessages(), hasSize(1));
         }
 
         @Test
         void appendToolReturnsNewInstance() {
             ChatRequest original = ChatRequest.empty();
             ChatRequest derived = original.appendTool(new ToolDefinition("echo", "Echo", "{}"));
-            assertNotSame(original, derived);
-            assertEquals(0, original.getTools().size());
-            assertEquals(1, derived.getTools().size());
+            assertThat(derived, is(not(sameInstance(original))));
+            assertThat(original.getTools(), is(empty()));
+            assertThat(derived.getTools(), hasSize(1));
         }
 
         @Test
         void withToolChoiceReturnsNewInstance() {
             ChatRequest original = ChatRequest.empty();
             ChatRequest derived = original.withToolChoice("auto");
-            assertNotSame(original, derived);
-            assertFalse(original.getToolChoice().isPresent(), "original toolChoice unset");
-            assertEquals("auto", derived.getToolChoice().orElseThrow());
+            assertThat(derived, is(not(sameInstance(original))));
+            assertThat("original toolChoice unset", original.getToolChoice().isPresent(), is(false));
+            assertThat(derived.getToolChoice().orElseThrow(), is("auto"));
         }
 
         @Test
         void withMaxToolRoundsReturnsNewInstance() {
             ChatRequest original = ChatRequest.empty();
             ChatRequest derived = original.withMaxToolRounds(2);
-            assertNotSame(original, derived);
-            assertEquals(ChatRequest.DEFAULT_MAX_TOOL_ROUNDS, original.getMaxToolRounds());
-            assertEquals(2, derived.getMaxToolRounds());
+            assertThat(derived, is(not(sameInstance(original))));
+            assertThat(original.getMaxToolRounds(), is(ChatRequest.DEFAULT_MAX_TOOL_ROUNDS));
+            assertThat(derived.getMaxToolRounds(), is(2));
         }
 
         @Test
         void withInferenceCustomizerReturnsNewInstance() {
             ChatRequest original = ChatRequest.empty();
             ChatRequest derived = original.withInferenceCustomizer(p -> p.withSeed(42));
-            assertNotSame(original, derived);
+            assertThat(derived, is(not(sameInstance(original))));
         }
 
         @Test
@@ -80,12 +81,12 @@ class ChatRequestTest {
             ChatRequest c = b.appendMessage("assistant", "hello");
             ChatRequest d = c.withMaxToolRounds(3);
 
-            assertEquals(0, a.getMessages().size());
-            assertEquals(1, b.getMessages().size());
-            assertEquals(2, c.getMessages().size());
-            assertEquals(2, d.getMessages().size());
-            assertEquals(ChatRequest.DEFAULT_MAX_TOOL_ROUNDS, c.getMaxToolRounds());
-            assertEquals(3, d.getMaxToolRounds());
+            assertThat(a.getMessages(), is(empty()));
+            assertThat(b.getMessages(), hasSize(1));
+            assertThat(c.getMessages(), hasSize(2));
+            assertThat(d.getMessages(), hasSize(2));
+            assertThat(c.getMaxToolRounds(), is(ChatRequest.DEFAULT_MAX_TOOL_ROUNDS));
+            assertThat(d.getMaxToolRounds(), is(3));
         }
 
         @Test
@@ -111,29 +112,29 @@ class ChatRequestTest {
 
         @Test
         void twoEmptyRequestsAreEqual() {
-            assertEquals(ChatRequest.empty(), ChatRequest.empty());
+            assertThat(ChatRequest.empty(), is(ChatRequest.empty()));
         }
 
         @Test
         void sameContentSameEquality() {
             ChatRequest a = ChatRequest.empty().appendMessage("user", "hi").withMaxToolRounds(3);
             ChatRequest b = ChatRequest.empty().appendMessage("user", "hi").withMaxToolRounds(3);
-            assertEquals(a, b);
-            assertEquals(a.hashCode(), b.hashCode());
+            assertThat(a, is(b));
+            assertThat(a.hashCode(), is(b.hashCode()));
         }
 
         @Test
         void differentMessagesNotEqual() {
             ChatRequest a = ChatRequest.empty().appendMessage("user", "hi");
             ChatRequest b = ChatRequest.empty().appendMessage("user", "bye");
-            assertNotEquals(a, b);
+            assertThat(a, is(not(b)));
         }
 
         @Test
         void differentMaxToolRoundsNotEqual() {
             ChatRequest a = ChatRequest.empty().withMaxToolRounds(2);
             ChatRequest b = ChatRequest.empty().withMaxToolRounds(3);
-            assertNotEquals(a, b);
+            assertThat(a, is(not(b)));
         }
 
         @Test
@@ -142,7 +143,7 @@ class ChatRequestTest {
         void customizerExcludedFromEquality() {
             ChatRequest a = ChatRequest.empty().withInferenceCustomizer(p -> p.withSeed(1));
             ChatRequest b = ChatRequest.empty().withInferenceCustomizer(p -> p.withSeed(2));
-            assertEquals(a, b, "different lambda identities must NOT make the requests unequal");
+            assertThat("different lambda identities must NOT make the requests unequal", a, is(b));
         }
     }
 
@@ -164,7 +165,7 @@ class ChatRequestTest {
 
         @Test
         void emptyMessageIsTheCanonicalStartingPoint() {
-            assertSame(ChatRequest.empty(), ChatRequest.empty(), "empty() is a cached singleton");
+            assertThat("empty() is a cached singleton", ChatRequest.empty(), is(sameInstance(ChatRequest.empty())));
         }
     }
 
@@ -176,13 +177,13 @@ class ChatRequestTest {
         void buildMessagesJsonDoesNotMutate() {
             ChatRequest req = ChatRequest.empty().appendMessage("user", "hi");
             String json = req.buildMessagesJson();
-            assertTrue(json.contains("\"user\""), json);
-            assertEquals(1, req.getMessages().size(), "build did not mutate the messages list");
+            assertThat(json, json, containsString("\"user\""));
+            assertThat("build did not mutate the messages list", req.getMessages(), hasSize(1));
         }
 
         @Test
         void buildToolsJsonEmptyWhenNoTools() {
-            assertFalse(ChatRequest.empty().buildToolsJson().isPresent());
+            assertThat(ChatRequest.empty().buildToolsJson().isPresent(), is(false));
         }
     }
 }

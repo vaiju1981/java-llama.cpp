@@ -5,7 +5,17 @@
 
 package net.ladenthin.llama.parameters;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.startsWith;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -37,55 +47,55 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetCtxSize() {
         ModelParameters p = new ModelParameters().setCtxSize(2048);
-        assertEquals("2048", p.parameters.get("--ctx-size"));
+        assertThat(p.parameters.get("--ctx-size"), is("2048"));
     }
 
     @Test
     public void testSetCtxSizeZeroUsesModelDefault() {
         ModelParameters p = new ModelParameters().setCtxSize(0);
-        assertEquals("0", p.parameters.get("--ctx-size"));
+        assertThat(p.parameters.get("--ctx-size"), is("0"));
     }
 
     @Test
     public void testSetBatchSize() {
         ModelParameters p = new ModelParameters().setBatchSize(512);
-        assertEquals("512", p.parameters.get("--batch-size"));
+        assertThat(p.parameters.get("--batch-size"), is("512"));
     }
 
     @Test
     public void testSetUbatchSize() {
         ModelParameters p = new ModelParameters().setUbatchSize(256);
-        assertEquals("256", p.parameters.get("--ubatch-size"));
+        assertThat(p.parameters.get("--ubatch-size"), is("256"));
     }
 
     @Test
     public void testSetPredict() {
         ModelParameters p = new ModelParameters().setPredict(100);
-        assertEquals("100", p.parameters.get("--predict"));
+        assertThat(p.parameters.get("--predict"), is("100"));
     }
 
     @Test
     public void testSetPredictInfinity() {
         ModelParameters p = new ModelParameters().setPredict(-1);
-        assertEquals("-1", p.parameters.get("--predict"));
+        assertThat(p.parameters.get("--predict"), is("-1"));
     }
 
     @Test
     public void testSetPredictFillContext() {
         ModelParameters p = new ModelParameters().setPredict(-2);
-        assertEquals("-2", p.parameters.get("--predict"));
+        assertThat(p.parameters.get("--predict"), is("-2"));
     }
 
     @Test
     public void testSetKeep() {
         ModelParameters p = new ModelParameters().setKeep(64);
-        assertEquals("64", p.parameters.get("--keep"));
+        assertThat(p.parameters.get("--keep"), is("64"));
     }
 
     @Test
     public void testSetKeepAll() {
         ModelParameters p = new ModelParameters().setKeep(-1);
-        assertEquals("-1", p.parameters.get("--keep"));
+        assertThat(p.parameters.get("--keep"), is("-1"));
     }
 
     // -------------------------------------------------------------------------
@@ -95,13 +105,13 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetThreads() {
         ModelParameters p = new ModelParameters().setThreads(8);
-        assertEquals("8", p.parameters.get("--threads"));
+        assertThat(p.parameters.get("--threads"), is("8"));
     }
 
     @Test
     public void testSetThreadsBatch() {
         ModelParameters p = new ModelParameters().setThreadsBatch(4);
-        assertEquals("4", p.parameters.get("--threads-batch"));
+        assertThat(p.parameters.get("--threads-batch"), is("4"));
     }
 
     // -------------------------------------------------------------------------
@@ -111,49 +121,49 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetCpuMask() {
         ModelParameters p = new ModelParameters().setCpuMask("ff");
-        assertEquals("ff", p.parameters.get("--cpu-mask"));
+        assertThat(p.parameters.get("--cpu-mask"), is("ff"));
     }
 
     @Test
     public void testSetCpuRange() {
         ModelParameters p = new ModelParameters().setCpuRange("0-3");
-        assertEquals("0-3", p.parameters.get("--cpu-range"));
+        assertThat(p.parameters.get("--cpu-range"), is("0-3"));
     }
 
     @Test
     public void testSetCpuStrict() {
         ModelParameters p = new ModelParameters().setCpuStrict(1);
-        assertEquals("1", p.parameters.get("--cpu-strict"));
+        assertThat(p.parameters.get("--cpu-strict"), is("1"));
     }
 
     @Test
     public void testSetPoll() {
         ModelParameters p = new ModelParameters().setPoll(50);
-        assertEquals("50", p.parameters.get("--poll"));
+        assertThat(p.parameters.get("--poll"), is("50"));
     }
 
     @Test
     public void testSetCpuMaskBatch() {
         ModelParameters p = new ModelParameters().setCpuMaskBatch("0f");
-        assertEquals("0f", p.parameters.get("--cpu-mask-batch"));
+        assertThat(p.parameters.get("--cpu-mask-batch"), is("0f"));
     }
 
     @Test
     public void testSetCpuRangeBatch() {
         ModelParameters p = new ModelParameters().setCpuRangeBatch("4-7");
-        assertEquals("4-7", p.parameters.get("--cpu-range-batch"));
+        assertThat(p.parameters.get("--cpu-range-batch"), is("4-7"));
     }
 
     @Test
     public void testSetCpuStrictBatch() {
         ModelParameters p = new ModelParameters().setCpuStrictBatch(0);
-        assertEquals("0", p.parameters.get("--cpu-strict-batch"));
+        assertThat(p.parameters.get("--cpu-strict-batch"), is("0"));
     }
 
     @Test
     public void testSetPollBatch() {
         ModelParameters p = new ModelParameters().setPollBatch(100);
-        assertEquals("100", p.parameters.get("--poll-batch"));
+        assertThat(p.parameters.get("--poll-batch"), is("100"));
     }
 
     // -------------------------------------------------------------------------
@@ -163,79 +173,79 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetTemp() {
         ModelParameters p = new ModelParameters().setTemp(0.7f);
-        assertEquals("0.7", p.parameters.get("--temp"));
+        assertThat(p.parameters.get("--temp"), is("0.7"));
     }
 
     @Test
     public void testSetTopK() {
         ModelParameters p = new ModelParameters().setTopK(50);
-        assertEquals("50", p.parameters.get("--top-k"));
+        assertThat(p.parameters.get("--top-k"), is("50"));
     }
 
     @Test
     public void testSetTopKDisabled() {
         ModelParameters p = new ModelParameters().setTopK(0);
-        assertEquals("0", p.parameters.get("--top-k"));
+        assertThat(p.parameters.get("--top-k"), is("0"));
     }
 
     @Test
     public void testSetTopP() {
         ModelParameters p = new ModelParameters().setTopP(0.9f);
-        assertEquals("0.9", p.parameters.get("--top-p"));
+        assertThat(p.parameters.get("--top-p"), is("0.9"));
     }
 
     @Test
     public void testSetMinP() {
         ModelParameters p = new ModelParameters().setMinP(0.1f);
-        assertEquals("0.1", p.parameters.get("--min-p"));
+        assertThat(p.parameters.get("--min-p"), is("0.1"));
     }
 
     @Test
     public void testSetTypical() {
         ModelParameters p = new ModelParameters().setTypical(0.95f);
-        assertEquals("0.95", p.parameters.get("--typical"));
+        assertThat(p.parameters.get("--typical"), is("0.95"));
     }
 
     @Test
     public void testSetRepeatPenalty() {
         ModelParameters p = new ModelParameters().setRepeatPenalty(1.1f);
-        assertEquals("1.1", p.parameters.get("--repeat-penalty"));
+        assertThat(p.parameters.get("--repeat-penalty"), is("1.1"));
     }
 
     @Test
     public void testSetPresencePenalty() {
         ModelParameters p = new ModelParameters().setPresencePenalty(0.5f);
-        assertEquals("0.5", p.parameters.get("--presence-penalty"));
+        assertThat(p.parameters.get("--presence-penalty"), is("0.5"));
     }
 
     @Test
     public void testSetFrequencyPenalty() {
         ModelParameters p = new ModelParameters().setFrequencyPenalty(0.3f);
-        assertEquals("0.3", p.parameters.get("--frequency-penalty"));
+        assertThat(p.parameters.get("--frequency-penalty"), is("0.3"));
     }
 
     @Test
     public void testSetMirostatLR() {
         ModelParameters p = new ModelParameters().setMirostatLR(0.2f);
-        assertEquals("0.2", p.parameters.get("--mirostat-lr"));
+        assertThat(p.parameters.get("--mirostat-lr"), is("0.2"));
     }
 
     @Test
     public void testSetMirostatEnt() {
         ModelParameters p = new ModelParameters().setMirostatEnt(4.0f);
-        assertEquals("4.0", p.parameters.get("--mirostat-ent"));
+        assertThat(p.parameters.get("--mirostat-ent"), is("4.0"));
     }
 
     @Test
     public void testSetDynatempRange() {
         ModelParameters p = new ModelParameters().setDynatempRange(0.5f);
-        assertEquals("0.5", p.parameters.get("--dynatemp-range"));
+        assertThat(p.parameters.get("--dynatemp-range"), is("0.5"));
     }
 
     @Test
     public void testSetDynatempExponent() {
         ModelParameters p = new ModelParameters().setDynatempExponent(2.0f);
-        assertEquals("2.0", p.parameters.get("--dynatemp-exp"));
+        assertThat(p.parameters.get("--dynatemp-exp"), is("2.0"));
     }
 
     // -------------------------------------------------------------------------
@@ -245,25 +255,25 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetXtcProbability() {
         ModelParameters p = new ModelParameters().setXtcProbability(0.5f);
-        assertEquals("0.5", p.parameters.get("--xtc-probability"));
+        assertThat(p.parameters.get("--xtc-probability"), is("0.5"));
     }
 
     @Test
     public void testSetXtcProbabilityDisabled() {
         ModelParameters p = new ModelParameters().setXtcProbability(0.0f);
-        assertEquals("0.0", p.parameters.get("--xtc-probability"));
+        assertThat(p.parameters.get("--xtc-probability"), is("0.0"));
     }
 
     @Test
     public void testSetXtcThreshold() {
         ModelParameters p = new ModelParameters().setXtcThreshold(0.2f);
-        assertEquals("0.2", p.parameters.get("--xtc-threshold"));
+        assertThat(p.parameters.get("--xtc-threshold"), is("0.2"));
     }
 
     @Test
     public void testSetXtcThresholdDisabled() {
         ModelParameters p = new ModelParameters().setXtcThreshold(1.0f);
-        assertEquals("1.0", p.parameters.get("--xtc-threshold"));
+        assertThat(p.parameters.get("--xtc-threshold"), is("1.0"));
     }
 
     // -------------------------------------------------------------------------
@@ -273,31 +283,31 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetDryMultiplier() {
         ModelParameters p = new ModelParameters().setDryMultiplier(0.8f);
-        assertEquals("0.8", p.parameters.get("--dry-multiplier"));
+        assertThat(p.parameters.get("--dry-multiplier"), is("0.8"));
     }
 
     @Test
     public void testSetDryMultiplierDisabled() {
         ModelParameters p = new ModelParameters().setDryMultiplier(0.0f);
-        assertEquals("0.0", p.parameters.get("--dry-multiplier"));
+        assertThat(p.parameters.get("--dry-multiplier"), is("0.0"));
     }
 
     @Test
     public void testSetDryBase() {
         ModelParameters p = new ModelParameters().setDryBase(2.0f);
-        assertEquals("2.0", p.parameters.get("--dry-base"));
+        assertThat(p.parameters.get("--dry-base"), is("2.0"));
     }
 
     @Test
     public void testSetDryAllowedLength() {
         ModelParameters p = new ModelParameters().setDryAllowedLength(3);
-        assertEquals("3", p.parameters.get("--dry-allowed-length"));
+        assertThat(p.parameters.get("--dry-allowed-length"), is("3"));
     }
 
     @Test
     public void testSetDrySequenceBreaker() {
         ModelParameters p = new ModelParameters().setDrySequenceBreaker("\\n");
-        assertEquals("\\n", p.parameters.get("--dry-sequence-breaker"));
+        assertThat(p.parameters.get("--dry-sequence-breaker"), is("\\n"));
     }
 
     // -------------------------------------------------------------------------
@@ -307,19 +317,19 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetRopeScale() {
         ModelParameters p = new ModelParameters().setRopeScale(2.0f);
-        assertEquals("2.0", p.parameters.get("--rope-scale"));
+        assertThat(p.parameters.get("--rope-scale"), is("2.0"));
     }
 
     @Test
     public void testSetRopeFreqBase() {
         ModelParameters p = new ModelParameters().setRopeFreqBase(10000.0f);
-        assertEquals("10000.0", p.parameters.get("--rope-freq-base"));
+        assertThat(p.parameters.get("--rope-freq-base"), is("10000.0"));
     }
 
     @Test
     public void testSetRopeFreqScale() {
         ModelParameters p = new ModelParameters().setRopeFreqScale(0.5f);
-        assertEquals("0.5", p.parameters.get("--rope-freq-scale"));
+        assertThat(p.parameters.get("--rope-freq-scale"), is("0.5"));
     }
 
     // -------------------------------------------------------------------------
@@ -329,31 +339,31 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetYarnOrigCtx() {
         ModelParameters p = new ModelParameters().setYarnOrigCtx(4096);
-        assertEquals("4096", p.parameters.get("--yarn-orig-ctx"));
+        assertThat(p.parameters.get("--yarn-orig-ctx"), is("4096"));
     }
 
     @Test
     public void testSetYarnExtFactor() {
         ModelParameters p = new ModelParameters().setYarnExtFactor(0.5f);
-        assertEquals("0.5", p.parameters.get("--yarn-ext-factor"));
+        assertThat(p.parameters.get("--yarn-ext-factor"), is("0.5"));
     }
 
     @Test
     public void testSetYarnAttnFactor() {
         ModelParameters p = new ModelParameters().setYarnAttnFactor(1.5f);
-        assertEquals("1.5", p.parameters.get("--yarn-attn-factor"));
+        assertThat(p.parameters.get("--yarn-attn-factor"), is("1.5"));
     }
 
     @Test
     public void testSetYarnBetaSlow() {
         ModelParameters p = new ModelParameters().setYarnBetaSlow(2.0f);
-        assertEquals("2.0", p.parameters.get("--yarn-beta-slow"));
+        assertThat(p.parameters.get("--yarn-beta-slow"), is("2.0"));
     }
 
     @Test
     public void testSetYarnBetaFast() {
         ModelParameters p = new ModelParameters().setYarnBetaFast(16.0f);
-        assertEquals("16.0", p.parameters.get("--yarn-beta-fast"));
+        assertThat(p.parameters.get("--yarn-beta-fast"), is("16.0"));
     }
 
     // -------------------------------------------------------------------------
@@ -363,13 +373,13 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetGrpAttnN() {
         ModelParameters p = new ModelParameters().setGrpAttnN(4);
-        assertEquals("4", p.parameters.get("--grp-attn-n"));
+        assertThat(p.parameters.get("--grp-attn-n"), is("4"));
     }
 
     @Test
     public void testSetGrpAttnW() {
         ModelParameters p = new ModelParameters().setGrpAttnW(1024);
-        assertEquals("1024", p.parameters.get("--grp-attn-w"));
+        assertThat(p.parameters.get("--grp-attn-w"), is("1024"));
     }
 
     // -------------------------------------------------------------------------
@@ -380,7 +390,7 @@ public class ModelParametersExtendedTest {
     public void testSetCacheTypeKAllValues() {
         for (CacheType ct : CacheType.values()) {
             ModelParameters p = new ModelParameters().setCacheTypeK(ct);
-            assertEquals(ct.name().toLowerCase(), p.parameters.get("--cache-type-k"));
+            assertThat(p.parameters.get("--cache-type-k"), is(ct.name().toLowerCase()));
         }
     }
 
@@ -388,112 +398,112 @@ public class ModelParametersExtendedTest {
     public void testSetCacheTypeVAllValues() {
         for (CacheType ct : CacheType.values()) {
             ModelParameters p = new ModelParameters().setCacheTypeV(ct);
-            assertEquals(ct.name().toLowerCase(), p.parameters.get("--cache-type-v"));
+            assertThat(p.parameters.get("--cache-type-v"), is(ct.name().toLowerCase()));
         }
     }
 
     @Test
     public void testSetDefragThold() {
         ModelParameters p = new ModelParameters().setDefragThold(0.2f);
-        assertEquals("0.2", p.parameters.get("--defrag-thold"));
+        assertThat(p.parameters.get("--defrag-thold"), is("0.2"));
     }
 
     @Test
     public void testSetDefragTholdDisabled() {
         ModelParameters p = new ModelParameters().setDefragThold(-1.0f);
-        assertEquals("-1.0", p.parameters.get("--defrag-thold"));
+        assertThat(p.parameters.get("--defrag-thold"), is("-1.0"));
     }
 
     @Test
     public void testDisableKvOffload() {
         ModelParameters p = new ModelParameters().disableKvOffload();
-        assertTrue(p.parameters.containsKey("--no-kv-offload"));
-        assertNull(p.parameters.get("--no-kv-offload"));
+        assertThat(p.parameters, hasKey("--no-kv-offload"));
+        assertThat(p.parameters.get("--no-kv-offload"), is(nullValue()));
     }
 
     @Test
     public void testEnableDumpKvCache() {
         ModelParameters p = new ModelParameters().enableDumpKvCache();
-        assertTrue(p.parameters.containsKey("--dump-kv-cache"));
-        assertNull(p.parameters.get("--dump-kv-cache"));
+        assertThat(p.parameters, hasKey("--dump-kv-cache"));
+        assertThat(p.parameters.get("--dump-kv-cache"), is(nullValue()));
     }
 
     @Test
     public void testSetKvUnifiedTrue() {
         ModelParameters p = new ModelParameters().setKvUnified(true);
-        assertTrue(p.parameters.containsKey("--kv-unified"));
-        assertNull(p.parameters.get("--kv-unified"));
-        assertFalse(p.parameters.containsKey("--no-kv-unified"));
+        assertThat(p.parameters, hasKey("--kv-unified"));
+        assertThat(p.parameters.get("--kv-unified"), is(nullValue()));
+        assertThat(p.parameters, not(hasKey("--no-kv-unified")));
     }
 
     @Test
     public void testSetKvUnifiedFalse() {
         ModelParameters p = new ModelParameters().setKvUnified(false);
-        assertTrue(p.parameters.containsKey("--no-kv-unified"));
-        assertNull(p.parameters.get("--no-kv-unified"));
-        assertFalse(p.parameters.containsKey("--kv-unified"));
+        assertThat(p.parameters, hasKey("--no-kv-unified"));
+        assertThat(p.parameters.get("--no-kv-unified"), is(nullValue()));
+        assertThat(p.parameters, not(hasKey("--kv-unified")));
     }
 
     @Test
     public void testSetKvUnifiedFlipFromTrueToFalse() {
         ModelParameters p = new ModelParameters().setKvUnified(true).setKvUnified(false);
-        assertTrue(p.parameters.containsKey("--no-kv-unified"));
-        assertFalse(p.parameters.containsKey("--kv-unified"));
+        assertThat(p.parameters, hasKey("--no-kv-unified"));
+        assertThat(p.parameters, not(hasKey("--kv-unified")));
     }
 
     @Test
     public void testSetKvUnifiedFlipFromFalseToTrue() {
         ModelParameters p = new ModelParameters().setKvUnified(false).setKvUnified(true);
-        assertTrue(p.parameters.containsKey("--kv-unified"));
-        assertFalse(p.parameters.containsKey("--no-kv-unified"));
+        assertThat(p.parameters, hasKey("--kv-unified"));
+        assertThat(p.parameters, not(hasKey("--no-kv-unified")));
     }
 
     @Test
     public void testSetCacheRamMib() {
         ModelParameters p = new ModelParameters().setCacheRamMib(4096);
-        assertEquals("4096", p.parameters.get("--cache-ram"));
+        assertThat(p.parameters.get("--cache-ram"), is("4096"));
     }
 
     @Test
     public void testSetCacheRamMibUnlimited() {
         ModelParameters p = new ModelParameters().setCacheRamMib(-1);
-        assertEquals("-1", p.parameters.get("--cache-ram"));
+        assertThat(p.parameters.get("--cache-ram"), is("-1"));
     }
 
     @Test
     public void testSetCacheRamMibDisabled() {
         ModelParameters p = new ModelParameters().setCacheRamMib(0);
-        assertEquals("0", p.parameters.get("--cache-ram"));
+        assertThat(p.parameters.get("--cache-ram"), is("0"));
     }
 
     @Test
     public void testSetClearIdleTrue() {
         ModelParameters p = new ModelParameters().setClearIdle(true);
-        assertTrue(p.parameters.containsKey("--cache-idle-slots"));
-        assertNull(p.parameters.get("--cache-idle-slots"));
-        assertFalse(p.parameters.containsKey("--no-cache-idle-slots"));
+        assertThat(p.parameters, hasKey("--cache-idle-slots"));
+        assertThat(p.parameters.get("--cache-idle-slots"), is(nullValue()));
+        assertThat(p.parameters, not(hasKey("--no-cache-idle-slots")));
     }
 
     @Test
     public void testSetClearIdleFalse() {
         ModelParameters p = new ModelParameters().setClearIdle(false);
-        assertTrue(p.parameters.containsKey("--no-cache-idle-slots"));
-        assertNull(p.parameters.get("--no-cache-idle-slots"));
-        assertFalse(p.parameters.containsKey("--cache-idle-slots"));
+        assertThat(p.parameters, hasKey("--no-cache-idle-slots"));
+        assertThat(p.parameters.get("--no-cache-idle-slots"), is(nullValue()));
+        assertThat(p.parameters, not(hasKey("--cache-idle-slots")));
     }
 
     @Test
     public void testSetClearIdleFlipFromTrueToFalse() {
         ModelParameters p = new ModelParameters().setClearIdle(true).setClearIdle(false);
-        assertTrue(p.parameters.containsKey("--no-cache-idle-slots"));
-        assertFalse(p.parameters.containsKey("--cache-idle-slots"));
+        assertThat(p.parameters, hasKey("--no-cache-idle-slots"));
+        assertThat(p.parameters, not(hasKey("--cache-idle-slots")));
     }
 
     @Test
     public void testSetClearIdleFlipFromFalseToTrue() {
         ModelParameters p = new ModelParameters().setClearIdle(false).setClearIdle(true);
-        assertTrue(p.parameters.containsKey("--cache-idle-slots"));
-        assertFalse(p.parameters.containsKey("--no-cache-idle-slots"));
+        assertThat(p.parameters, hasKey("--cache-idle-slots"));
+        assertThat(p.parameters, not(hasKey("--no-cache-idle-slots")));
     }
 
     @Test
@@ -501,30 +511,30 @@ public class ModelParametersExtendedTest {
         // All three features wired together as they would be in production use
         ModelParameters p =
                 new ModelParameters().setKvUnified(true).setCacheRamMib(8192).setClearIdle(true);
-        assertTrue(p.parameters.containsKey("--kv-unified"));
-        assertEquals("8192", p.parameters.get("--cache-ram"));
-        assertTrue(p.parameters.containsKey("--cache-idle-slots"));
+        assertThat(p.parameters, hasKey("--kv-unified"));
+        assertThat(p.parameters.get("--cache-ram"), is("8192"));
+        assertThat(p.parameters, hasKey("--cache-idle-slots"));
         // Opposite flags must be absent
-        assertFalse(p.parameters.containsKey("--no-kv-unified"));
-        assertFalse(p.parameters.containsKey("--no-cache-idle-slots"));
+        assertThat(p.parameters, not(hasKey("--no-kv-unified")));
+        assertThat(p.parameters, not(hasKey("--no-cache-idle-slots")));
     }
 
     @Test
     public void testSetKvUnifiedReturnsSameInstance() {
         ModelParameters p = new ModelParameters();
-        assertSame(p.setKvUnified(true), p);
+        assertThat(p.setKvUnified(true), is(sameInstance(p)));
     }
 
     @Test
     public void testSetCacheRamMibReturnsSameInstance() {
         ModelParameters p = new ModelParameters();
-        assertSame(p.setCacheRamMib(4096), p);
+        assertThat(p.setCacheRamMib(4096), is(sameInstance(p)));
     }
 
     @Test
     public void testSetClearIdleReturnsSameInstance() {
         ModelParameters p = new ModelParameters();
-        assertSame(p.setClearIdle(true), p);
+        assertThat(p.setClearIdle(true), is(sameInstance(p)));
     }
 
     // -------------------------------------------------------------------------
@@ -534,33 +544,33 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetGpuLayers() {
         ModelParameters p = new ModelParameters().setGpuLayers(32);
-        assertEquals("32", p.parameters.get("--gpu-layers"));
+        assertThat(p.parameters.get("--gpu-layers"), is("32"));
     }
 
     @Test
     public void testSetSplitModeAllValues() {
         for (GpuSplitMode mode : GpuSplitMode.values()) {
             ModelParameters p = new ModelParameters().setSplitMode(mode);
-            assertEquals(mode.name().toLowerCase(), p.parameters.get("--split-mode"));
+            assertThat(p.parameters.get("--split-mode"), is(mode.name().toLowerCase()));
         }
     }
 
     @Test
     public void testSetTensorSplit() {
         ModelParameters p = new ModelParameters().setTensorSplit("0.5,0.5");
-        assertEquals("0.5,0.5", p.parameters.get("--tensor-split"));
+        assertThat(p.parameters.get("--tensor-split"), is("0.5,0.5"));
     }
 
     @Test
     public void testSetMainGpu() {
         ModelParameters p = new ModelParameters().setMainGpu(1);
-        assertEquals("1", p.parameters.get("--main-gpu"));
+        assertThat(p.parameters.get("--main-gpu"), is("1"));
     }
 
     @Test
     public void testSetDevices() {
         ModelParameters p = new ModelParameters().setDevices("cuda0,cuda1");
-        assertEquals("cuda0,cuda1", p.parameters.get("--device"));
+        assertThat(p.parameters.get("--device"), is("cuda0,cuda1"));
     }
 
     // -------------------------------------------------------------------------
@@ -570,22 +580,22 @@ public class ModelParametersExtendedTest {
     @Test
     public void testEnableMlock() {
         ModelParameters p = new ModelParameters().enableMlock();
-        assertTrue(p.parameters.containsKey("--mlock"));
-        assertNull(p.parameters.get("--mlock"));
+        assertThat(p.parameters, hasKey("--mlock"));
+        assertThat(p.parameters.get("--mlock"), is(nullValue()));
     }
 
     @Test
     public void testDisableMmap() {
         ModelParameters p = new ModelParameters().disableMmap();
-        assertTrue(p.parameters.containsKey("--no-mmap"));
-        assertNull(p.parameters.get("--no-mmap"));
+        assertThat(p.parameters, hasKey("--no-mmap"));
+        assertThat(p.parameters.get("--no-mmap"), is(nullValue()));
     }
 
     @Test
     public void testSetNumaAllValues() {
         for (NumaStrategy ns : NumaStrategy.values()) {
             ModelParameters p = new ModelParameters().setNuma(ns);
-            assertEquals(ns.name().toLowerCase(), p.parameters.get("--numa"));
+            assertThat(p.parameters.get("--numa"), is(ns.name().toLowerCase()));
         }
     }
 
@@ -596,21 +606,21 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetParallel() {
         ModelParameters p = new ModelParameters().setParallel(4);
-        assertEquals("4", p.parameters.get("--parallel"));
+        assertThat(p.parameters.get("--parallel"), is("4"));
     }
 
     @Test
     public void testEnableContBatching() {
         ModelParameters p = new ModelParameters().enableContBatching();
-        assertTrue(p.parameters.containsKey("--cont-batching"));
-        assertNull(p.parameters.get("--cont-batching"));
+        assertThat(p.parameters, hasKey("--cont-batching"));
+        assertThat(p.parameters.get("--cont-batching"), is(nullValue()));
     }
 
     @Test
     public void testDisableContBatching() {
         ModelParameters p = new ModelParameters().disableContBatching();
-        assertTrue(p.parameters.containsKey("--no-cont-batching"));
-        assertNull(p.parameters.get("--no-cont-batching"));
+        assertThat(p.parameters, hasKey("--no-cont-batching"));
+        assertThat(p.parameters.get("--no-cont-batching"), is(nullValue()));
     }
 
     // -------------------------------------------------------------------------
@@ -620,106 +630,106 @@ public class ModelParametersExtendedTest {
     @Test
     public void testDisableContextShift() {
         ModelParameters p = new ModelParameters().disableContextShift();
-        assertTrue(p.parameters.containsKey("--no-context-shift"));
-        assertNull(p.parameters.get("--no-context-shift"));
+        assertThat(p.parameters, hasKey("--no-context-shift"));
+        assertThat(p.parameters.get("--no-context-shift"), is(nullValue()));
     }
 
     @Test
     public void testEnableFlashAttn() {
         ModelParameters p = new ModelParameters().enableFlashAttn();
-        assertTrue(p.parameters.containsKey("--flash-attn"));
-        assertNull(p.parameters.get("--flash-attn"));
+        assertThat(p.parameters, hasKey("--flash-attn"));
+        assertThat(p.parameters.get("--flash-attn"), is(nullValue()));
     }
 
     @Test
     public void testDisablePerf() {
         ModelParameters p = new ModelParameters().disablePerf();
-        assertTrue(p.parameters.containsKey("--no-perf"));
-        assertNull(p.parameters.get("--no-perf"));
+        assertThat(p.parameters, hasKey("--no-perf"));
+        assertThat(p.parameters.get("--no-perf"), is(nullValue()));
     }
 
     @Test
     public void testEnableEscape() {
         ModelParameters p = new ModelParameters().enableEscape();
-        assertTrue(p.parameters.containsKey("--escape"));
-        assertNull(p.parameters.get("--escape"));
+        assertThat(p.parameters, hasKey("--escape"));
+        assertThat(p.parameters.get("--escape"), is(nullValue()));
     }
 
     @Test
     public void testDisableEscape() {
         ModelParameters p = new ModelParameters().disableEscape();
-        assertTrue(p.parameters.containsKey("--no-escape"));
-        assertNull(p.parameters.get("--no-escape"));
+        assertThat(p.parameters, hasKey("--no-escape"));
+        assertThat(p.parameters.get("--no-escape"), is(nullValue()));
     }
 
     @Test
     public void testEnableSpecial() {
         ModelParameters p = new ModelParameters().enableSpecial();
-        assertTrue(p.parameters.containsKey("--special"));
-        assertNull(p.parameters.get("--special"));
+        assertThat(p.parameters, hasKey("--special"));
+        assertThat(p.parameters.get("--special"), is(nullValue()));
     }
 
     @Test
     public void testSkipWarmup() {
         ModelParameters p = new ModelParameters().skipWarmup();
-        assertTrue(p.parameters.containsKey("--no-warmup"));
-        assertNull(p.parameters.get("--no-warmup"));
+        assertThat(p.parameters, hasKey("--no-warmup"));
+        assertThat(p.parameters.get("--no-warmup"), is(nullValue()));
     }
 
     @Test
     public void testSetSpmInfill() {
         ModelParameters p = new ModelParameters().setSpmInfill();
-        assertTrue(p.parameters.containsKey("--spm-infill"));
-        assertNull(p.parameters.get("--spm-infill"));
+        assertThat(p.parameters, hasKey("--spm-infill"));
+        assertThat(p.parameters.get("--spm-infill"), is(nullValue()));
     }
 
     @Test
     public void testIgnoreEos() {
         ModelParameters p = new ModelParameters().ignoreEos();
-        assertTrue(p.parameters.containsKey("--ignore-eos"));
-        assertNull(p.parameters.get("--ignore-eos"));
+        assertThat(p.parameters, hasKey("--ignore-eos"));
+        assertThat(p.parameters.get("--ignore-eos"), is(nullValue()));
     }
 
     @Test
     public void testEnableCheckTensors() {
         ModelParameters p = new ModelParameters().enableCheckTensors();
-        assertTrue(p.parameters.containsKey("--check-tensors"));
-        assertNull(p.parameters.get("--check-tensors"));
+        assertThat(p.parameters, hasKey("--check-tensors"));
+        assertThat(p.parameters.get("--check-tensors"), is(nullValue()));
     }
 
     @Test
     public void testEnableEmbedding() {
         ModelParameters p = new ModelParameters().enableEmbedding();
-        assertTrue(p.parameters.containsKey("--embedding"));
-        assertNull(p.parameters.get("--embedding"));
+        assertThat(p.parameters, hasKey("--embedding"));
+        assertThat(p.parameters.get("--embedding"), is(nullValue()));
     }
 
     @Test
     public void testEnableReranking() {
         ModelParameters p = new ModelParameters().enableReranking();
-        assertTrue(p.parameters.containsKey("--reranking"));
-        assertNull(p.parameters.get("--reranking"));
+        assertThat(p.parameters, hasKey("--reranking"));
+        assertThat(p.parameters.get("--reranking"), is(nullValue()));
     }
 
     @Test
     public void testSetVocabOnly() {
         ModelParameters p = new ModelParameters().setVocabOnly();
-        assertTrue(p.parameters.containsKey("--vocab-only"));
-        assertNull(p.parameters.get("--vocab-only"));
+        assertThat(p.parameters, hasKey("--vocab-only"));
+        assertThat(p.parameters.get("--vocab-only"), is(nullValue()));
     }
 
     @Test
     public void testEnableJinja() {
         ModelParameters p = new ModelParameters().enableJinja();
-        assertTrue(p.parameters.containsKey("--jinja"));
-        assertNull(p.parameters.get("--jinja"));
+        assertThat(p.parameters, hasKey("--jinja"));
+        assertThat(p.parameters.get("--jinja"), is(nullValue()));
     }
 
     @Test
     public void testSetLoraInitWithoutApply() {
         ModelParameters p = new ModelParameters().setLoraInitWithoutApply();
-        assertTrue(p.parameters.containsKey("--lora-init-without-apply"));
-        assertNull(p.parameters.get("--lora-init-without-apply"));
+        assertThat(p.parameters, hasKey("--lora-init-without-apply"));
+        assertThat(p.parameters.get("--lora-init-without-apply"), is(nullValue()));
     }
 
     // -------------------------------------------------------------------------
@@ -729,19 +739,19 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetSeed() {
         ModelParameters p = new ModelParameters().setSeed(42);
-        assertEquals("42", p.parameters.get("--seed"));
+        assertThat(p.parameters.get("--seed"), is("42"));
     }
 
     @Test
     public void testSetSeedRandom() {
         ModelParameters p = new ModelParameters().setSeed(-1);
-        assertEquals("-1", p.parameters.get("--seed"));
+        assertThat(p.parameters.get("--seed"), is("-1"));
     }
 
     @Test
     public void testSetLogitBias() {
         ModelParameters p = new ModelParameters().setLogitBias("1+0.5");
-        assertEquals("1+0.5", p.parameters.get("--logit-bias"));
+        assertThat(p.parameters.get("--logit-bias"), is("1+0.5"));
     }
 
     // -------------------------------------------------------------------------
@@ -751,19 +761,19 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetGrammar() {
         ModelParameters p = new ModelParameters().setGrammar("root ::= \"hello\"");
-        assertEquals("root ::= \"hello\"", p.parameters.get("--grammar"));
+        assertThat(p.parameters.get("--grammar"), is("root ::= \"hello\""));
     }
 
     @Test
     public void testSetGrammarFile() {
         ModelParameters p = new ModelParameters().setGrammarFile("grammar.gbnf");
-        assertEquals("grammar.gbnf", p.parameters.get("--grammar-file"));
+        assertThat(p.parameters.get("--grammar-file"), is("grammar.gbnf"));
     }
 
     @Test
     public void testSetJsonSchema() {
         ModelParameters p = new ModelParameters().setJsonSchema("{\"type\":\"object\"}");
-        assertEquals("{\"type\":\"object\"}", p.parameters.get("--json-schema"));
+        assertThat(p.parameters.get("--json-schema"), is("{\"type\":\"object\"}"));
     }
 
     // -------------------------------------------------------------------------
@@ -774,7 +784,7 @@ public class ModelParametersExtendedTest {
     public void testSetChatTemplate() {
         ModelParameters p =
                 new ModelParameters().setChatTemplate("{% for msg in messages %}{{ msg.content }}{% endfor %}");
-        assertEquals("{% for msg in messages %}{{ msg.content }}{% endfor %}", p.parameters.get("--chat-template"));
+        assertThat(p.parameters.get("--chat-template"), is("{% for msg in messages %}{{ msg.content }}{% endfor %}"));
     }
 
     @Test
@@ -783,8 +793,8 @@ public class ModelParametersExtendedTest {
         kwargs.put("enable_thinking", "true");
         ModelParameters p = new ModelParameters().setChatTemplateKwargs(kwargs);
         String val = p.parameters.get("--chat-template-kwargs");
-        assertNotNull(val);
-        assertTrue(val.contains("\"enable_thinking\":true"));
+        assertThat(val, is(notNullValue()));
+        assertThat(val, containsString("\"enable_thinking\":true"));
     }
 
     @Test
@@ -794,11 +804,11 @@ public class ModelParametersExtendedTest {
         kwargs.put("key2", "42");
         ModelParameters p = new ModelParameters().setChatTemplateKwargs(kwargs);
         String val = p.parameters.get("--chat-template-kwargs");
-        assertNotNull(val);
-        assertTrue(val.startsWith("{"));
-        assertTrue(val.endsWith("}"));
-        assertTrue(val.contains("\"key1\":\"val1\""));
-        assertTrue(val.contains("\"key2\":42"));
+        assertThat(val, is(notNullValue()));
+        assertThat(val, startsWith("{"));
+        assertThat(val, endsWith("}"));
+        assertThat(val, containsString("\"key1\":\"val1\""));
+        assertThat(val, containsString("\"key2\":42"));
     }
 
     // -------------------------------------------------------------------------
@@ -808,43 +818,43 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetModel() {
         ModelParameters p = new ModelParameters().setModel("/path/to/model.gguf");
-        assertEquals("/path/to/model.gguf", p.parameters.get("--model"));
+        assertThat(p.parameters.get("--model"), is("/path/to/model.gguf"));
     }
 
     @Test
     public void testSetModelUrl() {
         ModelParameters p = new ModelParameters().setModelUrl("https://example.com/model.gguf");
-        assertEquals("https://example.com/model.gguf", p.parameters.get("--model-url"));
+        assertThat(p.parameters.get("--model-url"), is("https://example.com/model.gguf"));
     }
 
     @Test
     public void testSetHfRepo() {
         ModelParameters p = new ModelParameters().setHfRepo("meta-llama/Llama-2-7b");
-        assertEquals("meta-llama/Llama-2-7b", p.parameters.get("--hf-repo"));
+        assertThat(p.parameters.get("--hf-repo"), is("meta-llama/Llama-2-7b"));
     }
 
     @Test
     public void testSetHfFile() {
         ModelParameters p = new ModelParameters().setHfFile("model-q4.gguf");
-        assertEquals("model-q4.gguf", p.parameters.get("--hf-file"));
+        assertThat(p.parameters.get("--hf-file"), is("model-q4.gguf"));
     }
 
     @Test
     public void testSetHfToken() {
         ModelParameters p = new ModelParameters().setHfToken("hf_abc123");
-        assertEquals("hf_abc123", p.parameters.get("--hf-token"));
+        assertThat(p.parameters.get("--hf-token"), is("hf_abc123"));
     }
 
     @Test
     public void testSetHfRepoV() {
         ModelParameters p = new ModelParameters().setHfRepoV("org/vocoder");
-        assertEquals("org/vocoder", p.parameters.get("--hf-repo-v"));
+        assertThat(p.parameters.get("--hf-repo-v"), is("org/vocoder"));
     }
 
     @Test
     public void testSetHfFileV() {
         ModelParameters p = new ModelParameters().setHfFileV("vocoder.gguf");
-        assertEquals("vocoder.gguf", p.parameters.get("--hf-file-v"));
+        assertThat(p.parameters.get("--hf-file-v"), is("vocoder.gguf"));
     }
 
     // -------------------------------------------------------------------------
@@ -854,19 +864,19 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetCacheReuse() {
         ModelParameters p = new ModelParameters().setCacheReuse(128);
-        assertEquals("128", p.parameters.get("--cache-reuse"));
+        assertThat(p.parameters.get("--cache-reuse"), is("128"));
     }
 
     @Test
     public void testSetSlotSavePath() {
         ModelParameters p = new ModelParameters().setSlotSavePath("/tmp/slots");
-        assertEquals("/tmp/slots", p.parameters.get("--slot-save-path"));
+        assertThat(p.parameters.get("--slot-save-path"), is("/tmp/slots"));
     }
 
     @Test
     public void testSetSlotPromptSimilarity() {
         ModelParameters p = new ModelParameters().setSlotPromptSimilarity(0.8f);
-        assertEquals("0.8", p.parameters.get("--slot-prompt-similarity"));
+        assertThat(p.parameters.get("--slot-prompt-similarity"), is("0.8"));
     }
 
     // -------------------------------------------------------------------------
@@ -876,7 +886,7 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetOverrideKv() {
         ModelParameters p = new ModelParameters().setOverrideKv("tokenizer.ggml.pre=spm");
-        assertEquals("tokenizer.ggml.pre=spm", p.parameters.get("--override-kv"));
+        assertThat(p.parameters.get("--override-kv"), is("tokenizer.ggml.pre=spm"));
     }
 
     // -------------------------------------------------------------------------
@@ -886,13 +896,13 @@ public class ModelParametersExtendedTest {
     @Test
     public void testAddLoraAdapter() {
         ModelParameters p = new ModelParameters().addLoraAdapter("adapter.bin");
-        assertEquals("adapter.bin", p.parameters.get("--lora"));
+        assertThat(p.parameters.get("--lora"), is("adapter.bin"));
     }
 
     @Test
     public void testAddControlVector() {
         ModelParameters p = new ModelParameters().addControlVector("vec.bin");
-        assertEquals("vec.bin", p.parameters.get("--control-vector"));
+        assertThat(p.parameters.get("--control-vector"), is("vec.bin"));
     }
 
     // -------------------------------------------------------------------------
@@ -902,19 +912,19 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetModelDraft() {
         ModelParameters p = new ModelParameters().setModelDraft("/path/to/draft.gguf");
-        assertEquals("/path/to/draft.gguf", p.parameters.get("--spec-draft-model"));
+        assertThat(p.parameters.get("--spec-draft-model"), is("/path/to/draft.gguf"));
     }
 
     @Test
     public void testSetDeviceDraft() {
         ModelParameters p = new ModelParameters().setDeviceDraft("cuda0");
-        assertEquals("cuda0", p.parameters.get("--spec-draft-device"));
+        assertThat(p.parameters.get("--spec-draft-device"), is("cuda0"));
     }
 
     @Test
     public void testSetGpuLayersDraft() {
         ModelParameters p = new ModelParameters().setGpuLayersDraft(16);
-        assertEquals("16", p.parameters.get("--spec-draft-ngl"));
+        assertThat(p.parameters.get("--spec-draft-ngl"), is("16"));
     }
 
     @Test
@@ -922,8 +932,8 @@ public class ModelParametersExtendedTest {
         // Regression: --draft-max was REMOVED in b9016 and now throws std::invalid_argument
         // at model load. Must use --spec-draft-n-max.
         ModelParameters p = new ModelParameters().setDraftMax(8);
-        assertEquals("8", p.parameters.get("--spec-draft-n-max"));
-        assertFalse(p.parameters.containsKey("--draft-max"), "--draft-max throws on b9016+; must not appear in args");
+        assertThat(p.parameters.get("--spec-draft-n-max"), is("8"));
+        assertThat("--draft-max throws on b9016+; must not appear in args", p.parameters, not(hasKey("--draft-max")));
     }
 
     @Test
@@ -931,14 +941,14 @@ public class ModelParametersExtendedTest {
         // Regression: --draft-min was REMOVED in b9016 and now throws std::invalid_argument
         // at model load. Must use --spec-draft-n-min.
         ModelParameters p = new ModelParameters().setDraftMin(2);
-        assertEquals("2", p.parameters.get("--spec-draft-n-min"));
-        assertFalse(p.parameters.containsKey("--draft-min"), "--draft-min throws on b9016+; must not appear in args");
+        assertThat(p.parameters.get("--spec-draft-n-min"), is("2"));
+        assertThat("--draft-min throws on b9016+; must not appear in args", p.parameters, not(hasKey("--draft-min")));
     }
 
     @Test
     public void testSetDraftPMin() {
         ModelParameters p = new ModelParameters().setDraftPMin(0.5f);
-        assertEquals("0.5", p.parameters.get("--spec-draft-p-min"));
+        assertThat(p.parameters.get("--spec-draft-p-min"), is("0.5"));
     }
 
     // -------------------------------------------------------------------------
@@ -948,41 +958,41 @@ public class ModelParametersExtendedTest {
     @Test
     public void testDisableLog() {
         ModelParameters p = new ModelParameters().disableLog();
-        assertTrue(p.parameters.containsKey("--log-disable"));
-        assertNull(p.parameters.get("--log-disable"));
+        assertThat(p.parameters, hasKey("--log-disable"));
+        assertThat(p.parameters.get("--log-disable"), is(nullValue()));
     }
 
     @Test
     public void testSetLogFile() {
         ModelParameters p = new ModelParameters().setLogFile("/tmp/llama.log");
-        assertEquals("/tmp/llama.log", p.parameters.get("--log-file"));
+        assertThat(p.parameters.get("--log-file"), is("/tmp/llama.log"));
     }
 
     @Test
     public void testSetVerbose() {
         ModelParameters p = new ModelParameters().setVerbose();
-        assertTrue(p.parameters.containsKey("--verbose"));
-        assertNull(p.parameters.get("--verbose"));
+        assertThat(p.parameters, hasKey("--verbose"));
+        assertThat(p.parameters.get("--verbose"), is(nullValue()));
     }
 
     @Test
     public void testSetLogVerbosity() {
         ModelParameters p = new ModelParameters().setLogVerbosity(3);
-        assertEquals("3", p.parameters.get("--log-verbosity"));
+        assertThat(p.parameters.get("--log-verbosity"), is("3"));
     }
 
     @Test
     public void testEnableLogPrefix() {
         ModelParameters p = new ModelParameters().enableLogPrefix();
-        assertTrue(p.parameters.containsKey("--log-prefix"));
-        assertNull(p.parameters.get("--log-prefix"));
+        assertThat(p.parameters, hasKey("--log-prefix"));
+        assertThat(p.parameters.get("--log-prefix"), is(nullValue()));
     }
 
     @Test
     public void testEnableLogTimestamps() {
         ModelParameters p = new ModelParameters().enableLogTimestamps();
-        assertTrue(p.parameters.containsKey("--log-timestamps"));
-        assertNull(p.parameters.get("--log-timestamps"));
+        assertThat(p.parameters, hasKey("--log-timestamps"));
+        assertThat(p.parameters.get("--log-timestamps"), is(nullValue()));
     }
 
     // -------------------------------------------------------------------------
@@ -992,13 +1002,13 @@ public class ModelParametersExtendedTest {
     @Test
     public void testSetFitTrue() {
         ModelParameters p = new ModelParameters().setFit(true);
-        assertEquals(ModelParameters.FIT_ON, p.parameters.get("--fit"));
+        assertThat(p.parameters.get("--fit"), is(ModelParameters.FIT_ON));
     }
 
     @Test
     public void testSetFitFalse() {
         ModelParameters p = new ModelParameters().setFit(false);
-        assertEquals(ModelParameters.FIT_OFF, p.parameters.get("--fit"));
+        assertThat(p.parameters.get("--fit"), is(ModelParameters.FIT_OFF));
     }
 
     // -------------------------------------------------------------------------
@@ -1009,7 +1019,7 @@ public class ModelParametersExtendedTest {
     public void testSetRopeScalingAllValues() {
         for (RopeScalingType type : RopeScalingType.values()) {
             ModelParameters p = new ModelParameters().setRopeScaling(type);
-            assertEquals(type.getArgValue(), p.parameters.get("--rope-scaling"));
+            assertThat(p.parameters.get("--rope-scaling"), is(type.getArgValue()));
         }
     }
 
@@ -1021,7 +1031,7 @@ public class ModelParametersExtendedTest {
     public void testSetMirostatAllValues() {
         for (MiroStat m : MiroStat.values()) {
             ModelParameters p = new ModelParameters().setMirostat(m);
-            assertEquals(String.valueOf(m.ordinal()), p.parameters.get("--mirostat"));
+            assertThat(p.parameters.get("--mirostat"), is(String.valueOf(m.ordinal())));
         }
     }
 
@@ -1032,18 +1042,18 @@ public class ModelParametersExtendedTest {
     @Test
     public void testExtendedChainingReturnsSameInstance() {
         ModelParameters p = new ModelParameters();
-        assertSame(p.setCtxSize(2048), p);
-        assertSame(p.setBatchSize(512), p);
-        assertSame(p.setTemp(0.7f), p);
-        assertSame(p.setTopK(50), p);
-        assertSame(p.setDryMultiplier(0.5f), p);
-        assertSame(p.setXtcProbability(0.3f), p);
-        assertSame(p.setRopeScale(2.0f), p);
-        assertSame(p.setGpuLayers(32), p);
-        assertSame(p.enableFlashAttn(), p);
-        assertSame(p.disableContextShift(), p);
-        assertSame(p.setModelDraft("/draft.gguf"), p);
-        assertSame(p.disableLog(), p);
+        assertThat(p.setCtxSize(2048), is(sameInstance(p)));
+        assertThat(p.setBatchSize(512), is(sameInstance(p)));
+        assertThat(p.setTemp(0.7f), is(sameInstance(p)));
+        assertThat(p.setTopK(50), is(sameInstance(p)));
+        assertThat(p.setDryMultiplier(0.5f), is(sameInstance(p)));
+        assertThat(p.setXtcProbability(0.3f), is(sameInstance(p)));
+        assertThat(p.setRopeScale(2.0f), is(sameInstance(p)));
+        assertThat(p.setGpuLayers(32), is(sameInstance(p)));
+        assertThat(p.enableFlashAttn(), is(sameInstance(p)));
+        assertThat(p.disableContextShift(), is(sameInstance(p)));
+        assertThat(p.setModelDraft("/draft.gguf"), is(sameInstance(p)));
+        assertThat(p.disableLog(), is(sameInstance(p)));
     }
 
     // -------------------------------------------------------------------------
@@ -1059,8 +1069,8 @@ public class ModelParametersExtendedTest {
                 .enableFlashAttn();
         String[] arr = p.toArray();
         // argv[0]="" + --fit + on + --model + model.gguf + --ctx-size + 2048 + --embedding + --flash-attn = 9
-        assertEquals(9, arr.length);
-        assertEquals("", arr[0]);
+        assertThat(arr, arrayWithSize(9));
+        assertThat(arr[0], is(""));
     }
 
     // -------------------------------------------------------------------------
@@ -1070,16 +1080,16 @@ public class ModelParametersExtendedTest {
     @Test
     public void testIsDefaultForCtxSize() {
         ModelParameters p = new ModelParameters();
-        assertTrue(p.isUnset("ctx-size"));
+        assertThat(p.isUnset("ctx-size"), is(true));
         p.setCtxSize(2048);
-        assertFalse(p.isUnset("ctx-size"));
+        assertThat(p.isUnset("ctx-size"), is(false));
     }
 
     @Test
     public void testIsDefaultForFlagOnly() {
         ModelParameters p = new ModelParameters();
-        assertTrue(p.isUnset("flash-attn"));
+        assertThat(p.isUnset("flash-attn"), is(true));
         p.enableFlashAttn();
-        assertFalse(p.isUnset("flash-attn"));
+        assertThat(p.isUnset("flash-attn"), is(false));
     }
 }

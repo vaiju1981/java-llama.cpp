@@ -4,11 +4,12 @@
 
 package net.ladenthin.llama.value;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import java.io.IOException;
@@ -28,17 +29,17 @@ public class ContentPartTest {
     @Test
     public void textPartCarriesText() {
         ContentPart p = ContentPart.text("hello");
-        assertEquals(ContentPart.Type.TEXT, p.getType());
-        assertEquals("hello", p.getText());
-        assertNull(p.getImageUrl());
+        assertThat(p.getType(), is(ContentPart.Type.TEXT));
+        assertThat(p.getText(), is("hello"));
+        assertThat(p.getImageUrl(), is(nullValue()));
     }
 
     @Test
     public void imageUrlPartCarriesUrl() {
         ContentPart p = ContentPart.imageUrl("https://example.com/a.png");
-        assertEquals(ContentPart.Type.IMAGE_URL, p.getType());
-        assertEquals("https://example.com/a.png", p.getImageUrl());
-        assertNull(p.getText());
+        assertThat(p.getType(), is(ContentPart.Type.IMAGE_URL));
+        assertThat(p.getImageUrl(), is("https://example.com/a.png"));
+        assertThat(p.getText(), is(nullValue()));
     }
 
     @Test
@@ -46,7 +47,7 @@ public class ContentPartTest {
         byte[] bytes = {1, 2, 3, 4, 5};
         ContentPart p = ContentPart.imageBytes(bytes, "image/png");
         String expected = "data:image/png;base64," + Base64.getEncoder().encodeToString(bytes);
-        assertEquals(expected, p.getImageUrl());
+        assertThat(p.getImageUrl(), is(expected));
     }
 
     @Test
@@ -79,7 +80,7 @@ public class ContentPartTest {
         Path file = tmp.resolve("logo.PNG");
         Files.write(file, new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47});
         ContentPart p = ContentPart.imageFile(file);
-        assertTrue(p.getImageUrl().startsWith("data:image/png;base64,"));
+        assertThat(p.getImageUrl(), startsWith("data:image/png;base64,"));
     }
 
     @Test
@@ -87,7 +88,7 @@ public class ContentPartTest {
         Path file = tmp.resolve("photo.jpg");
         Files.write(file, new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF});
         ContentPart p = ContentPart.imageFile(file);
-        assertTrue(p.getImageUrl().startsWith("data:image/jpeg;base64,"));
+        assertThat(p.getImageUrl(), startsWith("data:image/jpeg;base64,"));
     }
 
     @Test
@@ -95,7 +96,7 @@ public class ContentPartTest {
         Path file = tmp.resolve("photo.jpeg");
         Files.write(file, new byte[] {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF});
         ContentPart p = ContentPart.imageFile(file);
-        assertTrue(p.getImageUrl().startsWith("data:image/jpeg;base64,"));
+        assertThat(p.getImageUrl(), startsWith("data:image/jpeg;base64,"));
     }
 
     @Test
@@ -103,7 +104,7 @@ public class ContentPartTest {
         Path file = tmp.resolve("img.webp");
         Files.write(file, new byte[] {0x52, 0x49, 0x46, 0x46});
         ContentPart p = ContentPart.imageFile(file);
-        assertTrue(p.getImageUrl().startsWith("data:image/webp;base64,"));
+        assertThat(p.getImageUrl(), startsWith("data:image/webp;base64,"));
     }
 
     @Test
@@ -111,7 +112,7 @@ public class ContentPartTest {
         Path file = tmp.resolve("anim.gif");
         Files.write(file, new byte[] {0x47, 0x49, 0x46, 0x38});
         ContentPart p = ContentPart.imageFile(file);
-        assertTrue(p.getImageUrl().startsWith("data:image/gif;base64,"));
+        assertThat(p.getImageUrl(), startsWith("data:image/gif;base64,"));
     }
 
     @Test
@@ -122,7 +123,7 @@ public class ContentPartTest {
             ContentPart.imageFile(file);
             fail("expected IllegalArgumentException for unknown extension");
         } catch (IllegalArgumentException expected) {
-            assertNotNull(expected.getMessage());
+            assertThat(expected.getMessage(), is(notNullValue()));
         }
     }
 }

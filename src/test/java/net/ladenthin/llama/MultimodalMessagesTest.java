@@ -4,10 +4,11 @@
 
 package net.ladenthin.llama;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 import com.fasterxml.jackson.databind.JsonNode;
@@ -34,16 +35,16 @@ public class MultimodalMessagesTest {
     @Test
     public void hasPartsIsFalseForLegacyConstructor() {
         ChatMessage m = new ChatMessage("user", "hello");
-        assertFalse(m.hasParts());
-        assertTrue(m.getParts().isEmpty());
+        assertThat(m.hasParts(), is(false));
+        assertThat(m.getParts().isPresent(), is(false));
     }
 
     @Test
     public void hasPartsIsTrueForPartsConstructor() {
         ChatMessage m = new ChatMessage(
                 "user", Arrays.asList(ContentPart.text("hi"), ContentPart.imageUrl("data:image/png;base64,AAAA")));
-        assertTrue(m.hasParts());
-        assertEquals(2, m.getParts().orElseThrow().size());
+        assertThat(m.hasParts(), is(true));
+        assertThat(m.getParts().orElseThrow(), hasSize(2));
     }
 
     @Test
@@ -55,18 +56,18 @@ public class MultimodalMessagesTest {
                         ContentPart.imageUrl("data:image/png;base64,X"),
                         ContentPart.text("please")));
         // Image parts contribute no text; text parts are newline-joined.
-        assertEquals("describe\nplease", m.getContent());
+        assertThat(m.getContent(), is("describe\nplease"));
     }
 
     @Test
     public void userMultimodalFactoryBuildsUserMessage() {
         ChatMessage m = ChatMessage.userMultimodal(
                 ContentPart.text("what is this?"), ContentPart.imageUrl("data:image/jpeg;base64,Y"));
-        assertEquals("user", m.getRole());
+        assertThat(m.getRole(), is("user"));
         List<ContentPart> parts = m.getParts().orElseThrow();
-        assertEquals(2, parts.size());
-        assertEquals(ContentPart.Type.TEXT, parts.get(0).getType());
-        assertEquals(ContentPart.Type.IMAGE_URL, parts.get(1).getType());
+        assertThat(parts, hasSize(2));
+        assertThat(parts.get(0).getType(), is(ContentPart.Type.TEXT));
+        assertThat(parts.get(1).getType(), is(ContentPart.Type.IMAGE_URL));
     }
 
     @Test
@@ -98,22 +99,21 @@ public class MultimodalMessagesTest {
                 ContentPart.text("describe"), ContentPart.imageUrl("data:image/png;base64,ABCD"));
         ArrayNode arr = s.buildMessages(Collections.singletonList(user));
 
-        assertEquals(1, arr.size());
+        assertThat(arr.size(), is(1));
         JsonNode msg = arr.get(0);
-        assertEquals("user", msg.get("role").asText());
+        assertThat(msg.get("role").asText(), is("user"));
 
         JsonNode content = msg.get("content");
-        assertTrue(content.isArray(), "content must be an array when parts are present");
-        assertEquals(2, content.size());
+        assertThat("content must be an array when parts are present", content.isArray(), is(true));
+        assertThat(content.size(), is(2));
 
         JsonNode p0 = content.get(0);
-        assertEquals("text", p0.get("type").asText());
-        assertEquals("describe", p0.get("text").asText());
+        assertThat(p0.get("type").asText(), is("text"));
+        assertThat(p0.get("text").asText(), is("describe"));
 
         JsonNode p1 = content.get(1);
-        assertEquals("image_url", p1.get("type").asText());
-        assertEquals(
-                "data:image/png;base64,ABCD", p1.get("image_url").get("url").asText());
+        assertThat(p1.get("type").asText(), is("image_url"));
+        assertThat(p1.get("image_url").get("url").asText(), is("data:image/png;base64,ABCD"));
     }
 
     @Test
@@ -122,11 +122,11 @@ public class MultimodalMessagesTest {
         ChatMessage user = new ChatMessage("user", "plain text");
         ArrayNode arr = s.buildMessages(Collections.singletonList(user));
 
-        assertEquals(1, arr.size());
+        assertThat(arr.size(), is(1));
         JsonNode msg = arr.get(0);
-        assertEquals("user", msg.get("role").asText());
-        assertTrue(msg.get("content").isTextual(), "content must remain a string for legacy messages");
-        assertEquals("plain text", msg.get("content").asText());
+        assertThat(msg.get("role").asText(), is("user"));
+        assertThat("content must remain a string for legacy messages", msg.get("content").isTextual(), is(true));
+        assertThat(msg.get("content").asText(), is("plain text"));
     }
 
     @Test
@@ -138,10 +138,10 @@ public class MultimodalMessagesTest {
                         ContentPart.text("what's in here?"), ContentPart.imageUrl("data:image/png;base64,Z")),
                 new ChatMessage("assistant", "a cat"));
         ArrayNode arr = s.buildMessages(messages);
-        assertEquals(3, arr.size());
-        assertTrue(arr.get(0).get("content").isTextual());
-        assertTrue(arr.get(1).get("content").isArray());
-        assertTrue(arr.get(2).get("content").isTextual());
+        assertThat(arr.size(), is(3));
+        assertThat(arr.get(0).get("content").isTextual(), is(true));
+        assertThat(arr.get(1).get("content").isArray(), is(true));
+        assertThat(arr.get(2).get("content").isTextual(), is(true));
     }
 
     @Test
@@ -153,8 +153,8 @@ public class MultimodalMessagesTest {
         // resulting JSON has the array form, which is what the upstream OAI chat
         // parser expects for multimodal routing.
         String json = params.toString();
-        assertTrue(json.contains("\"messages\""), "messages array must be present");
-        assertTrue(json.contains("\"image_url\""), "multimodal part type must be in the serialised JSON");
-        assertTrue(json.contains("data:image/png;base64,QQ"), "data URI must round-trip into the request body");
+        assertThat("messages array must be present", json, containsString("\"messages\""));
+        assertThat("multimodal part type must be in the serialised JSON", json, containsString("\"image_url\""));
+        assertThat("data URI must round-trip into the request body", json, containsString("data:image/png;base64,QQ"));
     }
 }

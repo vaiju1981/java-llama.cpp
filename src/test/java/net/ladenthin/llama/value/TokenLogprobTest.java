@@ -4,9 +4,12 @@
 
 package net.ladenthin.llama.value;
 
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import net.ladenthin.llama.ClaudeGenerated;
@@ -24,7 +27,7 @@ public class TokenLogprobTest {
     @Test
     public void emptyWhenAbsent() {
         LlamaOutput out = parser.parse("{\"content\":\"hi\",\"stop\":true,\"stop_type\":\"eos\"}");
-        assertTrue(out.logprobs.isEmpty());
+        assertThat(out.logprobs, is(empty()));
     }
 
     @Test
@@ -36,14 +39,14 @@ public class TokenLogprobTest {
                 + "              {\"token\":\"Hey\",\"id\":12,\"prob\":0.05}]}"
                 + "]}";
         LlamaOutput out = parser.parse(json);
-        assertEquals(1, out.logprobs.size());
+        assertThat(out.logprobs, hasSize(1));
         TokenLogprob first = out.logprobs.get(0);
-        assertEquals("Hello", first.getToken());
-        assertEquals(15043, first.getTokenId());
+        assertThat(first.getToken(), is("Hello"));
+        assertThat(first.getTokenId(), is(15043));
         assertEquals(0.82f, first.getLogprob(), 1e-4f);
-        assertEquals(2, first.getTopLogprobs().size());
-        assertEquals("Hi", first.getTopLogprobs().get(0).getToken());
-        assertEquals(9932, first.getTopLogprobs().get(0).getTokenId());
+        assertThat(first.getTopLogprobs(), hasSize(2));
+        assertThat(first.getTopLogprobs().get(0).getToken(), is("Hi"));
+        assertThat(first.getTopLogprobs().get(0).getTokenId(), is(9932));
         assertEquals(0.10f, first.getTopLogprobs().get(0).getLogprob(), 1e-4f);
     }
 
@@ -55,10 +58,10 @@ public class TokenLogprobTest {
                 + "\"top_logprobs\":[{\"token\":\"Hi\",\"id\":9932,\"logprob\":-2.3}]}"
                 + "]}";
         LlamaOutput out = parser.parse(json);
-        assertEquals(1, out.logprobs.size());
+        assertThat(out.logprobs, hasSize(1));
         TokenLogprob first = out.logprobs.get(0);
         assertEquals(-0.20f, first.getLogprob(), 1e-4f);
-        assertEquals(1, first.getTopLogprobs().size());
+        assertThat(first.getTopLogprobs(), hasSize(1));
         assertEquals(-2.3f, first.getTopLogprobs().get(0).getLogprob(), 1e-4f);
     }
 
@@ -71,9 +74,9 @@ public class TokenLogprobTest {
                 + "{\"token\":\"C\",\"id\":3,\"prob\":0.1}"
                 + "]}";
         List<TokenLogprob> lp = parser.parse(json).logprobs;
-        assertEquals("A", lp.get(0).getToken());
-        assertEquals("B", lp.get(1).getToken());
-        assertEquals("C", lp.get(2).getToken());
+        assertThat(lp.get(0).getToken(), is("A"));
+        assertThat(lp.get(1).getToken(), is("B"));
+        assertThat(lp.get(2).getToken(), is("C"));
     }
 
     @Test
@@ -83,7 +86,7 @@ public class TokenLogprobTest {
                 + "{\"token\":\"hello\",\"id\":1,\"prob\":0.9}"
                 + "]}";
         LlamaOutput out = parser.parse(json);
-        assertEquals(1, out.logprobs.size());
+        assertThat(out.logprobs, hasSize(1));
         assertEquals(0.9f, out.probabilities.get("hello"), 1e-4f);
     }
 
@@ -91,7 +94,7 @@ public class TokenLogprobTest {
     public void backwardsCompatibleConstructor() {
         LlamaOutput out =
                 new LlamaOutput("hi", java.util.Collections.<String, Float>emptyMap(), false, StopReason.NONE);
-        assertNotNull(out.logprobs);
-        assertTrue(out.logprobs.isEmpty());
+        assertThat(out.logprobs, is(notNullValue()));
+        assertThat(out.logprobs, is(empty()));
     }
 }

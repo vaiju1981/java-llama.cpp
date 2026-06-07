@@ -4,11 +4,15 @@
 
 package net.ladenthin.llama.value;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import net.ladenthin.llama.Session;
@@ -53,9 +57,10 @@ class ChatTranscriptTest {
         // Phase 1: build wire-format (model would see this).
         List<Pair<String, String>> wire = t.messagesWithPendingUserTurn(userMessage);
         // The wire format must contain the pending turn the model is about to answer.
-        assertTrue(
-                wire.stream().anyMatch(p -> "user".equals(p.getKey()) && userMessage.equals(p.getValue())),
-                "wire-format must carry the pending user turn");
+        assertThat(
+                "wire-format must carry the pending user turn",
+                wire,
+                hasItem(new Pair<>("user", userMessage)));
         // Phase 2: model returned successfully — commit both turns atomically.
         t.appendRound(userMessage, assistantReply);
     }
@@ -85,13 +90,13 @@ class ChatTranscriptTest {
 
             t.appendRound("hi", "hello back");
 
-            assertEquals(2, t.size());
+            assertThat(t.size(), is(2));
             List<ChatMessage> snapshot = t.snapshot();
-            assertEquals(2, snapshot.size());
-            assertEquals("user", snapshot.get(0).getRole());
-            assertEquals("hi", snapshot.get(0).getContent());
-            assertEquals("assistant", snapshot.get(1).getRole());
-            assertEquals("hello back", snapshot.get(1).getContent());
+            assertThat(snapshot, hasSize(2));
+            assertThat(snapshot.get(0).getRole(), is("user"));
+            assertThat(snapshot.get(0).getContent(), is("hi"));
+            assertThat(snapshot.get(1).getRole(), is("assistant"));
+            assertThat(snapshot.get(1).getContent(), is("hello back"));
         }
 
         @Test
@@ -104,7 +109,7 @@ class ChatTranscriptTest {
             b.appendUserTurn("hi");
             b.appendAssistantTurn("hello back");
 
-            assertEquals(a.snapshot(), b.snapshot(), "atomic-round and split-commit must converge");
+            assertThat("atomic-round and split-commit must converge", b.snapshot(), is(a.snapshot()));
         }
 
         @Test
@@ -118,13 +123,13 @@ class ChatTranscriptTest {
             List<Pair<String, String>> wire = t.messagesWithPendingUserTurn("pending");
 
             // Build a wire-format containing committed turns + pending user.
-            assertEquals(3, wire.size(), "1 user + 1 assistant + 1 pending user");
-            assertEquals("user", wire.get(2).getKey());
-            assertEquals("pending", wire.get(2).getValue());
+            assertThat("1 user + 1 assistant + 1 pending user", wire, hasSize(3));
+            assertThat(wire.get(2).getKey(), is("user"));
+            assertThat(wire.get(2).getValue(), is("pending"));
 
             // The transcript itself MUST be unchanged.
-            assertEquals(sizeBefore, t.size(), "transcript size unchanged");
-            assertEquals(snapshotBefore, t.snapshot(), "transcript snapshot unchanged");
+            assertThat("transcript size unchanged", t.size(), is(sizeBefore));
+            assertThat("transcript snapshot unchanged", t.snapshot(), is(snapshotBefore));
         }
 
         @Test
@@ -133,10 +138,10 @@ class ChatTranscriptTest {
             ChatTranscript t = new ChatTranscript(null);
             List<Pair<String, String>> first = t.messagesWithPendingUserTurn("hi");
             List<Pair<String, String>> second = t.messagesWithPendingUserTurn("hi");
-            assertNotSame(
+            assertThat(
+                    "each wire-format build returns a fresh list — callers may mutate without affecting peers",
                     first,
-                    second,
-                    "each wire-format build returns a fresh list — callers may mutate without affecting peers");
+                    is(not(sameInstance(second))));
         }
 
         @Test
@@ -147,16 +152,16 @@ class ChatTranscriptTest {
 
             List<ChatMessage> snap = t.snapshot();
 
-            assertEquals(3, snap.size());
-            assertEquals("system", snap.get(0).getRole());
-            assertEquals("you are an assistant", snap.get(0).getContent());
+            assertThat(snap, hasSize(3));
+            assertThat(snap.get(0).getRole(), is("system"));
+            assertThat(snap.get(0).getContent(), is("you are an assistant"));
         }
 
         @Test
         @DisplayName("snapshot omits system message when null or empty")
         void snapshotOmitsSystemMessageWhenAbsent() {
-            assertEquals(0, new ChatTranscript(null).snapshot().size());
-            assertEquals(0, new ChatTranscript("").snapshot().size());
+            assertThat(new ChatTranscript(null).snapshot(), is(empty()));
+            assertThat(new ChatTranscript("").snapshot(), is(empty()));
         }
 
         @Test
@@ -171,7 +176,7 @@ class ChatTranscriptTest {
         @Test
         @DisplayName("getSystemMessage returns null when absent")
         void getSystemMessageNullWhenAbsent() {
-            assertNull(new ChatTranscript(null).getSystemMessage());
+            assertThat(new ChatTranscript(null).getSystemMessage(), is(nullValue()));
         }
     }
 
@@ -183,7 +188,7 @@ class ChatTranscriptTest {
         @DisplayName("simulated model failure leaves a FRESH transcript untouched")
         void freshTranscriptUntouchedWhenModelThrows() {
             ChatTranscript t = new ChatTranscript("system");
-            assertEquals(0, t.size(), "precondition: fresh transcript has no turns");
+            assertThat("precondition: fresh transcript has no turns", t.size(), is(0));
             int snapshotSizeBefore = t.snapshot().size();
 
             // Caller simulates Session.send where the model rejects the request.
@@ -194,8 +199,8 @@ class ChatTranscriptTest {
 
             // Two-phase commit: the pending user turn never landed in the transcript.
             // (The system message snapshot entry was there before and is still there.)
-            assertEquals(0, t.size(), "transcript MUST NOT contain the pending user turn after model failure");
-            assertEquals(snapshotSizeBefore, t.snapshot().size(), "snapshot size unchanged by the failed call");
+            assertThat("transcript MUST NOT contain the pending user turn after model failure", t.size(), is(0));
+            assertThat("snapshot size unchanged by the failed call", t.snapshot().size(), is(snapshotSizeBefore));
         }
 
         @Test
@@ -206,7 +211,7 @@ class ChatTranscriptTest {
             simulateSend(t, "how are you", "i'm fine");
 
             List<ChatMessage> before = t.snapshot();
-            assertEquals(5, before.size(), "precondition: 1 system + 2 user + 2 assistant");
+            assertThat("precondition: 1 system + 2 user + 2 assistant", before, hasSize(5));
 
             // Now the model rejects a third call.
             assertThrows(
@@ -216,7 +221,7 @@ class ChatTranscriptTest {
 
             // Two-phase commit: existing transcript is byte-for-byte unchanged.
             List<ChatMessage> after = t.snapshot();
-            assertEquals(before, after, "failed call must leave the transcript byte-for-byte unchanged");
+            assertThat("failed call must leave the transcript byte-for-byte unchanged", after, is(before));
         }
 
         @Test
@@ -226,14 +231,14 @@ class ChatTranscriptTest {
 
             simulateSend(t, "hi", "hello");
 
-            assertEquals(2, t.size(), "both turns committed");
+            assertThat("both turns committed", t.size(), is(2));
             // The shape is invariant: there is no API to commit only one half via appendRound.
             // Spot-check that the turn pair is well-formed.
             List<ChatMessage> snap = t.snapshot();
-            assertEquals("user", snap.get(0).getRole());
-            assertEquals("hi", snap.get(0).getContent());
-            assertEquals("assistant", snap.get(1).getRole());
-            assertEquals("hello", snap.get(1).getContent());
+            assertThat(snap.get(0).getRole(), is("user"));
+            assertThat(snap.get(0).getContent(), is("hi"));
+            assertThat(snap.get(1).getRole(), is("assistant"));
+            assertThat(snap.get(1).getContent(), is("hello"));
         }
 
         @Test
@@ -243,16 +248,16 @@ class ChatTranscriptTest {
 
             // Phase 1: build wire format (would be passed to model.generateChat).
             List<Pair<String, String>> wire = t.messagesWithPendingUserTurn("tell me a joke");
-            assertEquals(1, wire.size(), "wire contains the pending user turn");
+            assertThat("wire contains the pending user turn", wire, hasSize(1));
 
             // Phase 2: model returned an iterable successfully — commit only the user turn.
             t.appendUserTurn("tell me a joke");
-            assertEquals(1, t.size(), "user turn committed; assistant follows later");
+            assertThat("user turn committed; assistant follows later", t.size(), is(1));
 
             // Later: caller invoked commitStreamedReply with the accumulated text.
             t.appendAssistantTurn("knock knock");
-            assertEquals(2, t.size(), "round closes with the assistant turn");
-            assertEquals("assistant", t.snapshot().get(1).getRole());
+            assertThat("round closes with the assistant turn", t.size(), is(2));
+            assertThat(t.snapshot().get(1).getRole(), is("assistant"));
         }
     }
 }
