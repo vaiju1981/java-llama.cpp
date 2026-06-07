@@ -85,4 +85,14 @@ public class CompletionResultTest {
         assertEquals(StopReason.NONE, r.getStopReason());
         assertTrue(r.getLogprobs().isEmpty());
     }
+
+    @Test
+    public void rawJsonAndToStringExposeContent() {
+        CompletionResult r =
+                parser.parseCompletionResult("{\"content\":\"hello world\",\"stop\":true,\"stop_type\":\"eos\"}");
+        // Assert content (not just non-null) so the empty-string return mutant on getRawJson is killed.
+        assertTrue(r.getRawJson().contains("hello world"));
+        // toString() returns the generated text; pin it so the empty-string return mutant is killed.
+        assertEquals("hello world", r.toString());
+    }
 }

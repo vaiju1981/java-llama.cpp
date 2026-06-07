@@ -5,12 +5,15 @@
 package net.ladenthin.llama.value;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import net.ladenthin.llama.ClaudeGenerated;
 import net.ladenthin.llama.json.CompletionResponseParser;
@@ -88,6 +91,20 @@ public class TokenLogprobTest {
         LlamaOutput out = parser.parse(json);
         assertThat(out.logprobs, hasSize(1));
         assertEquals(0.9f, out.probabilities.get("hello"), 1e-4f);
+    }
+
+    @Test
+    public void toStringIncludesTopLogprobCount() {
+        // The private @ToString.Include topLogprobsSize() is only reachable through toString();
+        // rendering "top=2" kills the "return 0" primitive mutant on that helper.
+        TokenLogprob tl = new TokenLogprob(
+                "t",
+                1,
+                0.5f,
+                Arrays.asList(
+                        new TokenLogprob("a", 2, 0.1f, Collections.emptyList()),
+                        new TokenLogprob("b", 3, 0.2f, Collections.emptyList())));
+        assertThat(tl.toString(), containsString("top=2"));
     }
 
     @Test

@@ -111,6 +111,16 @@ public class ModelMetaTest {
     }
 
     @Test
+    public void testAsJsonReturnsBackingNode() throws Exception {
+        ModelMeta meta = parse("{\"vocab_type\":1,\"n_vocab\":32016,\"n_ctx_train\":16384,"
+                + "\"n_embd\":4096,\"n_params\":6738546688,\"size\":2825274880,"
+                + "\"modalities\":{\"vision\":false,\"audio\":false},"
+                + "\"architecture\":\"llama\",\"name\":\"CodeLlama-7B\"}");
+        // Dereferencing the returned node kills the "return null" mutant on asJson().
+        assertThat(meta.asJson().get("architecture").asText(), is("llama"));
+    }
+
+    @Test
     public void testToStringContainsNewFields() throws Exception {
         ModelMeta meta = parse("{\"vocab_type\":1,\"n_vocab\":32016,\"n_ctx_train\":16384,"
                 + "\"n_embd\":4096,\"n_params\":6738546688,\"size\":2825274880,"

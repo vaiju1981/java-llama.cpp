@@ -97,4 +97,26 @@ public class ServerMetricsTest {
         assertEquals(0, m.getTokensMax());
         assertEquals(0L, m.getCumulativeUsage().getTotalTokens());
     }
+
+    @Test
+    public void cumulativeTimingsZeroPredictedMsYieldsZeroRate() throws Exception {
+        // Pins the predictedMs > 0.0 boundary: with predictedN>0 but predictedMs=0 the rate must be 0.0
+        // (a >= boundary mutant would divide by zero and produce a non-zero / NaN rate).
+        ServerMetrics m = parse("{\"n_tokens_predicted_total\":5,\"t_tokens_generation_total\":0}");
+        assertEquals(0.0, m.getCumulativeTimings().getPredictedPerSecond(), 1e-9);
+    }
+
+    @Test
+    public void asJsonExposesBackingNode() throws Exception {
+        ServerMetrics m = parse(SAMPLE);
+        // Dereferencing the returned node kills the "return null" mutant on asJson().
+        assertEquals(2, m.asJson().get("idle").asInt());
+    }
+
+    @Test
+    public void toStringSerializesNode() throws Exception {
+        ServerMetrics m = parse(SAMPLE);
+        // Assert content (not just non-null) so the empty-string return mutant on toString is killed.
+        assertTrue(m.toString().contains("idle"));
+    }
 }

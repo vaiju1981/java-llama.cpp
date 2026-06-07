@@ -100,6 +100,14 @@ public class ChatResponseTest {
     }
 
     @Test
+    public void rawJsonIsPreserved() {
+        String json = "{\"id\":\"chatcmpl-raw\",\"choices\":[]}";
+        ChatResponse r = parser.parseResponse(json);
+        // Assert on content (not just non-null) so the empty-string return mutant is killed.
+        assertThat(r.getRawJson(), containsString("chatcmpl-raw"));
+    }
+
+    @Test
     public void buildMessagesJsonRoundTripsToolTurns() {
         ChatRequest req = ChatRequest.empty()
                 .appendMessage("system", "be terse")
