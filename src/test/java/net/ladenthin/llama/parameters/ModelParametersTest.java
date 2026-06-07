@@ -5,7 +5,15 @@
 
 package net.ladenthin.llama.parameters;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.Arrays;
 import java.util.List;
@@ -36,13 +44,13 @@ public class ModelParametersTest {
     @Test
     public void testSetPriorityValid0() {
         ModelParameters p = new ModelParameters().setPriority(0);
-        assertEquals("0", p.parameters.get("--prio"));
+        assertThat(p.parameters.get("--prio"), is("0"));
     }
 
     @Test
     public void testSetPriorityValid3() {
         ModelParameters p = new ModelParameters().setPriority(3);
-        assertEquals("3", p.parameters.get("--prio"));
+        assertThat(p.parameters.get("--prio"), is("3"));
     }
 
     @Test
@@ -62,7 +70,7 @@ public class ModelParametersTest {
     @Test
     public void testSetPriorityBatchValid1() {
         ModelParameters p = new ModelParameters().setPriorityBatch(1);
-        assertEquals("1", p.parameters.get("--prio-batch"));
+        assertThat(p.parameters.get("--prio-batch"), is("1"));
     }
 
     @Test
@@ -82,19 +90,19 @@ public class ModelParametersTest {
     @Test
     public void testSetRepeatLastNValidZero() {
         ModelParameters p = new ModelParameters().setRepeatLastN(0);
-        assertEquals("0", p.parameters.get("--repeat-last-n"));
+        assertThat(p.parameters.get("--repeat-last-n"), is("0"));
     }
 
     @Test
     public void testSetRepeatLastNValidMinusOne() {
         ModelParameters p = new ModelParameters().setRepeatLastN(-1);
-        assertEquals("-1", p.parameters.get("--repeat-last-n"));
+        assertThat(p.parameters.get("--repeat-last-n"), is("-1"));
     }
 
     @Test
     public void testSetRepeatLastNValid64() {
         ModelParameters p = new ModelParameters().setRepeatLastN(64);
-        assertEquals("64", p.parameters.get("--repeat-last-n"));
+        assertThat(p.parameters.get("--repeat-last-n"), is("64"));
     }
 
     @Test
@@ -109,13 +117,13 @@ public class ModelParametersTest {
     @Test
     public void testSetDryPenaltyLastNValidMinusOne() {
         ModelParameters p = new ModelParameters().setDryPenaltyLastN(-1);
-        assertEquals("-1", p.parameters.get("--dry-penalty-last-n"));
+        assertThat(p.parameters.get("--dry-penalty-last-n"), is("-1"));
     }
 
     @Test
     public void testSetDryPenaltyLastNValidZero() {
         ModelParameters p = new ModelParameters().setDryPenaltyLastN(0);
-        assertEquals("0", p.parameters.get("--dry-penalty-last-n"));
+        assertThat(p.parameters.get("--dry-penalty-last-n"), is("0"));
     }
 
     @Test
@@ -130,26 +138,26 @@ public class ModelParametersTest {
     @Test
     public void testSetSamplersSingle() {
         ModelParameters p = new ModelParameters().setSamplers(Sampler.TOP_K);
-        assertEquals("top_k", p.parameters.get("--samplers"));
+        assertThat(p.parameters.get("--samplers"), is("top_k"));
     }
 
     @Test
     public void testSetSamplersMultiple() {
         ModelParameters p = new ModelParameters().setSamplers(Sampler.TOP_K, Sampler.TOP_P, Sampler.TEMPERATURE);
-        assertEquals("top_k;top_p;temperature", p.parameters.get("--samplers"));
+        assertThat(p.parameters.get("--samplers"), is("top_k;top_p;temperature"));
     }
 
     @Test
     public void testSetSamplersEmpty() {
         ModelParameters p = new ModelParameters().setSamplers();
-        assertFalse(p.parameters.containsKey("--samplers"));
+        assertThat(p.parameters, not(hasKey("--samplers")));
     }
 
     @Test
     public void testSetSamplersAllLowercase() {
         for (Sampler s : Sampler.values()) {
             ModelParameters p = new ModelParameters().setSamplers(s);
-            assertEquals(s.name().toLowerCase(), p.parameters.get("--samplers"));
+            assertThat(p.parameters.get("--samplers"), is(s.name().toLowerCase()));
         }
     }
 
@@ -160,13 +168,13 @@ public class ModelParametersTest {
     @Test
     public void testAddLoraScaledAdapter() {
         ModelParameters p = new ModelParameters().addLoraScaledAdapter("adapter.bin", 0.5f);
-        assertEquals("adapter.bin,0.5", p.parameters.get("--lora-scaled"));
+        assertThat(p.parameters.get("--lora-scaled"), is("adapter.bin,0.5"));
     }
 
     @Test
     public void testAddControlVectorScaled() {
         ModelParameters p = new ModelParameters().addControlVectorScaled("vec.bin", 1.5f);
-        assertEquals("vec.bin,1.5", p.parameters.get("--control-vector-scaled"));
+        assertThat(p.parameters.get("--control-vector-scaled"), is("vec.bin,1.5"));
     }
 
     // -------------------------------------------------------------------------
@@ -176,13 +184,13 @@ public class ModelParametersTest {
     @Test
     public void testSetControlVectorLayerRange() {
         ModelParameters p = new ModelParameters().setControlVectorLayerRange(2, 10);
-        assertEquals("2,10", p.parameters.get("--control-vector-layer-range"));
+        assertThat(p.parameters.get("--control-vector-layer-range"), is("2,10"));
     }
 
     @Test
     public void testSetControlVectorLayerRangeSameStartEnd() {
         ModelParameters p = new ModelParameters().setControlVectorLayerRange(5, 5);
-        assertEquals("5,5", p.parameters.get("--control-vector-layer-range"));
+        assertThat(p.parameters.get("--control-vector-layer-range"), is("5,5"));
     }
 
     // -------------------------------------------------------------------------
@@ -192,19 +200,19 @@ public class ModelParametersTest {
     @Test
     public void testIsDefaultTrueWhenNotSet() {
         ModelParameters p = new ModelParameters();
-        assertTrue(p.isUnset("threads"));
+        assertThat(p.isUnset("threads"), is(true));
     }
 
     @Test
     public void testIsDefaultFalseWhenSet() {
         ModelParameters p = new ModelParameters().setThreads(4);
-        assertFalse(p.isUnset("threads"));
+        assertThat(p.isUnset("threads"), is(false));
     }
 
     @Test
     public void testIsDefaultFalseAfterFlagOnly() {
         ModelParameters p = new ModelParameters().enableEmbedding();
-        assertFalse(p.isUnset("embedding"));
+        assertThat(p.isUnset("embedding"), is(false));
     }
 
     // -------------------------------------------------------------------------
@@ -214,85 +222,86 @@ public class ModelParametersTest {
     @Test
     public void testSetPoolingTypeMean() {
         ModelParameters p = new ModelParameters().setPoolingType(PoolingType.MEAN);
-        assertEquals(PoolingType.MEAN.getArgValue(), p.parameters.get(ModelParameters.ARG_POOLING));
+        assertThat(p.parameters.get(ModelParameters.ARG_POOLING), is(PoolingType.MEAN.getArgValue()));
     }
 
     @Test
     public void testSetPoolingTypeNone() {
         ModelParameters p = new ModelParameters().setPoolingType(PoolingType.NONE);
-        assertEquals(PoolingType.NONE.getArgValue(), p.parameters.get(ModelParameters.ARG_POOLING));
+        assertThat(p.parameters.get(ModelParameters.ARG_POOLING), is(PoolingType.NONE.getArgValue()));
     }
 
     @Test
     public void testSetPoolingTypeCls() {
         ModelParameters p = new ModelParameters().setPoolingType(PoolingType.CLS);
-        assertEquals(PoolingType.CLS.getArgValue(), p.parameters.get(ModelParameters.ARG_POOLING));
+        assertThat(p.parameters.get(ModelParameters.ARG_POOLING), is(PoolingType.CLS.getArgValue()));
     }
 
     @Test
     public void testSetPoolingTypeLast() {
         ModelParameters p = new ModelParameters().setPoolingType(PoolingType.LAST);
-        assertEquals(PoolingType.LAST.getArgValue(), p.parameters.get(ModelParameters.ARG_POOLING));
+        assertThat(p.parameters.get(ModelParameters.ARG_POOLING), is(PoolingType.LAST.getArgValue()));
     }
 
     @Test
     public void testSetPoolingTypeRank() {
         ModelParameters p = new ModelParameters().setPoolingType(PoolingType.RANK);
-        assertEquals(PoolingType.RANK.getArgValue(), p.parameters.get(ModelParameters.ARG_POOLING));
+        assertThat(p.parameters.get(ModelParameters.ARG_POOLING), is(PoolingType.RANK.getArgValue()));
     }
 
     @Test
     public void testSetPoolingTypeUnspecifiedDoesNotSetParam() {
         ModelParameters p = new ModelParameters().setPoolingType(PoolingType.UNSPECIFIED);
-        assertFalse(
-                p.parameters.containsKey(ModelParameters.ARG_POOLING),
-                "UNSPECIFIED pooling type must not add " + ModelParameters.ARG_POOLING + " to parameters");
+        assertThat(
+                "UNSPECIFIED pooling type must not add " + ModelParameters.ARG_POOLING + " to parameters",
+                p.parameters,
+                not(hasKey(ModelParameters.ARG_POOLING)));
     }
 
     @Test
     public void testSetPoolingTypeUnspecifiedLeavesDefaultUntouched() {
         // A fresh ModelParameters must not have ARG_POOLING set by default either
         ModelParameters fresh = new ModelParameters();
-        assertFalse(fresh.parameters.containsKey(ModelParameters.ARG_POOLING));
+        assertThat(fresh.parameters, not(hasKey(ModelParameters.ARG_POOLING)));
         // Calling setPoolingType(UNSPECIFIED) must leave that invariant intact
         fresh.setPoolingType(PoolingType.UNSPECIFIED);
-        assertFalse(fresh.parameters.containsKey(ModelParameters.ARG_POOLING));
+        assertThat(fresh.parameters, not(hasKey(ModelParameters.ARG_POOLING)));
     }
 
     @Test
     public void testSetRopeScaling() {
         ModelParameters p = new ModelParameters().setRopeScaling(RopeScalingType.YARN2);
-        assertEquals("yarn", p.parameters.get("--rope-scaling"));
+        assertThat(p.parameters.get("--rope-scaling"), is("yarn"));
     }
 
     @Test
     public void testSetCacheTypeKLowercase() {
         ModelParameters p = new ModelParameters().setCacheTypeK(CacheType.F16);
-        assertEquals("f16", p.parameters.get("--cache-type-k"));
+        assertThat(p.parameters.get("--cache-type-k"), is("f16"));
     }
 
     @Test
     public void testSetCacheTypeVLowercase() {
         ModelParameters p = new ModelParameters().setCacheTypeV(CacheType.Q8_0);
-        assertEquals("q8_0", p.parameters.get("--cache-type-v"));
+        assertThat(p.parameters.get("--cache-type-v"), is("q8_0"));
     }
 
     @Test
     public void testSetSplitModeLowercase() {
         ModelParameters p = new ModelParameters().setSplitMode(GpuSplitMode.LAYER);
-        assertEquals("layer", p.parameters.get("--split-mode"));
+        assertThat(p.parameters.get("--split-mode"), is("layer"));
     }
 
     @Test
     public void testSetNumaLowercase() {
         ModelParameters p = new ModelParameters().setNuma(NumaStrategy.DISTRIBUTE);
-        assertEquals("distribute", p.parameters.get("--numa"));
+        assertThat(p.parameters.get("--numa"), is("distribute"));
     }
 
     @Test
     public void testSetMirostatOrdinal() {
         ModelParameters p = new ModelParameters().setMirostat(MiroStat.V2);
-        assertEquals("2", p.parameters.get("--mirostat"));
+        assertThat(p.parameters.get("--mirostat"), is("2"));
     }
 
     // -------------------------------------------------------------------------
@@ -302,35 +311,35 @@ public class ModelParametersTest {
     @Test
     public void testToStringContainsKey() {
         ModelParameters p = new ModelParameters().setThreads(4);
-        assertTrue(p.toString().contains("--threads"));
-        assertTrue(p.toString().contains("4"));
+        assertThat(p.toString(), containsString("--threads"));
+        assertThat(p.toString(), containsString("4"));
     }
 
     @Test
     public void testToStringFlagOnlyNoValue() {
         ModelParameters p = new ModelParameters().enableEmbedding();
         String s = p.toString();
-        assertTrue(s.contains("--embedding"));
+        assertThat(s, containsString("--embedding"));
         // Flag-only: value is null, so no "null" text should appear
-        assertFalse(s.contains("null"));
+        assertThat(s, not(containsString("null")));
     }
 
     @Test
     public void testFitValueTrueReturnsFitOn() {
-        assertEquals(ModelParameters.FIT_ON, ModelParameters.fitValue(true));
+        assertThat(ModelParameters.fitValue(true), is(ModelParameters.FIT_ON));
     }
 
     @Test
     public void testFitValueFalseReturnsFitOff() {
-        assertEquals(ModelParameters.FIT_OFF, ModelParameters.fitValue(false));
+        assertThat(ModelParameters.fitValue(false), is(ModelParameters.FIT_OFF));
     }
 
     @Test
     public void testToStringDefaultContainsFit() {
         ModelParameters p = new ModelParameters();
         String s = p.toString();
-        assertTrue(s.contains("--fit"));
-        assertTrue(s.contains(ModelParameters.DEFAULT_FIT_VALUE));
+        assertThat(s, containsString("--fit"));
+        assertThat(s, containsString(ModelParameters.DEFAULT_FIT_VALUE));
     }
 
     // -------------------------------------------------------------------------
@@ -342,11 +351,11 @@ public class ModelParametersTest {
         // toArray() = ["", "--fit", DEFAULT_FIT_VALUE]
         ModelParameters p = new ModelParameters();
         String[] arr = p.toArray();
-        assertEquals(3, arr.length);
-        assertEquals("", arr[0]);
+        assertThat(arr, arrayWithSize(3));
+        assertThat(arr[0], is(""));
         List<String> list = Arrays.asList(arr);
-        assertTrue(list.contains("--fit"));
-        assertTrue(list.contains(ModelParameters.DEFAULT_FIT_VALUE));
+        assertThat(list, hasItem("--fit"));
+        assertThat(list, hasItem(ModelParameters.DEFAULT_FIT_VALUE));
     }
 
     @Test
@@ -354,13 +363,13 @@ public class ModelParametersTest {
         // argv[0]="" + "--fit" + DEFAULT_FIT_VALUE + "--threads" + "4" = 5
         ModelParameters p = new ModelParameters().setThreads(4);
         String[] arr = p.toArray();
-        assertEquals(5, arr.length);
-        assertEquals("", arr[0]);
+        assertThat(arr, arrayWithSize(5));
+        assertThat(arr[0], is(""));
         List<String> list = Arrays.asList(arr);
-        assertTrue(list.contains("--threads"));
-        assertTrue(list.contains("4"));
-        assertTrue(list.contains("--fit"));
-        assertTrue(list.contains(ModelParameters.DEFAULT_FIT_VALUE));
+        assertThat(list, hasItem("--threads"));
+        assertThat(list, hasItem("4"));
+        assertThat(list, hasItem("--fit"));
+        assertThat(list, hasItem(ModelParameters.DEFAULT_FIT_VALUE));
     }
 
     @Test
@@ -368,12 +377,12 @@ public class ModelParametersTest {
         // argv[0]="" + "--fit" + DEFAULT_FIT_VALUE + "--embedding" (no value) = 4
         ModelParameters p = new ModelParameters().enableEmbedding();
         String[] arr = p.toArray();
-        assertEquals(4, arr.length);
-        assertEquals("", arr[0]);
+        assertThat(arr, arrayWithSize(4));
+        assertThat(arr[0], is(""));
         List<String> list = Arrays.asList(arr);
-        assertTrue(list.contains("--embedding"));
-        assertTrue(list.contains("--fit"));
-        assertTrue(list.contains(ModelParameters.DEFAULT_FIT_VALUE));
+        assertThat(list, hasItem("--embedding"));
+        assertThat(list, hasItem("--fit"));
+        assertThat(list, hasItem(ModelParameters.DEFAULT_FIT_VALUE));
     }
 
     @Test
@@ -381,14 +390,14 @@ public class ModelParametersTest {
         ModelParameters p = new ModelParameters().setThreads(4).enableEmbedding();
         String[] arr = p.toArray();
         // 1 (argv[0]) + 2 (--fit DEFAULT_FIT_VALUE) + 2 (--threads 4) + 1 (--embedding) = 6
-        assertEquals(6, arr.length);
-        assertEquals("", arr[0]);
+        assertThat(arr, arrayWithSize(6));
+        assertThat(arr[0], is(""));
         List<String> list = Arrays.asList(arr);
-        assertTrue(list.contains("--threads"));
-        assertTrue(list.contains("4"));
-        assertTrue(list.contains("--embedding"));
-        assertTrue(list.contains("--fit"));
-        assertTrue(list.contains(ModelParameters.DEFAULT_FIT_VALUE));
+        assertThat(list, hasItem("--threads"));
+        assertThat(list, hasItem("4"));
+        assertThat(list, hasItem("--embedding"));
+        assertThat(list, hasItem("--fit"));
+        assertThat(list, hasItem(ModelParameters.DEFAULT_FIT_VALUE));
     }
 
     // -------------------------------------------------------------------------
@@ -398,9 +407,9 @@ public class ModelParametersTest {
     @Test
     public void testBuilderChainingReturnsSameInstance() {
         ModelParameters p = new ModelParameters();
-        assertSame(p.setThreads(4), p);
-        assertSame(p.setGpuLayers(10), p);
-        assertSame(p.enableEmbedding(), p);
+        assertThat(p.setThreads(4), is(sameInstance(p)));
+        assertThat(p.setGpuLayers(10), is(sameInstance(p)));
+        assertThat(p.enableEmbedding(), is(sameInstance(p)));
     }
 
     // -------------------------------------------------------------------------
@@ -410,25 +419,25 @@ public class ModelParametersTest {
     @Test
     public void testSetMmproj() {
         ModelParameters p = new ModelParameters().setMmproj("/models/mmproj.gguf");
-        assertEquals("/models/mmproj.gguf", p.parameters.get("--mmproj"));
+        assertThat(p.parameters.get("--mmproj"), is("/models/mmproj.gguf"));
     }
 
     @Test
     public void testSetMmprojUrl() {
         ModelParameters p = new ModelParameters().setMmprojUrl("https://example.com/mmproj.gguf");
-        assertEquals("https://example.com/mmproj.gguf", p.parameters.get("--mmproj-url"));
+        assertThat(p.parameters.get("--mmproj-url"), is("https://example.com/mmproj.gguf"));
     }
 
     @Test
     public void testEnableMmprojAuto() {
         ModelParameters p = new ModelParameters().enableMmprojAuto();
-        assertTrue(p.parameters.containsKey("--mmproj-auto"));
+        assertThat(p.parameters, hasKey("--mmproj-auto"));
     }
 
     @Test
     public void testEnableMmprojOffload() {
         ModelParameters p = new ModelParameters().enableMmprojOffload();
-        assertTrue(p.parameters.containsKey("--mmproj-offload"));
+        assertThat(p.parameters, hasKey("--mmproj-offload"));
     }
 
     // -------------------------------------------------------------------------
@@ -438,38 +447,38 @@ public class ModelParametersTest {
     @Test
     public void testSetReasoningFormatNone() {
         ModelParameters p = new ModelParameters().setReasoningFormat(net.ladenthin.llama.args.ReasoningFormat.NONE);
-        assertEquals("none", p.parameters.get("--reasoning-format"));
+        assertThat(p.parameters.get("--reasoning-format"), is("none"));
     }
 
     @Test
     public void testSetReasoningFormatAuto() {
         ModelParameters p = new ModelParameters().setReasoningFormat(net.ladenthin.llama.args.ReasoningFormat.AUTO);
-        assertEquals("auto", p.parameters.get("--reasoning-format"));
+        assertThat(p.parameters.get("--reasoning-format"), is("auto"));
     }
 
     @Test
     public void testSetReasoningFormatDeepseek() {
         ModelParameters p = new ModelParameters().setReasoningFormat(net.ladenthin.llama.args.ReasoningFormat.DEEPSEEK);
-        assertEquals("deepseek", p.parameters.get("--reasoning-format"));
+        assertThat(p.parameters.get("--reasoning-format"), is("deepseek"));
     }
 
     @Test
     public void testSetReasoningFormatDeepseekLegacy() {
         ModelParameters p =
                 new ModelParameters().setReasoningFormat(net.ladenthin.llama.args.ReasoningFormat.DEEPSEEK_LEGACY);
-        assertEquals("deepseek-legacy", p.parameters.get("--reasoning-format"));
+        assertThat(p.parameters.get("--reasoning-format"), is("deepseek-legacy"));
     }
 
     @Test
     public void testSetReasoningBudgetPositive() {
         ModelParameters p = new ModelParameters().setReasoningBudget(1024);
-        assertEquals("1024", p.parameters.get("--reasoning-budget"));
+        assertThat(p.parameters.get("--reasoning-budget"), is("1024"));
     }
 
     @Test
     public void testSetReasoningBudgetDisabled() {
         ModelParameters p = new ModelParameters().setReasoningBudget(-1);
-        assertEquals("-1", p.parameters.get("--reasoning-budget"));
+        assertThat(p.parameters.get("--reasoning-budget"), is("-1"));
     }
 
     // -------------------------------------------------------------------------
@@ -479,13 +488,13 @@ public class ModelParametersTest {
     @Test
     public void testSetSleepIdleSeconds() {
         ModelParameters p = new ModelParameters().setSleepIdleSeconds(60);
-        assertEquals("60", p.parameters.get("--sleep-idle-seconds"));
+        assertThat(p.parameters.get("--sleep-idle-seconds"), is("60"));
     }
 
     @Test
     public void testSetSleepIdleSecondsZero() {
         ModelParameters p = new ModelParameters().setSleepIdleSeconds(0);
-        assertEquals("0", p.parameters.get("--sleep-idle-seconds"));
+        assertThat(p.parameters.get("--sleep-idle-seconds"), is("0"));
     }
 
     // -------------------------------------------------------------------------
@@ -495,14 +504,14 @@ public class ModelParametersTest {
     @Test
     public void testSetClearIdleTrue_usesCacheIdleSlotsFlag() {
         ModelParameters p = new ModelParameters().setClearIdle(true);
-        assertTrue(p.parameters.containsKey("--cache-idle-slots"));
-        assertFalse(p.parameters.containsKey("--no-cache-idle-slots"));
+        assertThat(p.parameters, hasKey("--cache-idle-slots"));
+        assertThat(p.parameters, not(hasKey("--no-cache-idle-slots")));
     }
 
     @Test
     public void testSetClearIdleFalse_usesNoCacheIdleSlotsFlag() {
         ModelParameters p = new ModelParameters().setClearIdle(false);
-        assertTrue(p.parameters.containsKey("--no-cache-idle-slots"));
-        assertFalse(p.parameters.containsKey("--cache-idle-slots"));
+        assertThat(p.parameters, hasKey("--no-cache-idle-slots"));
+        assertThat(p.parameters, not(hasKey("--cache-idle-slots")));
     }
 }

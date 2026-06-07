@@ -5,7 +5,11 @@
 
 package net.ladenthin.llama.parameters;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 import java.io.File;
 import net.ladenthin.llama.ClaudeGenerated;
@@ -78,8 +82,8 @@ public class JsonEndpointParametersTest {
                 + ",\"dry_multiplier\":0.8,\"dry_base\":1.75,\"dry_allowed_length\":2"
                 + ",\"dry_penalty_last_n\":-1}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
-        assertTrue(result.contains("\"content\""), "Response should contain 'content' field");
+        assertThat(result, is(notNullValue()));
+        assertThat("Response should contain 'content' field", result, containsString("\"content\""));
     }
 
     @Test
@@ -88,8 +92,8 @@ public class JsonEndpointParametersTest {
                 + DETERMINISTIC
                 + ",\"dry_multiplier\":0.5,\"dry_sequence_breakers\":[\"\\n\",\":\",\"*\"]}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
-        assertTrue(result.contains("\"content\""));
+        assertThat(result, is(notNullValue()));
+        assertThat(result, containsString("\"content\""));
     }
 
     @Test
@@ -99,8 +103,8 @@ public class JsonEndpointParametersTest {
                 + DETERMINISTIC
                 + ",\"dry_multiplier\":0.0}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
-        assertTrue(result.contains("\"content\""));
+        assertThat(result, is(notNullValue()));
+        assertThat(result, containsString("\"content\""));
     }
 
     // -------------------------------------------------------------------------
@@ -113,8 +117,8 @@ public class JsonEndpointParametersTest {
                 + DETERMINISTIC
                 + ",\"xtc_probability\":0.5,\"xtc_threshold\":0.1}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
-        assertTrue(result.contains("\"content\""));
+        assertThat(result, is(notNullValue()));
+        assertThat(result, containsString("\"content\""));
     }
 
     @Test
@@ -123,8 +127,8 @@ public class JsonEndpointParametersTest {
                 + DETERMINISTIC
                 + ",\"xtc_probability\":0.0}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
-        assertTrue(result.contains("\"content\""));
+        assertThat(result, is(notNullValue()));
+        assertThat(result, containsString("\"content\""));
     }
 
     // -------------------------------------------------------------------------
@@ -136,8 +140,8 @@ public class JsonEndpointParametersTest {
         String json =
                 "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT + DETERMINISTIC + ",\"top_n_sigma\":2.0}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
-        assertTrue(result.contains("\"content\""));
+        assertThat(result, is(notNullValue()));
+        assertThat(result, containsString("\"content\""));
     }
 
     @Test
@@ -145,8 +149,8 @@ public class JsonEndpointParametersTest {
         String json =
                 "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT + DETERMINISTIC + ",\"top_n_sigma\":-1.0}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
-        assertTrue(result.contains("\"content\""));
+        assertThat(result, is(notNullValue()));
+        assertThat(result, containsString("\"content\""));
     }
 
     // -------------------------------------------------------------------------
@@ -159,9 +163,9 @@ public class JsonEndpointParametersTest {
                 + DETERMINISTIC
                 + ",\"return_tokens\":true}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
+        assertThat(result, is(notNullValue()));
         // When return_tokens is true, the response should include a "tokens" array
-        assertTrue(result.contains("\"tokens\""), "Response should contain 'tokens' field");
+        assertThat("Response should contain 'tokens' field", result, containsString("\"tokens\""));
     }
 
     @Test
@@ -170,8 +174,8 @@ public class JsonEndpointParametersTest {
                 + DETERMINISTIC
                 + ",\"return_tokens\":false}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
-        assertTrue(result.contains("\"content\""));
+        assertThat(result, is(notNullValue()));
+        assertThat(result, containsString("\"content\""));
     }
 
     // -------------------------------------------------------------------------
@@ -184,9 +188,9 @@ public class JsonEndpointParametersTest {
                 + DETERMINISTIC
                 + ",\"response_fields\":[\"content\",\"stop\"]}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
-        assertTrue(result.contains("\"content\""));
-        assertTrue(result.contains("\"stop\""));
+        assertThat(result, is(notNullValue()));
+        assertThat(result, containsString("\"content\""));
+        assertThat(result, containsString("\"stop\""));
     }
 
     // -------------------------------------------------------------------------
@@ -199,10 +203,10 @@ public class JsonEndpointParametersTest {
                 + DETERMINISTIC
                 + ",\"timings_per_token\":true}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
-        assertTrue(result.contains("\"content\""));
+        assertThat(result, is(notNullValue()));
+        assertThat(result, containsString("\"content\""));
         // timings_per_token enables per-token timing info
-        assertTrue(result.contains("\"timings\""), "Response should contain timings");
+        assertThat("Response should contain timings", result, containsString("\"timings\""));
     }
 
     // -------------------------------------------------------------------------
@@ -215,11 +219,12 @@ public class JsonEndpointParametersTest {
                 + DETERMINISTIC
                 + ",\"n_probs\":3,\"post_sampling_probs\":true}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
+        assertThat(result, is(notNullValue()));
         // post_sampling_probs changes the label from "logprob" to "prob"
-        assertTrue(
-                result.contains("\"completion_probabilities\"") || result.contains("\"prob\""),
-                "Response should contain completion_probabilities");
+        assertThat(
+                "Response should contain completion_probabilities",
+                result,
+                anyOf(containsString("\"completion_probabilities\""), containsString("\"prob\"")));
     }
 
     // -------------------------------------------------------------------------
@@ -230,8 +235,8 @@ public class JsonEndpointParametersTest {
     public void testNDiscardAccepted() {
         String json = "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT + DETERMINISTIC + ",\"n_discard\":0}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
-        assertTrue(result.contains("\"content\""));
+        assertThat(result, is(notNullValue()));
+        assertThat(result, containsString("\"content\""));
     }
 
     // -------------------------------------------------------------------------
@@ -242,9 +247,9 @@ public class JsonEndpointParametersTest {
     public void testIdSlotSelection() {
         String json = "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT + DETERMINISTIC + ",\"id_slot\":0}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
-        assertTrue(result.contains("\"content\""));
-        assertTrue(result.contains("\"id_slot\""), "Response should contain 'id_slot' field");
+        assertThat(result, is(notNullValue()));
+        assertThat(result, containsString("\"content\""));
+        assertThat("Response should contain 'id_slot' field", result, containsString("\"id_slot\""));
     }
 
     // -------------------------------------------------------------------------
@@ -257,8 +262,8 @@ public class JsonEndpointParametersTest {
         String json =
                 "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT + DETERMINISTIC + ",\"ignore_eos\":true}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
-        assertTrue(result.contains("\"content\""));
+        assertThat(result, is(notNullValue()));
+        assertThat(result, containsString("\"content\""));
     }
 
     // -------------------------------------------------------------------------
@@ -274,8 +279,8 @@ public class JsonEndpointParametersTest {
                 + ",\"xtc_probability\":0.3,\"xtc_threshold\":0.1"
                 + ",\"repeat_penalty\":1.1,\"frequency_penalty\":0.1,\"presence_penalty\":0.1}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
-        assertTrue(result.contains("\"content\""));
+        assertThat(result, is(notNullValue()));
+        assertThat(result, containsString("\"content\""));
     }
 
     // -------------------------------------------------------------------------
@@ -288,8 +293,8 @@ public class JsonEndpointParametersTest {
                 + DETERMINISTIC
                 + ",\"samplers\":[\"top_k\",\"top_p\",\"temperature\"]}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
-        assertTrue(result.contains("\"content\""));
+        assertThat(result, is(notNullValue()));
+        assertThat(result, containsString("\"content\""));
     }
 
     // -------------------------------------------------------------------------
@@ -303,7 +308,7 @@ public class JsonEndpointParametersTest {
                 + DETERMINISTIC
                 + ",\"speculative\":{\"n_min\":0,\"n_max\":16,\"p_min\":0.75}}";
         String result = model.handleCompletions(json);
-        assertNotNull(result);
-        assertTrue(result.contains("\"content\""));
+        assertThat(result, is(notNullValue()));
+        assertThat(result, containsString("\"content\""));
     }
 }
