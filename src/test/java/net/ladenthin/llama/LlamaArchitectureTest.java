@@ -84,23 +84,12 @@ public class LlamaArchitectureTest {
                     "net.ladenthin.llama.value..");
 
     /**
-     * Strict layered architecture. The flat root package was split into layered packages so the
-     * boundaries align with packages; dependencies flow strictly top-to-bottom:
-     *
-     * <pre>
-     *   Api          net.ladenthin.llama          (LlamaModel, Session, iterators)
-     *   Loader       loader                       (native-lib loading, OS/process infra)
-     *   Marshalling  json, parameters             (response parsers, parameter builders/serializer)
-     *   Foundation   value, callback, exception, args
-     * </pre>
-     *
-     * <p>The DTO/parser tangle that previously blocked this rule (see the git history of the
-     * {@code argsPackageIsALeaf} comment) was resolved by extracting the value types into
-     * {@code value}, moving {@code TimingsLogger} into {@code json} (its only consumer) and
-     * {@code ParameterJsonSerializer} into {@code parameters} (a parameter serializer), and
-     * moving {@code ChatRequest} into {@code parameters} (it carries an {@code InferenceParameters}
-     * customizer). {@code json} and {@code parameters} are peers in the Marshalling layer.
-     * {@code consideringOnlyDependenciesInLayers()} ignores external libraries.
+     * Strict layered architecture — <b>one layer per package</b>. Each package's
+     * {@code mayOnlyBeAccessedByLayers} lists the EXACT set of packages that reference it today
+     * (verified against the compiled bytecode graph), so even intra-tier edges are governed: a
+     * new dependency between any two packages fails the build unless this rule is updated to
+     * intend it. Conceptual tiers (informational): {@code Api} (root) &gt; {@code Loader} &gt;
+     * {@code Json}/{@code Parameters} &gt; {@code Value}/{@code Callback}/{@code Exception}/{@code Args}.
      */
     @ArchTest
     static final ArchRule layeredArchitecture = layeredArchitecture()
@@ -109,22 +98,34 @@ public class LlamaArchitectureTest {
             .definedBy("net.ladenthin.llama")
             .layer("Loader")
             .definedBy("net.ladenthin.llama.loader..")
-            .layer("Marshalling")
-            .definedBy("net.ladenthin.llama.json..", "net.ladenthin.llama.parameters..")
-            .layer("Foundation")
-            .definedBy(
-                    "net.ladenthin.llama.value..",
-                    "net.ladenthin.llama.callback..",
-                    "net.ladenthin.llama.exception..",
-                    "net.ladenthin.llama.args..")
+            .layer("Json")
+            .definedBy("net.ladenthin.llama.json..")
+            .layer("Parameters")
+            .definedBy("net.ladenthin.llama.parameters..")
+            .layer("Value")
+            .definedBy("net.ladenthin.llama.value..")
+            .layer("Callback")
+            .definedBy("net.ladenthin.llama.callback..")
+            .layer("Exception")
+            .definedBy("net.ladenthin.llama.exception..")
+            .layer("Args")
+            .definedBy("net.ladenthin.llama.args..")
             .whereLayer("Api")
             .mayNotBeAccessedByAnyLayer()
             .whereLayer("Loader")
             .mayOnlyBeAccessedByLayers("Api")
-            .whereLayer("Marshalling")
+            .whereLayer("Json")
+            .mayOnlyBeAccessedByLayers("Api")
+            .whereLayer("Parameters")
             .mayOnlyBeAccessedByLayers("Api", "Loader")
-            .whereLayer("Foundation")
-            .mayOnlyBeAccessedByLayers("Api", "Loader", "Marshalling");
+            .whereLayer("Value")
+            .mayOnlyBeAccessedByLayers("Api", "Json", "Parameters")
+            .whereLayer("Callback")
+            .mayOnlyBeAccessedByLayers("Api")
+            .whereLayer("Exception")
+            .mayOnlyBeAccessedByLayers("Api", "Loader")
+            .whereLayer("Args")
+            .mayOnlyBeAccessedByLayers("Api", "Loader", "Parameters");
 
     /**
      * Production code must not import unsupported / internal JDK packages.
