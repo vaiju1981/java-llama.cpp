@@ -303,6 +303,49 @@ be exercised either in CI (via `.github/workflows/publish.yml`) or on a
 developer machine with HF access; pre-staged models can also be uploaded
 into `models/` out-of-band.
 
+**Verifying the native library *loads* without models (model-free smoke).**
+Even with HuggingFace blocked you can still do the one piece of *real native*
+verification that does not need a GGUF: confirm the library loads and its
+`JNI_OnLoad` resolves every Java class it looks up by name. The model-gated
+tests cannot do this in a restricted sandbox — they self-skip via
+`Assume.assumeTrue(model present)` **before** the lib is ever loaded, so a plain
+`mvn test` is silent on load-time breakage. The full local recipe:
+
+```bash
+# 1. Build the native lib locally (FetchContent pulls llama.cpp from GitHub,
+#    which is reachable even when huggingface.co is not):
+mvn -q compile
+cmake -B build -DBUILD_TESTING=ON
+cmake --build build --config Release -j$(nproc)   # -> src/main/resources/.../<os>/<arch>/libjllama.so
+# 2. Force LlamaModel.<clinit> (System.load -> JNI_OnLoad) with no model:
+mvn test -Dtest=NativeLibraryLoadSmokeTest
+```
+
+`NativeLibraryLoadSmokeTest` (in the `loader` package) calls
+`Class.forName("net.ladenthin.llama.LlamaModel")`, which runs
+`LlamaLoader.initialize() -> System.load() -> JNI_OnLoad`, which in turn calls
+`FindClass(...)` for every JNI-referenced Java class. It **passes** when the lib
+loads cleanly, **fails** if the native-resource path in `LlamaLoader` is wrong
+(lib not found) or a `FindClass`/field-signature FQN in
+`src/main/cpp/jllama.cpp` is stale after a Java package move (lib loads but
+`JNI_OnLoad` throws `NoClassDefFoundError: net/ladenthin/llama/...`), and
+**self-skips** when `libjllama` is not on the classpath (pure-Java checkout, no
+CMake build) so it never breaks a build-less `mvn test`.
+
+Both of those failure modes shipped on a branch once — the layered-package
+restructure left (a) `LlamaLoader.getNativeResourcePath()` deriving the resource
+root from the loader's own package (which moved to `…loader`) and (b)
+`jllama.cpp` still `FindClass`-ing the old flat paths — and neither was visible
+to a local `mvn test` (model tests skipped) or to the pure-Java unit tests.
+**When you move a Java class the JNI layer references by name** (`LlamaModel`
+[root], `exception.LlamaException`, `value.LogLevel`, `args.LogFormat`,
+`callback.LoadProgressCallback`), update the matching `FindClass` / `"L…;"`
+signature string in `src/main/cpp/jllama.cpp` and keep the native-resource root
+anchored at `net/ladenthin/llama/` in `LlamaLoader.NATIVE_RESOURCE_BASE` (it must
+not track the loader's own Java package). This is the same
+"FQN/path not updated after a package move" class as the stale
+`spotbugs-exclude.xml`, PIT `targetClasses`, and `CMakeLists.txt` OSInfo repairs.
+
 ### Code Formatting
 ```bash
 clang-format -i src/main/cpp/*.cpp src/main/cpp/*.hpp   # Format C++ code
