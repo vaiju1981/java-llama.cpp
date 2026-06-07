@@ -48,6 +48,15 @@ public class LlamaLoader {
     private static final LlamaSystemProperties systemProperties = new LlamaSystemProperties();
     private static final NativeLibraryPermissionSetter permissionSetter = new NativeLibraryPermissionSetter(System.err);
 
+    /**
+     * Canonical classpath root for the bundled native libraries. Fixed by
+     * {@code CMakeLists.txt} and the publish workflow (both emit to
+     * {@code resources/net/ladenthin/llama/<os>/<arch>/}); it must NOT be
+     * derived from this loader's own Java package, which moved to
+     * {@code net.ladenthin.llama.loader} during the layered restructure.
+     */
+    private static final String NATIVE_RESOURCE_BASE = "/net/ladenthin/llama";
+
     /** Static utility holder; not instantiable. */
     private LlamaLoader() {}
 
@@ -267,14 +276,7 @@ public class LlamaLoader {
     }
 
     static String getNativeResourcePath() {
-        final Package pkg = LlamaLoader.class.getPackage();
-        // LlamaLoader is in a named package, so Class.getPackage() is never null here.
-        if (pkg == null) {
-            throw new IllegalStateException("LlamaLoader.class.getPackage() returned null (classLoader="
-                    + LlamaLoader.class.getClassLoader() + ")");
-        }
-        String packagePath = pkg.getName().replace('.', '/');
-        return String.format("/%s/%s", packagePath, OSInfo.getNativeLibFolderPathForCurrentOS());
+        return String.format("%s/%s", NATIVE_RESOURCE_BASE, OSInfo.getNativeLibFolderPathForCurrentOS());
     }
 
     private static boolean hasNativeLib(String path, String libraryName) {

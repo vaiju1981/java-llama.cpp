@@ -187,4 +187,24 @@ public class LlamaLoaderTest {
         String osArch = OSInfo.getNativeLibFolderPathForCurrentOS();
         assertTrue(path.endsWith(osArch), "Resource path should end with OS/arch: " + path);
     }
+
+    /**
+     * Regression for the layered-restructure bug: the native-library classpath
+     * root is fixed at {@code /net/ladenthin/llama/<os>/<arch>} by CMakeLists +
+     * the publish workflow, so it must NOT track the loader's own Java package
+     * (which moved to {@code net.ladenthin.llama.loader}). Deriving it from
+     * {@code LlamaLoader.class.getPackage()} produced {@code .../llama/loader/...},
+     * one level too deep, so {@code getResource(...)} returned null and every
+     * native-backed test failed with "No native library found".
+     */
+    @Test
+    public void testGetNativeResourcePathIsPackageIndependent() {
+        String path = LlamaLoader.getNativeResourcePath();
+        String osArch = OSInfo.getNativeLibFolderPathForCurrentOS();
+        assertEquals("/net/ladenthin/llama/" + osArch, path);
+        assertFalse(
+                path.contains("/loader/"),
+                "Resource path must not include the loader subpackage — the native libs live at "
+                        + "/net/ladenthin/llama/<os>/<arch>, not under the loader package: " + path);
+    }
 }
