@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: MIT
 package net.ladenthin.llama.jcstress;
 
-import net.ladenthin.llama.CancellationToken;
+import net.ladenthin.llama.callback.CancellationToken;
 import org.openjdk.jcstress.annotations.Actor;
 import org.openjdk.jcstress.annotations.Arbiter;
 import org.openjdk.jcstress.annotations.Description;

@@ -61,6 +61,7 @@ SPDX-License-Identifier: MIT
 		<logback.version>1.5.34</logback.version>
 		<animal-sniffer.version>1.27</animal-sniffer.version>
 		<junit.version>6.1.0</junit.version>
+		<hamcrest.version>3.0</hamcrest.version>
 		<jmh.version>1.37</jmh.version>
 		<jcstress.version>0.16</jcstress.version>
 		<lincheck.version>3.6</lincheck.version>
@@ -111,6 +112,12 @@ SPDX-License-Identifier: MIT
 			<groupId>org.junit.jupiter</groupId>
 			<artifactId>junit-jupiter</artifactId>
 			<version>${junit.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.hamcrest</groupId>
+			<artifactId>hamcrest</artifactId>
+			<version>${hamcrest.version}</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
@@ -632,12 +639,12 @@ SPDX-License-Identifier: MIT
 			</plugin>
 			<plugin>
 				<!--
-				  PIT mutation testing is INTENTIONALLY scoped to a single class
-				  (Pair) so that the wiring is exercised on every CI build with a
-				  100% mutation threshold gate, without forcing every other class
-				  up to 100% mutation coverage at once. Expand targetClasses
-				  incrementally as classes reach mutation-test parity (see README
-				  TODO).
+				  PIT mutation testing is scoped to packages that have reached 100%
+					  mutation parity, gated at a 100% threshold on every CI build. Expand
+					  the targetClasses globs as further packages reach parity (see README
+					  TODO). The value/ and exception/ trees are at 100% (verified with
+					  pitest-maven 1.25.3); their unit tests are pure-Java (no native
+					  libjllama / model file needed).
 				-->
 				<groupId>org.pitest</groupId>
 				<artifactId>pitest-maven</artifactId>
@@ -650,10 +657,19 @@ SPDX-License-Identifier: MIT
 				</dependencies>
 				<configuration>
 					<targetClasses>
-						<param>net.ladenthin.llama.Pair</param>
+						<param>net.ladenthin.llama.value.*</param>
+						<param>net.ladenthin.llama.exception.*</param>
+						<param>net.ladenthin.llama.args.*</param>
+						<param>net.ladenthin.llama.json.TimingsLogger</param>
+						<param>net.ladenthin.llama.json.RerankResponseParser</param>
+						<param>net.ladenthin.llama.json.ChatResponseParser</param>
+						<param>net.ladenthin.llama.json.CompletionResponseParser</param>
 					</targetClasses>
 					<targetTests>
-						<param>net.ladenthin.llama.PairTest</param>
+						<param>net.ladenthin.llama.value.*</param>
+						<param>net.ladenthin.llama.exception.*</param>
+						<param>net.ladenthin.llama.args.*</param>
+						<param>net.ladenthin.llama.json.*</param>
 					</targetTests>
 					<mutationThreshold>100</mutationThreshold>
 					<timeoutConstant>30000</timeoutConstant>

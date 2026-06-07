@@ -5,7 +5,10 @@
 
 package net.ladenthin.llama.json;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.is;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -15,8 +18,9 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import net.ladenthin.llama.Pair;
 import net.ladenthin.llama.args.Sampler;
+import net.ladenthin.llama.parameters.ParameterJsonSerializer;
+import net.ladenthin.llama.value.Pair;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -33,42 +37,42 @@ public class ParameterJsonSerializerTest {
 
     @Test
     public void testToJsonString_simple() {
-        assertEquals("\"hello\"", serializer.toJsonString("hello"));
+        assertThat(serializer.toJsonString("hello"), is("\"hello\""));
     }
 
     @Test
     public void testToJsonString_null() {
-        assertEquals("null", serializer.toJsonString(null));
+        assertThat(serializer.toJsonString(null), is("null"));
     }
 
     @Test
     public void testToJsonString_emptyString() {
-        assertEquals("\"\"", serializer.toJsonString(""));
+        assertThat(serializer.toJsonString(""), is("\"\""));
     }
 
     @Test
     public void testToJsonString_newline() {
-        assertEquals("\"line1\\nline2\"", serializer.toJsonString("line1\nline2"));
+        assertThat(serializer.toJsonString("line1\nline2"), is("\"line1\\nline2\""));
     }
 
     @Test
     public void testToJsonString_tab() {
-        assertEquals("\"a\\tb\"", serializer.toJsonString("a\tb"));
+        assertThat(serializer.toJsonString("a\tb"), is("\"a\\tb\""));
     }
 
     @Test
     public void testToJsonString_quote() {
-        assertEquals("\"say \\\"hi\\\"\"", serializer.toJsonString("say \"hi\""));
+        assertThat(serializer.toJsonString("say \"hi\""), is("\"say \\\"hi\\\"\""));
     }
 
     @Test
     public void testToJsonString_backslash() {
-        assertEquals("\"path\\\\file\"", serializer.toJsonString("path\\file"));
+        assertThat(serializer.toJsonString("path\\file"), is("\"path\\\\file\""));
     }
 
     @Test
     public void testToJsonString_unicode() {
-        assertEquals("\"café\"", serializer.toJsonString("café"));
+        assertThat(serializer.toJsonString("café"), is("\"café\""));
     }
 
     // ------------------------------------------------------------------
@@ -79,11 +83,11 @@ public class ParameterJsonSerializerTest {
     public void testBuildMessages_withSystemMessage() {
         List<Pair<String, String>> msgs = Collections.singletonList(new Pair<>("user", "Hello"));
         ArrayNode arr = serializer.buildMessages("You are helpful.", msgs);
-        assertEquals(2, arr.size());
-        assertEquals("system", arr.get(0).path("role").asText());
-        assertEquals("You are helpful.", arr.get(0).path("content").asText());
-        assertEquals("user", arr.get(1).path("role").asText());
-        assertEquals("Hello", arr.get(1).path("content").asText());
+        assertThat(arr.size(), is(2));
+        assertThat(arr.get(0).path("role").asText(), is("system"));
+        assertThat(arr.get(0).path("content").asText(), is("You are helpful."));
+        assertThat(arr.get(1).path("role").asText(), is("user"));
+        assertThat(arr.get(1).path("content").asText(), is("Hello"));
     }
 
     @Test
@@ -91,24 +95,24 @@ public class ParameterJsonSerializerTest {
         List<Pair<String, String>> msgs =
                 Arrays.asList(new Pair<>("user", "Hi"), new Pair<>("assistant", "Hello there"));
         ArrayNode arr = serializer.buildMessages(null, msgs);
-        assertEquals(2, arr.size());
-        assertEquals("user", arr.get(0).path("role").asText());
-        assertEquals("assistant", arr.get(1).path("role").asText());
+        assertThat(arr.size(), is(2));
+        assertThat(arr.get(0).path("role").asText(), is("user"));
+        assertThat(arr.get(1).path("role").asText(), is("assistant"));
     }
 
     @Test
     public void testBuildMessages_emptySystemMessage_skipped() {
         List<Pair<String, String>> msgs = Collections.singletonList(new Pair<>("user", "Hi"));
         ArrayNode arr = serializer.buildMessages("", msgs);
-        assertEquals(1, arr.size());
-        assertEquals("user", arr.get(0).path("role").asText());
+        assertThat(arr.size(), is(1));
+        assertThat(arr.get(0).path("role").asText(), is("user"));
     }
 
     @Test
     public void testBuildMessages_specialCharsInContent() {
         List<Pair<String, String>> msgs = Collections.singletonList(new Pair<>("user", "line1\nline2\t\"quoted\""));
         ArrayNode arr = serializer.buildMessages(null, msgs);
-        assertEquals("line1\nline2\t\"quoted\"", arr.get(0).path("content").asText());
+        assertThat(arr.get(0).path("content").asText(), is("line1\nline2\t\"quoted\""));
     }
 
     @Test
@@ -123,10 +127,10 @@ public class ParameterJsonSerializerTest {
         ArrayNode arr = serializer.buildMessages("Sys", msgs);
         String json = arr.toString();
         JsonNode parsed = serializer.OBJECT_MAPPER.readTree(json);
-        assertEquals("system", parsed.get(0).path("role").asText());
-        assertEquals("Sys", parsed.get(0).path("content").asText());
-        assertEquals("user", parsed.get(1).path("role").asText());
-        assertEquals("Hello", parsed.get(1).path("content").asText());
+        assertThat(parsed.get(0).path("role").asText(), is("system"));
+        assertThat(parsed.get(0).path("content").asText(), is("Sys"));
+        assertThat(parsed.get(1).path("role").asText(), is("user"));
+        assertThat(parsed.get(1).path("content").asText(), is("Hello"));
     }
 
     // ------------------------------------------------------------------
@@ -136,31 +140,31 @@ public class ParameterJsonSerializerTest {
     @Test
     public void testBuildStopStrings_single() {
         ArrayNode arr = serializer.buildStopStrings("<|endoftext|>");
-        assertEquals(1, arr.size());
-        assertEquals("<|endoftext|>", arr.get(0).asText());
+        assertThat(arr.size(), is(1));
+        assertThat(arr.get(0).asText(), is("<|endoftext|>"));
     }
 
     @Test
     public void testBuildStopStrings_multiple() {
         ArrayNode arr = serializer.buildStopStrings("stop1", "stop2", "stop3");
-        assertEquals(3, arr.size());
-        assertEquals("stop1", arr.get(0).asText());
-        assertEquals("stop3", arr.get(2).asText());
+        assertThat(arr.size(), is(3));
+        assertThat(arr.get(0).asText(), is("stop1"));
+        assertThat(arr.get(2).asText(), is("stop3"));
     }
 
     @Test
     public void testBuildStopStrings_withSpecialChars() {
         ArrayNode arr = serializer.buildStopStrings("line\nnewline", "tab\there");
-        assertEquals("line\nnewline", arr.get(0).asText());
-        assertEquals("tab\there", arr.get(1).asText());
+        assertThat(arr.get(0).asText(), is("line\nnewline"));
+        assertThat(arr.get(1).asText(), is("tab\there"));
     }
 
     @Test
     public void testBuildStopStrings_roundtripsAsJson() throws Exception {
         ArrayNode arr = serializer.buildStopStrings("a", "b");
         JsonNode parsed = serializer.OBJECT_MAPPER.readTree(arr.toString());
-        assertTrue(parsed.isArray());
-        assertEquals("a", parsed.get(0).asText());
+        assertThat(parsed.isArray(), is(true));
+        assertThat(parsed.get(0).asText(), is("a"));
     }
 
     // ------------------------------------------------------------------
@@ -170,18 +174,18 @@ public class ParameterJsonSerializerTest {
     @Test
     public void testBuildSamplers_allTypes() {
         ArrayNode arr = serializer.buildSamplers(Sampler.TOP_K, Sampler.TOP_P, Sampler.MIN_P, Sampler.TEMPERATURE);
-        assertEquals(4, arr.size());
-        assertEquals("top_k", arr.get(0).asText());
-        assertEquals("top_p", arr.get(1).asText());
-        assertEquals("min_p", arr.get(2).asText());
-        assertEquals("temperature", arr.get(3).asText());
+        assertThat(arr.size(), is(4));
+        assertThat(arr.get(0).asText(), is("top_k"));
+        assertThat(arr.get(1).asText(), is("top_p"));
+        assertThat(arr.get(2).asText(), is("min_p"));
+        assertThat(arr.get(3).asText(), is("temperature"));
     }
 
     @Test
     public void testBuildSamplers_single() {
         ArrayNode arr = serializer.buildSamplers(Sampler.TEMPERATURE);
-        assertEquals(1, arr.size());
-        assertEquals("temperature", arr.get(0).asText());
+        assertThat(arr.size(), is(1));
+        assertThat(arr.get(0).asText(), is("temperature"));
     }
 
     // ------------------------------------------------------------------
@@ -191,23 +195,23 @@ public class ParameterJsonSerializerTest {
     @Test
     public void testBuildIntArray_values() {
         ArrayNode arr = serializer.buildIntArray(new int[] {1, 2, 3});
-        assertEquals(3, arr.size());
-        assertEquals(1, arr.get(0).asInt());
-        assertEquals(3, arr.get(2).asInt());
+        assertThat(arr.size(), is(3));
+        assertThat(arr.get(0).asInt(), is(1));
+        assertThat(arr.get(2).asInt(), is(3));
     }
 
     @Test
     public void testBuildIntArray_empty() {
         ArrayNode arr = serializer.buildIntArray(new int[] {});
-        assertEquals(0, arr.size());
+        assertThat(arr.size(), is(0));
     }
 
     @Test
     public void testBuildIntArray_roundtripsAsJson() throws Exception {
         ArrayNode arr = serializer.buildIntArray(new int[] {10, 20});
         JsonNode parsed = serializer.OBJECT_MAPPER.readTree(arr.toString());
-        assertTrue(parsed.isArray());
-        assertEquals(10, parsed.get(0).asInt());
+        assertThat(parsed.isArray(), is(true));
+        assertThat(parsed.get(0).asInt(), is(10));
     }
 
     // ------------------------------------------------------------------
@@ -220,17 +224,17 @@ public class ParameterJsonSerializerTest {
         biases.put(15043, 1.0f);
         biases.put(50256, -0.5f);
         ArrayNode arr = serializer.buildTokenIdBiasArray(biases);
-        assertEquals(2, arr.size());
-        assertEquals(15043, arr.get(0).get(0).asInt());
+        assertThat(arr.size(), is(2));
+        assertThat(arr.get(0).get(0).asInt(), is(15043));
         assertEquals(1.0, arr.get(0).get(1).asDouble(), 0.001);
-        assertEquals(50256, arr.get(1).get(0).asInt());
+        assertThat(arr.get(1).get(0).asInt(), is(50256));
         assertEquals(-0.5, arr.get(1).get(1).asDouble(), 0.001);
     }
 
     @Test
     public void testBuildTokenIdBiasArray_empty() {
         ArrayNode arr = serializer.buildTokenIdBiasArray(Collections.emptyMap());
-        assertEquals(0, arr.size());
+        assertThat(arr.size(), is(0));
     }
 
     // ------------------------------------------------------------------
@@ -243,10 +247,10 @@ public class ParameterJsonSerializerTest {
         biases.put("Hello", 1.0f);
         biases.put(" world", -0.5f);
         ArrayNode arr = serializer.buildTokenStringBiasArray(biases);
-        assertEquals(2, arr.size());
-        assertEquals("Hello", arr.get(0).get(0).asText());
+        assertThat(arr.size(), is(2));
+        assertThat(arr.get(0).get(0).asText(), is("Hello"));
         assertEquals(1.0, arr.get(0).get(1).asDouble(), 0.001);
-        assertEquals(" world", arr.get(1).get(0).asText());
+        assertThat(arr.get(1).get(0).asText(), is(" world"));
     }
 
     @Test
@@ -254,7 +258,7 @@ public class ParameterJsonSerializerTest {
         Map<String, Float> biases = new LinkedHashMap<>();
         biases.put("line\nnewline", 2.0f);
         ArrayNode arr = serializer.buildTokenStringBiasArray(biases);
-        assertEquals("line\nnewline", arr.get(0).get(0).asText());
+        assertThat(arr.get(0).get(0).asText(), is("line\nnewline"));
     }
 
     // ------------------------------------------------------------------
@@ -264,17 +268,17 @@ public class ParameterJsonSerializerTest {
     @Test
     public void testBuildDisableTokenIdArray_structure() {
         ArrayNode arr = serializer.buildDisableTokenIdArray(Arrays.asList(100, 200, 300));
-        assertEquals(3, arr.size());
+        assertThat(arr.size(), is(3));
         for (int i = 0; i < arr.size(); i++) {
-            assertFalse(arr.get(i).get(1).asBoolean());
+            assertThat(arr.get(i).get(1).asBoolean(), is(false));
         }
-        assertEquals(100, arr.get(0).get(0).asInt());
+        assertThat(arr.get(0).get(0).asInt(), is(100));
     }
 
     @Test
     public void testBuildDisableTokenIdArray_empty() {
         ArrayNode arr = serializer.buildDisableTokenIdArray(Collections.emptyList());
-        assertEquals(0, arr.size());
+        assertThat(arr.size(), is(0));
     }
 
     // ------------------------------------------------------------------
@@ -284,10 +288,10 @@ public class ParameterJsonSerializerTest {
     @Test
     public void testBuildDisableTokenStringArray_structure() {
         ArrayNode arr = serializer.buildDisableTokenStringArray(Arrays.asList("foo", "bar"));
-        assertEquals(2, arr.size());
-        assertEquals("foo", arr.get(0).get(0).asText());
-        assertFalse(arr.get(0).get(1).asBoolean());
-        assertEquals("bar", arr.get(1).get(0).asText());
+        assertThat(arr.size(), is(2));
+        assertThat(arr.get(0).get(0).asText(), is("foo"));
+        assertThat(arr.get(0).get(1).asBoolean(), is(false));
+        assertThat(arr.get(1).get(0).asText(), is("bar"));
     }
 
     // ------------------------------------------------------------------
@@ -298,8 +302,8 @@ public class ParameterJsonSerializerTest {
     public void testBuildRawValueObject_booleanValue() {
         Map<String, String> map = Collections.singletonMap("enable_thinking", "true");
         ObjectNode node = serializer.buildRawValueObject(map);
-        assertTrue(node.path("enable_thinking").isBoolean());
-        assertTrue(node.path("enable_thinking").asBoolean());
+        assertThat(node.path("enable_thinking").isBoolean(), is(true));
+        assertThat(node.path("enable_thinking").asBoolean(), is(true));
     }
 
     @Test
@@ -313,14 +317,14 @@ public class ParameterJsonSerializerTest {
     public void testBuildRawValueObject_stringValue() {
         Map<String, String> map = Collections.singletonMap("mode", "\"fast\"");
         ObjectNode node = serializer.buildRawValueObject(map);
-        assertEquals("fast", node.path("mode").asText());
+        assertThat(node.path("mode").asText(), is("fast"));
     }
 
     @Test
     public void testBuildRawValueObject_invalidJsonFallsBackToString() {
         Map<String, String> map = Collections.singletonMap("key", "not-valid-json{{{");
         ObjectNode node = serializer.buildRawValueObject(map);
-        assertEquals("not-valid-json{{{", node.path("key").asText());
+        assertThat(node.path("key").asText(), is("not-valid-json{{{"));
     }
 
     @Test
@@ -330,7 +334,7 @@ public class ParameterJsonSerializerTest {
         map.put("count", "3");
         ObjectNode node = serializer.buildRawValueObject(map);
         JsonNode parsed = serializer.OBJECT_MAPPER.readTree(node.toString());
-        assertTrue(parsed.path("flag").asBoolean());
-        assertEquals(3, parsed.path("count").asInt());
+        assertThat(parsed.path("flag").asBoolean(), is(true));
+        assertThat(parsed.path("count").asInt(), is(3));
     }
 }

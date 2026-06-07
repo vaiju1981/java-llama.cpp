@@ -9,9 +9,14 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import net.ladenthin.llama.LlamaOutput;
-import net.ladenthin.llama.StopReason;
+import net.ladenthin.llama.value.CompletionResult;
+import net.ladenthin.llama.value.LlamaOutput;
+import net.ladenthin.llama.value.StopReason;
+import net.ladenthin.llama.value.TokenLogprob;
+import nl.altindag.log.LogCaptor;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -201,5 +206,142 @@ public class CompletionResponseParserTest {
         assertEquals(1, probs.size());
         assertTrue(probs.containsKey("A"), "only outer token 'A' should be present");
         assertFalse(probs.containsKey("B"), "inner top_probs token 'B' must not appear");
+    }
+
+    // ------------------------------------------------------------------
+    // parseLogprobs — typed per-token entries
+    // ------------------------------------------------------------------
+
+    @Test
+    public void testParseLogprobs_postSamplingWithNestedTopProbs() throws Exception {
+        String json = "{\"completion_probabilities\":["
+                + "{\"token\":\"Hello\",\"id\":15043,\"prob\":0.82,"
+                + "\"top_probs\":[{\"token\":\"Hi\",\"id\":9932,\"prob\":0.1}]}"
+                + "]}";
+        JsonNode node = MAPPER.readTree(json);
+        List<TokenLogprob> lp = parser.parseLogprobs(node);
+
+        assertEquals(1, lp.size());
+        TokenLogprob e = lp.get(0);
+        assertEquals("Hello", e.getToken());
+        assertEquals(15043, e.getTokenId());
+        assertEquals(0.82f, e.getLogprob(), 0.001f);
+        // Nested alternatives are parsed recursively from top_probs.
+        assertEquals(1, e.getTopLogprobs().size());
+        assertEquals("Hi", e.getTopLogprobs().get(0).getToken());
+        assertEquals(9932, e.getTopLogprobs().get(0).getTokenId());
+        assertEquals(0.1f, e.getTopLogprobs().get(0).getLogprob(), 0.001f);
+    }
+
+    @Test
+    public void testParseLogprobs_preSamplingUsesLogprobAndTopLogprobs() throws Exception {
+        // No "prob"/"top_probs" — the parser falls back to "logprob"/"top_logprobs".
+        String json = "{\"completion_probabilities\":["
+                + "{\"token\":\"Hello\",\"id\":15043,\"logprob\":-0.2,"
+                + "\"top_logprobs\":[{\"token\":\"Hi\",\"id\":9932,\"logprob\":-2.3}]}"
+                + "]}";
+        JsonNode node = MAPPER.readTree(json);
+        List<TokenLogprob> lp = parser.parseLogprobs(node);
+
+        assertEquals(1, lp.size());
+        TokenLogprob e = lp.get(0);
+        assertEquals(-0.2f, e.getLogprob(), 0.001f);
+        assertEquals(1, e.getTopLogprobs().size());
+        assertEquals("Hi", e.getTopLogprobs().get(0).getToken());
+        assertEquals(-2.3f, e.getTopLogprobs().get(0).getLogprob(), 0.001f);
+    }
+
+    @Test
+    public void testParseLogprobs_entryWithoutAlternatives_hasEmptyTopLogprobs() throws Exception {
+        String json = "{\"completion_probabilities\":[" + "{\"token\":\"x\",\"id\":1,\"prob\":0.5}" + "]}";
+        JsonNode node = MAPPER.readTree(json);
+        List<TokenLogprob> lp = parser.parseLogprobs(node);
+
+        assertEquals(1, lp.size());
+        assertEquals(1, lp.get(0).getTokenId());
+        assertTrue(lp.get(0).getTopLogprobs().isEmpty(), "no top_probs/top_logprobs → empty alternatives");
+    }
+
+    @Test
+    public void testParseLogprobs_missingId_defaultsToMinusOne() throws Exception {
+        String json = "{\"completion_probabilities\":[" + "{\"token\":\"x\",\"prob\":0.5}" + "]}";
+        JsonNode node = MAPPER.readTree(json);
+        List<TokenLogprob> lp = parser.parseLogprobs(node);
+        assertEquals(-1, lp.get(0).getTokenId());
+    }
+
+    @Test
+    public void testParseLogprobs_absentArray_returnsMutableEmptyList() throws Exception {
+        JsonNode node = MAPPER.readTree("{\"content\":\"hi\",\"stop\":true}");
+        List<TokenLogprob> lp = parser.parseLogprobs(node);
+        assertTrue(lp.isEmpty());
+        // Documented to be a mutable empty list — adding must not throw
+        // (kills the immutable-emptyList() return mutant).
+        lp.add(new TokenLogprob("x", 1, 0.5f, Collections.<TokenLogprob>emptyList()));
+        assertEquals(1, lp.size());
+    }
+
+    @Test
+    public void testParseLogprobs_emptyArray_returnsEmptyList() throws Exception {
+        JsonNode node = MAPPER.readTree("{\"completion_probabilities\":[]}");
+        assertTrue(parser.parseLogprobs(node).isEmpty());
+    }
+
+    // ------------------------------------------------------------------
+    // parseCompletionResult(String) — non-streaming typed result
+    // ------------------------------------------------------------------
+
+    @Test
+    public void testParseCompletionResult_fullResult() {
+        String json = "{\"content\":\"final answer\","
+                + "\"tokens_evaluated\":11,\"tokens_predicted\":4,"
+                + "\"stop_type\":\"eos\","
+                + "\"completion_probabilities\":[{\"token\":\"final\",\"id\":1,\"prob\":0.7}]}";
+        CompletionResult r = parser.parseCompletionResult(json);
+
+        assertEquals("final answer", r.getText());
+        assertEquals(11L, r.getUsage().getPromptTokens());
+        assertEquals(4L, r.getUsage().getCompletionTokens());
+        assertEquals(StopReason.EOS, r.getStopReason());
+        assertEquals(1, r.getLogprobs().size());
+        assertEquals("final", r.getLogprobs().get(0).getToken());
+        assertEquals(json, r.getRawJson());
+    }
+
+    @Test
+    public void testParseCompletionResult_limitStopType() {
+        String json = "{\"content\":\"trunc\",\"tokens_evaluated\":2,\"tokens_predicted\":8,\"stop_type\":\"limit\"}";
+        CompletionResult r = parser.parseCompletionResult(json);
+        assertEquals(StopReason.MAX_TOKENS, r.getStopReason());
+        assertTrue(r.getLogprobs().isEmpty());
+    }
+
+    @Test
+    public void testParseCompletionResult_malformedJson_returnsEmptyResultPreservingRawJson() {
+        String bad = "{not valid json";
+        CompletionResult r = parser.parseCompletionResult(bad);
+        assertEquals("", r.getText());
+        assertEquals(0L, r.getUsage().getPromptTokens());
+        assertEquals(0L, r.getUsage().getCompletionTokens());
+        assertEquals(StopReason.NONE, r.getStopReason());
+        assertTrue(r.getLogprobs().isEmpty());
+        assertEquals(bad, r.getRawJson());
+    }
+
+    /**
+     * Parsing a completion result carrying real timings must emit exactly one
+     * per-run timing line — pins the {@code TimingsLogger.log(...)} side-effect.
+     */
+    @Test
+    public void testParseCompletionResult_emitsTimingLine() {
+        String json = "{\"content\":\"done\",\"tokens_evaluated\":7,\"tokens_predicted\":3,\"stop_type\":\"eos\","
+                + "\"timings\":{\"prompt_n\":7,\"prompt_ms\":10.0,\"prompt_per_second\":700.0,"
+                + "\"predicted_n\":3,\"predicted_ms\":20.0,\"predicted_per_second\":150.0}}";
+
+        try (LogCaptor captor = LogCaptor.forName(TimingsLogger.LOGGER_NAME)) {
+            CompletionResult r = parser.parseCompletionResult(json);
+            assertEquals(7, r.getTimings().getPromptN());
+            assertEquals(1, captor.getInfoLogs().size(), "exactly one timing line must be emitted");
+        }
     }
 }

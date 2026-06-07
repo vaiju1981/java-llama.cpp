@@ -5,10 +5,10 @@
 
 package examples;
 
-import net.ladenthin.llama.InferenceParameters;
 import net.ladenthin.llama.LlamaModel;
-import net.ladenthin.llama.LlamaOutput;
-import net.ladenthin.llama.ModelParameters;
+import net.ladenthin.llama.parameters.InferenceParameters;
+import net.ladenthin.llama.parameters.ModelParameters;
+import net.ladenthin.llama.value.LlamaOutput;
 
 public class InfillExample {
 

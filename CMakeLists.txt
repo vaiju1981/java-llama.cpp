@@ -114,7 +114,7 @@ set(LLAMA_BUILD_APP OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
 	llama.cpp
 	GIT_REPOSITORY https://github.com/ggerganov/llama.cpp.git
-	GIT_TAG        b9543
+	GIT_TAG        b9549
 )
 FetchContent_MakeAvailable(llama.cpp)
 
@@ -159,7 +159,7 @@ if(NOT DEFINED OS_NAME)
     find_package(Java REQUIRED)
     find_program(JAVA_EXECUTABLE NAMES java)
 	execute_process(
-      COMMAND ${JAVA_EXECUTABLE} -cp ${CMAKE_SOURCE_DIR}/target/classes net.ladenthin.llama.OSInfo --os
+      COMMAND ${JAVA_EXECUTABLE} -cp ${CMAKE_SOURCE_DIR}/target/classes net.ladenthin.llama.loader.OSInfo --os
       OUTPUT_VARIABLE OS_NAME
       OUTPUT_STRIP_TRAILING_WHITESPACE
     )
@@ -177,7 +177,7 @@ if(NOT DEFINED OS_ARCH)
     find_package(Java REQUIRED)
     find_program(JAVA_EXECUTABLE NAMES java)
     execute_process(
-      COMMAND ${JAVA_EXECUTABLE} -cp ${CMAKE_SOURCE_DIR}/target/classes net.ladenthin.llama.OSInfo --arch
+      COMMAND ${JAVA_EXECUTABLE} -cp ${CMAKE_SOURCE_DIR}/target/classes net.ladenthin.llama.loader.OSInfo --arch
       OUTPUT_VARIABLE OS_ARCH
       OUTPUT_STRIP_TRAILING_WHITESPACE
     )

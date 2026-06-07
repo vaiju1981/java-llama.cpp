@@ -6,13 +6,13 @@
 package net.ladenthin.llama.args;
 
 /**
- * Boolean CLI flags for {@link net.ladenthin.llama.ModelParameters}.
+ * Boolean CLI flags for {@link net.ladenthin.llama.parameters.ModelParameters}.
  *
  * <p>Each constant maps to a single CLI argument that takes no value — its presence
  * alone enables the behaviour. Pass to
- * {@link net.ladenthin.llama.ModelParameters#setFlag(ModelFlag)} /
- * {@link net.ladenthin.llama.ModelParameters#clearFlag(ModelFlag)} for programmatic control,
- * or use the named convenience methods (e.g. {@link net.ladenthin.llama.ModelParameters#enableFlashAttn()}).
+ * {@link net.ladenthin.llama.parameters.ModelParameters#setFlag(ModelFlag)} /
+ * {@link net.ladenthin.llama.parameters.ModelParameters#clearFlag(ModelFlag)} for programmatic control,
+ * or use the named convenience methods (e.g. {@link net.ladenthin.llama.parameters.ModelParameters#enableFlashAttn()}).
  */
 public enum ModelFlag {
 
@@ -117,7 +117,7 @@ public enum ModelFlag {
      * mismatch), upstream throws {@code common_skip_download_exception} during arg parsing,
      * which is caught inside {@code common_params_parse_ex} and surfaces as a {@code false}
      * return; the Java layer translates that combined signal into a typed
-     * {@link net.ladenthin.llama.ModelUnavailableException}.</p>
+     * {@link net.ladenthin.llama.exception.ModelUnavailableException}.</p>
      */
     SKIP_DOWNLOAD("--skip-download");
 

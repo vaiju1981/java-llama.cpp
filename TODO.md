@@ -69,11 +69,40 @@ These are JNI plumbing items for upstream API additions. Policy: add only after 
   (`07109cc`): 25 sites. The same rule is suppressed in BAF
   (`52c8c95`) for identical reasons.
 
-- **Additional ArchUnit rules to consider** — layered-architecture rules (`layeredArchitecture().consideringAllDependencies()`), per-module banned-imports lists, public-API-surface constraints (no public mutable static state, etc.). Partial progress: `7b6667d` covers the "no public field that is not final" sub-rule.
+- **Additional ArchUnit rules to consider** — the full **`layeredArchitecture()`** rule and a **per-module banned-import** rule (`jacksonBannedFromContractsAndLoader` — Jackson kept out of `args`/`callback`/`exception`/`loader`) are now DONE. Still open: more per-module banned-imports if useful, public-API-surface constraints (no public mutable static state, etc.). Partial progress: `7b6667d` covers the "no public field that is not final" sub-rule.
 
 - **Cross-repo code-quality TODOs** — see [`../workspace/policies/code-quality-todos.md`](../workspace/policies/code-quality-todos.md) for the canonical `@VisibleForTesting` design-fit review, package hierarchy review, and class/method naming review. This repo has no `@VisibleForTesting` usages today; package and naming reviews remain open.
 
 ## Done (kept for history)
+
+### Layered package restructure (flat root package → layered hierarchy)
+
+The flat `net.ladenthin.llama` root package was split (via `git mv`, history
+preserved) into layered packages so boundaries align with the layers, enforced
+by a new `layeredArchitecture()` ArchUnit rule (Api → Loader → Marshalling →
+Foundation):
+
+- **Foundation**: `value` (18 DTOs: ChatMessage, ContentPart, Pair, LlamaOutput,
+  …), `callback` (CancellationToken, LoadProgressCallback, ToolHandler),
+  `exception` (LlamaException, ModelUnavailableException), `args` (existing leaf).
+- **Marshalling**: `json` (response parsers + `TimingsLogger`, its only consumer),
+  `parameters` (Inference/Model/Json/Cli parameters + `ParameterJsonSerializer` +
+  `ChatRequest`).
+- **Loader** (internal, NOT exported): `loader` (LlamaLoader, OSInfo,
+  ProcessRunner, NativeLibraryPermissionSetter, Java8CompatibilityHelper,
+  SkipDownloadFailureTranslator, LlamaSystemProperties).
+- **Api** (root): LlamaModel, Session, LlamaIterable, LlamaIterator.
+
+Cycle-breaking moves: `TimingsLogger` root→`json`, `ParameterJsonSerializer`
+`json`→`parameters`, `ChatRequest` root→`parameters` (it carries an
+`InferenceParameters` customizer). Test classes mirrored into their subjects'
+packages; cross-layer members promoted to `public`. Cross-package Javadoc
+`{@link}` references fully-qualified (palantir's `removeUnusedImports` strips
+javadoc-only imports). `module-info` exports the new public-API packages and
+keeps `loader` internal. All 11 ArchUnit rules green; `javadoc:jar` clean.
+
+**Breaking change**: public-API FQNs changed (e.g. `net.ladenthin.llama.ChatMessage`
+→ `net.ladenthin.llama.value.ChatMessage`) — ship under a major version bump.
 
 - **Reactive `LlamaPublisher` removed in favour of consumer-side adapters.**
   The hand-rolled `LlamaPublisher` + `LlamaModel.streamPublisher` /
@@ -95,7 +124,7 @@ These are JNI plumbing items for upstream API additions. Policy: add only after 
 - **`javac -Werror` + `-Xlint:all,-serial,-options,-classfile,-processing`** — `3e2efbb`. ~20 EP warnings addressed first (EqualsGetClass on `Pair` via instanceof; MissingOverride on `PoolingType` / `RopeScalingType`; JdkObsolete `LinkedList` → `ArrayList` in `LlamaLoader`; StringSplitter inline-suppressed; 3× StringCaseLocaleUsage `Locale.ROOT` in `OSInfo`; EmptyCatch in `OSInfo.isAlpineLinux`; FutureReturnValueIgnored in `LlamaModel.completeAsync`; Finalize on `LlamaModel.finalize`; MixedMutabilityReturnType in 4 parser methods; EnumOrdinal in `InferenceParameters.setMiroStat`; EscapedEntity in `InferenceParameters` javadoc; 4× TypeParameterUnusedInFormals; AnnotateFormatMethod on `Java8CompatibilityHelper.formatted`; SafeVarargs + varargs on `Java8CompatibilityHelper.listOf`).
 - **`-parameters` javac arg** — `4350cf2`.
 - **`--release N`** — `4350cf2` (`<release>8</release>`).
-- **Mutation-testing threshold enforcement (PIT)** — `62f8a00` + `bb93a8f` (docs) + `3bfa51f` (README badge). "Single class, full plumbing" pattern: PIT runs every CI build with `<mutationThreshold>100</mutationThreshold>`, `<targetClasses>` narrowed to `net.ladenthin.llama.Pair`.
+- **Mutation-testing threshold enforcement (PIT)** — `62f8a00` + `bb93a8f` (docs) + `3bfa51f` (README badge). Runs every CI build with `<mutationThreshold>100</mutationThreshold>`. **Scope expanded 2026-06-07** from the original single `Pair` target (which was stale after the restructure — `llama.Pair`→`value.Pair` matched nothing) to `value.*` + `exception.*` + `args.*` + `json.TimingsLogger` = 27 classes / 163 mutations, all killed. Still open (optional): `json.ChatResponseParser` / `CompletionResponseParser` private-helper survivors (`RerankResponseParser` is excluded — equivalent empty-list mutant).
 - **Checker Framework as a second static-nullness pass** — `c63870b`. The original
   `@PolyNull` on `JsonParameters.toJsonString` was simplified to plain `@Nullable`
   (the only `@PolyNull` site in production; eliminated in a later cleanup).

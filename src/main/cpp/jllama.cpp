@@ -479,8 +479,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     c_integer = env->FindClass("java/lang/Integer");
     c_float = env->FindClass("java/lang/Float");
     c_biconsumer = env->FindClass("java/util/function/BiConsumer");
-    c_llama_error = env->FindClass("net/ladenthin/llama/LlamaException");
-    c_log_level = env->FindClass("net/ladenthin/llama/LogLevel");
+    c_llama_error = env->FindClass("net/ladenthin/llama/exception/LlamaException");
+    c_log_level = env->FindClass("net/ladenthin/llama/value/LogLevel");
     c_log_format = env->FindClass("net/ladenthin/llama/args/LogFormat");
     c_error_oom = env->FindClass("java/lang/OutOfMemoryError");
 
@@ -527,10 +527,10 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     // find fields
     f_model_pointer = env->GetFieldID(c_llama_model, "ctx", "J");
     f_utf_8 = env->GetStaticFieldID(c_standard_charsets, "UTF_8", "Ljava/nio/charset/Charset;");
-    f_log_level_debug = env->GetStaticFieldID(c_log_level, "DEBUG", "Lnet/ladenthin/llama/LogLevel;");
-    f_log_level_info = env->GetStaticFieldID(c_log_level, "INFO", "Lnet/ladenthin/llama/LogLevel;");
-    f_log_level_warn = env->GetStaticFieldID(c_log_level, "WARN", "Lnet/ladenthin/llama/LogLevel;");
-    f_log_level_error = env->GetStaticFieldID(c_log_level, "ERROR", "Lnet/ladenthin/llama/LogLevel;");
+    f_log_level_debug = env->GetStaticFieldID(c_log_level, "DEBUG", "Lnet/ladenthin/llama/value/LogLevel;");
+    f_log_level_info = env->GetStaticFieldID(c_log_level, "INFO", "Lnet/ladenthin/llama/value/LogLevel;");
+    f_log_level_warn = env->GetStaticFieldID(c_log_level, "WARN", "Lnet/ladenthin/llama/value/LogLevel;");
+    f_log_level_error = env->GetStaticFieldID(c_log_level, "ERROR", "Lnet/ladenthin/llama/value/LogLevel;");
     f_log_format_json = env->GetStaticFieldID(c_log_format, "JSON", "Lnet/ladenthin/llama/args/LogFormat;");
     f_log_format_text = env->GetStaticFieldID(c_log_format, "TEXT", "Lnet/ladenthin/llama/args/LogFormat;");
 
