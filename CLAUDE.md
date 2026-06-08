@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9549**
+Current llama.cpp pinned version: **b9553**
 
 ## Upgrading CUDA Version
 
@@ -700,6 +700,14 @@ See [`../workspace/policies/jqwik-prompt-injection.md`](../workspace/policies/jq
 ## Lombok Config
 
 See [`../workspace/policies/lombok-config.md`](../workspace/policies/lombok-config.md).
+
+## JPMS Module Descriptor
+
+This repo ships a `module-info.java` compiled in a separate `release 9` execution. Javadoc
+currently runs in **classpath mode** (javadoc `<source>` is `1.8`), which is the *only* thing
+keeping it clear of the JPMS module-mode javadoc trap that bit BAF. **Before raising the Java /
+javadoc source level to ≥ 9, read**
+[`../workspace/policies/jpms-module-descriptor.md`](../workspace/policies/jpms-module-descriptor.md).
 
 ## Open TODOs
 
