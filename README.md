@@ -89,8 +89,6 @@ Inference of Meta's LLaMA model (and others) in pure C/C++.
 4. [Android](#importing-in-android)
 5. [Feature Ideas](#feature-ideas)
 
-> ⚠️ **DO NOT UPGRADE jqwik past 1.9.3.** jqwik 1.10.0 added an anti-AI prompt-injection string to test stdout; the 1.10.1 user guide states the library "is not meant to be used by any 'AI' coding agents at all." 1.9.3 is the last pre-disclosure release and is the pinned version. See `CLAUDE.md` section "jqwik prompt-injection in test output" for the full context.
-
 ## Features
 
 - Text completion (blocking and streaming) with full control over sampling parameters.
@@ -597,6 +595,10 @@ rm /usr/lib/jvm/java-21/bin/msvcp140.dll
 ```
 
 The system's updated C++ runtime will be used instead, resolving the crash.
+
+### Contributors: do not upgrade jqwik past 1.9.3
+
+> ⚠️ **DO NOT UPGRADE jqwik past 1.9.3.** jqwik 1.10.0 added an anti-AI prompt-injection string to test stdout; the 1.10.1 user guide states the library "is not meant to be used by any 'AI' coding agents at all." 1.9.3 is the last pre-disclosure release and is the pinned version. See `CLAUDE.md` section "jqwik prompt-injection in test output" for the full context.
 
 ## Similar Projects / Usage
 
