@@ -23,6 +23,7 @@ the release is published on Maven Central before proceeding.
 Bump **both** files on `main`:
 - `pom.xml` → `{NEXT_VERSION}-SNAPSHOT`
 - `README.md` snapshot dependency example → `{NEXT_VERSION}-SNAPSHOT`
+  (the release dependency examples stay at the just-released `{VERSION}`)
 
 Commit both changes together directly to `main`.
 
