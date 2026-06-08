@@ -110,7 +110,7 @@ Access this library via Maven (released versions on Maven Central):
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.1</version>
+    <version>5.0.2</version>
 </dependency>
 ```
 
@@ -168,14 +168,14 @@ Pick at most one — they are mutually exclusive.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.1</version>
+    <version>5.0.2</version>
 </dependency>
 
 <!-- CUDA on Linux x86-64 (requires CUDA 13 runtime on the host) -->
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.1</version>
+    <version>5.0.2</version>
     <classifier>cuda13-linux-x86-64</classifier>
 </dependency>
 
@@ -183,7 +183,7 @@ Pick at most one — they are mutually exclusive.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.1</version>
+    <version>5.0.2</version>
     <classifier>opencl-android-aarch64</classifier>
 </dependency>
 ```
