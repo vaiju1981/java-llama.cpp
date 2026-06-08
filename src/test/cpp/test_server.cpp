@@ -1682,6 +1682,57 @@ TEST(ParamsFromJsonCmpl, NCmpl_AliasedFromN) {
 }
 
 // ============================================================
+// params_from_json_cmpl — "samplers" name matching (llama.cpp b9553)
+//   common_sampler_types_from_names dropped its allow_alt_names flag:
+//   the server path (params_from_json_cmpl) now ALWAYS accepts aliases and
+//   is case-insensitive. Before b9553 the server passed allow_alt_names=false,
+//   so only the canonical snake_case names matched and "top-k" / "TOP_K" were
+//   skipped. These tests pin the more lenient behaviour the project's
+//   "samplers" JSON field now exposes for free.
+// ============================================================
+
+TEST(ParamsFromJsonCmpl, Samplers_CanonicalNames_Parsed) {
+    const auto p = parse_params({{"samplers", {"top_k", "top_p", "min_p", "temperature"}}});
+    ASSERT_EQ(p.sampling.samplers.size(), 4u);
+    EXPECT_EQ(p.sampling.samplers[0], COMMON_SAMPLER_TYPE_TOP_K);
+    EXPECT_EQ(p.sampling.samplers[1], COMMON_SAMPLER_TYPE_TOP_P);
+    EXPECT_EQ(p.sampling.samplers[2], COMMON_SAMPLER_TYPE_MIN_P);
+    EXPECT_EQ(p.sampling.samplers[3], COMMON_SAMPLER_TYPE_TEMPERATURE);
+}
+
+TEST(ParamsFromJsonCmpl, Samplers_KebabCaseAlias_NowAccepted) {
+    // "top-k" / "min-p" alt names were rejected by the server before b9553.
+    const auto p = parse_params({{"samplers", {"top-k", "min-p"}}});
+    ASSERT_EQ(p.sampling.samplers.size(), 2u);
+    EXPECT_EQ(p.sampling.samplers[0], COMMON_SAMPLER_TYPE_TOP_K);
+    EXPECT_EQ(p.sampling.samplers[1], COMMON_SAMPLER_TYPE_MIN_P);
+}
+
+TEST(ParamsFromJsonCmpl, Samplers_CaseInsensitive) {
+    const auto p = parse_params({{"samplers", {"TOP_K", "Temperature", "Min-P"}}});
+    ASSERT_EQ(p.sampling.samplers.size(), 3u);
+    EXPECT_EQ(p.sampling.samplers[0], COMMON_SAMPLER_TYPE_TOP_K);
+    EXPECT_EQ(p.sampling.samplers[1], COMMON_SAMPLER_TYPE_TEMPERATURE);
+    EXPECT_EQ(p.sampling.samplers[2], COMMON_SAMPLER_TYPE_MIN_P);
+}
+
+TEST(ParamsFromJsonCmpl, Samplers_MiscAliases_Parsed) {
+    // "nucleus" -> top_p, "temp" -> temperature, "typ" -> typical_p
+    const auto p = parse_params({{"samplers", {"nucleus", "temp", "typ"}}});
+    ASSERT_EQ(p.sampling.samplers.size(), 3u);
+    EXPECT_EQ(p.sampling.samplers[0], COMMON_SAMPLER_TYPE_TOP_P);
+    EXPECT_EQ(p.sampling.samplers[1], COMMON_SAMPLER_TYPE_TEMPERATURE);
+    EXPECT_EQ(p.sampling.samplers[2], COMMON_SAMPLER_TYPE_TYPICAL_P);
+}
+
+TEST(ParamsFromJsonCmpl, Samplers_UnknownName_SkippedNotError) {
+    // unknown names are warned and skipped, not a hard error.
+    const auto p = parse_params({{"samplers", {"top_k", "definitely_not_a_sampler"}}});
+    ASSERT_EQ(p.sampling.samplers.size(), 1u);
+    EXPECT_EQ(p.sampling.samplers[0], COMMON_SAMPLER_TYPE_TOP_K);
+}
+
+// ============================================================
 // params_from_json_cmpl — reasoning_budget_tokens
 //   reasoning_budget_tokens defaults to -1 (disabled).
 //   Any explicit value is stored directly in sampling.reasoning_budget_tokens.
