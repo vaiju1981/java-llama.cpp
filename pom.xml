@@ -76,7 +76,7 @@ SPDX-License-Identifier: MIT
 		     section "jqwik prompt-injection in test output" for full context. -->
 		<jqwik.version>1.9.3</jqwik.version>
 		<archunit.version>1.4.2</archunit.version>
-		<spotbugs.version>4.9.8.3</spotbugs.version>
+		<spotbugs.version>4.9.8.4</spotbugs.version>
 		<fb-contrib.version>7.7.4</fb-contrib.version>
 		<findsecbugs.version>1.14.0</findsecbugs.version>
 		<spotless.version>3.6.0</spotless.version>
@@ -296,7 +296,7 @@ SPDX-License-Identifier: MIT
 				<plugin>
 					<groupId>org.pitest</groupId>
 					<artifactId>pitest-maven</artifactId>
-					<version>1.25.3</version>
+					<version>1.25.4</version>
 				</plugin>
 				<plugin>
 					<groupId>org.sonatype.central</groupId>
@@ -643,7 +643,7 @@ SPDX-License-Identifier: MIT
 					  mutation parity, gated at a 100% threshold on every CI build. Expand
 					  the targetClasses globs as further packages reach parity (see README
 					  TODO). The value/ and exception/ trees are at 100% (verified with
-					  pitest-maven 1.25.3); their unit tests are pure-Java (no native
+					  pitest-maven 1.25.4); their unit tests are pure-Java (no native
 					  libjllama / model file needed).
 				-->
 				<groupId>org.pitest</groupId>
