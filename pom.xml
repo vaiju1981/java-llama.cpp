@@ -52,7 +52,7 @@ SPDX-License-Identifier: MIT
 		<jna.version>5.19.0</jna.version>
 		<jspecify.version>1.0.0</jspecify.version>
 		<lombok.version>1.18.46</lombok.version>
-		<errorprone.version>2.49.0</errorprone.version>
+		<errorprone.version>2.50.0</errorprone.version>
 		<nullaway.version>0.13.6</nullaway.version>
 		<checker.version>4.2.0</checker.version>
 		<jackson.version>2.22.0</jackson.version>
