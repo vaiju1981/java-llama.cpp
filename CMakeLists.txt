@@ -47,14 +47,37 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_L
     link_libraries(stdc++fs)
 endif()
 
-# Android NDK headers gate symbols on __ANDROID_API__:
+# Android bionic gates several libc declarations behind a minimum API level:
 #   >= 24: getifaddrs/freeifaddrs (<ifaddrs.h>), needed by cpp-httplib.
 #   >= 28: posix_spawn / posix_spawnp / posix_spawn_file_actions_* (<spawn.h>),
 #          needed by mtmd-helper.cpp (vendor/sheredom/subprocess.h).
-# NDK unified sysroots (r14b+) include all these symbols in libc regardless of
-# level; the define only controls which declarations are visible in the headers.
-if(ANDROID_ABI)
-    add_compile_definitions(__ANDROID_API__=28)
+# The symbols exist in libc.so at all API levels; bionic only hides the
+# *declarations* below the introducing API via:
+#     #if __BIONIC_AVAILABILITY_GUARD(api)        // <android/versioning.h>
+# which expands to (__ANDROID_MIN_SDK_VERSION__ >= api) UNLESS
+# __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__ is defined, in which case it is
+# always 1 (all declarations visible, newer-API symbols become weak references
+# resolved at load time — present on every API-28+ device we target).
+#
+# We define __ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__ rather than bumping
+# __ANDROID_API__ because the dockcross-android-arm64 image used by CI does NOT
+# use the Google NDK CMake toolchain: it is a Debian-style cross-clang
+# (/usr/aarch64-linux-android/bin/clang) that (a) never sets the ANDROID /
+# ANDROID_ABI CMake variables and (b) ignores -DANDROID_PLATFORM (CMake reports
+# it as an unused variable). On that toolchain clang predefines __ANDROID_API__
+# from the baked-in target triple, so -D__ANDROID_API__=28 would only clash with
+# the builtin (a -Wmacro-redefined) without moving __ANDROID_MIN_SDK_VERSION__.
+# The weak-symbols macro is never compiler-predefined, so defining it is clean
+# and deterministically exposes the guarded declarations. It also covers the
+# getifaddrs (API 24) case, replacing the old __ANDROID_API__ bump entirely.
+#
+# Detection must not rely on ANDROID_ABI (unset by this toolchain). OS_NAME is
+# passed as -DOS_NAME=Linux-Android by the CI cmake invocation and is already
+# used the same way at the server-models.cpp exclusion below; we also accept the
+# NDK-style ANDROID/ANDROID_ABI signals so a future switch back to the NDK
+# toolchain keeps working.
+if(ANDROID OR ANDROID_ABI OR OS_NAME MATCHES "Android" OR CMAKE_CXX_COMPILER MATCHES "android")
+    add_compile_definitions(__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)
 endif()
 
 set(LLAMA_BUILD_COMMON ON)
