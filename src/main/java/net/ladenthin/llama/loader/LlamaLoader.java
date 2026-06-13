@@ -44,6 +44,16 @@ import org.jspecify.annotations.Nullable;
 @ToString
 public class LlamaLoader {
 
+    /**
+     * Private monitor guarding {@link #initialize()}. Synchronizing on this
+     * dedicated object instead of {@code LlamaLoader.class} keeps the lock
+     * private to this class, so untrusted code that can reach the public
+     * {@code LlamaLoader} type cannot acquire the same intrinsic lock and
+     * interfere with library initialization (SpotBugs
+     * {@code USO_UNSAFE_STATIC_METHOD_SYNCHRONIZATION}).
+     */
+    private static final Object INITIALIZE_LOCK = new Object();
+
     private static boolean extracted = false;
     private static final LlamaSystemProperties systemProperties = new LlamaSystemProperties();
     private static final NativeLibraryPermissionSetter permissionSetter = new NativeLibraryPermissionSetter(System.err);
@@ -63,22 +73,24 @@ public class LlamaLoader {
     /**
      * Loads the llama and jllama shared libraries
      */
-    public static synchronized void initialize() {
-        // only cleanup before the first extract
-        if (!extracted) {
-            cleanup();
-        }
-        if ("Mac".equals(OSInfo.getOSName())) {
-            String nativeDirName = getNativeResourcePath();
-            String tempFolder = getTempDir().getAbsolutePath();
-            System.out.println(nativeDirName);
-            Path metalFilePath = extractFile(nativeDirName, "ggml-metal.metal", tempFolder);
-            if (metalFilePath == null) {
-                System.err.println("'ggml-metal.metal' not found");
+    public static void initialize() {
+        synchronized (INITIALIZE_LOCK) {
+            // only cleanup before the first extract
+            if (!extracted) {
+                cleanup();
             }
+            if ("Mac".equals(OSInfo.getOSName())) {
+                String nativeDirName = getNativeResourcePath();
+                String tempFolder = getTempDir().getAbsolutePath();
+                System.out.println(nativeDirName);
+                Path metalFilePath = extractFile(nativeDirName, "ggml-metal.metal", tempFolder);
+                if (metalFilePath == null) {
+                    System.err.println("'ggml-metal.metal' not found");
+                }
+            }
+            loadNativeLibrary("jllama");
+            extracted = true;
         }
-        loadNativeLibrary("jllama");
-        extracted = true;
     }
 
     /**
