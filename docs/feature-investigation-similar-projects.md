@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+
 # Feature Investigation — ideas from pure-Java sibling runtimes and `llamacpp4j`
 
 Comparison sources (all surveyed in one pass for this document):

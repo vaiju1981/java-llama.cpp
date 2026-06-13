@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+
 # TODO — java-llama.cpp
 
 Open work items for this repo. Cross-cutting tracking lives in
