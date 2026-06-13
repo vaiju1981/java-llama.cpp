@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+
 # llama.cpp upstream breaking changes — version-range changelog
 
 Per-version-range record of upstream API breaks observed in the b5022 &#x2192; latest range, what the affected upstream files are, and the project-side fix (or "no project changes required" when the break stayed inside an upstream-compiled translation unit).
