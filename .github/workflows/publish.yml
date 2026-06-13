@@ -164,7 +164,7 @@ jobs:
       - name: Build libraries
         shell: bash
         run: |
-          .github/dockcross/dockcross-android-arm64 .github/build.sh "-DANDROID_PLATFORM=android-24 -DOS_NAME=Linux-Android -DOS_ARCH=aarch64"
+          .github/dockcross/dockcross-android-arm64 .github/build.sh "-DANDROID_PLATFORM=android-28 -DOS_NAME=Linux-Android -DOS_ARCH=aarch64"
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -180,7 +180,7 @@ jobs:
       - name: Build libraries
         shell: bash
         run: |
-          .github/dockcross/dockcross-android-arm64 .github/build_opencl_android.sh "-DANDROID_PLATFORM=android-24 -DOS_NAME=Linux-Android -DOS_ARCH=aarch64 -DGGML_OPENCL=ON -DGGML_OPENCL_EMBED_KERNELS=ON -DGGML_OPENCL_USE_ADRENO_KERNELS=ON"
+          .github/dockcross/dockcross-android-arm64 .github/build_opencl_android.sh "-DANDROID_PLATFORM=android-28 -DOS_NAME=Linux-Android -DOS_ARCH=aarch64 -DGGML_OPENCL=ON -DGGML_OPENCL_EMBED_KERNELS=ON -DGGML_OPENCL_USE_ADRENO_KERNELS=ON"
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -212,7 +212,7 @@ jobs:
       - name: Build libraries
         shell: bash
         run: |
-          mvn compile
+          mvn --no-transfer-progress compile
           .github/build.sh -DLLAMA_METAL=OFF -DGGML_NATIVE=OFF -DBUILD_TESTING=ON
       - name: Run C++ unit tests
         run: ctest --test-dir build --output-on-failure
@@ -243,7 +243,7 @@ jobs:
       - name: Build libraries
         shell: bash
         run: |
-          mvn compile
+          mvn --no-transfer-progress compile
           .github/build.sh -DLLAMA_METAL_EMBED_LIBRARY=ON -DBUILD_TESTING=ON
       - name: Run C++ unit tests
         run: ctest --test-dir build --output-on-failure
@@ -334,7 +334,7 @@ jobs:
           cat /proc/cpuinfo
       - name: Build libraries
         run: |
-          mvn -q compile
+          mvn -q --no-transfer-progress compile
           .github/build.sh -DBUILD_TESTING=ON
       - name: Run C++ unit tests
         run: ctest --test-dir build --output-on-failure
@@ -360,7 +360,7 @@ jobs:
       - name: Build libraries
         shell: bash
         run: |
-          mvn compile
+          mvn --no-transfer-progress compile
           .github/build.sh -DLLAMA_METAL_EMBED_LIBRARY=ON -DGGML_NATIVE=OFF -DBUILD_TESTING=ON
       - name: Run C++ unit tests
         run: ctest --test-dir build --output-on-failure
@@ -873,7 +873,7 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
       - name: Publish snapshot
-        run: mvn --batch-mode -P release,cuda,opencl-android -Dmaven.test.skip=true deploy
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android -Dmaven.test.skip=true deploy
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
@@ -948,7 +948,7 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
       - name: Publish release
-        run: mvn --batch-mode -P release,cuda,opencl-android -Dmaven.test.skip=true deploy
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android -Dmaven.test.skip=true deploy
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}

@@ -62,7 +62,7 @@ Three places wire it together (mirrors the CUDA classifier pattern):
 Local sanity build:
 ```bash
 .github/dockcross/dockcross-android-arm64 .github/build_opencl_android.sh \
-  "-DANDROID_PLATFORM=android-24 -DOS_NAME=Linux-Android -DOS_ARCH=aarch64 \
+  "-DANDROID_PLATFORM=android-28 -DOS_NAME=Linux-Android -DOS_ARCH=aarch64 \
    -DGGML_OPENCL=ON -DGGML_OPENCL_EMBED_KERNELS=ON \
    -DGGML_OPENCL_USE_ADRENO_KERNELS=ON"
 ```
