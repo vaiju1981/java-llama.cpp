@@ -49,6 +49,7 @@ SPDX-License-Identifier: MIT
 	</distributionManagement>
 
 	<properties>
+		<sonar.organization>bernardladenthin</sonar.organization>
 		<jna.version>5.19.0</jna.version>
 		<jspecify.version>1.0.0</jspecify.version>
 		<lombok.version>1.18.46</lombok.version>
