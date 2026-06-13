@@ -7,12 +7,14 @@ package net.ladenthin.llama;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.File;
 import java.util.List;
 import java.util.Map;
 import net.ladenthin.llama.parameters.ModelParameters;
 import net.ladenthin.llama.value.LlamaOutput;
 import net.ladenthin.llama.value.Pair;
 import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -30,6 +32,9 @@ public class RerankingModelTest {
 
     @BeforeAll
     public static void setup() {
+        Assumptions.assumeTrue(
+                new File("models/jina-reranker-v1-tiny-en-Q4_0.gguf").exists(),
+                "Reranking model not available, skipping tests");
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
         model = new LlamaModel(new ModelParameters()
                 .setCtxSize(128)
