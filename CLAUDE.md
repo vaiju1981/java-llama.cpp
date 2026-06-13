@@ -42,15 +42,46 @@ git commit -m "Upgrade CUDA from 13.2 to 13.3"
 
 Current Android minimum API level: **28** (Android 9.0 Pie)
 
-To change the minimum API level, update the following **three** places:
+This is enforced through bionic's **weak-symbol** mechanism, *not* by bumping
+`__ANDROID_API__` or passing `-DANDROID_PLATFORM`. See "How the API gate is
+satisfied" below for why. To change anything here, update:
 
-1. **`CMakeLists.txt`** — the `add_compile_definitions(__ANDROID_API__=28)` line (controls which NDK header symbols are exposed).
-2. **`.github/workflows/publish.yml`** — `-DANDROID_PLATFORM=android-28` in both the `crosscompile-android-aarch64` and `crosscompile-android-aarch64-opencl` job steps.
-3. **`CLAUDE.md`** (this file) — the "Current Android minimum API level" line above and the `-DANDROID_PLATFORM` values in the local sanity-build examples.
+1. **`CMakeLists.txt`** — the `add_compile_definitions(__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)`
+   block and its Android-detection guard (`OS_NAME MATCHES "Android"` etc.).
+2. **`CLAUDE.md`** (this file) — the "Current Android minimum API level" line above.
+3. **`README.md`** — the minimum-API note (the `[!NOTE]` block near the Android
+   classifier entries and the "Importing in Android" section).
 
-Also update the minimum-API note in **`README.md`** (the `[!NOTE]` block near the Android classifier entries and the "Importing in Android" section).
+**Why API 28?** `mtmd-helper.cpp` (part of the upstream llama.cpp `mtmd`
+multimodal library) includes `vendor/sheredom/subprocess.h`, which calls
+`posix_spawn`, `posix_spawnp`, and `posix_spawn_file_actions_*`. Bionic only
+exposes those `<spawn.h>` declarations once the minimum SDK is ≥ 28 (and
+`getifaddrs`/`freeifaddrs` in `<ifaddrs.h>`, used by cpp-httplib, at ≥ 24). The
+symbols exist in `libc.so` at all API levels; bionic only hides the
+*declarations* below the introducing API.
 
-**Why API 28?** `mtmd-helper.cpp` (part of the upstream llama.cpp `mtmd` multimodal library) includes `vendor/sheredom/subprocess.h`, which calls `posix_spawn`, `posix_spawnp`, and `posix_spawn_file_actions_*`. The Android NDK headers only expose those declarations when `__ANDROID_API__ >= 28`. The symbols exist in `libc.so` at all API levels; the define only gates their header visibility.
+**How the API gate is satisfied (important — the obvious fixes do not work).**
+The CI cross-compiler is the `dockcross-android-arm64` image, which is **not**
+the Google NDK CMake toolchain — it is a Debian-style cross-clang at
+`/usr/aarch64-linux-android/bin/clang`. Consequently:
+
+- It never sets the `ANDROID` / `ANDROID_ABI` CMake variables, so any
+  `if(ANDROID_ABI)`-guarded logic silently does nothing.
+- It **ignores** `-DANDROID_PLATFORM=android-28` (CMake prints it as a
+  "Manually-specified variables were not used by the project" warning).
+- `clang` predefines `__ANDROID_API__` from its baked-in target triple, so
+  `-D__ANDROID_API__=28` would only clash with the builtin (`-Wmacro-redefined`)
+  and would *not* move `__ANDROID_MIN_SDK_VERSION__`, which is what bionic's
+  `__BIONIC_AVAILABILITY_GUARD(api)` actually tests.
+
+The working fix is `add_compile_definitions(__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)`
+for the Android build. That macro forces `__BIONIC_AVAILABILITY_GUARD(api)` to
+`1` for every API level (declarations always visible) and makes any symbol newer
+than the toolchain's baked-in min-SDK a **weak** reference resolved by the
+dynamic linker at load time — present on every API-28+ device the artifact
+targets. It is never compiler-predefined, so defining it is clean. The guard
+detects Android via `OS_NAME MATCHES "Android"` (CI passes
+`-DOS_NAME=Linux-Android`) and the compiler path, not `ANDROID_ABI`.
 
 ## OpenCL / Adreno backend on Android
 
@@ -76,7 +107,7 @@ Three places wire it together (mirrors the CUDA classifier pattern):
 Local sanity build:
 ```bash
 .github/dockcross/dockcross-android-arm64 .github/build_opencl_android.sh \
-  "-DANDROID_PLATFORM=android-28 -DOS_NAME=Linux-Android -DOS_ARCH=aarch64 \
+  "-DOS_NAME=Linux-Android -DOS_ARCH=aarch64 \
    -DGGML_OPENCL=ON -DGGML_OPENCL_EMBED_KERNELS=ON \
    -DGGML_OPENCL_USE_ADRENO_KERNELS=ON"
 ```
