@@ -80,7 +80,7 @@ SPDX-License-Identifier: MIT
 		<fb-contrib.version>7.7.4</fb-contrib.version>
 		<findsecbugs.version>1.14.0</findsecbugs.version>
 		<spotless.version>3.6.0</spotless.version>
-		<palantir-java-format.version>2.91.0</palantir-java-format.version>
+		<palantir-java-format.version>2.92.0</palantir-java-format.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<project.build.outputTimestamp>${git.commit.time}</project.build.outputTimestamp>
 	</properties>
