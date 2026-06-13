@@ -47,12 +47,14 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_L
     link_libraries(stdc++fs)
 endif()
 
-# Android standalone toolchains default to API level 21, but cpp-httplib uses
-# getifaddrs/freeifaddrs which are only declared in <ifaddrs.h> when
-# __ANDROID_API__ >= 24. NDK unified sysroots (r14b+) include the symbol in
-# libc regardless of level; this exposes the declaration for all targets.
+# Android NDK headers gate symbols on __ANDROID_API__:
+#   >= 24: getifaddrs/freeifaddrs (<ifaddrs.h>), needed by cpp-httplib.
+#   >= 28: posix_spawn / posix_spawnp / posix_spawn_file_actions_* (<spawn.h>),
+#          needed by mtmd-helper.cpp (vendor/sheredom/subprocess.h).
+# NDK unified sysroots (r14b+) include all these symbols in libc regardless of
+# level; the define only controls which declarations are visible in the headers.
 if(ANDROID_ABI)
-    add_compile_definitions(__ANDROID_API__=24)
+    add_compile_definitions(__ANDROID_API__=28)
 endif()
 
 set(LLAMA_BUILD_COMMON ON)

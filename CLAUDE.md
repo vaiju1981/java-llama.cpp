@@ -38,6 +38,20 @@ git add .github/build_cuda_linux.sh pom.xml CLAUDE.md
 git commit -m "Upgrade CUDA from 13.2 to 13.3"
 ```
 
+## Android minimum API level
+
+Current Android minimum API level: **28** (Android 9.0 Pie)
+
+To change the minimum API level, update the following **three** places:
+
+1. **`CMakeLists.txt`** — the `add_compile_definitions(__ANDROID_API__=28)` line (controls which NDK header symbols are exposed).
+2. **`.github/workflows/publish.yml`** — `-DANDROID_PLATFORM=android-28` in both the `crosscompile-android-aarch64` and `crosscompile-android-aarch64-opencl` job steps.
+3. **`CLAUDE.md`** (this file) — the "Current Android minimum API level" line above and the `-DANDROID_PLATFORM` values in the local sanity-build examples.
+
+Also update the minimum-API note in **`README.md`** (the `[!NOTE]` block near the Android classifier entries and the "Importing in Android" section).
+
+**Why API 28?** `mtmd-helper.cpp` (part of the upstream llama.cpp `mtmd` multimodal library) includes `vendor/sheredom/subprocess.h`, which calls `posix_spawn`, `posix_spawnp`, and `posix_spawn_file_actions_*`. The Android NDK headers only expose those declarations when `__ANDROID_API__ >= 28`. The symbols exist in `libc.so` at all API levels; the define only gates their header visibility.
+
 ## OpenCL / Adreno backend on Android
 
 A second Android arm64 artifact is built with the OpenCL backend enabled and
@@ -62,7 +76,7 @@ Three places wire it together (mirrors the CUDA classifier pattern):
 Local sanity build:
 ```bash
 .github/dockcross/dockcross-android-arm64 .github/build_opencl_android.sh \
-  "-DANDROID_PLATFORM=android-24 -DOS_NAME=Linux-Android -DOS_ARCH=aarch64 \
+  "-DANDROID_PLATFORM=android-28 -DOS_NAME=Linux-Android -DOS_ARCH=aarch64 \
    -DGGML_OPENCL=ON -DGGML_OPENCL_EMBED_KERNELS=ON \
    -DGGML_OPENCL_USE_ADRENO_KERNELS=ON"
 ```
