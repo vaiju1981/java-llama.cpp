@@ -159,19 +159,6 @@ public class LlamaModel implements AutoCloseable {
     }
 
     /**
-     * Cancellable variant of {@link #complete(InferenceParameters)}. Runs in streaming mode
-     * internally so the inference loop can observe a {@link net.ladenthin.llama.callback.CancellationToken#cancel()} call
-     * from another thread and return early with whatever text was accumulated so far.
-     * <p>
-     * The token is rebound to this call (any prior {@code cancel} state is cleared on entry).
-     * On return &mdash; whether by natural stop or cancellation &mdash; the token is unbound.
-     * </p>
-     *
-     * @param parameters the inference configuration (its {@code stream} flag will be set to true)
-     * @param token cancellation handle; {@link net.ladenthin.llama.callback.CancellationToken#cancel()} aborts the loop
-     * @return the text generated up to the point of stop or cancellation
-     */
-    /**
      * Dispatch a list of completion requests in parallel and return the generated texts
      * in the same order. Each request is sent immediately; the native scheduler dispatches
      * tasks across whatever slot count {@link net.ladenthin.llama.parameters.ModelParameters#setParallel(int)} was
