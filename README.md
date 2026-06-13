@@ -202,6 +202,9 @@ Pick at most one — they are mutually exclusive.
 > by the released artifacts; building from source via the
 > `.github/dockcross/dockcross-android-arm` toolchain is possible but not
 > wired into CI.
+>
+> The minimum required Android version is **API 28 (Android 9.0 Pie)**.
+> Devices running Android 8.1 (API 27) or earlier are not supported.
 
 ### Setup required
 
@@ -505,6 +508,10 @@ The `LogLevel` enum values passed to the callback correspond to the native llama
 | `ERROR` | Errors that may affect inference results |
 
 ## Importing in Android
+
+> [!IMPORTANT]
+> **Minimum Android version: API 28 (Android 9.0 Pie).** Devices running
+> Android 8.1 (API 27) or earlier are not supported.
 
 You can use this library in Android project.
 1. Add java-llama.cpp as a submodule in your an droid `app` project directory
