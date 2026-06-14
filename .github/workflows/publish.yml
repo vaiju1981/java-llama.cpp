@@ -434,7 +434,7 @@ jobs:
           path: target/site/jacoco/jacoco.xml
           if-no-files-found: ignore
       - name: Run PIT mutation tests
-        run: mvn --batch-mode --no-transfer-progress test-compile org.pitest:pitest-maven:mutationCoverage -Dmaven.javadoc.skip=true
+        run: mvn --batch-mode --no-transfer-progress test-compile org.pitest:pitest-maven:mutationCoverage
       - name: Extract PIT survivors
         if: always()
         run: |
