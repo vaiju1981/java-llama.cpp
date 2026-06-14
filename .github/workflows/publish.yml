@@ -62,7 +62,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.3
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5.2.0
         with:
           java-version: '21'
           distribution: temurin
@@ -197,7 +197,7 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v6.0.3
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5.2.0
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -228,7 +228,7 @@ jobs:
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v6.0.3
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5.2.0
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -321,7 +321,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6.0.3
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5.2.0
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -345,7 +345,7 @@ jobs:
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v6.0.3
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5.2.0
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -410,7 +410,7 @@ jobs:
         run: ls -l models/
       - name: Validate model files
         run: bash .github/validate-models.sh
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5.2.0
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -500,7 +500,7 @@ jobs:
         run: ls -l models/
       - name: Validate model files
         run: bash .github/validate-models.sh
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5.2.0
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -564,7 +564,7 @@ jobs:
         run: ls -l models/
       - name: Validate model files
         run: bash .github/validate-models.sh
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5.2.0
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -628,7 +628,7 @@ jobs:
         run: ls -l models/
       - name: Validate model files
         run: bash .github/validate-models.sh
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5.2.0
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -695,7 +695,7 @@ jobs:
         run: ls -l models/
       - name: Validate model files
         run: .github\validate-models.bat
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5.2.0
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -779,7 +779,7 @@ jobs:
         with:
           name: android-libraries-opencl
           path: ${{ github.workspace }}/src/main/resources_android_opencl/net/ladenthin/llama/
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5.2.0
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
@@ -799,7 +799,7 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6.0.3
-      - uses: actions/setup-java@v5
+      - uses: actions/setup-java@v5.2.0
         with: { java-version: '${{ env.JAVA_VERSION }}', distribution: temurin }
       - uses: actions/download-artifact@v8
         with: { name: jacoco-report, path: target/site/jacoco/ }
@@ -863,7 +863,7 @@ jobs:
           name: android-libraries-opencl
           path: ${{ github.workspace }}/src/main/resources_android_opencl/net/ladenthin/llama/
       - name: Set up Maven Central Repository
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v5.2.0
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
@@ -938,7 +938,7 @@ jobs:
           name: android-libraries-opencl
           path: ${{ github.workspace }}/src/main/resources_android_opencl/net/ladenthin/llama/
       - name: Set up Maven Central Repository
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v5.2.0
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
