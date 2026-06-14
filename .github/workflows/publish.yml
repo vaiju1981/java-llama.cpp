@@ -466,6 +466,32 @@ jobs:
             ${{ github.workspace }}/target/surefire-reports/TEST-*.xml
           if-no-files-found: warn
 
+  # ---------------------------------------------------------------------------
+  # vmlens interleaving analysis — pure-Java, needs no native library or models.
+  # Staged to a single smoke test for now (see the `vmlens` profile in pom.xml).
+  # ---------------------------------------------------------------------------
+  vmlens:
+    name: Test (vmlens interleavings)
+    needs: startgate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+      - name: Test under vmlens (one class — staged scope)
+        run: >-
+          mvn --batch-mode --no-transfer-progress -Pvmlens test
+          -Dtest=VmlensInterleavingSmokeTest -DfailIfNoTests=false
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: vmlens-report
+          path: target/vmlens-report/
+          if-no-files-found: ignore
+
   test-java-macos-arm64-metal:
     name: Java Tests macOS 14 arm64 (Metal)
     needs: build-macos-arm64-metal
