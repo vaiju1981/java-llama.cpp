@@ -478,6 +478,17 @@ Functions: `get_result_error_message`, `results_to_json`, `rerank_results_to_jso
 `parse_encoding_format`, `extract_embedding_prompt`, `is_infill_request`,
 `parse_slot_prompt_similarity`, `parse_positive_int_config`.
 
+**`log_helpers.hpp`** — Pure log-formatting transforms.
+- Input: `ggml_log_level`, message text (`const char*`), an explicit `std::time_t` timestamp.
+- Output: `const char*` level label / `std::string` JSON.
+- Zero JNI calls (`JNIEnv*` never appears).
+- Zero llama/server state — depends only on the `ggml_log_level` enum (from `ggml.h`) and
+  nlohmann/json; no upstream server headers required (more standalone than `json_helpers.hpp`).
+- Functions are `[[nodiscard]] inline`, named without an `_impl` suffix — the canonical implementation.
+- Testable with literal levels/strings and a fixed timestamp; no JVM and no loaded model required.
+
+Functions: `log_level_name`, `format_log_as_json`.
+
 **`jni_helpers.hpp`** — JNI bridge helpers, split into two layers:
 
 *Layer A* (no server headers required): handle management.
@@ -570,15 +581,16 @@ ctest --test-dir build --output-on-failure -R "ResultsToJson"
 | File | Tests | Scope |
 |------|-------|-------|
 | `src/test/cpp/test_utils.cpp` | 156 | Upstream helpers: `server_tokens`, `server_grammar_trigger`, `gen_tool_call_id`, `json_value`, `json_get_nested_values`, UTF-8 helpers, `format_response_rerank`, `format_embeddings_response_oaicompat`, `oaicompat_completion_params_parse`, `oaicompat_chat_params_parse`, `are_lora_equal`, `strip_flag_from_argv`, `token_piece_value`, `json_is_array_and_contains_numbers`, `format_oai_sse`, `format_oai_resp_sse`, `format_anthropic_sse` |
-| `src/test/cpp/test_server.cpp` | 179 | Upstream result types: `result_timings`, `task_params::to_json()` (incl. `dry_sequence_breakers`, `preserved_tokens`, `timings_per_token`), `completion_token_output`, `server_task_result_cmpl_partial` (non-oaicompat + `to_json_oaicompat` + logprobs + `to_json_oaicompat_chat` + `to_json_anthropic` + dispatcher), `server_task_result_cmpl_final` (non-oaicompat + `to_json_oaicompat` + `to_json_oaicompat_chat` + `to_json_oaicompat_chat_stream` + `to_json_anthropic` + `to_json_anthropic_stream` + tool_calls + dispatcher), `server_task_result_embd`, `server_task_result_rerank`, `server_task_result_metrics`, `server_task_result_slot_save_load`, `server_task_result_slot_erase`, `server_task_result_apply_lora`, `server_task_result_error`, `format_error_response`, `server_task::need_sampling()`, `server_task::n_tokens()`, `server_task::params_from_json_cmpl()` (parsing pipeline + grammar routing + error paths), `response_fields` projection |
+| `src/test/cpp/test_server.cpp` | 188 | Upstream result types: `result_timings`, `task_params::to_json()` (incl. `dry_sequence_breakers`, `preserved_tokens`, `timings_per_token`), `completion_token_output`, `server_task_result_cmpl_partial` (non-oaicompat + `to_json_oaicompat` + logprobs + `to_json_oaicompat_chat` + `to_json_anthropic` + dispatcher), `server_task_result_cmpl_final` (non-oaicompat + `to_json_oaicompat` + `to_json_oaicompat_chat` + `to_json_oaicompat_chat_stream` + `to_json_anthropic` + `to_json_anthropic_stream` + tool_calls + dispatcher), `server_task_result_embd`, `server_task_result_rerank`, `server_task_result_metrics`, `server_task_result_slot_save_load`, `server_task_result_slot_erase`, `server_task_result_apply_lora`, `server_task_result_error`, `format_error_response`, `server_task::need_sampling()`, `server_task::n_tokens()`, `server_task::params_from_json_cmpl()` (parsing pipeline + grammar routing + error paths), `response_fields` projection |
 | `src/test/cpp/test_json_helpers.cpp` | 42 | All functions in `json_helpers.hpp`: `get_result_error_message`, `results_to_json`, `rerank_results_to_json`, `parse_encoding_format`, `extract_embedding_prompt`, `is_infill_request`, `parse_slot_prompt_similarity`, `parse_positive_int_config` |
-| `src/test/cpp/test_jni_helpers.cpp` | 36 | All functions in `jni_helpers.hpp` using a zero-filled `JNINativeInterface_` mock |
+| `src/test/cpp/test_log_helpers.cpp` | 13 | All functions in `log_helpers.hpp`: `log_level_name`, `format_log_as_json` |
+| `src/test/cpp/test_jni_helpers.cpp` | 41 | All functions in `jni_helpers.hpp` using a zero-filled `JNINativeInterface_` mock |
 
-**Current total: 417 tests (all passing).** Branch: `claude/determined-volta-T8AoQ`.
+**Current total: 440 tests (all passing).**
 
 #### Upstream source location (in CMake build tree)
 
-llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b8953`.
+llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9637`.
 
 ```
 build/_deps/llama.cpp-src/tools/server/   ← server-task.h, server-common.h, etc.
