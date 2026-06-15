@@ -481,10 +481,13 @@ jobs:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
           cache: maven
-      - name: Test under vmlens (one class — staged scope)
+      - name: Test under vmlens (interleaving analysis)
+        # Add each new test in the `vmlens` package to this -Dtest list (surefire
+        # -Dtest matches simple class names, not package globs; the default suite is
+        # excluded from the vmlens package via pom.xml managed surefire <excludes>).
         run: >-
           mvn --batch-mode --no-transfer-progress -Pvmlens test
-          -Dtest=VmlensInterleavingSmokeTest -DfailIfNoTests=false
+          -Dtest=VmlensInterleavingSmokeTest,SessionStateInterleavingTest -DfailIfNoTests=false
       - uses: actions/upload-artifact@v7
         if: always()
         with:
