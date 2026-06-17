@@ -422,7 +422,7 @@ jobs:
           echo "${{ github.workspace }}/core.%e.%p" | sudo tee /proc/sys/kernel/core_pattern
       - name: Run tests
         run: |
-          mvn --no-transfer-progress -P jcstress test \
+          mvn -e --no-transfer-progress -P jcstress test \
             -Dnet.ladenthin.llama.nomic.path=models/${NOMIC_EMBED_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
@@ -539,7 +539,7 @@ jobs:
         run: ulimit -c unlimited
       - name: Run tests
         run: |
-          mvn --no-transfer-progress -Dnet.ladenthin.llama.test.ngl=0 test \
+          mvn -e --no-transfer-progress -Dnet.ladenthin.llama.test.ngl=0 test \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
             -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH}
@@ -603,7 +603,7 @@ jobs:
         run: ulimit -c unlimited
       - name: Run tests
         run: |
-          mvn --no-transfer-progress test \
+          mvn -e --no-transfer-progress test \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
             -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH}
@@ -667,7 +667,7 @@ jobs:
         run: ulimit -c unlimited
       - name: Run tests
         run: |
-          mvn --no-transfer-progress test \
+          mvn -e --no-transfer-progress test \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
             -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH}
@@ -750,7 +750,7 @@ jobs:
           Get-ItemProperty -Path $key | Format-List
       - name: Run tests
         run: |
-          mvn --no-transfer-progress test `
+          mvn -e --no-transfer-progress test `
             "-Dnet.ladenthin.llama.vision.model=models/$env:VISION_MODEL_NAME" `
             "-Dnet.ladenthin.llama.vision.mmproj=models/$env:VISION_MMPROJ_NAME" `
             "-Dnet.ladenthin.llama.vision.image=$env:VISION_IMAGE_PATH"

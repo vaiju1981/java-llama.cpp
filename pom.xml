@@ -587,7 +587,7 @@ SPDX-License-Identifier: MIT
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
-					<argLine>@{argLine} -XX:ErrorFile=hs_err_pid%p.log -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=.</argLine>
+					<argLine>@{argLine} -Xmx2g -XX:ErrorFile=hs_err_pid%p.log -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=.</argLine>
 					<!--
 					  Capture each test class's stdout/stderr into
 					  target/surefire-reports/<class>-output.txt. When a native crash
