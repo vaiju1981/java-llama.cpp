@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9642**
+Current llama.cpp pinned version: **b9682**
 
 ## Upgrading CUDA Version
 
@@ -590,7 +590,7 @@ ctest --test-dir build --output-on-failure -R "ResultsToJson"
 
 #### Upstream source location (in CMake build tree)
 
-llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9642`.
+llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9682`.
 
 ```
 build/_deps/llama.cpp-src/tools/server/   ← server-task.h, server-common.h, etc.
