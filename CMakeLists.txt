@@ -355,5 +355,14 @@ if(BUILD_TESTING)
         SERVER_VERBOSE=$<BOOL:${LLAMA_VERBOSE}>
     )
 
-    gtest_discover_tests(jllama_test)
+    # gtest_discover_tests runs the freshly built jllama_test executable at build
+    # time (POST_BUILD) to enumerate test cases. The default discovery timeout is
+    # 5s. The 32-bit Windows (Win32) build links the entire llama/ggml/server tree
+    # statically into one large binary whose startup + test enumeration sits right
+    # at that 5s boundary on shared CI runners: the same b9682 binary discovered
+    # within 5s in one run but was killed at the 5s timeout in another (empty
+    # output, process still alive — a timeout, not a crash). x64/Linux/macOS finish
+    # well under the default. Raise the budget so 32-bit discovery is not flaky;
+    # this is a maximum, so fast platforms still return immediately.
+    gtest_discover_tests(jllama_test DISCOVERY_TIMEOUT 120)
 endif()
