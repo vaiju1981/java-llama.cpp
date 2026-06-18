@@ -55,6 +55,40 @@ These are JNI plumbing items for upstream API additions. Policy: add only after 
 
   **Out of scope until evidence supports it**: actually implementing any of the above. This entry exists so that when someone asks "can I ship java-llama.cpp as a single 30 MB binary?" the answer points to a concrete investigation plan rather than restarting from zero.
 
+### OpenAI-compatible server: token streaming (SSE) + Java-8 HTTP layer
+
+The `net.ladenthin.llama.server.LlamaServer` MVP is **non-streaming**: every request calls
+the blocking `LlamaModel.handle*` method and returns the full JSON response in one shot. A
+client that sends `"stream": true` still receives a single response, not the incremental
+`text/event-stream` (SSE) `data: {chunk}\n\n` events the OpenAI API emits for streaming
+chat/completions. This is the main functional gap of the server today.
+
+The token source already exists — `LlamaModel.generateChat(InferenceParameters)` /
+`generate(...)` yield tokens incrementally through a Java `Iterator` (`LlamaIterable`). What
+is missing is an HTTP layer that emits SSE.
+
+**Find a Java-8-compatible HTTP layer with good SSE support (alternative to Javalin), or
+implement SSE on NanoHTTPD.** Javalin has a first-class `ctx.sse(...)` API but is **not
+usable here**: Javalin 5 requires Java 11 and Javalin 6 requires Java 17, while this repo
+targets Java 8; Javalin 4 (the last Java-8 release) is EOL. Options, in rough order of
+preference:
+- **Implement SSE on the existing NanoHTTPD** via `NanoHTTPD.newChunkedResponse(status,
+  "text/event-stream", InputStream)`, bridging a `LlamaIterable` to an `InputStream` that
+  writes `data: {chunk}\n\n` frames. No new dependency, stays Java-8 clean; likely the right
+  answer. Cost: the iterator→SSE bridge plus closing the `LlamaIterable` on client
+  disconnect.
+- **Undertow** — Java-8 compatible, has a server-sent-events handler, but a heavier
+  dependency tree.
+- **Spark Java** (Jetty 9) — Java-8 compatible; SSE support is limited/manual.
+- Avoid: Javalin 5/6 (Java 11/17), Javalin 4 (EOL), and the JDK `com.sun.net.httpserver`
+  (ArchUnit-banned `com.sun..`).
+
+Scope when implemented: honour `"stream": true` on `POST /v1/chat/completions` and
+`POST /v1/completions`, emit OpenAI-style SSE chunks terminated by `data: [DONE]`, close the
+underlying `LlamaIterable` on disconnect, and keep the non-streaming path as the default. Add
+a model-free routing test plus a real-socket SSE integration test (mirroring
+`OaiHttpServerIntegrationTest`).
+
 ## Open — cross-cutting (slice for this repo)
 
 - **jqwik pin policy** — see [`../workspace/policies/jqwik-prompt-injection.md`](../workspace/policies/jqwik-prompt-injection.md). `jqwik.version ≤ 1.9.3` is mandatory.

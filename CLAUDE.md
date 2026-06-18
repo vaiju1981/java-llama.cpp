@@ -229,6 +229,7 @@ For the full record of upstream API breaks across version ranges (b5022 &#x2192;
 mvn compile          # Compiles Java and generates JNI headers
 mvn test             # Run all tests (requires native library and model files)
 mvn package          # Build JAR
+mvn -P assembly package  # Also build the fat jar-with-dependencies uber JAR (library + Java deps + native libs); CI builds it and uploads it in the `llama-jars` artifact
 mvn test -Dtest=LlamaModelTest#testGenerate  # Run a single test method
 ```
 
@@ -452,6 +453,7 @@ If the local check passes (`BUILD SUCCESS`), the `mvn package` job in
 - `LlamaIterator` / `LlamaIterable` — Streaming generation via Java `Iterator`/`Iterable`.
 - `LlamaLoader` — Extracts the platform-specific native library from the JAR to a temp directory, or finds it on `java.library.path`.
 - `OSInfo` — Detects OS and architecture for library resolution.
+- `server.LlamaServer` — Optional OpenAI-compatible HTTP server and the fat-jar `Main-Class`. `LlamaServerArgs` parses the CLI; `OaiRouter` / `OaiHttpServer` (NanoHTTPD) map `POST /v1/chat/completions`, `/v1/completions`, `/v1/embeddings` and `GET /v1/models` to the `LlamaModel.handle*` methods. NanoHTTPD is an `<optional>` dependency (bundled only in the fat jar, not inherited by library consumers). The `server` package is a dedicated top layer in the ArchUnit `layeredArchitecture` rule (the only layer allowed to access the root `Api`). See README "OpenAI-compatible HTTP server".
 
 **Native layer** (`src/main/cpp/`):
 - `jllama.cpp` — JNI implementation bridging Java calls to llama.cpp. ~1,215 lines; 17 native methods.
