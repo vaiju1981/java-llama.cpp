@@ -28,13 +28,13 @@
 #include <string>
 #include <vector>
 
-#include "json_helpers.hpp"
-#include "server-chat.h"
-#include "server-common.h"
 #include "server-context.h"
 #include "server-queue.h"
 #include "server-task.h"
+#include "server-common.h"
+#include "server-chat.h"
 #include "utils.hpp"
+#include "json_helpers.hpp"
 
 // ============================================================
 // Minimal fake result types

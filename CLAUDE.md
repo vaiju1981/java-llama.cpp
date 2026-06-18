@@ -407,6 +407,13 @@ The generated JNI header `src/main/cpp/jllama.h` (produced by `javac -h`) is int
 To bump the enforced version, update the pin in **both** the workflow (`CLANG_FORMAT_VERSION`) and
 this line, then reformat the whole tree with the new version in the same commit.
 
+**`.clang-format` sets `SortIncludes: Never` — do not re-enable include sorting.** The project has
+order-sensitive includes (see the "Include order rule" above): the upstream `server-*.h` headers and
+`utils.hpp` must precede `json_helpers.hpp` / `jni_helpers.hpp`, which use the `json` alias those
+headers define. Alphabetical sorting moves the helper headers first and breaks the build with
+`'json' does not name a type` (it slips past a local build whose toolchain resolves `json` anyway,
+but fails the manylinux/aarch64/Android CI compilers). Keep include order manual.
+
 ### Javadoc — must build cleanly before `mvn package`
 
 The release packaging job runs `mvn package` with the `release` profile, which attaches

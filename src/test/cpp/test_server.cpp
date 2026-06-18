@@ -20,11 +20,11 @@
 
 #include <gtest/gtest.h>
 
-#include "server-chat.h"
-#include "server-common.h"
 #include "server-context.h"
 #include "server-queue.h"
 #include "server-task.h"
+#include "server-common.h"
+#include "server-chat.h"
 #include "utils.hpp"
 
 // ============================================================

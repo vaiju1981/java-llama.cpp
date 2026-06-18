@@ -175,7 +175,10 @@ RequiresClausePosition: OwnLine
 RequiresExpressionIndentation: OuterScope
 SeparateDefinitionBlocks: Leave
 ShortNamespaceLines: 1
-SortIncludes:    CaseSensitive
+# Never reorder #include lines: this project has order-sensitive includes — the upstream
+# server-*.h headers must precede json_helpers.hpp / jni_helpers.hpp (which use the `json`
+# alias those headers define). Alphabetical sorting breaks the build (json undefined).
+SortIncludes:    Never
 SortJavaStaticImport: Before
 SortUsingDeclarations: LexicographicNumeric
 SpaceAfterCStyleCast: false

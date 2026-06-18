@@ -22,13 +22,13 @@
 
 #include <gtest/gtest.h>
 
-#include "jni_helpers.hpp"
-#include "server-chat.h"
-#include "server-common.h"
 #include "server-context.h"
 #include "server-queue.h"
 #include "server-task.h"
+#include "server-common.h"
+#include "server-chat.h"
 #include "utils.hpp"
+#include "jni_helpers.hpp"
 #include <cstring>
 #include <memory>
 #include <string>
