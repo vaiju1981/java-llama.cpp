@@ -58,6 +58,7 @@ SPDX-License-Identifier: MIT
 		<checker.version>4.2.0</checker.version>
 		<jackson.version>2.22.0</jackson.version>
 		<reactor.version>3.8.6</reactor.version>
+		<nanohttpd.version>2.3.1</nanohttpd.version>
 		<slf4j.version>2.0.18</slf4j.version>
 		<logback.version>1.5.34</logback.version>
 		<animal-sniffer.version>1.27</animal-sniffer.version>
@@ -147,6 +148,20 @@ SPDX-License-Identifier: MIT
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
 			<version>${jackson.version}</version>
+		</dependency>
+		<!--
+			Embedded HTTP server for the optional OpenAI-compatible server entry point
+			(net.ladenthin.llama.server.LlamaServer, the fat-jar Main-Class). Declared
+			<optional> so library consumers do NOT inherit it on their classpath; the
+			assembly (jar-with-dependencies) profile still bundles it so the fat jar can
+			run the server. Pure Java, zero transitive deps (Java-8 clean), so it does
+			not perturb the enforcer dependencyConvergence rule.
+		-->
+		<dependency>
+			<groupId>org.nanohttpd</groupId>
+			<artifactId>nanohttpd</artifactId>
+			<version>${nanohttpd.version}</version>
+			<optional>true</optional>
 		</dependency>
 		<!-- Required by OSInfo (vendored from xerial/sqlite-jdbc) for log emission. -->
 		<dependency>
@@ -994,6 +1009,11 @@ SPDX-License-Identifier: MIT
 							<descriptorRefs>
 								<descriptorRef>jar-with-dependencies</descriptorRef>
 							</descriptorRefs>
+							<archive>
+								<manifest>
+									<mainClass>net.ladenthin.llama.server.LlamaServer</mainClass>
+								</manifest>
+							</archive>
 						</configuration>
 						<executions>
 							<execution>
