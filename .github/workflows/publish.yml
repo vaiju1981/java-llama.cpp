@@ -10,6 +10,11 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: "Publish a RELEASE to Maven Central. Off by default; the release publish runs only when this is true AND the workflow is run on a v* tag."
+        type: boolean
+        default: false
 env:
   JAVA_VERSION: '21'
   MODEL_URL: "https://huggingface.co/TheBloke/CodeLlama-7B-GGUF/resolve/main/codellama-7b.Q2_K.gguf"
@@ -945,7 +950,7 @@ jobs:
 
   publish-release:
     name: Publish Release to Central
-    if: needs.check-tag.result == 'success'
+    if: needs.check-tag.result == 'success' && inputs.publish_release
     needs: [check-tag, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, code-style]
     runs-on: ubuntu-latest
     environment: maven-central
