@@ -58,6 +58,7 @@ SPDX-License-Identifier: MIT
 		<checker.version>4.2.0</checker.version>
 		<jackson.version>2.22.0</jackson.version>
 		<reactor.version>3.8.6</reactor.version>
+		<nanohttpd.version>2.3.1</nanohttpd.version>
 		<slf4j.version>2.0.18</slf4j.version>
 		<logback.version>1.5.34</logback.version>
 		<animal-sniffer.version>1.27</animal-sniffer.version>
@@ -147,6 +148,20 @@ SPDX-License-Identifier: MIT
 			<groupId>com.fasterxml.jackson.core</groupId>
 			<artifactId>jackson-databind</artifactId>
 			<version>${jackson.version}</version>
+		</dependency>
+		<!--
+			Embedded HTTP server for the optional OpenAI-compatible server entry point
+			(net.ladenthin.llama.server.LlamaServer, the fat-jar Main-Class). Declared
+			<optional> so library consumers do NOT inherit it on their classpath; the
+			assembly (jar-with-dependencies) profile still bundles it so the fat jar can
+			run the server. Pure Java, zero transitive deps (Java-8 clean), so it does
+			not perturb the enforcer dependencyConvergence rule.
+		-->
+		<dependency>
+			<groupId>org.nanohttpd</groupId>
+			<artifactId>nanohttpd</artifactId>
+			<version>${nanohttpd.version}</version>
+			<optional>true</optional>
 		</dependency>
 		<!-- Required by OSInfo (vendored from xerial/sqlite-jdbc) for log emission. -->
 		<dependency>
@@ -258,6 +273,11 @@ SPDX-License-Identifier: MIT
 					<groupId>io.github.git-commit-id</groupId>
 					<artifactId>git-commit-id-maven-plugin</artifactId>
 					<version>10.0.0</version>
+				</plugin>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-assembly-plugin</artifactId>
+					<version>3.8.0</version>
 				</plugin>
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
@@ -962,6 +982,45 @@ SPDX-License-Identifier: MIT
 										<argument>default</argument>
 									</arguments>
 								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+		<profile>
+			<!--
+				Builds the fat jar-with-dependencies uber JAR: the library classes, the
+				default-platform native libs from src/main/resources, and all runtime Java
+				dependencies in one drop-on-classpath JAR, runnable via the LlamaServer
+				Main-Class (set below) to start the OpenAI-compatible HTTP server. Off by
+				default; the CI `package` job activates it so the uber JAR rides along in the
+				`llama-jars` upload-artifact bundle. Documented in CLAUDE.md "Build Commands"
+				as `mvn -P assembly package`.
+			-->
+			<id>assembly</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-assembly-plugin</artifactId>
+						<configuration>
+							<descriptorRefs>
+								<descriptorRef>jar-with-dependencies</descriptorRef>
+							</descriptorRefs>
+							<archive>
+								<manifest>
+									<mainClass>net.ladenthin.llama.server.LlamaServer</mainClass>
+								</manifest>
+							</archive>
+						</configuration>
+						<executions>
+							<execution>
+								<id>build-fat-jar</id>
+								<phase>package</phase>
+								<goals>
+									<goal>single</goal>
+								</goals>
 							</execution>
 						</executions>
 					</plugin>

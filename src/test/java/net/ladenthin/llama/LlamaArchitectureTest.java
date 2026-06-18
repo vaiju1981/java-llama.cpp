@@ -91,8 +91,11 @@ public class LlamaArchitectureTest {
      * {@code mayOnlyBeAccessedByLayers} lists the EXACT set of packages that reference it today
      * (verified against the compiled bytecode graph), so even intra-tier edges are governed: a
      * new dependency between any two packages fails the build unless this rule is updated to
-     * intend it. Conceptual tiers (informational): {@code Api} (root) &gt; {@code Loader} &gt;
-     * {@code Json}/{@code Parameters} &gt; {@code Value}/{@code Callback}/{@code Exception}/{@code Args}.
+     * intend it. Conceptual tiers (informational): {@code Server} &gt; {@code Api} (root) &gt;
+     * {@code Loader} &gt; {@code Json}/{@code Parameters} &gt;
+     * {@code Value}/{@code Callback}/{@code Exception}/{@code Args}. The {@code Server} layer is the
+     * optional OpenAI-compatible HTTP entry point; it is the only layer permitted to access the
+     * {@code Api} root.
      */
     @ArchTest
     static final ArchRule layeredArchitecture = layeredArchitecture()
@@ -113,14 +116,16 @@ public class LlamaArchitectureTest {
             .definedBy("net.ladenthin.llama.exception..")
             .layer("Args")
             .definedBy("net.ladenthin.llama.args..")
+            .layer("Server")
+            .definedBy("net.ladenthin.llama.server..")
             .whereLayer("Api")
-            .mayNotBeAccessedByAnyLayer()
+            .mayOnlyBeAccessedByLayers("Server")
             .whereLayer("Loader")
             .mayOnlyBeAccessedByLayers("Api")
             .whereLayer("Json")
             .mayOnlyBeAccessedByLayers("Api")
             .whereLayer("Parameters")
-            .mayOnlyBeAccessedByLayers("Api", "Loader")
+            .mayOnlyBeAccessedByLayers("Api", "Loader", "Server")
             .whereLayer("Value")
             .mayOnlyBeAccessedByLayers("Api", "Json", "Parameters")
             .whereLayer("Callback")
@@ -128,7 +133,9 @@ public class LlamaArchitectureTest {
             .whereLayer("Exception")
             .mayOnlyBeAccessedByLayers("Api", "Loader")
             .whereLayer("Args")
-            .mayOnlyBeAccessedByLayers("Api", "Loader", "Parameters");
+            .mayOnlyBeAccessedByLayers("Api", "Loader", "Parameters")
+            .whereLayer("Server")
+            .mayNotBeAccessedByAnyLayer();
 
     /**
      * Production code must not import unsupported / internal JDK packages.

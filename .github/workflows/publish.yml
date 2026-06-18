@@ -10,6 +10,11 @@ on:
     tags: ['v*']
   pull_request:
   workflow_dispatch:
+    inputs:
+      publish_to_central:
+        description: "Deploy to Maven Central (snapshot if -SNAPSHOT, release if a vX.Y.Z tag)"
+        type: boolean
+        default: false
 env:
   JAVA_VERSION: '21'
   MODEL_URL: "https://huggingface.co/TheBloke/CodeLlama-7B-GGUF/resolve/main/codellama-7b.Q2_K.gguf"
@@ -813,7 +818,12 @@ jobs:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
       - name: Build JARs
-        run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android -Dmaven.test.skip=true -Dgpg.skip=true package
+        # `assembly` additionally produces the fat jar-with-dependencies uber JAR
+        # (llama-<version>-jar-with-dependencies.jar: library classes + Java runtime deps +
+        # default-platform native libs in one drop-on-classpath JAR, runnable via its
+        # LlamaServer Main-Class). It lands in target/ and is uploaded in the `llama-jars`
+        # artifact below - a CI run artifact only, not a Maven Central / GitHub-Release asset.
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android,assembly -Dmaven.test.skip=true -Dgpg.skip=true package
       - name: Upload JARs
         uses: actions/upload-artifact@v7
         with:
@@ -871,7 +881,7 @@ jobs:
   publish-snapshot:
     name: Publish Snapshot to Central
     needs: [check-snapshot, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, code-style]
-    if: needs.check-snapshot.result == 'success'
+    if: needs.check-snapshot.result == 'success' && inputs.publish_to_central
     runs-on: ubuntu-latest
     environment: maven-central
     permissions:
@@ -901,6 +911,15 @@ jobs:
           server-password: MAVEN_PASSWORD
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
+      - name: Guard - require a -SNAPSHOT version
+        shell: bash
+        run: |
+          VERSION=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n1)
+          echo "Resolved project version: $VERSION"
+          case "$VERSION" in
+            *-SNAPSHOT) echo "OK: -SNAPSHOT version, continuing snapshot deploy." ;;
+            *) echo "::error::Refusing to publish non-SNAPSHOT version '$VERSION' from the snapshot job. Snapshot publishing requires a -SNAPSHOT version; releases go through the v* tag path."; exit 1 ;;
+          esac
       - name: Publish snapshot
         run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android -Dmaven.test.skip=true deploy
         env:
@@ -945,7 +964,7 @@ jobs:
 
   publish-release:
     name: Publish Release to Central
-    if: needs.check-tag.result == 'success'
+    if: needs.check-tag.result == 'success' && inputs.publish_to_central
     needs: [check-tag, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, code-style]
     runs-on: ubuntu-latest
     environment: maven-central

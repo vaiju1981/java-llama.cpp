@@ -97,6 +97,7 @@ Inference of Meta's LLaMA model (and others) in pure C/C++.
 - **Infilling** (fill-in-the-middle) for code models.
 - **Tokenize / detokenize** and **JSON-schema → grammar** conversion.
 - **Raw JSON endpoint handlers** mirroring the upstream llama.cpp HTTP server (`/completions`, `/v1/completions`, `/embeddings`, `/infill`, `/tokenize`, `/detokenize`).
+- **Runnable OpenAI-compatible HTTP server** (`LlamaServer`, the fat-jar `Main-Class`): `java -jar …-jar-with-dependencies.jar --model model.gguf --port 8080`.
 - **Model metadata** access (`getModelMeta()`) and **server management** (metrics, slot save/restore, runtime thread reconfiguration).
 - Pre-built native binaries for Linux (x86-64, aarch64), macOS (x86-64, arm64), and Windows (x86-64, x86); CUDA, Metal, and Vulkan supported via local build.
 
@@ -396,7 +397,13 @@ a JSON response, matching the HTTP server's contract:
 Server state is exposed via `getMetrics()`, `eraseSlot(int)`, `saveSlot(int, String)`,
 `restoreSlot(int, String)`, and `getModelMeta()`.
 
-### Local OpenAI endpoint for VS Code Copilot (and other OpenAI clients)
+### OpenAI-compatible HTTP server
+
+> **Note — two implementations pending consolidation.** This branch currently ships **two**
+> independent OpenAI-compatible servers in `net.ladenthin.llama.server`, awaiting a "best of both"
+> merge (see [TODO.md](TODO.md)). Both are documented below; they will be unified into one.
+
+#### Option A — `OpenAiCompatServer` (dependency-free, streaming SSE) — for VS Code Copilot and other OpenAI clients
 
 `net.ladenthin.llama.server.OpenAiCompatServer` turns a loaded model into a local
 OpenAI-compatible HTTP endpoint using only the JDK's built-in `com.sun.net.httpserver` — no extra
@@ -466,6 +473,37 @@ heartbeats so a long prompt prefill does not trip the client's stream-inactivity
 tool calling depends on the model's own tool-calling quality. Pass `--api-key` (or
 `OpenAiServerConfig.apiKey(...)`) to require an `Authorization: Bearer` token; the server binds to
 `127.0.0.1` by default.
+
+#### Option B — `LlamaServer` (NanoHTTPD, fat-jar `Main-Class`)
+
+The fat jar built by the `assembly` profile (`mvn -P assembly package`) is runnable: its
+`Main-Class` is `net.ladenthin.llama.server.LlamaServer`, a small [NanoHTTPD](https://github.com/NanoHttpd/nanohttpd)
+server that loads a GGUF model in-process and serves OpenAI-compatible endpoints by forwarding each
+request body to the matching `LlamaModel.handle*` method:
+
+```bash
+java -jar target/llama-<version>-jar-with-dependencies.jar \
+    --model models/Qwen3-0.6B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 --n-gpu-layers 99
+```
+
+| Method &amp; path | Backed by |
+|---|---|
+| `POST /v1/chat/completions` | `LlamaModel.handleChatCompletions` |
+| `POST /v1/completions` | `LlamaModel.handleCompletionsOai` |
+| `POST /v1/embeddings` (requires `--embedding`) | `LlamaModel.handleEmbeddings` |
+| `GET /v1/models` | the configured model alias |
+| `GET /health` | static `{"status":"ok"}` |
+
+```bash
+curl http://localhost:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"messages":[{"role":"user","content":"Hello!"}]}'
+```
+
+Run with `--help` for all options (`--ctx-size`, `--threads`, `--model-alias`, …). Responses are
+non-streaming (the full JSON result is returned per request). The NanoHTTPD dependency is declared
+`<optional>`, so it is bundled in the fat jar but **not** inherited by projects that use this
+library as a Maven dependency; running the server requires the fat jar (or adding NanoHTTPD yourself).
 
 ### Model/Inference Configuration
 

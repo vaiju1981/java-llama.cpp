@@ -879,7 +879,20 @@ public class LlamaModel implements AutoCloseable {
 
     native String handleSlotAction(int action, int slotId, @Nullable String filename);
 
-    native String handleChatCompletions(String params);
+    /**
+     * Run an OpenAI-compatible chat completion (mirrors the {@code /v1/chat/completions}
+     * endpoint). The request JSON must contain a {@code "messages"} array in the standard
+     * OpenAI chat format; the model's chat template is applied automatically. Returns the
+     * result in OAI format with a {@code "choices"} array. This is the raw JSON-in/JSON-out
+     * form used by {@link #chatComplete(net.ladenthin.llama.parameters.InferenceParameters)}
+     * and by the embedded OpenAI-compatible server
+     * ({@link net.ladenthin.llama.server.LlamaServer}); it is the chat counterpart of
+     * {@link #handleCompletionsOai(String)} and {@link #handleEmbeddings(String, boolean)}.
+     *
+     * @param params JSON string with OAI-compatible chat-completion parameters (incl. {@code "messages"})
+     * @return JSON response in OAI chat-completion format
+     */
+    public native String handleChatCompletions(String params);
 
     native int requestChatCompletion(String params);
 
