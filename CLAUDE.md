@@ -229,6 +229,7 @@ For the full record of upstream API breaks across version ranges (b5022 &#x2192;
 mvn compile          # Compiles Java and generates JNI headers
 mvn test             # Run all tests (requires native library and model files)
 mvn package          # Build JAR
+mvn -P assembly package  # Also build the fat jar-with-dependencies uber JAR (library + Java deps + native libs); CI builds it and uploads it in the `llama-jars` artifact
 mvn test -Dtest=LlamaModelTest#testGenerate  # Run a single test method
 ```
 
