@@ -352,27 +352,11 @@ public final class OpenAiCompatServer implements AutoCloseable {
         }
 
         ModelParameters modelParams = new ModelParameters().setModel(modelPath);
-        String ctx = opts.get("ctx");
-        if (ctx != null) {
-            modelParams.setCtxSize(Integer.parseInt(ctx));
-        }
-        String gpuLayers = opts.get("gpu-layers");
-        if (gpuLayers != null) {
-            modelParams.setGpuLayers(Integer.parseInt(gpuLayers));
-        }
-        String parallel = opts.get("parallel");
-        if (parallel != null) {
-            modelParams.setParallel(Integer.parseInt(parallel));
-        }
-
         OpenAiServerConfig.Builder cfg = OpenAiServerConfig.builder();
+
         String host = opts.get("host");
         if (host != null) {
             cfg.host(host);
-        }
-        String port = opts.get("port");
-        if (port != null) {
-            cfg.port(Integer.parseInt(port));
         }
         String apiKey = opts.get("api-key");
         if (apiKey != null) {
@@ -382,11 +366,36 @@ public final class OpenAiCompatServer implements AutoCloseable {
         if (modelId != null) {
             cfg.modelId(modelId);
         }
-        if (ctx != null) {
-            int ctxSize = Integer.parseInt(ctx);
-            cfg.maxOutputTokens(Math.min(OpenAiServerConfig.DEFAULT_MAX_OUTPUT_TOKENS, Math.max(1, ctxSize / 2)));
-            cfg.maxInputTokens(Math.max(1, ctxSize - OpenAiServerConfig.DEFAULT_MAX_OUTPUT_TOKENS));
+
+        // Parse all numeric options in one place so a non-numeric value (e.g. "--port abc") yields a
+        // clear message instead of an uncaught NumberFormatException stack trace. No System.exit here
+        // — the noSystemExit architecture rule forbids it; print to stderr and return like the
+        // missing-"--model" path above.
+        try {
+            String ctx = opts.get("ctx");
+            if (ctx != null) {
+                int ctxSize = Integer.parseInt(ctx);
+                modelParams.setCtxSize(ctxSize);
+                cfg.maxOutputTokens(Math.min(OpenAiServerConfig.DEFAULT_MAX_OUTPUT_TOKENS, Math.max(1, ctxSize / 2)));
+                cfg.maxInputTokens(Math.max(1, ctxSize - OpenAiServerConfig.DEFAULT_MAX_OUTPUT_TOKENS));
+            }
+            String gpuLayers = opts.get("gpu-layers");
+            if (gpuLayers != null) {
+                modelParams.setGpuLayers(Integer.parseInt(gpuLayers));
+            }
+            String parallel = opts.get("parallel");
+            if (parallel != null) {
+                modelParams.setParallel(Integer.parseInt(parallel));
+            }
+            String port = opts.get("port");
+            if (port != null) {
+                cfg.port(Integer.parseInt(port));
+            }
+        } catch (NumberFormatException e) {
+            System.err.println("Invalid numeric option (expected an integer): " + e.getMessage());
+            return;
         }
+
         OpenAiServerConfig config = cfg.build();
 
         LlamaModel model = new LlamaModel(modelParams);
