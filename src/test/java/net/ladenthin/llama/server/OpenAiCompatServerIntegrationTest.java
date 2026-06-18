@@ -1,0 +1,171 @@
+// SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
+package net.ladenthin.llama.server;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import net.ladenthin.llama.LlamaModel;
+import net.ladenthin.llama.TestConstants;
+import net.ladenthin.llama.parameters.ModelParameters;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+
+/**
+ * End-to-end integration test for {@link OpenAiCompatServer} against a real model served over a real
+ * socket. Reuses the Qwen3-0.6B GGUF that the CI pipeline already downloads as the reasoning model
+ * ({@link TestConstants#REASONING_MODEL_PATH}); it is instruct-tuned (has a chat template) and one of
+ * llama.cpp's better tool-calling families, so no extra download is needed. Self-skips when the model
+ * file is absent (e.g. a local checkout without models), so it never breaks a model-free run.
+ *
+ * <p>Assertions are deliberately structural (valid OpenAI shapes, stream terminates) rather than
+ * content-specific — a 0.6B model's exact wording and whether it elects to call a tool are not
+ * deterministic. The deterministic chunk/tool-call plumbing is covered by
+ * {@link OpenAiCompatServerHttpTest} with a fake backend.
+ */
+public class OpenAiCompatServerIntegrationTest {
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final String MODEL_ID = "qwen3-local";
+
+    private static LlamaModel model;
+    private static OpenAiCompatServer server;
+    private static int port;
+
+    @BeforeAll
+    public static void setup() throws IOException {
+        Assumptions.assumeTrue(
+                new File(TestConstants.REASONING_MODEL_PATH).exists(),
+                "Reasoning model (Qwen3-0.6B) not found, skipping OpenAI server integration test");
+        int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
+        model = new LlamaModel(new ModelParameters()
+                .setModel(TestConstants.REASONING_MODEL_PATH)
+                .setCtxSize(1024)
+                .setGpuLayers(gpuLayers)
+                .setFit(false)
+                .setParallel(2));
+        server = new OpenAiCompatServer(
+                        model,
+                        OpenAiServerConfig.builder().port(0).modelId(MODEL_ID).build())
+                .start();
+        port = server.getPort();
+    }
+
+    @AfterAll
+    public static void tearDown() {
+        if (server != null) {
+            server.close();
+        }
+        if (model != null) {
+            model.close();
+        }
+    }
+
+    @Test
+    public void nonStreamingChatReturnsValidCompletion() throws IOException {
+        String body = "{\"model\":\"" + MODEL_ID + "\",\"max_tokens\":16,"
+                + "\"messages\":[{\"role\":\"user\",\"content\":\"Say hello in one word.\"}]}";
+        Response response = post("/v1/chat/completions", body);
+        assertThat(response.code, is(200));
+        JsonNode json = MAPPER.readTree(response.body);
+        assertThat(json.path("object").asText(), is("chat.completion"));
+        assertThat(json.path("choices").size(), greaterThan(0));
+        assertThat(json.path("choices").get(0).path("message").path("role").asText(), is("assistant"));
+    }
+
+    @Test
+    public void streamingChatEmitsChunksAndDone() throws IOException {
+        String body = "{\"model\":\"" + MODEL_ID + "\",\"stream\":true,\"max_tokens\":16,"
+                + "\"messages\":[{\"role\":\"user\",\"content\":\"Say hello in one word.\"}]}";
+        Response response = post("/v1/chat/completions", body);
+        assertThat(response.code, is(200));
+        assertThat(response.body, containsString("chat.completion.chunk"));
+        assertThat(response.body, containsString("data: [DONE]"));
+    }
+
+    @Test
+    public void toolRequestRoundTripsThroughTheJinjaPath() throws IOException {
+        // Forwards an OpenAI tools array; the mapper enables use_jinja so the native parser applies
+        // Qwen3's tool-aware template. We assert the request is accepted and returns a structurally
+        // valid OpenAI message (content and/or tool_calls) — not that this tiny model elects to call.
+        String body = "{\"model\":\"" + MODEL_ID + "\",\"max_tokens\":48,"
+                + "\"messages\":[{\"role\":\"user\",\"content\":\"What is the weather in Paris?\"}],"
+                + "\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"get_weather\","
+                + "\"description\":\"Get the weather for a city\",\"parameters\":{\"type\":\"object\","
+                + "\"properties\":{\"city\":{\"type\":\"string\"}},\"required\":[\"city\"]}}}]}";
+        Response response = post("/v1/chat/completions", body);
+        assertThat(response.code, is(200));
+        JsonNode message = MAPPER.readTree(response.body).path("choices").get(0).path("message");
+        assertThat(message.isObject(), is(true));
+    }
+
+    @Test
+    public void modelsEndpointAdvertisesTheServedModel() throws IOException {
+        Response response = get("/v1/models");
+        assertThat(response.code, is(200));
+        assertThat(response.body, containsString(MODEL_ID));
+    }
+
+    // ----- HTTP helpers -----
+
+    private static Response post(String path, String body) throws IOException {
+        HttpURLConnection conn = (HttpURLConnection) new URL("http://127.0.0.1:" + port + path).openConnection();
+        conn.setRequestMethod("POST");
+        conn.setDoOutput(true);
+        conn.setRequestProperty("Content-Type", "application/json");
+        try (OutputStream os = conn.getOutputStream()) {
+            os.write(body.getBytes(UTF_8));
+        }
+        return read(conn);
+    }
+
+    private static Response get(String path) throws IOException {
+        HttpURLConnection conn = (HttpURLConnection) new URL("http://127.0.0.1:" + port + path).openConnection();
+        conn.setRequestMethod("GET");
+        return read(conn);
+    }
+
+    private static Response read(HttpURLConnection conn) throws IOException {
+        int code = conn.getResponseCode();
+        InputStream is = code < 400 ? conn.getInputStream() : conn.getErrorStream();
+        String body = is == null ? "" : readAll(is);
+        return new Response(code, body);
+    }
+
+    private static String readAll(InputStream is) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        byte[] chunk = new byte[1024];
+        int read;
+        while ((read = is.read(chunk)) != -1) {
+            buffer.write(chunk, 0, read);
+        }
+        return new String(buffer.toByteArray(), UTF_8);
+    }
+
+    /** Minimal HTTP response holder. */
+    private static final class Response {
+        private final int code;
+        private final String body;
+
+        Response(int code, String body) {
+            this.code = code;
+            this.body = body;
+        }
+    }
+}
