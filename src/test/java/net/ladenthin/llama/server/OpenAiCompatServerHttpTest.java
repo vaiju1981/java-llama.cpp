@@ -4,26 +4,22 @@
 
 package net.ladenthin.llama.server;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import org.junit.jupiter.api.Test;
 
 /**
  * End-to-end HTTP tests for {@link OpenAiCompatServer} driven over a real socket with a
  * {@link FakeChatBackend} — no native library and no model are loaded. Exercises routing,
  * authentication, the non-streaming and Server-Sent-Events paths, heartbeats, and error statuses.
+ *
+ * <p>HTTP request plumbing is inherited from {@link OpenAiServerTestSupport}.
  */
-public class OpenAiCompatServerHttpTest {
+public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
 
     private static final String CHAT_BODY = "{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}";
 
@@ -126,61 +122,6 @@ public class OpenAiCompatServerHttpTest {
             assertThat(post(port, "/v1/chat/completions", CHAT_BODY, "").code, is(401));
             assertThat(post(port, "/v1/chat/completions", CHAT_BODY, "Bearer wrong").code, is(401));
             assertThat(post(port, "/v1/chat/completions", CHAT_BODY, "Bearer secret").code, is(200));
-        }
-    }
-
-    // ----- HTTP helpers -----
-
-    private static Response post(int port, String path, String body, String auth) throws IOException {
-        HttpURLConnection conn = open(port, path, auth);
-        conn.setRequestMethod("POST");
-        conn.setDoOutput(true);
-        conn.setRequestProperty("Content-Type", "application/json");
-        try (OutputStream os = conn.getOutputStream()) {
-            os.write(body.getBytes(UTF_8));
-        }
-        return read(conn);
-    }
-
-    private static Response get(int port, String path, String auth) throws IOException {
-        HttpURLConnection conn = open(port, path, auth);
-        conn.setRequestMethod("GET");
-        return read(conn);
-    }
-
-    private static HttpURLConnection open(int port, String path, String auth) throws IOException {
-        HttpURLConnection conn = (HttpURLConnection) new URL("http://127.0.0.1:" + port + path).openConnection();
-        if (!auth.isEmpty()) {
-            conn.setRequestProperty("Authorization", auth);
-        }
-        return conn;
-    }
-
-    private static Response read(HttpURLConnection conn) throws IOException {
-        int code = conn.getResponseCode();
-        InputStream is = code < 400 ? conn.getInputStream() : conn.getErrorStream();
-        String body = is == null ? "" : readAll(is);
-        return new Response(code, body);
-    }
-
-    private static String readAll(InputStream is) throws IOException {
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        byte[] chunk = new byte[1024];
-        int read;
-        while ((read = is.read(chunk)) != -1) {
-            buffer.write(chunk, 0, read);
-        }
-        return new String(buffer.toByteArray(), UTF_8);
-    }
-
-    /** Minimal HTTP response holder. */
-    private static final class Response {
-        private final int code;
-        private final String body;
-
-        Response(int code, String body) {
-            this.code = code;
-            this.body = body;
         }
     }
 
