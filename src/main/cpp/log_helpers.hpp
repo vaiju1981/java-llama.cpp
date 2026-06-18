@@ -20,21 +20,24 @@
 // fall-through to mirror llama.cpp's own log routing.
 [[nodiscard]] inline const char *log_level_name(ggml_log_level level) {
     switch (level) {
-    case GGML_LOG_LEVEL_ERROR: return "ERROR";
-    case GGML_LOG_LEVEL_WARN:  return "WARN";
-    case GGML_LOG_LEVEL_DEBUG: return "DEBUG";
+    case GGML_LOG_LEVEL_ERROR:
+        return "ERROR";
+    case GGML_LOG_LEVEL_WARN:
+        return "WARN";
+    case GGML_LOG_LEVEL_DEBUG:
+        return "DEBUG";
     case GGML_LOG_LEVEL_INFO:
-    default:                   return "INFO";
+    default:
+        return "INFO";
     }
 }
 
 // Pure variant taking an explicit timestamp so tests are deterministic.
-[[nodiscard]] inline std::string format_log_as_json(
-        ggml_log_level level, const char *text, std::time_t timestamp) {
+[[nodiscard]] inline std::string format_log_as_json(ggml_log_level level, const char *text, std::time_t timestamp) {
     nlohmann::json log_obj = {
         {"timestamp", timestamp},
-        {"level",     log_level_name(level)},
-        {"message",   text ? text : ""},
+        {"level", log_level_name(level)},
+        {"message", text ? text : ""},
     };
     return log_obj.dump();
 }

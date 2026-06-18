@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 import lombok.ToString;
 import net.ladenthin.llama.args.LogFormat;
 import net.ladenthin.llama.callback.CancellationToken;
@@ -20,6 +21,7 @@ import net.ladenthin.llama.callback.LoadProgressCallback;
 import net.ladenthin.llama.callback.ToolHandler;
 import net.ladenthin.llama.exception.LlamaException;
 import net.ladenthin.llama.json.ChatResponseParser;
+import net.ladenthin.llama.json.ChatStreamChunkParser;
 import net.ladenthin.llama.json.CompletionResponseParser;
 import net.ladenthin.llama.json.RerankResponseParser;
 import net.ladenthin.llama.loader.LlamaLoader;
@@ -74,6 +76,7 @@ public class LlamaModel implements AutoCloseable {
     private final CompletionResponseParser completionParser = new CompletionResponseParser();
     private final ChatResponseParser chatParser = new ChatResponseParser();
     private final RerankResponseParser rerankParser = new RerankResponseParser();
+    private final ChatStreamChunkParser chatStreamParser = new ChatStreamChunkParser();
 
     /**
      * Load with the given {@link net.ladenthin.llama.parameters.ModelParameters}. Make sure to either set
@@ -637,6 +640,47 @@ public class LlamaModel implements AutoCloseable {
     }
 
     /**
+     * Stream an OpenAI-compatible chat completion as {@code chat.completion.chunk} JSON objects,
+     * feeding each chunk's JSON string to {@code chunkSink} as it is produced.
+     * <p>
+     * Unlike {@link #generateChat(InferenceParameters)} (which yields raw token text), this method
+     * routes through the native OpenAI streaming formatter, so each emitted chunk is a ready-to-send
+     * OpenAI streaming event — including streamed {@code delta.tool_calls} when the model issues a
+     * tool call. The final chunk carries a non-null {@code finish_reason} and, when the request set
+     * {@code stream_options.include_usage}, a trailing usage chunk. This is the building block for an
+     * OpenAI-compatible HTTP endpoint (Server-Sent Events): forward each chunk verbatim as one
+     * {@code data:} line and emit {@code data: [DONE]} after this method returns.
+     * <p>
+     * The {@code "messages"} array (and any {@code "tools"}/{@code "tool_choice"}) is forwarded
+     * verbatim to the native chat-template parser. Streaming is forced on regardless of the
+     * {@code stream} flag in {@code parameters}. If {@code chunkSink} throws, the in-flight native
+     * task is cancelled and the exception propagates to the caller.
+     *
+     * @param parameters the inference parameters including messages (and optional tools)
+     * @param chunkSink receiver for each {@code chat.completion.chunk} JSON string, in order
+     * @throws net.ladenthin.llama.exception.LlamaException if inference fails
+     */
+    public void streamChatCompletion(InferenceParameters parameters, Consumer<String> chunkSink) {
+        InferenceParameters streaming = parameters.withStream(true);
+        int taskId = requestChatCompletionStream(streaming.toString());
+        boolean stopped = false;
+        try {
+            while (!stopped) {
+                String envelope = receiveChatCompletionChunk(taskId);
+                stopped = chatStreamParser.feed(envelope, chunkSink);
+            }
+        } finally {
+            // On a clean stop the native reader was already released when the final chunk was
+            // delivered; this best-effort cancel covers an early exit (e.g. chunkSink threw) so the
+            // native task/slot is not leaked. Safe here because we are not concurrently inside
+            // receiveChatCompletionChunk, and cancelling an already-finished task is a no-op.
+            if (!stopped) {
+                cancelCompletion(taskId);
+            }
+        }
+    }
+
+    /**
      * Run a blocking completion and return the full result as a JSON string.
      * This is the JSON-in/JSON-out equivalent of {@link #complete(InferenceParameters)}.
      *
@@ -851,4 +895,8 @@ public class LlamaModel implements AutoCloseable {
     public native String handleChatCompletions(String params);
 
     native int requestChatCompletion(String params);
+
+    native int requestChatCompletionStream(String params);
+
+    native String receiveChatCompletionChunk(int taskId);
 }

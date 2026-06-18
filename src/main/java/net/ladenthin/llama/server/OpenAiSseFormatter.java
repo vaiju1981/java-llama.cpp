@@ -1,0 +1,94 @@
+// SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
+package net.ladenthin.llama.server;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import org.jspecify.annotations.Nullable;
+
+/**
+ * Pure formatting helpers for the OpenAI HTTP surface: Server-Sent-Events framing, the {@code [DONE]}
+ * terminator, heartbeat comments, the {@code GET /v1/models} body, and the OpenAI error envelope.
+ *
+ * <p>Stateless and free of JNI / model dependencies, so each helper is unit-testable with literals.
+ */
+final class OpenAiSseFormatter {
+
+    /** Shared Jackson mapper; thread-safe and reused. */
+    static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    private OpenAiSseFormatter() {}
+
+    /**
+     * Frame a chunk's JSON as one SSE {@code data:} event.
+     *
+     * @param json the chunk JSON to send
+     * @return the SSE event text, terminated by a blank line
+     */
+    static String sseData(String json) {
+        return "data: " + json + "\n\n";
+    }
+
+    /**
+     * The terminating SSE event that marks the end of an OpenAI stream.
+     *
+     * @return {@code "data: [DONE]\n\n"}
+     */
+    static String sseDone() {
+        return "data: [DONE]\n\n";
+    }
+
+    /**
+     * An SSE comment line used as a keep-alive heartbeat. OpenAI clients ignore comment lines, but the
+     * bytes reset the client's stream-inactivity timer during long prompt prefill.
+     *
+     * @return {@code ": ping\n\n"}
+     */
+    static String heartbeat() {
+        return ": ping\n\n";
+    }
+
+    /**
+     * Build an OpenAI error envelope: {@code {"error":{"message":…,"type":…,"code":…}}}.
+     *
+     * @param message human-readable error message
+     * @param type OpenAI error type (e.g. {@code "invalid_request_error"}, {@code "server_error"})
+     * @param code optional machine-readable code; {@code null} renders as JSON {@code null}
+     * @return the error envelope serialized as JSON
+     */
+    static String errorJson(String message, String type, @Nullable String code) {
+        ObjectNode error = OBJECT_MAPPER.createObjectNode();
+        error.put("message", message);
+        error.put("type", type);
+        if (code != null) {
+            error.put("code", code);
+        } else {
+            error.putNull("code");
+        }
+        ObjectNode root = OBJECT_MAPPER.createObjectNode();
+        root.set("error", error);
+        return root.toString();
+    }
+
+    /**
+     * Build the {@code GET /v1/models} body advertising a single model.
+     *
+     * @param modelId the model id to advertise
+     * @return an OpenAI model-list object serialized as JSON
+     */
+    static String modelsJson(String modelId) {
+        ObjectNode model = OBJECT_MAPPER.createObjectNode();
+        model.put("id", modelId);
+        model.put("object", "model");
+        model.put("owned_by", "llama.cpp");
+        ArrayNode data = OBJECT_MAPPER.createArrayNode();
+        data.add(model);
+        ObjectNode root = OBJECT_MAPPER.createObjectNode();
+        root.put("object", "list");
+        root.set("data", data);
+        return root.toString();
+    }
+}

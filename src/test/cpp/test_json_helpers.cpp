@@ -20,6 +20,7 @@
 //   is_infill_request
 //   parse_slot_prompt_similarity
 //   parse_positive_int_config
+//   wrap_stream_chunk
 
 #include <gtest/gtest.h>
 
@@ -45,9 +46,9 @@ namespace {
 // to_json() → format_error_response() → {"message": msg, ...} matches the
 // exact JSON key that get_result_error_message reads.
 static server_task_result_ptr make_error(int id_, const std::string &msg) {
-    auto r      = std::make_unique<server_task_result_error>();
-    r->id       = id_;
-    r->err_msg  = msg;
+    auto r = std::make_unique<server_task_result_error>();
+    r->id = id_;
+    r->err_msg = msg;
     r->err_type = ERROR_TYPE_SERVER;
     return r;
 }
@@ -69,14 +70,13 @@ struct fake_embedding_result : server_task_result {
     std::vector<float> vec;
     int tokens_evaluated;
     explicit fake_embedding_result(int id_, std::vector<float> v, int tok = 4)
-        : vec(std::move(v)), tokens_evaluated(tok) { id = id_; }
-    json to_json() override {
-        return {{"embedding", vec}, {"tokens_evaluated", tokens_evaluated}};
+        : vec(std::move(v)), tokens_evaluated(tok) {
+        id = id_;
     }
+    json to_json() override { return {{"embedding", vec}, {"tokens_evaluated", tokens_evaluated}}; }
 };
 
-static server_task_result_ptr make_embedding(int id_,
-                                              std::vector<float> v = {0.1f, 0.2f, 0.3f}) {
+static server_task_result_ptr make_embedding(int id_, std::vector<float> v = {0.1f, 0.2f, 0.3f}) {
     return std::make_unique<fake_embedding_result>(id_, std::move(v));
 }
 
@@ -163,7 +163,8 @@ TEST(ResultsToJson, SingleErrorResult_ReturnsObjectDirectly) {
 
 namespace {
 struct fake_rerank_result : server_task_result {
-    int index; float score;
+    int index;
+    float score;
     fake_rerank_result(int id_, int idx, float sc) : index(idx), score(sc) { id = id_; }
     json to_json() override { return {{"index", index}, {"score", score}}; }
 };
@@ -244,26 +245,20 @@ TEST(RerankResultsToJson, PreservesInputOrder) {
 // parse_encoding_format
 // ============================================================
 
-TEST(ParseEncodingFormat, FieldAbsent_ReturnsFalse) {
-    EXPECT_FALSE(parse_encoding_format({{"model", "x"}}));
-}
+TEST(ParseEncodingFormat, FieldAbsent_ReturnsFalse) { EXPECT_FALSE(parse_encoding_format({{"model", "x"}})); }
 
 TEST(ParseEncodingFormat, ExplicitFloat_ReturnsFalse) {
     EXPECT_FALSE(parse_encoding_format({{"encoding_format", "float"}}));
 }
 
-TEST(ParseEncodingFormat, Base64_ReturnsTrue) {
-    EXPECT_TRUE(parse_encoding_format({{"encoding_format", "base64"}}));
-}
+TEST(ParseEncodingFormat, Base64_ReturnsTrue) { EXPECT_TRUE(parse_encoding_format({{"encoding_format", "base64"}})); }
 
 TEST(ParseEncodingFormat, UnknownFormat_ThrowsInvalidArgument) {
-    EXPECT_THROW((void)parse_encoding_format({{"encoding_format", "binary"}}),
-                 std::invalid_argument);
+    EXPECT_THROW((void)parse_encoding_format({{"encoding_format", "binary"}}), std::invalid_argument);
 }
 
 TEST(ParseEncodingFormat, EmptyString_ThrowsInvalidArgument) {
-    EXPECT_THROW((void)parse_encoding_format({{"encoding_format", ""}}),
-                 std::invalid_argument);
+    EXPECT_THROW((void)parse_encoding_format({{"encoding_format", ""}}), std::invalid_argument);
 }
 
 TEST(ParseEncodingFormat, ErrorMessage_MentionsBothValidOptions) {
@@ -272,7 +267,7 @@ TEST(ParseEncodingFormat, ErrorMessage_MentionsBothValidOptions) {
         FAIL() << "Expected std::invalid_argument";
     } catch (const std::invalid_argument &e) {
         const std::string msg(e.what());
-        EXPECT_NE(msg.find("float"),  std::string::npos);
+        EXPECT_NE(msg.find("float"), std::string::npos);
         EXPECT_NE(msg.find("base64"), std::string::npos);
     }
 }
@@ -297,28 +292,24 @@ TEST(ExtractEmbeddingPrompt, ContentKey_ReturnsValueAndSetsFlag) {
 
 TEST(ExtractEmbeddingPrompt, InputTakesPriorityOverContent) {
     bool flag = false;
-    json prompt = extract_embedding_prompt(
-        {{"input", "from input"}, {"content", "from content"}}, flag);
+    json prompt = extract_embedding_prompt({{"input", "from input"}, {"content", "from content"}}, flag);
     EXPECT_EQ(prompt, "from input");
     EXPECT_FALSE(flag);
 }
 
 TEST(ExtractEmbeddingPrompt, NeitherKey_ThrowsInvalidArgument) {
     bool flag = false;
-    EXPECT_THROW((void)extract_embedding_prompt({{"model", "x"}}, flag),
-                 std::invalid_argument);
+    EXPECT_THROW((void)extract_embedding_prompt({{"model", "x"}}, flag), std::invalid_argument);
 }
 
 TEST(ExtractEmbeddingPrompt, EmptyBody_ThrowsInvalidArgument) {
     bool flag = false;
-    EXPECT_THROW((void)extract_embedding_prompt(json::object(), flag),
-                 std::invalid_argument);
+    EXPECT_THROW((void)extract_embedding_prompt(json::object(), flag), std::invalid_argument);
 }
 
 TEST(ExtractEmbeddingPrompt, ArrayPrompt_ReturnedAsIs) {
     bool flag = false;
-    json prompt = extract_embedding_prompt(
-        {{"input", {"sentence one", "sentence two"}}}, flag);
+    json prompt = extract_embedding_prompt({{"input", {"sentence one", "sentence two"}}}, flag);
     ASSERT_TRUE(prompt.is_array());
     ASSERT_EQ(prompt.size(), 2u);
     EXPECT_EQ(prompt[0], "sentence one");
@@ -330,26 +321,17 @@ TEST(ExtractEmbeddingPrompt, ArrayPrompt_ReturnedAsIs) {
 // is_infill_request
 // ============================================================
 
-TEST(IsInfillRequest, HasInputPrefix_ReturnsTrue) {
-    EXPECT_TRUE(is_infill_request({{"input_prefix", "def f():"}}));
-}
+TEST(IsInfillRequest, HasInputPrefix_ReturnsTrue) { EXPECT_TRUE(is_infill_request({{"input_prefix", "def f():"}})); }
 
-TEST(IsInfillRequest, HasInputSuffix_ReturnsTrue) {
-    EXPECT_TRUE(is_infill_request({{"input_suffix", "return 1"}}));
-}
+TEST(IsInfillRequest, HasInputSuffix_ReturnsTrue) { EXPECT_TRUE(is_infill_request({{"input_suffix", "return 1"}})); }
 
 TEST(IsInfillRequest, HasBoth_ReturnsTrue) {
-    EXPECT_TRUE(is_infill_request(
-        {{"input_prefix", "def f():"}, {"input_suffix", "return 1"}}));
+    EXPECT_TRUE(is_infill_request({{"input_prefix", "def f():"}, {"input_suffix", "return 1"}}));
 }
 
-TEST(IsInfillRequest, HasNeither_ReturnsFalse) {
-    EXPECT_FALSE(is_infill_request({{"prompt", "hello"}}));
-}
+TEST(IsInfillRequest, HasNeither_ReturnsFalse) { EXPECT_FALSE(is_infill_request({{"prompt", "hello"}})); }
 
-TEST(IsInfillRequest, EmptyBody_ReturnsFalse) {
-    EXPECT_FALSE(is_infill_request(json::object()));
-}
+TEST(IsInfillRequest, EmptyBody_ReturnsFalse) { EXPECT_FALSE(is_infill_request(json::object())); }
 
 // ============================================================
 // parse_slot_prompt_similarity
@@ -378,15 +360,11 @@ TEST(ParseSlotPromptSimilarity, One_ReturnsOne) {
 }
 
 TEST(ParseSlotPromptSimilarity, TooLow_ThrowsInvalidArgument) {
-    EXPECT_THROW(
-        (void)parse_slot_prompt_similarity({{"slot_prompt_similarity", -0.1f}}),
-        std::invalid_argument);
+    EXPECT_THROW((void)parse_slot_prompt_similarity({{"slot_prompt_similarity", -0.1f}}), std::invalid_argument);
 }
 
 TEST(ParseSlotPromptSimilarity, TooHigh_ThrowsInvalidArgument) {
-    EXPECT_THROW(
-        (void)parse_slot_prompt_similarity({{"slot_prompt_similarity", 1.1f}}),
-        std::invalid_argument);
+    EXPECT_THROW((void)parse_slot_prompt_similarity({{"slot_prompt_similarity", 1.1f}}), std::invalid_argument);
 }
 
 // ============================================================
@@ -410,13 +388,11 @@ TEST(ParsePositiveIntConfig, ValidLarge_ReturnsValue) {
 }
 
 TEST(ParsePositiveIntConfig, Zero_ThrowsInvalidArgument) {
-    EXPECT_THROW((void)parse_positive_int_config({{"n_threads", 0}}, "n_threads"),
-                 std::invalid_argument);
+    EXPECT_THROW((void)parse_positive_int_config({{"n_threads", 0}}, "n_threads"), std::invalid_argument);
 }
 
 TEST(ParsePositiveIntConfig, Negative_ThrowsInvalidArgument) {
-    EXPECT_THROW((void)parse_positive_int_config({{"n_threads", -4}}, "n_threads"),
-                 std::invalid_argument);
+    EXPECT_THROW((void)parse_positive_int_config({{"n_threads", -4}}, "n_threads"), std::invalid_argument);
 }
 
 TEST(ParsePositiveIntConfig, ErrorMessage_ContainsKeyName) {
@@ -426,4 +402,44 @@ TEST(ParsePositiveIntConfig, ErrorMessage_ContainsKeyName) {
     } catch (const std::invalid_argument &e) {
         EXPECT_NE(std::string(e.what()).find("n_threads_batch"), std::string::npos);
     }
+}
+
+// ============================================================
+// wrap_stream_chunk
+// ============================================================
+
+TEST(WrapStreamChunk, ObjectPayload_NotStopped) {
+    json chunk = {{"object", "chat.completion.chunk"}, {"choices", json::array({{{"delta", {{"content", "hi"}}}}})}};
+    json out = wrap_stream_chunk(chunk, false);
+    EXPECT_FALSE(out.at("stop").get<bool>());
+    ASSERT_TRUE(out.at("data").is_object());
+    EXPECT_EQ(out.at("data").at("object").get<std::string>(), "chat.completion.chunk");
+}
+
+TEST(WrapStreamChunk, ArrayPayload_Stopped) {
+    json final_chunks =
+        json::array({{{"choices", json::array({{{"finish_reason", "stop"}, {"delta", json::object()}}})}},
+                     {{"usage", {{"completion_tokens", 3}}}}});
+    json out = wrap_stream_chunk(final_chunks, true);
+    EXPECT_TRUE(out.at("stop").get<bool>());
+    ASSERT_TRUE(out.at("data").is_array());
+    EXPECT_EQ(out.at("data").size(), 2u);
+}
+
+TEST(WrapStreamChunk, StopFlagPropagates) {
+    EXPECT_TRUE(wrap_stream_chunk(json::object(), true).at("stop").get<bool>());
+    EXPECT_FALSE(wrap_stream_chunk(json::object(), false).at("stop").get<bool>());
+}
+
+TEST(WrapStreamChunk, NullPayload_DataIsNull) {
+    json out = wrap_stream_chunk(json(), false);
+    EXPECT_TRUE(out.at("data").is_null());
+    EXPECT_FALSE(out.at("stop").get<bool>());
+}
+
+TEST(WrapStreamChunk, ExactlyTwoKeys) {
+    json out = wrap_stream_chunk(json::object(), false);
+    EXPECT_EQ(out.size(), 2u);
+    EXPECT_TRUE(out.contains("data"));
+    EXPECT_TRUE(out.contains("stop"));
 }

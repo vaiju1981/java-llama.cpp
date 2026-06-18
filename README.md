@@ -399,6 +399,83 @@ Server state is exposed via `getMetrics()`, `eraseSlot(int)`, `saveSlot(int, Str
 
 ### OpenAI-compatible HTTP server
 
+> **Note — two implementations pending consolidation.** This branch currently ships **two**
+> independent OpenAI-compatible servers in `net.ladenthin.llama.server`, awaiting a "best of both"
+> merge (see [TODO.md](TODO.md)). Both are documented below; they will be unified into one.
+
+#### Option A — `OpenAiCompatServer` (dependency-free, streaming SSE) — for VS Code Copilot and other OpenAI clients
+
+`net.ladenthin.llama.server.OpenAiCompatServer` turns a loaded model into a local
+OpenAI-compatible HTTP endpoint using only the JDK's built-in `com.sun.net.httpserver` — no extra
+dependency and no separate server process. It serves:
+
+- `POST /v1/chat/completions` — streaming (Server-Sent Events) and non-streaming, forwarding
+  `messages`/`tools` verbatim. The streaming path carries `delta.tool_calls`, so agent/tool-calling
+  clients work.
+- `GET /v1/models` — advertises the configured model id.
+
+Embed it in your app:
+
+```java
+ModelParameters modelParams = new ModelParameters().setModel("models/model.gguf").setParallel(2);
+OpenAiServerConfig config = OpenAiServerConfig.builder().port(8080).modelId("local-model").build();
+try (LlamaModel model = new LlamaModel(modelParams);
+     OpenAiCompatServer server = new OpenAiCompatServer(model, config).start()) {
+    Thread.currentThread().join(); // serve until interrupted
+}
+```
+
+…or run it standalone:
+
+```bash
+java -cp target/llama-<version>.jar net.ladenthin.llama.server.OpenAiCompatServer \
+  --model models/model.gguf --port 8080 --model-id local-model
+```
+
+Verify with curl:
+
+```bash
+curl -N http://127.0.0.1:8080/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{"model":"local-model","stream":true,"messages":[{"role":"user","content":"hi"}]}'
+```
+
+**VS Code Copilot setup:** Command Palette → **Chat: Manage Language Models** → **Add Models** →
+**Custom Endpoint**; enter a group name, a display name and any non-empty API key, and pick API type
+**Chat Completions**. VS Code then opens `chatLanguageModels.json` — set the model `url` to your
+endpoint (the host/port go here, not in the form):
+
+```json
+[
+  {
+    "name": "Local llama.cpp",
+    "vendor": "customendpoint",
+    "apiKey": "local-dummy-key",
+    "apiType": "chat-completions",
+    "models": [
+      {
+        "id": "local-model",
+        "name": "Local model",
+        "url": "http://127.0.0.1:8080/v1/chat/completions",
+        "toolCalling": true,
+        "vision": false,
+        "maxInputTokens": 6144,
+        "maxOutputTokens": 2048
+      }
+    ]
+  }
+]
+```
+
+Notes: BYOK powers the chat/agent experience only (inline completions and embeddings still require a
+GitHub account). On CPU, prefer a smaller model and a modest context window — the server emits SSE
+heartbeats so a long prompt prefill does not trip the client's stream-inactivity timeout. Agent-mode
+tool calling depends on the model's own tool-calling quality. Pass `--api-key` (or
+`OpenAiServerConfig.apiKey(...)`) to require an `Authorization: Bearer` token; the server binds to
+`127.0.0.1` by default.
+
+#### Option B — `LlamaServer` (NanoHTTPD, fat-jar `Main-Class`)
+
 The fat jar built by the `assembly` profile (`mvn -P assembly package`) is runnable: its
 `Main-Class` is `net.ladenthin.llama.server.LlamaServer`, a small [NanoHTTPD](https://github.com/NanoHttpd/nanohttpd)
 server that loads a GGUF model in-process and serves OpenAI-compatible endpoints by forwarding each

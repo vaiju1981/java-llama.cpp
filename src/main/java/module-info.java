@@ -46,12 +46,18 @@ module net.ladenthin.llama {
     // the @lombok.Generated annotation carried on generated members has CLASS retention.
     requires static lombok;
 
+    // The OpenAI-compatible endpoint (net.ladenthin.llama.server) uses the JDK's built-in
+    // com.sun.net.httpserver, so module-path consumers need to read jdk.httpserver. It is a
+    // platform module (always present in the JDK), not an external dependency.
+    requires jdk.httpserver;
+
     exports net.ladenthin.llama;
     exports net.ladenthin.llama.args;
     exports net.ladenthin.llama.callback;
     exports net.ladenthin.llama.exception;
     exports net.ladenthin.llama.json;
     exports net.ladenthin.llama.parameters;
+    exports net.ladenthin.llama.server;
     exports net.ladenthin.llama.value;
 // net.ladenthin.llama.loader is intentionally NOT exported: native-library loading,
 // OS detection and process/system-property infrastructure are internal to the module.

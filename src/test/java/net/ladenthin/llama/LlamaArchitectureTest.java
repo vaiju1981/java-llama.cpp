@@ -3,11 +3,14 @@
 // SPDX-License-Identifier: MIT
 package net.ladenthin.llama;
 
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAPackage;
+import static com.tngtech.archunit.core.domain.JavaClass.Predicates.resideInAnyPackage;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.fields;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.Architectures.layeredArchitecture;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
+import com.tngtech.archunit.base.DescribedPredicate;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
@@ -139,14 +142,19 @@ public class LlamaArchitectureTest {
      * These are not part of the Java SE API and may change or disappear without notice.
      * {@code OSInfo} is vendored from xerial/sqlite-jdbc and was already audited;
      * if it ever pulls in sun.*, this rule fails and forces a re-audit.
+     *
+     * <p>Exception: {@code com.sun.net.httpserver} is a <em>supported</em>, documented JDK API
+     * (the exported {@code jdk.httpserver} module), used by {@code net.ladenthin.llama.server} to
+     * provide the OpenAI-compatible endpoint without adding a web-framework dependency. Despite the
+     * {@code com.sun} prefix it is not an internal package, so it is allowed.
      */
     @ArchTest
     static final ArchRule noInternalJdkImports = noClasses()
             .that()
             .resideInAPackage("net.ladenthin.llama..")
             .should()
-            .dependOnClassesThat()
-            .resideInAnyPackage("sun..", "com.sun..", "jdk.internal..");
+            .dependOnClassesThat(resideInAnyPackage("sun..", "com.sun..", "jdk.internal..")
+                    .and(DescribedPredicate.not(resideInAPackage("com.sun.net.httpserver.."))));
 
     /**
      * Public mutable state forbidden: any non-static field declared

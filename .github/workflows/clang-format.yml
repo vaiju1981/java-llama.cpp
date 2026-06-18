@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
+name: clang-format
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# Enforces a single, pinned clang-format across all C++ sources so formatting is
+# reproducible between contributors and CI. Bump CLANG_FORMAT_VERSION here and in
+# CLAUDE.md (Code Formatting) together, then reformat the tree with the same version.
+env:
+  CLANG_FORMAT_VERSION: "22.1.5"
+
+jobs:
+  clang-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Install pinned clang-format
+        run: pip install "clang-format==${CLANG_FORMAT_VERSION}"
+      - name: Check C++ formatting
+        run: |
+          clang-format --version
+          # All hand-written C++ sources; the generated JNI header (src/main/cpp/jllama.h,
+          # produced by `javac -h`) is intentionally excluded.
+          files=$(find src/main/cpp src/test/cpp -type f \( -name '*.cpp' -o -name '*.hpp' \) | sort)
+          echo "Checking:"; echo "$files"
+          clang-format --dry-run --Werror $files

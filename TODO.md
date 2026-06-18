@@ -13,6 +13,56 @@ cross-cutting initiative.
 
 ## Open — jllama-specific
 
+### ⚠️ OpenAI server: TWO implementations to consolidate ("best of both")
+
+Two independent, Claude-generated OpenAI-compatible servers now coexist in
+`net.ladenthin.llama.server` after PR #240 was merged on top of the NanoHTTPD server that landed
+via #242. **This is a temporary state**; one unified implementation must be chosen. Until then both
+compile and are tested side by side.
+
+| | **Option A — `OpenAiCompatServer`** (from PR #240) | **Option B — `LlamaServer`** (from #242) |
+|---|---|---|
+| HTTP layer | JDK `com.sun.net.httpserver` (the supported `jdk.httpserver` module — **no dependency**) | NanoHTTPD (`<optional>` dep, bundled only in fat jar) |
+| Streaming | **Yes** — SSE with `delta.tool_calls`, heartbeats during prefill | No — blocking, full JSON per request |
+| Routes | `POST /v1/chat/completions`, `GET /v1/models` | `POST /v1/chat/completions`, `/v1/completions`, `/v1/embeddings`, `GET /v1/models`, `GET /health` |
+| Entry point | CLI launcher + embeddable; `OpenAiServerConfig` builder; optional bearer auth; binds `127.0.0.1` | fat-jar `Main-Class`; `LlamaServerArgs` CLI (`--host/--port/--ctx-size/--threads/…`) |
+| Native path | `requestChatCompletionStream` / `receiveChatCompletionChunk` (+ `wrap_stream_chunk` C++ helper) | `LlamaModel.handle*` (blocking) |
+| Tests | mapper/SSE/parser unit tests + model-free HTTP test over a socket (`ChatBackend` seam) | `OaiRouterTest`, `LlamaServerArgsTest`, `OaiHttpServerIntegrationTest` |
+
+**Important cross-insight:** Option B's own follow-up TODO below ("OpenAI-compatible server: token
+streaming (SSE) + Java-8 HTTP layer") lists SSE as *the main functional gap* and says to **avoid**
+`com.sun.net.httpserver` because it is "ArchUnit-banned". Option A **already implements that SSE
+streaming** with `com.sun.net.httpserver`, and the ban was lifted correctly: `com.sun.net.httpserver`
+is a *supported, exported* JDK API (the `jdk.httpserver` module), not an internal `com.sun..` package —
+the `noInternalJdkImports` ArchUnit rule now carries an explicit exception for it. So the premise that
+blocked the JDK approach on Option B's side does not hold.
+
+**Consolidation task (separate session — a kickoff prompt accompanies this change):** go through both
+implementations, take the best of each, settle on ONE server, delete the other, reconcile the
+dependency (`pom.xml` NanoHTTPD + assembly), the ArchUnit `layeredArchitecture` `Server` layer, the
+`spotbugs-exclude.xml` entries, `package-info.java`, the README "OpenAI-compatible HTTP server"
+section, and this TODO (including the now-partly-moot SSE section below).
+
+### OpenAI-compatible HTTP endpoint (shipped; follow-ups open)
+
+`net.ladenthin.llama.server.OpenAiCompatServer` exposes `POST /v1/chat/completions` (streaming via
+SSE + non-streaming) and `GET /v1/models` over the JDK's built-in `com.sun.net.httpserver` (no new
+dependency), so editors that speak the OpenAI protocol (e.g. VS Code Copilot "Custom Endpoint") can
+drive a local model. Streaming uses the native OAI chunk path (`requestChatCompletionStream` /
+`receiveChatCompletionChunk`), preserving `delta.tool_calls` for agent mode. Follow-ups, deferred
+until requested:
+
+- **Multi-model registry.** Only one model id is advertised/served today; support several models
+  chosen by the request `model` field (and listed in `/v1/models`).
+- **`stream_options.include_usage` passthrough** so the final streamed `usage` chunk is emitted
+  (needs a generic raw-param passthrough on `InferenceParameters`, or explicit mapping).
+- **Additional `apiType`s.** VS Code "Custom Endpoint" also offers Anthropic `messages` and OpenAI
+  `responses`; only `chat-completions` is implemented. Also consider `/v1/completions` and
+  `/v1/embeddings` routes.
+- **Gemma 4 tool-calling validation.** Confirm the pinned llama.cpp (`b9682`) includes the Gemma 4
+  tool-call parser fixes (landed upstream ~Apr 2026); if not, bump per the upgrade procedure so
+  streamed/blocking `tool_calls` come through for Gemma 4 GGUFs.
+
 ### llama.cpp upstream feature exposure (queued, deferred by policy)
 
 These are JNI plumbing items for upstream API additions. Policy: add only after a real user request — they are mostly relevant to specific model families or specialized workflows.

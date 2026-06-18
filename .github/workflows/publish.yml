@@ -398,19 +398,19 @@ jobs:
           name: Linux-x86_64-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
       - name: Download text generation model
-        run: curl -L --fail ${MODEL_URL} --create-dirs -o models/${MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${MODEL_URL} --create-dirs -o models/${MODEL_NAME}
       - name: Download reranking model
-        run: curl -L --fail ${RERANKING_MODEL_URL} --create-dirs -o models/${RERANKING_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${RERANKING_MODEL_URL} --create-dirs -o models/${RERANKING_MODEL_NAME}
       - name: Download draft model
-        run: curl -L --fail ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
       - name: Download reasoning model
-        run: curl -L --fail ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
       - name: Download nomic embedding model (issue #98 regression)
-        run: curl -L --fail ${NOMIC_EMBED_MODEL_URL} --create-dirs -o models/${NOMIC_EMBED_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${NOMIC_EMBED_MODEL_URL} --create-dirs -o models/${NOMIC_EMBED_MODEL_NAME}
       - name: Download vision model (issues #103 / #34)
-        run: curl -L --fail ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
       - name: Download vision mmproj
-        run: curl -L --fail ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -519,17 +519,17 @@ jobs:
           name: macos-14-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
       - name: Download text generation model
-        run: curl -L --fail ${MODEL_URL} --create-dirs -o models/${MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${MODEL_URL} --create-dirs -o models/${MODEL_NAME}
       - name: Download reranking model
-        run: curl -L --fail ${RERANKING_MODEL_URL} --create-dirs -o models/${RERANKING_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${RERANKING_MODEL_URL} --create-dirs -o models/${RERANKING_MODEL_NAME}
       - name: Download draft model
-        run: curl -L --fail ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
       - name: Download reasoning model
-        run: curl -L --fail ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
       - name: Download vision model (issues #103 / #34)
-        run: curl -L --fail ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
       - name: Download vision mmproj
-        run: curl -L --fail ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -583,17 +583,17 @@ jobs:
           name: macos-15-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
       - name: Download text generation model
-        run: curl -L --fail ${MODEL_URL} --create-dirs -o models/${MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${MODEL_URL} --create-dirs -o models/${MODEL_NAME}
       - name: Download reranking model
-        run: curl -L --fail ${RERANKING_MODEL_URL} --create-dirs -o models/${RERANKING_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${RERANKING_MODEL_URL} --create-dirs -o models/${RERANKING_MODEL_NAME}
       - name: Download draft model
-        run: curl -L --fail ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
       - name: Download reasoning model
-        run: curl -L --fail ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
       - name: Download vision model (issues #103 / #34)
-        run: curl -L --fail ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
       - name: Download vision mmproj
-        run: curl -L --fail ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -647,17 +647,17 @@ jobs:
           name: macos-15-metal-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
       - name: Download text generation model
-        run: curl -L --fail ${MODEL_URL} --create-dirs -o models/${MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${MODEL_URL} --create-dirs -o models/${MODEL_NAME}
       - name: Download reranking model
-        run: curl -L --fail ${RERANKING_MODEL_URL} --create-dirs -o models/${RERANKING_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${RERANKING_MODEL_URL} --create-dirs -o models/${RERANKING_MODEL_NAME}
       - name: Download draft model
-        run: curl -L --fail ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
       - name: Download reasoning model
-        run: curl -L --fail ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
       - name: Download vision model (issues #103 / #34)
-        run: curl -L --fail ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
       - name: Download vision mmproj
-        run: curl -L --fail ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
+        run: curl -L --fail --retry 5 --retry-all-errors ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
@@ -714,17 +714,17 @@ jobs:
           name: Windows-x86_64-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
       - name: Download text generation model
-        run: curl -L --fail $env:MODEL_URL --create-dirs -o models/$env:MODEL_NAME
+        run: curl -L --fail --retry 5 --retry-all-errors $env:MODEL_URL --create-dirs -o models/$env:MODEL_NAME
       - name: Download reranking model
-        run: curl -L --fail $env:RERANKING_MODEL_URL --create-dirs -o models/$env:RERANKING_MODEL_NAME
+        run: curl -L --fail --retry 5 --retry-all-errors $env:RERANKING_MODEL_URL --create-dirs -o models/$env:RERANKING_MODEL_NAME
       - name: Download draft model
-        run: curl -L --fail $env:DRAFT_MODEL_URL --create-dirs -o models/$env:DRAFT_MODEL_NAME
+        run: curl -L --fail --retry 5 --retry-all-errors $env:DRAFT_MODEL_URL --create-dirs -o models/$env:DRAFT_MODEL_NAME
       - name: Download reasoning model
-        run: curl -L --fail $env:REASONING_MODEL_URL --create-dirs -o models/$env:REASONING_MODEL_NAME
+        run: curl -L --fail --retry 5 --retry-all-errors $env:REASONING_MODEL_URL --create-dirs -o models/$env:REASONING_MODEL_NAME
       - name: Download vision model (issues #103 / #34)
-        run: curl -L --fail $env:VISION_MODEL_URL --create-dirs -o models/$env:VISION_MODEL_NAME
+        run: curl -L --fail --retry 5 --retry-all-errors $env:VISION_MODEL_URL --create-dirs -o models/$env:VISION_MODEL_NAME
       - name: Download vision mmproj
-        run: curl -L --fail $env:VISION_MMPROJ_URL --create-dirs -o models/$env:VISION_MMPROJ_NAME
+        run: curl -L --fail --retry 5 --retry-all-errors $env:VISION_MMPROJ_URL --create-dirs -o models/$env:VISION_MMPROJ_NAME
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files

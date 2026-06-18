@@ -24,8 +24,8 @@
 #include <chrono>
 #include <ctime>
 #include <functional>
-#include <thread>
 #include <stdexcept>
+#include <thread>
 
 // We store some references to Java classes and their fields/methods here to speed up things for later and to fail
 // early on if anything can't be found. This happens when the JVM loads the shared library (see `JNI_OnLoad`).
@@ -111,32 +111,27 @@ jobject o_log_callback = nullptr;
 // within each table only matters for the human reader.
 // ---------------------------------------------------------------------------
 static jclass *const g_global_class_refs[] = {
-    &c_llama_model, &c_string,   &c_hash_map, &c_map,       &c_set,
-    &c_entry,       &c_iterator, &c_integer,  &c_float,     &c_biconsumer,
-    &c_llama_error, &c_log_level, &c_log_format, &c_error_oom,
+    &c_llama_model, &c_string, &c_hash_map,   &c_map,         &c_set,       &c_entry,      &c_iterator,
+    &c_integer,     &c_float,  &c_biconsumer, &c_llama_error, &c_log_level, &c_log_format, &c_error_oom,
 };
 
 static jobject *const g_global_object_refs[] = {
-    &o_utf_8,
-    &o_log_level_debug, &o_log_level_info, &o_log_level_warn, &o_log_level_error,
-    &o_log_format_json, &o_log_format_text,
+    &o_utf_8,           &o_log_level_debug, &o_log_level_info,  &o_log_level_warn,
+    &o_log_level_error, &o_log_format_json, &o_log_format_text,
 };
 
 // Maps every object that is fetched from a Java static field on load to the
 // (class, field) pair it should be looked up from.
 struct static_object_binding {
-    jobject  *target;
-    jclass   *cls;
+    jobject *target;
+    jclass *cls;
     jfieldID *field;
 };
 
 static const static_object_binding g_static_object_bindings[] = {
-    {&o_log_level_debug, &c_log_level,  &f_log_level_debug},
-    {&o_log_level_info,  &c_log_level,  &f_log_level_info},
-    {&o_log_level_warn,  &c_log_level,  &f_log_level_warn},
-    {&o_log_level_error, &c_log_level,  &f_log_level_error},
-    {&o_log_format_json, &c_log_format, &f_log_format_json},
-    {&o_log_format_text, &c_log_format, &f_log_format_text},
+    {&o_log_level_debug, &c_log_level, &f_log_level_debug},  {&o_log_level_info, &c_log_level, &f_log_level_info},
+    {&o_log_level_warn, &c_log_level, &f_log_level_warn},    {&o_log_level_error, &c_log_level, &f_log_level_error},
+    {&o_log_format_json, &c_log_format, &f_log_format_json}, {&o_log_format_text, &c_log_format, &f_log_format_text},
 };
 
 /**
@@ -160,11 +155,9 @@ static void throw_invalid_request(JNIEnv *env, const std::exception &e) {
  * Returns true if result is non-null and not an error.
  * On failure throws via JNI and returns false.  Callers must return immediately.
  */
-[[nodiscard]] static bool result_ok_or_throw(JNIEnv *env,
-                                              const server_task_result_ptr &result) {
+[[nodiscard]] static bool result_ok_or_throw(JNIEnv *env, const server_task_result_ptr &result) {
     if (!result || result->is_error()) {
-        env->ThrowNew(c_llama_error,
-                      result ? get_result_error_message(result).c_str() : "No result");
+        env->ThrowNew(c_llama_error, result ? get_result_error_message(result).c_str() : "No result");
         return false;
     }
     return true;
@@ -174,9 +167,7 @@ static void throw_invalid_request(JNIEnv *env, const std::exception &e) {
  * Returns true if the batch completed without a task-level error.
  * On failure throws via JNI and returns false.  Callers must return immediately.
  */
-[[nodiscard]] static bool batch_ok_or_throw(
-        JNIEnv *env,
-        const server_response_reader::batch_response &br) {
+[[nodiscard]] static bool batch_ok_or_throw(JNIEnv *env, const server_response_reader::batch_response &br) {
     if (br.error) {
         env->ThrowNew(c_llama_error, get_result_error_message(br.error).c_str());
         return false;
@@ -189,10 +180,7 @@ static void throw_invalid_request(JNIEnv *env, const std::exception &e) {
  * write the result into `out`.  Returns true on success; on failure throws and
  * returns false.
  */
-[[nodiscard]] static bool parse_oai_chat_params(JNIEnv *env,
-                                                 server_context *ctx_server,
-                                                 json &body,
-                                                 json &out) {
+[[nodiscard]] static bool parse_oai_chat_params(JNIEnv *env, server_context *ctx_server, json &body, json &out) {
     try {
         std::vector<raw_buffer> files;
         auto meta = ctx_server->get_meta();
@@ -206,32 +194,24 @@ static void throw_invalid_request(JNIEnv *env, const std::exception &e) {
 
 // Tokenise the prompt in `data` and fill task.tokens + task.params.
 // Callers must wrap this in try/catch (params_from_json_cmpl can throw).
-static void populate_completion_task(server_task                          &task,
-                                     jllama_context                       *jctx,
-                                     int                                   n_ctx_slot,
-                                     const std::vector<llama_logit_bias>  &logit_bias_eog,
-                                     const json                           &data) {
-    auto tokenized_prompts = tokenize_input_prompts(
-            jctx->vocab, nullptr, data.at("prompt"), true, true);
+static void populate_completion_task(server_task &task, jllama_context *jctx, int n_ctx_slot,
+                                     const std::vector<llama_logit_bias> &logit_bias_eog, const json &data) {
+    auto tokenized_prompts = tokenize_input_prompts(jctx->vocab, nullptr, data.at("prompt"), true, true);
     if (!tokenized_prompts.empty()) {
         task.tokens = std::move(tokenized_prompts[0]);
     }
-    task.params = server_task::params_from_json_cmpl(
-            jctx->vocab, jctx->params, n_ctx_slot, logit_bias_eog, data);
+    task.params = server_task::params_from_json_cmpl(jctx->vocab, jctx->params, n_ctx_slot, logit_bias_eog, data);
 }
 
-[[nodiscard]] static jint dispatch_streaming_completion(JNIEnv           *env,
-                                                         jllama_context   *jctx,
-                                                         const json       &data,
-                                                         server_task_type  task_type,
-                                                         task_response_type res_type) {
+[[nodiscard]] static jint dispatch_streaming_completion(JNIEnv *env, jllama_context *jctx, const json &data,
+                                                        server_task_type task_type, task_response_type res_type) {
     server_context *ctx_server = &jctx->server;
     auto meta = ctx_server->get_meta();
-    auto *rd  = new server_response_reader(ctx_server->get_response_reader());
-    int   tid = rd->get_new_id();
+    auto *rd = new server_response_reader(ctx_server->get_response_reader());
+    int tid = rd->get_new_id();
     try {
         server_task task(task_type);
-        task.id     = tid;
+        task.id = tid;
         populate_completion_task(task, jctx, meta.slot_n_ctx, meta.logit_bias_eog, data);
         task.params.res_type = res_type;
         rd->post_task(std::move(task));
@@ -252,14 +232,11 @@ static void populate_completion_task(server_task                          &task,
  * handleInfill — the blocking completion path.
  * On error: throws via JNI and returns nullptr.
  */
-[[nodiscard]] static jstring dispatch_blocking_completion(JNIEnv           *env,
-                                                           jllama_context   *jctx,
-                                                           const json       &data,
-                                                           server_task_type  task_type,
-                                                           task_response_type res_type) {
+[[nodiscard]] static jstring dispatch_blocking_completion(JNIEnv *env, jllama_context *jctx, const json &data,
+                                                          server_task_type task_type, task_response_type res_type) {
     server_context *ctx_server = &jctx->server;
     auto meta = ctx_server->get_meta();
-    auto rd   = ctx_server->get_response_reader();
+    auto rd = ctx_server->get_response_reader();
     server_task task(task_type);
     task.id = rd.get_new_id();
     try {
@@ -271,7 +248,8 @@ static void populate_completion_task(server_task                          &task,
     task.params.res_type = res_type;
     rd.post_task(std::move(task));
     auto br = rd.wait_for_all([] { return false; });
-    if (!batch_ok_or_throw(env, br)) return nullptr;
+    if (!batch_ok_or_throw(env, br))
+        return nullptr;
     return results_to_jstring_impl(env, br.results);
 }
 
@@ -297,62 +275,53 @@ std::string parse_jstring(JNIEnv *env, jstring java_string) {
  * Combines parse_jstring + json::parse, which every parameter-taking JNI
  * function needs before it can read its arguments.
  */
-static json parse_json_params(JNIEnv *env, jstring jparams) {
-    return json::parse(parse_jstring(env, jparams));
-}
+static json parse_json_params(JNIEnv *env, jstring jparams) { return json::parse(parse_jstring(env, jparams)); }
 
 /**
  * Convenience wrapper around require_json_field_impl (jni_helpers.hpp).
  * Returns false and throws if `field` is absent from `data`.
  */
-[[nodiscard]] static bool require_json_field(JNIEnv *env, const json &data,
-                                              const char *field) {
+[[nodiscard]] static bool require_json_field(JNIEnv *env, const json &data, const char *field) {
     return require_json_field_impl(env, data, field, c_llama_error);
 }
 
 // Build a single indexed token task for batch submission (rerank and embedding).
 // Assigns the reader-allocated id; moves tokens into the task.
-[[nodiscard]] static server_task build_indexed_token_task(server_response_reader &rd,
-                                                           server_task_type        type,
-                                                           server_tokens         &&tokens,
-                                                           int                     index,
-                                                           task_response_type      res_type) {
+[[nodiscard]] static server_task build_indexed_token_task(server_response_reader &rd, server_task_type type,
+                                                          server_tokens &&tokens, int index,
+                                                          task_response_type res_type) {
     server_task task(type);
-    task.id              = rd.get_new_id();
-    task.tokens          = std::move(tokens);
-    task.index           = index;
+    task.id = rd.get_new_id();
+    task.tokens = std::move(tokens);
+    task.index = index;
     task.params.res_type = res_type;
     return task;
 }
 
 // Post a single pre-built task, wait for its result, and return JSON as a jstring.
 // The task's id field is assigned here; callers must not set it beforehand.
-[[nodiscard]] static jstring dispatch_one_shot_task(JNIEnv           *env,
-                                                     server_context   *ctx_server,
-                                                     server_task       task) {
-    auto rd    = ctx_server->get_response_reader();
-    task.id    = rd.get_new_id();
+[[nodiscard]] static jstring dispatch_one_shot_task(JNIEnv *env, server_context *ctx_server, server_task task) {
+    auto rd = ctx_server->get_response_reader();
+    task.id = rd.get_new_id();
     rd.post_task(std::move(task));
     auto result = rd.next([] { return false; });
-    if (!result_ok_or_throw(env, result)) return nullptr;
+    if (!result_ok_or_throw(env, result))
+        return nullptr;
     return json_to_jstring_impl(env, result->to_json());
 }
 
 // Post a single slot file task (SAVE or RESTORE), wait for its result, and
 // return the result JSON as a jstring.
-[[nodiscard]] static jstring exec_slot_file_task(JNIEnv           *env,
-                                                  server_context   *ctx_server,
-                                                  jint              slotId,
-                                                  jstring           jfilename,
-                                                  server_task_type  task_type,
-                                                  const char       *empty_filename_error) {
+[[nodiscard]] static jstring exec_slot_file_task(JNIEnv *env, server_context *ctx_server, jint slotId,
+                                                 jstring jfilename, server_task_type task_type,
+                                                 const char *empty_filename_error) {
     const std::string filename = jfilename != nullptr ? parse_jstring(env, jfilename) : "";
     if (filename.empty()) {
         env->ThrowNew(c_llama_error, empty_filename_error);
         return nullptr;
     }
     server_task task(task_type);
-    task.slot_action.id_slot  = slotId;
+    task.slot_action.id_slot = slotId;
     task.slot_action.filename = filename;
     task.slot_action.filepath = filename;
     return dispatch_one_shot_task(env, ctx_server, std::move(task));
@@ -446,9 +415,12 @@ void log_callback_trampoline(ggml_log_level level, const char *text, void *user_
 // Validates the jllama_context at every JNI entry point.  Declares both
 // `jctx` and `ctx_server` in the caller's scope; returns the given sentinel
 // (omit for void functions) if the model is not loaded.
-#define REQUIRE_SERVER_CONTEXT(...) \
-    auto *jctx = get_jllama_context(env, obj); \
-    if (!jctx) { env->ThrowNew(c_llama_error, "Model is not loaded"); return __VA_ARGS__; } \
+#define REQUIRE_SERVER_CONTEXT(...)                                                                                    \
+    auto *jctx = get_jllama_context(env, obj);                                                                         \
+    if (!jctx) {                                                                                                       \
+        env->ThrowNew(c_llama_error, "Model is not loaded");                                                           \
+        return __VA_ARGS__;                                                                                            \
+    }                                                                                                                  \
     server_context *ctx_server = &jctx->server
 
 /**
@@ -484,9 +456,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     c_log_format = env->FindClass("net/ladenthin/llama/args/LogFormat");
     c_error_oom = env->FindClass("java/lang/OutOfMemoryError");
 
-    if (!(c_llama_model && c_standard_charsets && c_string && c_hash_map && c_map &&
-          c_set && c_entry && c_iterator && c_integer && c_float && c_biconsumer && c_llama_error && c_log_level &&
-          c_log_format && c_error_oom)) {
+    if (!(c_llama_model && c_standard_charsets && c_string && c_hash_map && c_map && c_set && c_entry && c_iterator &&
+          c_integer && c_float && c_biconsumer && c_llama_error && c_log_level && c_log_format && c_error_oom)) {
         goto error;
     }
 
@@ -534,8 +505,8 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     f_log_format_json = env->GetStaticFieldID(c_log_format, "JSON", "Lnet/ladenthin/llama/args/LogFormat;");
     f_log_format_text = env->GetStaticFieldID(c_log_format, "TEXT", "Lnet/ladenthin/llama/args/LogFormat;");
 
-    if (!(f_model_pointer && f_utf_8 && f_log_level_debug && f_log_level_info &&
-          f_log_level_warn && f_log_level_error && f_log_format_json && f_log_format_text)) {
+    if (!(f_model_pointer && f_utf_8 && f_log_level_debug && f_log_level_info && f_log_level_warn &&
+          f_log_level_error && f_log_format_json && f_log_format_text)) {
         goto error;
     }
 
@@ -603,8 +574,8 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
 // by the single load_model_impl call.
 namespace {
 struct load_progress_ud {
-    JNIEnv  *env;
-    jobject  callback;
+    JNIEnv *env;
+    jobject callback;
     jmethodID on_progress;
 };
 
@@ -640,9 +611,9 @@ static void load_model_impl(JNIEnv *env, jobject obj, jobjectArray jparams, jobj
 
     common_init();
 
-    auto *jctx        = new jllama_context();
-    jctx->vocab_only  = vocab_only;
-    jctx->params      = params;
+    auto *jctx = new jllama_context();
+    jctx->vocab_only = vocab_only;
+    jctx->params = params;
 
     auto fail_load = [&](const char *msg) {
         if (jctx->vocab_only_model) {
@@ -685,14 +656,14 @@ static void load_model_impl(JNIEnv *env, jobject obj, jobjectArray jparams, jobj
     load_progress_ud progress_ud{};
     if (progress != nullptr) {
         jclass cb_cls = env->GetObjectClass(progress);
-        progress_ud.env         = env;
-        progress_ud.callback    = progress;
+        progress_ud.env = env;
+        progress_ud.callback = progress;
         progress_ud.on_progress = env->GetMethodID(cb_cls, "onProgress", "(F)Z");
         if (progress_ud.on_progress == nullptr) {
             fail_load("LoadProgressCallback.onProgress(float) not found");
             return;
         }
-        params.load_progress_callback           = jni_load_progress_trampoline;
+        params.load_progress_callback = jni_load_progress_trampoline;
         params.load_progress_callback_user_data = &progress_ud;
     }
 
@@ -709,9 +680,9 @@ static void load_model_impl(JNIEnv *env, jobject obj, jobjectArray jparams, jobj
         auto meta = jctx->server.get_meta();
         LOG_INF("%s: chat template, chat_template: %s, example_format: '%s'\n", __func__,
                 common_chat_templates_source(meta.chat_params.tmpls.get()).c_str(),
-                common_chat_format_example(meta.chat_params.tmpls.get(),
-                                           jctx->params.use_jinja,
-                                           jctx->params.default_template_kwargs).c_str());
+                common_chat_format_example(meta.chat_params.tmpls.get(), jctx->params.use_jinja,
+                                           jctx->params.default_template_kwargs)
+                    .c_str());
     }
 
     jctx->worker = std::thread([jctx]() {
@@ -745,8 +716,8 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_loadModel(JNIEnv *env
 }
 
 JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_loadModelWithProgress(JNIEnv *env, jobject obj,
-                                                                              jobjectArray jparams,
-                                                                              jobject       callback) {
+                                                                                 jobjectArray jparams,
+                                                                                 jobject callback) {
     load_model_impl(env, obj, jparams, callback);
 }
 
@@ -755,7 +726,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_getModelMetaJson(J
     if (jctx->vocab_only) {
         json meta = {
             {"vocab_type", llama_vocab_type(jctx->vocab)},
-            {"n_vocab",    llama_vocab_n_tokens(jctx->vocab)},
+            {"n_vocab", llama_vocab_n_tokens(jctx->vocab)},
         };
         return json_to_jstring_impl(env, meta);
     }
@@ -767,27 +738,26 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_getModelMetaJson(J
         llama_model_meta_val_str(mdl, "general.architecture", arch_buf, sizeof(arch_buf));
     }
     json j = {
-        {"vocab_type",   m.model_vocab_type},
-        {"n_vocab",      m.model_vocab_n_tokens},
-        {"n_ctx_train",  m.model_n_ctx_train},
-        {"n_embd",       m.model_n_embd_inp},
-        {"n_params",     m.model_n_params},
-        {"size",         m.model_size},
-        {"modalities",   {{"vision", m.has_inp_image}, {"audio", m.has_inp_audio}}},
-        {"name",         m.model_name},
+        {"vocab_type", m.model_vocab_type},
+        {"n_vocab", m.model_vocab_n_tokens},
+        {"n_ctx_train", m.model_n_ctx_train},
+        {"n_embd", m.model_n_embd_inp},
+        {"n_params", m.model_n_params},
+        {"size", m.model_size},
+        {"modalities", {{"vision", m.has_inp_image}, {"audio", m.has_inp_audio}}},
+        {"name", m.model_name},
         {"architecture", std::string(arch_buf)},
     };
     return json_to_jstring_impl(env, j);
 }
 
-JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestCompletion(JNIEnv *env, jobject obj, jstring jparams) {
+JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestCompletion(JNIEnv *env, jobject obj,
+                                                                             jstring jparams) {
     REQUIRE_SERVER_CONTEXT(0);
 
     json data = parse_json_params(env, jparams);
 
-    const server_task_type type = is_infill_request(data)
-                                       ? SERVER_TASK_TYPE_INFILL
-                                       : SERVER_TASK_TYPE_COMPLETION;
+    const server_task_type type = is_infill_request(data) ? SERVER_TASK_TYPE_INFILL : SERVER_TASK_TYPE_COMPLETION;
 
     return dispatch_streaming_completion(env, jctx, data, type, TASK_RESPONSE_TYPE_NONE);
 }
@@ -798,7 +768,7 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_releaseTask(JNIEnv *e
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveCompletionJson(JNIEnv *env, jobject obj,
-                                                                               jint id_task) {
+                                                                                    jint id_task) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
     server_response_reader *rd;
@@ -839,6 +809,52 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveCompletionJ
     return json_to_jstring_impl(env, response);
 }
 
+// Streaming OpenAI chat: poll one step of a chat.completion.chunk stream.
+// Returns {"data": <chunk-object-or-array>, "stop": <bool>} — `data` is exactly
+// what the streaming result's to_json() produced (a single chunk object for a
+// partial token, or a JSON array of chunks for the final delta + usage). The
+// uniform envelope avoids injecting a "stop" key into an array. Skips the
+// header-only nullptr sentinels (upstream b9437+) and releases the reader on stop.
+JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveChatCompletionChunk(JNIEnv *env, jobject obj,
+                                                                                         jint id_task) {
+    REQUIRE_SERVER_CONTEXT(nullptr);
+
+    server_response_reader *rd;
+    {
+        std::lock_guard<std::mutex> lk(jctx->readers_mutex);
+        auto it = jctx->readers.find(id_task);
+        if (it == jctx->readers.end()) {
+            env->ThrowNew(c_llama_error, "Task not found");
+            return nullptr;
+        }
+        rd = it->second.get();
+    }
+
+    json payload;
+    bool stop = false;
+    while (true) {
+        server_task_result_ptr result = rd->next([] { return false; });
+
+        if (!result_ok_or_throw(env, result)) {
+            erase_reader(jctx, id_task);
+            return nullptr;
+        }
+
+        json chunk = result->to_json();
+        if (chunk.is_null()) {
+            continue;
+        }
+        payload = std::move(chunk);
+        stop = result->is_stop();
+        if (stop) {
+            erase_reader(jctx, id_task);
+        }
+        break;
+    }
+
+    return json_to_jstring_impl(env, wrap_stream_chunk(std::move(payload), stop));
+}
+
 JNIEXPORT jfloatArray JNICALL Java_net_ladenthin_llama_LlamaModel_embed(JNIEnv *env, jobject obj, jstring jprompt) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
@@ -850,15 +866,16 @@ JNIEXPORT jfloatArray JNICALL Java_net_ladenthin_llama_LlamaModel_embed(JNIEnv *
     SRV_INF("Calling embedding '%s'\n", prompt.c_str());
 
     auto tokens = tokenize_mixed(jctx->vocab, prompt, true, true);
-    auto rd     = ctx_server->get_response_reader();
+    auto rd = ctx_server->get_response_reader();
     server_task task(SERVER_TASK_TYPE_EMBEDDING);
-    task.id     = rd.get_new_id();
+    task.id = rd.get_new_id();
     task.tokens = server_tokens(tokens, false);
-    task.index  = 0;
+    task.index = 0;
     rd.post_task(std::move(task));
 
     auto br = rd.wait_for_all([] { return false; });
-    if (!batch_ok_or_throw(env, br)) return nullptr;
+    if (!batch_ok_or_throw(env, br))
+        return nullptr;
 
     auto *embd_result = dynamic_cast<server_task_result_embd *>(br.results[0].get());
     if (!embd_result || embd_result->embedding.empty() || embd_result->embedding[0].empty()) {
@@ -872,14 +889,15 @@ JNIEXPORT jfloatArray JNICALL Java_net_ladenthin_llama_LlamaModel_embed(JNIEnv *
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleRerank(JNIEnv *env, jobject obj, jstring jprompt,
-                                                                      jobjectArray documents) {
+                                                                           jobjectArray documents) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
     {
         auto meta = ctx_server->get_meta();
         if (!jctx->params.embedding || meta.pooling_type != LLAMA_POOLING_TYPE_RANK) {
-            env->ThrowNew(c_llama_error,
-                          "This server does not support reranking. Start it with `--reranking` and without `--embedding`");
+            env->ThrowNew(
+                c_llama_error,
+                "This server does not support reranking. Start it with `--reranking` and without `--embedding`");
             return nullptr;
         }
     }
@@ -888,7 +906,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleRerank(JNIEn
 
     const jsize amount_documents = env->GetArrayLength(documents);
     auto *document_array = parse_string_array(env, documents, amount_documents);
-    auto  document_vector = std::vector<std::string>(document_array, document_array + amount_documents);
+    auto document_vector = std::vector<std::string>(document_array, document_array + amount_documents);
     free_string_array(document_array, amount_documents);
 
     const llama_model *model = llama_get_model(ctx_server->get_llama_context());
@@ -896,14 +914,15 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleRerank(JNIEn
     std::vector<server_task> tasks;
     tasks.reserve(document_vector.size());
     for (size_t i = 0; i < document_vector.size(); i++) {
-        tasks.push_back(build_indexed_token_task(rd, SERVER_TASK_TYPE_RERANK,
-            format_prompt_rerank(model, jctx->vocab, nullptr, prompt, document_vector[i]),
+        tasks.push_back(build_indexed_token_task(
+            rd, SERVER_TASK_TYPE_RERANK, format_prompt_rerank(model, jctx->vocab, nullptr, prompt, document_vector[i]),
             static_cast<int>(i), TASK_RESPONSE_TYPE_NONE));
     }
     rd.post_tasks(std::move(tasks));
 
     auto br = rd.wait_for_all([] { return false; });
-    if (!batch_ok_or_throw(env, br)) return nullptr;
+    if (!batch_ok_or_throw(env, br))
+        return nullptr;
     return json_to_jstring_impl(env, rerank_results_to_json(br.results, document_vector));
 }
 
@@ -913,35 +932,53 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_applyTemplate(JNIE
     json data = parse_json_params(env, jparams);
 
     json templateData;
-    if (!parse_oai_chat_params(env, ctx_server, data, templateData)) return nullptr;
+    if (!parse_oai_chat_params(env, ctx_server, data, templateData))
+        return nullptr;
 
     std::string tok_str = templateData.at("prompt");
     return env->NewStringUTF(tok_str.c_str());
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleChatCompletions(JNIEnv *env, jobject obj,
-                                                                                jstring jparams) {
+                                                                                    jstring jparams) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
     json body = parse_json_params(env, jparams);
     json data;
-    if (!parse_oai_chat_params(env, ctx_server, body, data)) return nullptr;
+    if (!parse_oai_chat_params(env, ctx_server, body, data))
+        return nullptr;
 
-    return dispatch_blocking_completion(env, jctx, data,
-                                        SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_OAI_CHAT);
+    return dispatch_blocking_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_OAI_CHAT);
 }
 
 JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestChatCompletion(JNIEnv *env, jobject obj,
-                                                                             jstring jparams) {
+                                                                                 jstring jparams) {
     REQUIRE_SERVER_CONTEXT(0);
 
     json body = parse_json_params(env, jparams);
     // Chat template already applied by parse_oai_chat_params; no OAI wrapping on the streaming path.
     json data;
-    if (!parse_oai_chat_params(env, ctx_server, body, data)) return 0;
+    if (!parse_oai_chat_params(env, ctx_server, body, data))
+        return 0;
 
-    return dispatch_streaming_completion(env, jctx, data,
-                                         SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_NONE);
+    return dispatch_streaming_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_NONE);
+}
+
+// Streaming OpenAI chat with OAI-formatted chunks. Mirrors requestChatCompletion
+// but sets TASK_RESPONSE_TYPE_OAI_CHAT so each polled result formats as an
+// OpenAI chat.completion.chunk (including streamed delta.tool_calls). The params
+// must carry "stream": true so the upstream formatter emits chunk deltas; poll
+// the returned task id with receiveChatCompletionChunk.
+JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestChatCompletionStream(JNIEnv *env, jobject obj,
+                                                                                       jstring jparams) {
+    REQUIRE_SERVER_CONTEXT(0);
+
+    json body = parse_json_params(env, jparams);
+    json data;
+    if (!parse_oai_chat_params(env, ctx_server, body, data))
+        return 0;
+
+    return dispatch_streaming_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_OAI_CHAT);
 }
 
 JNIEXPORT jintArray JNICALL Java_net_ladenthin_llama_LlamaModel_encode(JNIEnv *env, jobject obj, jstring jprompt) {
@@ -961,7 +998,7 @@ static std::string detokenize(jllama_context *jctx, const std::vector<llama_toke
 }
 
 JNIEXPORT jbyteArray JNICALL Java_net_ladenthin_llama_LlamaModel_decodeBytes(JNIEnv *env, jobject obj,
-                                                                         jintArray java_tokens) {
+                                                                             jintArray java_tokens) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
     const auto tokens = jint_array_to_tokens_impl(env, java_tokens);
@@ -970,7 +1007,8 @@ JNIEXPORT jbyteArray JNICALL Java_net_ladenthin_llama_LlamaModel_decodeBytes(JNI
 
 JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_delete(JNIEnv *env, jobject obj) {
     auto *jctx = get_jllama_context(env, obj);
-    if (!jctx) return;
+    if (!jctx)
+        return;
 
     env->SetLongField(obj, f_model_pointer, 0);
 
@@ -1006,7 +1044,7 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_cancelCompletion(JNIE
 }
 
 JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_setLogger(JNIEnv *env, jclass clazz, jobject log_format,
-                                                                 jobject jcallback) {
+                                                                     jobject jcallback) {
     if (o_log_callback != nullptr) {
         env->DeleteGlobalRef(o_log_callback);
     }
@@ -1031,7 +1069,7 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_setLogger(JNIEnv *env
 }
 
 JNIEXPORT jbyteArray JNICALL Java_net_ladenthin_llama_LlamaModel_jsonSchemaToGrammarBytes(JNIEnv *env, jclass clazz,
-                                                                                      jstring j_schema) {
+                                                                                          jstring j_schema) {
     const std::string c_schema = parse_jstring(env, j_schema);
     nlohmann::ordered_json c_schema_json = nlohmann::ordered_json::parse(c_schema);
     const std::string c_grammar = json_schema_to_grammar(c_schema_json);
@@ -1039,16 +1077,15 @@ JNIEXPORT jbyteArray JNICALL Java_net_ladenthin_llama_LlamaModel_jsonSchemaToGra
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleCompletions(JNIEnv *env, jobject obj,
-                                                                            jstring jparams) {
+                                                                                jstring jparams) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
     json data = parse_json_params(env, jparams);
-    return dispatch_blocking_completion(env, jctx, data,
-                                        SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_NONE);
+    return dispatch_blocking_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_NONE);
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleCompletionsOai(JNIEnv *env, jobject obj,
-                                                                               jstring jparams) {
+                                                                                   jstring jparams) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
     json body = parse_json_params(env, jparams);
@@ -1060,8 +1097,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleCompletionsO
         return nullptr;
     }
 
-    return dispatch_blocking_completion(env, jctx, data,
-                                        SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_OAI_CMPL);
+    return dispatch_blocking_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_OAI_CMPL);
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleInfill(JNIEnv *env, jobject obj, jstring jparams) {
@@ -1070,8 +1106,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleInfill(JNIEn
     // Check FIM token support via server_context_meta (populated from the
     // same llama_vocab_fim_* calls inside server-context).
     auto meta = ctx_server->get_meta();
-    if (meta.fim_pre_token == LLAMA_TOKEN_NULL ||
-        meta.fim_sub_token == LLAMA_TOKEN_NULL ||
+    if (meta.fim_pre_token == LLAMA_TOKEN_NULL || meta.fim_sub_token == LLAMA_TOKEN_NULL ||
         meta.fim_mid_token == LLAMA_TOKEN_NULL) {
         env->ThrowNew(c_llama_error, "Model does not support fill-in-the-middle infill");
         return nullptr;
@@ -1079,30 +1114,27 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleInfill(JNIEn
 
     json data = parse_json_params(env, jparams);
 
-    if (!require_json_field(env, data, "input_prefix")) return nullptr;
-    if (!require_json_field(env, data, "input_suffix")) return nullptr;
+    if (!require_json_field(env, data, "input_prefix"))
+        return nullptr;
+    if (!require_json_field(env, data, "input_suffix"))
+        return nullptr;
 
     json input_extra = json_value(data, "input_extra", json::array());
     data["input_extra"] = input_extra;
 
     std::string prompt = json_value(data, "prompt", std::string());
-    std::vector<server_tokens> tokenized_prompts =
-            tokenize_input_prompts(jctx->vocab, nullptr, prompt, false, true);
+    std::vector<server_tokens> tokenized_prompts = tokenize_input_prompts(jctx->vocab, nullptr, prompt, false, true);
 
-    data["prompt"] = format_prompt_infill(jctx->vocab,
-                                   data.at("input_prefix"), data.at("input_suffix"),
-                                   data.at("input_extra"),
-                                   jctx->params.n_batch, jctx->params.n_predict,
-                                   meta.slot_n_ctx, jctx->params.spm_infill,
-                                   tokenized_prompts.empty() ? llama_tokens()
-                                                             : tokenized_prompts[0].get_tokens());
+    data["prompt"] =
+        format_prompt_infill(jctx->vocab, data.at("input_prefix"), data.at("input_suffix"), data.at("input_extra"),
+                             jctx->params.n_batch, jctx->params.n_predict, meta.slot_n_ctx, jctx->params.spm_infill,
+                             tokenized_prompts.empty() ? llama_tokens() : tokenized_prompts[0].get_tokens());
 
-    return dispatch_blocking_completion(env, jctx, data,
-                                        SERVER_TASK_TYPE_INFILL, TASK_RESPONSE_TYPE_NONE);
+    return dispatch_blocking_completion(env, jctx, data, SERVER_TASK_TYPE_INFILL, TASK_RESPONSE_TYPE_NONE);
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleEmbeddings(JNIEnv *env, jobject obj,
-                                                                           jstring jparams, jboolean joaiCompat) {
+                                                                               jstring jparams, jboolean joaiCompat) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
     if (!require_embedding_support(env, jctx->params.embedding, c_llama_error)) {
@@ -1126,16 +1158,16 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleEmbeddings(J
     json prompt;
     bool use_base64 = false;
     try {
-        prompt     = extract_embedding_prompt(body, force_no_oaicompat);
+        prompt = extract_embedding_prompt(body, force_no_oaicompat);
         use_base64 = parse_encoding_format(body);
     } catch (const std::exception &e) {
         env->ThrowNew(c_llama_error, e.what());
         return nullptr;
     }
-    if (force_no_oaicompat) res_type = TASK_RESPONSE_TYPE_NONE;
+    if (force_no_oaicompat)
+        res_type = TASK_RESPONSE_TYPE_NONE;
 
-    std::vector<server_tokens> tokenized_prompts =
-            tokenize_input_prompts(jctx->vocab, nullptr, prompt, true, true);
+    std::vector<server_tokens> tokenized_prompts = tokenize_input_prompts(jctx->vocab, nullptr, prompt, true, true);
 
     for (const auto &toks : tokenized_prompts) {
         if (toks.get_tokens().empty()) {
@@ -1149,32 +1181,34 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleEmbeddings(J
     tasks.reserve(tokenized_prompts.size());
     for (size_t i = 0; i < tokenized_prompts.size(); i++) {
         tasks.push_back(build_indexed_token_task(rd, SERVER_TASK_TYPE_EMBEDDING,
-            server_tokens(tokenized_prompts[i].get_tokens(), false),
-            static_cast<int>(i), res_type));
+                                                 server_tokens(tokenized_prompts[i].get_tokens(), false),
+                                                 static_cast<int>(i), res_type));
     }
     rd.post_tasks(std::move(tasks));
 
     auto br = rd.wait_for_all([] { return false; });
-    if (!batch_ok_or_throw(env, br)) return nullptr;
+    if (!batch_ok_or_throw(env, br))
+        return nullptr;
 
     json responses = json::array();
     for (const auto &result : br.results) {
         responses.push_back(result->to_json());
     }
     json out = (res_type == TASK_RESPONSE_TYPE_OAI_EMBD)
-        ? format_embeddings_response_oaicompat(body, json_value(body, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), responses, use_base64)
-        : responses;
+                   ? format_embeddings_response_oaicompat(
+                         body, json_value(body, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), responses, use_base64)
+                   : responses;
     return json_to_jstring_impl(env, out);
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleTokenize(JNIEnv *env, jobject obj, jstring jcontent,
-                                                                         jboolean jaddSpecial,
-                                                                         jboolean jwithPieces) {
+                                                                             jboolean jaddSpecial,
+                                                                             jboolean jwithPieces) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
-    const std::string content    = parse_jstring(env, jcontent);
-    const bool        add_special = jaddSpecial;
-    const bool        with_pieces = jwithPieces;
+    const std::string content = parse_jstring(env, jcontent);
+    const bool add_special = jaddSpecial;
+    const bool with_pieces = jwithPieces;
 
     llama_tokens tokens = tokenize_mixed(jctx->vocab, content, add_special, true);
 
@@ -1201,7 +1235,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleTokenize(JNI
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleDetokenize(JNIEnv *env, jobject obj,
-                                                                           jintArray jtokens) {
+                                                                               jintArray jtokens) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
     const auto tokens = jint_array_to_tokens_impl(env, jtokens);
@@ -1209,20 +1243,18 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleDetokenize(J
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleSlotAction(JNIEnv *env, jobject obj, jint action,
-                                                                           jint slotId, jstring jfilename) {
+                                                                               jint slotId, jstring jfilename) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
     switch (action) {
     case 0: // LIST — get slot info via metrics task
         return dispatch_one_shot_task(env, ctx_server, server_task(SERVER_TASK_TYPE_METRICS));
     case 1: // SAVE
-        return exec_slot_file_task(env, ctx_server, slotId, jfilename,
-                                    SERVER_TASK_TYPE_SLOT_SAVE,
-                                    "Filename is required for slot save");
+        return exec_slot_file_task(env, ctx_server, slotId, jfilename, SERVER_TASK_TYPE_SLOT_SAVE,
+                                   "Filename is required for slot save");
     case 2: // RESTORE
-        return exec_slot_file_task(env, ctx_server, slotId, jfilename,
-                                    SERVER_TASK_TYPE_SLOT_RESTORE,
-                                    "Filename is required for slot restore");
+        return exec_slot_file_task(env, ctx_server, slotId, jfilename, SERVER_TASK_TYPE_SLOT_RESTORE,
+                                   "Filename is required for slot restore");
     case 3: { // ERASE
         server_task task(SERVER_TASK_TYPE_SLOT_ERASE);
         task.slot_action.id_slot = slotId;
@@ -1235,18 +1267,18 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleSlotAction(J
 }
 
 JNIEXPORT jboolean JNICALL Java_net_ladenthin_llama_LlamaModel_configureParallelInference(JNIEnv *env, jobject obj,
-                                                                                      jstring jconfig) {
+                                                                                          jstring jconfig) {
     REQUIRE_SERVER_CONTEXT(JNI_FALSE);
     (void)obj;
 
     json config = parse_json_params(env, jconfig);
 
     std::optional<float> slot_sim_opt;
-    std::optional<int>   n_threads_opt;
-    std::optional<int>   n_threads_batch_opt;
+    std::optional<int> n_threads_opt;
+    std::optional<int> n_threads_batch_opt;
     try {
-        slot_sim_opt        = parse_slot_prompt_similarity(config);
-        n_threads_opt       = parse_positive_int_config(config, "n_threads");
+        slot_sim_opt = parse_slot_prompt_similarity(config);
+        n_threads_opt = parse_positive_int_config(config, "n_threads");
         n_threads_batch_opt = parse_positive_int_config(config, "n_threads_batch");
     } catch (const std::invalid_argument &e) {
         env->ThrowNew(c_llama_error, e.what());
@@ -1260,17 +1292,16 @@ JNIEXPORT jboolean JNICALL Java_net_ladenthin_llama_LlamaModel_configureParallel
     if (n_threads_opt.has_value() || n_threads_batch_opt.has_value()) {
         llama_context *lctx = ctx_server->get_llama_context();
         if (lctx == nullptr) {
-            env->ThrowNew(c_llama_error,
-                          "configureParallelInference: llama_context not available "
-                          "(model sleeping or not loaded)");
+            env->ThrowNew(c_llama_error, "configureParallelInference: llama_context not available "
+                                         "(model sleeping or not loaded)");
             return JNI_FALSE;
         }
-        const int n  = n_threads_opt.value_or(jctx->params.cpuparams.n_threads);
+        const int n = n_threads_opt.value_or(jctx->params.cpuparams.n_threads);
         const int nb = n_threads_batch_opt.value_or(jctx->params.cpuparams_batch.n_threads);
         llama_set_n_threads(lctx, n, nb);
         // Keep the cached params in sync so a follow-up call that supplies only
         // the other field reads back the value just applied, not the original.
-        jctx->params.cpuparams.n_threads       = n;
+        jctx->params.cpuparams.n_threads = n;
         jctx->params.cpuparams_batch.n_threads = nb;
     }
 

@@ -393,9 +393,27 @@ not track the loader's own Java package). This is the same
 `spotbugs-exclude.xml`, PIT `targetClasses`, and `CMakeLists.txt` OSInfo repairs.
 
 ### Code Formatting
+
+C++ formatting is **enforced in CI** (`.github/workflows/clang-format.yml`) with a **pinned**
+clang-format — currently **22.1.5**, installed via `pip install clang-format==22.1.5`. Format with
+that exact version before committing; a different clang-format version reflows code differently and
+will fail the check.
+
 ```bash
-clang-format -i src/main/cpp/*.cpp src/main/cpp/*.hpp   # Format C++ code
+pip install "clang-format==22.1.5"
+clang-format -i src/main/cpp/*.cpp src/main/cpp/*.hpp src/test/cpp/*.cpp   # Format C++ code
 ```
+
+The generated JNI header `src/main/cpp/jllama.h` (produced by `javac -h`) is intentionally excluded.
+To bump the enforced version, update the pin in **both** the workflow (`CLANG_FORMAT_VERSION`) and
+this line, then reformat the whole tree with the new version in the same commit.
+
+**`.clang-format` sets `SortIncludes: Never` — do not re-enable include sorting.** The project has
+order-sensitive includes (see the "Include order rule" above): the upstream `server-*.h` headers and
+`utils.hpp` must precede `json_helpers.hpp` / `jni_helpers.hpp`, which use the `json` alias those
+headers define. Alphabetical sorting moves the helper headers first and breaks the build with
+`'json' does not name a type` (it slips past a local build whose toolchain resolves `json` anyway,
+but fails the manylinux/aarch64/Android CI compilers). Keep include order manual.
 
 ### Javadoc — must build cleanly before `mvn package`
 
@@ -453,7 +471,9 @@ If the local check passes (`BUILD SUCCESS`), the `mvn package` job in
 - `LlamaIterator` / `LlamaIterable` — Streaming generation via Java `Iterator`/`Iterable`.
 - `LlamaLoader` — Extracts the platform-specific native library from the JAR to a temp directory, or finds it on `java.library.path`.
 - `OSInfo` — Detects OS and architecture for library resolution.
-- `server.LlamaServer` — Optional OpenAI-compatible HTTP server and the fat-jar `Main-Class`. `LlamaServerArgs` parses the CLI; `OaiRouter` / `OaiHttpServer` (NanoHTTPD) map `POST /v1/chat/completions`, `/v1/completions`, `/v1/embeddings` and `GET /v1/models` to the `LlamaModel.handle*` methods. NanoHTTPD is an `<optional>` dependency (bundled only in the fat jar, not inherited by library consumers). The `server` package is a dedicated top layer in the ArchUnit `layeredArchitecture` rule (the only layer allowed to access the root `Api`). See README "OpenAI-compatible HTTP server".
+- **`server` package — OpenAI-compatible HTTP endpoint. NOTE: two implementations coexist on this branch pending a "best of both" consolidation (see [`TODO.md`](TODO.md)).**
+  - `server.OpenAiCompatServer` — built on the JDK's `com.sun.net.httpserver` (no new dependency). Serves `POST /v1/chat/completions` (streaming via SSE + non-streaming) and `GET /v1/models` by delegating to `LlamaModel.chatComplete` / `LlamaModel.streamChatCompletion`, so editors that speak the OpenAI protocol (e.g. VS Code Copilot "Custom Endpoint") can drive a local model. Streaming uses the native OAI chunk path (`requestChatCompletionStream` / `receiveChatCompletionChunk`), preserving `delta.tool_calls`.
+  - `server.LlamaServer` — an OpenAI-compatible HTTP server and the fat-jar `Main-Class`. `LlamaServerArgs` parses the CLI; `OaiRouter` / `OaiHttpServer` (NanoHTTPD) map `POST /v1/chat/completions`, `/v1/completions`, `/v1/embeddings` and `GET /v1/models` to the `LlamaModel.handle*` methods. NanoHTTPD is an `<optional>` dependency (bundled only in the fat jar, not inherited by library consumers). The `server` package is a dedicated top layer in the ArchUnit `layeredArchitecture` rule (the only layer allowed to access the root `Api`). See README "OpenAI-compatible HTTP server".
 
 **Native layer** (`src/main/cpp/`):
 - `jllama.cpp` — JNI implementation bridging Java calls to llama.cpp. ~1,215 lines; 17 native methods.
@@ -478,7 +498,7 @@ The project C++ helpers follow a strict semantic split:
 
 Functions: `get_result_error_message`, `results_to_json`, `rerank_results_to_json`,
 `parse_encoding_format`, `extract_embedding_prompt`, `is_infill_request`,
-`parse_slot_prompt_similarity`, `parse_positive_int_config`.
+`parse_slot_prompt_similarity`, `parse_positive_int_config`, `wrap_stream_chunk`.
 
 **`log_helpers.hpp`** — Pure log-formatting transforms.
 - Input: `ggml_log_level`, message text (`const char*`), an explicit `std::time_t` timestamp.
@@ -584,11 +604,11 @@ ctest --test-dir build --output-on-failure -R "ResultsToJson"
 |------|-------|-------|
 | `src/test/cpp/test_utils.cpp` | 156 | Upstream helpers: `server_tokens`, `server_grammar_trigger`, `gen_tool_call_id`, `json_value`, `json_get_nested_values`, UTF-8 helpers, `format_response_rerank`, `format_embeddings_response_oaicompat`, `oaicompat_completion_params_parse`, `oaicompat_chat_params_parse`, `are_lora_equal`, `strip_flag_from_argv`, `token_piece_value`, `json_is_array_and_contains_numbers`, `format_oai_sse`, `format_oai_resp_sse`, `format_anthropic_sse` |
 | `src/test/cpp/test_server.cpp` | 188 | Upstream result types: `result_timings`, `task_params::to_json()` (incl. `dry_sequence_breakers`, `preserved_tokens`, `timings_per_token`), `completion_token_output`, `server_task_result_cmpl_partial` (non-oaicompat + `to_json_oaicompat` + logprobs + `to_json_oaicompat_chat` + `to_json_anthropic` + dispatcher), `server_task_result_cmpl_final` (non-oaicompat + `to_json_oaicompat` + `to_json_oaicompat_chat` + `to_json_oaicompat_chat_stream` + `to_json_anthropic` + `to_json_anthropic_stream` + tool_calls + dispatcher), `server_task_result_embd`, `server_task_result_rerank`, `server_task_result_metrics`, `server_task_result_slot_save_load`, `server_task_result_slot_erase`, `server_task_result_apply_lora`, `server_task_result_error`, `format_error_response`, `server_task::need_sampling()`, `server_task::n_tokens()`, `server_task::params_from_json_cmpl()` (parsing pipeline + grammar routing + error paths), `response_fields` projection |
-| `src/test/cpp/test_json_helpers.cpp` | 42 | All functions in `json_helpers.hpp`: `get_result_error_message`, `results_to_json`, `rerank_results_to_json`, `parse_encoding_format`, `extract_embedding_prompt`, `is_infill_request`, `parse_slot_prompt_similarity`, `parse_positive_int_config` |
+| `src/test/cpp/test_json_helpers.cpp` | 47 | All functions in `json_helpers.hpp`: `get_result_error_message`, `results_to_json`, `rerank_results_to_json`, `parse_encoding_format`, `extract_embedding_prompt`, `is_infill_request`, `parse_slot_prompt_similarity`, `parse_positive_int_config`, `wrap_stream_chunk` |
 | `src/test/cpp/test_log_helpers.cpp` | 13 | All functions in `log_helpers.hpp`: `log_level_name`, `format_log_as_json` |
 | `src/test/cpp/test_jni_helpers.cpp` | 41 | All functions in `jni_helpers.hpp` using a zero-filled `JNINativeInterface_` mock |
 
-**Current total: 440 tests (all passing).**
+**Current total: 445 tests (all passing).**
 
 #### Upstream source location (in CMake build tree)
 

@@ -19,21 +19,13 @@ using json = nlohmann::json;
 // log_level_name
 // ============================================================
 
-TEST(LogLevelName, Error) {
-    EXPECT_STREQ(log_level_name(GGML_LOG_LEVEL_ERROR), "ERROR");
-}
+TEST(LogLevelName, Error) { EXPECT_STREQ(log_level_name(GGML_LOG_LEVEL_ERROR), "ERROR"); }
 
-TEST(LogLevelName, Warn) {
-    EXPECT_STREQ(log_level_name(GGML_LOG_LEVEL_WARN), "WARN");
-}
+TEST(LogLevelName, Warn) { EXPECT_STREQ(log_level_name(GGML_LOG_LEVEL_WARN), "WARN"); }
 
-TEST(LogLevelName, Info) {
-    EXPECT_STREQ(log_level_name(GGML_LOG_LEVEL_INFO), "INFO");
-}
+TEST(LogLevelName, Info) { EXPECT_STREQ(log_level_name(GGML_LOG_LEVEL_INFO), "INFO"); }
 
-TEST(LogLevelName, Debug) {
-    EXPECT_STREQ(log_level_name(GGML_LOG_LEVEL_DEBUG), "DEBUG");
-}
+TEST(LogLevelName, Debug) { EXPECT_STREQ(log_level_name(GGML_LOG_LEVEL_DEBUG), "DEBUG"); }
 
 TEST(LogLevelName, NoneFallsBackToInfo) {
     // GGML_LOG_LEVEL_NONE is not explicitly mapped; the default arm returns INFO
@@ -41,9 +33,7 @@ TEST(LogLevelName, NoneFallsBackToInfo) {
     EXPECT_STREQ(log_level_name(GGML_LOG_LEVEL_NONE), "INFO");
 }
 
-TEST(LogLevelName, ContFallsBackToInfo) {
-    EXPECT_STREQ(log_level_name(GGML_LOG_LEVEL_CONT), "INFO");
-}
+TEST(LogLevelName, ContFallsBackToInfo) { EXPECT_STREQ(log_level_name(GGML_LOG_LEVEL_CONT), "INFO"); }
 
 // ============================================================
 // format_log_as_json
@@ -52,7 +42,7 @@ TEST(LogLevelName, ContFallsBackToInfo) {
 TEST(FormatLogAsJson, BasicShape) {
     const std::string out = format_log_as_json(GGML_LOG_LEVEL_INFO, "hello", 1700000000);
     const json j = json::parse(out);
-    EXPECT_EQ(j.at("level").get<std::string>(),   "INFO");
+    EXPECT_EQ(j.at("level").get<std::string>(), "INFO");
     EXPECT_EQ(j.at("message").get<std::string>(), "hello");
     EXPECT_EQ(j.at("timestamp").get<std::int64_t>(), 1700000000);
 }

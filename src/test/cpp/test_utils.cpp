@@ -39,17 +39,17 @@ TEST(ServerGrammarTrigger, DefaultConstruct) {
 
 TEST(ServerGrammarTrigger, ConstructFromTrigger) {
     common_grammar_trigger t;
-    t.type  = COMMON_GRAMMAR_TRIGGER_TYPE_WORD;
+    t.type = COMMON_GRAMMAR_TRIGGER_TYPE_WORD;
     t.value = "tool_call";
 
     server_grammar_trigger sgt(t);
-    EXPECT_EQ(sgt.value.type,  COMMON_GRAMMAR_TRIGGER_TYPE_WORD);
+    EXPECT_EQ(sgt.value.type, COMMON_GRAMMAR_TRIGGER_TYPE_WORD);
     EXPECT_EQ(sgt.value.value, "tool_call");
 }
 
 TEST(ServerGrammarTrigger, WordType_RoundTrip) {
     common_grammar_trigger t;
-    t.type  = COMMON_GRAMMAR_TRIGGER_TYPE_WORD;
+    t.type = COMMON_GRAMMAR_TRIGGER_TYPE_WORD;
     t.value = "```json";
 
     json j = server_grammar_trigger(t).to_json();
@@ -58,49 +58,49 @@ TEST(ServerGrammarTrigger, WordType_RoundTrip) {
     EXPECT_TRUE(j.contains("value"));
     EXPECT_FALSE(j.contains("token")); // "token" field is TOKEN-type only
 
-    EXPECT_EQ(j.at("type").get<int>(),         static_cast<int>(COMMON_GRAMMAR_TRIGGER_TYPE_WORD));
+    EXPECT_EQ(j.at("type").get<int>(), static_cast<int>(COMMON_GRAMMAR_TRIGGER_TYPE_WORD));
     EXPECT_EQ(j.at("value").get<std::string>(), "```json");
 
     server_grammar_trigger restored(j);
-    EXPECT_EQ(restored.value.type,  COMMON_GRAMMAR_TRIGGER_TYPE_WORD);
+    EXPECT_EQ(restored.value.type, COMMON_GRAMMAR_TRIGGER_TYPE_WORD);
     EXPECT_EQ(restored.value.value, "```json");
 }
 
 TEST(ServerGrammarTrigger, PatternType_RoundTrip) {
     common_grammar_trigger t;
-    t.type  = COMMON_GRAMMAR_TRIGGER_TYPE_PATTERN;
+    t.type = COMMON_GRAMMAR_TRIGGER_TYPE_PATTERN;
     t.value = "^\\{";
 
     json j = server_grammar_trigger(t).to_json();
 
-    EXPECT_EQ(j.at("type").get<int>(),         static_cast<int>(COMMON_GRAMMAR_TRIGGER_TYPE_PATTERN));
+    EXPECT_EQ(j.at("type").get<int>(), static_cast<int>(COMMON_GRAMMAR_TRIGGER_TYPE_PATTERN));
     EXPECT_EQ(j.at("value").get<std::string>(), "^\\{");
     EXPECT_FALSE(j.contains("token"));
 
     server_grammar_trigger restored(j);
-    EXPECT_EQ(restored.value.type,  COMMON_GRAMMAR_TRIGGER_TYPE_PATTERN);
+    EXPECT_EQ(restored.value.type, COMMON_GRAMMAR_TRIGGER_TYPE_PATTERN);
     EXPECT_EQ(restored.value.value, "^\\{");
 }
 
 TEST(ServerGrammarTrigger, PatternFullType_RoundTrip) {
     common_grammar_trigger t;
-    t.type  = COMMON_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL;
+    t.type = COMMON_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL;
     t.value = ".*<tool_call>.*";
 
     json j = server_grammar_trigger(t).to_json();
 
-    EXPECT_EQ(j.at("type").get<int>(),         static_cast<int>(COMMON_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL));
+    EXPECT_EQ(j.at("type").get<int>(), static_cast<int>(COMMON_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL));
     EXPECT_EQ(j.at("value").get<std::string>(), ".*<tool_call>.*");
     EXPECT_FALSE(j.contains("token"));
 
     server_grammar_trigger restored(j);
-    EXPECT_EQ(restored.value.type,  COMMON_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL);
+    EXPECT_EQ(restored.value.type, COMMON_GRAMMAR_TRIGGER_TYPE_PATTERN_FULL);
     EXPECT_EQ(restored.value.value, ".*<tool_call>.*");
 }
 
 TEST(ServerGrammarTrigger, TokenType_IncludesTokenField) {
     common_grammar_trigger t;
-    t.type  = COMMON_GRAMMAR_TRIGGER_TYPE_TOKEN;
+    t.type = COMMON_GRAMMAR_TRIGGER_TYPE_TOKEN;
     t.value = "<tool>";
     t.token = 12345;
 
@@ -108,17 +108,17 @@ TEST(ServerGrammarTrigger, TokenType_IncludesTokenField) {
 
     EXPECT_TRUE(j.contains("token")); // only TOKEN type serialises the token id
     EXPECT_EQ(j.at("token").get<int>(), 12345);
-    EXPECT_EQ(j.at("type").get<int>(),  static_cast<int>(COMMON_GRAMMAR_TRIGGER_TYPE_TOKEN));
+    EXPECT_EQ(j.at("type").get<int>(), static_cast<int>(COMMON_GRAMMAR_TRIGGER_TYPE_TOKEN));
 
     server_grammar_trigger restored(j);
-    EXPECT_EQ(restored.value.type,  COMMON_GRAMMAR_TRIGGER_TYPE_TOKEN);
+    EXPECT_EQ(restored.value.type, COMMON_GRAMMAR_TRIGGER_TYPE_TOKEN);
     EXPECT_EQ(restored.value.token, 12345);
     EXPECT_EQ(restored.value.value, "<tool>");
 }
 
 TEST(ServerGrammarTrigger, TypeField_IsIntInJson) {
     common_grammar_trigger t;
-    t.type  = COMMON_GRAMMAR_TRIGGER_TYPE_WORD;
+    t.type = COMMON_GRAMMAR_TRIGGER_TYPE_WORD;
     t.value = "x";
 
     json j = server_grammar_trigger(t).to_json();
@@ -131,9 +131,7 @@ TEST(ServerGrammarTrigger, TypeField_IsIntInJson) {
 //   existed; tool call IDs were not generated separately).
 // ============================================================
 
-TEST(GenToolCallId, NonEmpty) {
-    EXPECT_FALSE(gen_tool_call_id().empty());
-}
+TEST(GenToolCallId, NonEmpty) { EXPECT_FALSE(gen_tool_call_id().empty()); }
 
 TEST(GenToolCallId, Length_Is32) {
     // random_string() always produces exactly 32 characters
@@ -143,8 +141,7 @@ TEST(GenToolCallId, Length_Is32) {
 TEST(GenToolCallId, ContainsOnlyAlphanumeric) {
     const std::string id = gen_tool_call_id();
     for (char c : id) {
-        EXPECT_TRUE(std::isalnum(static_cast<unsigned char>(c)))
-            << "Non-alphanumeric character: '" << c << "'";
+        EXPECT_TRUE(std::isalnum(static_cast<unsigned char>(c))) << "Non-alphanumeric character: '" << c << "'";
     }
 }
 
@@ -176,12 +173,13 @@ json make_rank(int index, double score, int tokens_evaluated = 10) {
 
 TEST(FormatResponseRerank, JinaFormat_WrapperStructure) {
     json request = {{"model", "my-reranker"}};
-    json ranks   = json::array({make_rank(0, 0.5), make_rank(1, 0.9)});
+    json ranks = json::array({make_rank(0, 0.5), make_rank(1, 0.9)});
     std::vector<std::string> texts = {"doc0", "doc1"};
 
-    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), ranks, /*is_tei=*/false, texts, /*top_n=*/2);
+    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)),
+                                      ranks, /*is_tei=*/false, texts, /*top_n=*/2);
 
-    EXPECT_EQ(res.at("model").get<std::string>(),  "my-reranker");
+    EXPECT_EQ(res.at("model").get<std::string>(), "my-reranker");
     EXPECT_EQ(res.at("object").get<std::string>(), "list");
     EXPECT_TRUE(res.contains("usage"));
     EXPECT_TRUE(res.contains("results"));
@@ -190,10 +188,11 @@ TEST(FormatResponseRerank, JinaFormat_WrapperStructure) {
 
 TEST(FormatResponseRerank, JinaFormat_UsesRelevanceScoreLabel) {
     json request = json::object();
-    json ranks   = json::array({make_rank(0, 0.7)});
+    json ranks = json::array({make_rank(0, 0.7)});
     std::vector<std::string> texts = {"doc"};
 
-    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), ranks, false, texts, 1);
+    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)),
+                                      ranks, false, texts, 1);
 
     EXPECT_TRUE(res.at("results")[0].contains("relevance_score"));
     EXPECT_FALSE(res.at("results")[0].contains("score"));
@@ -205,7 +204,8 @@ TEST(FormatResponseRerank, JinaFormat_SortedDescendingByScore) {
     json ranks = json::array({make_rank(0, 0.3), make_rank(1, 0.9), make_rank(2, 0.1)});
     std::vector<std::string> texts = {"a", "b", "c"};
 
-    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), ranks, false, texts, 3);
+    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)),
+                                      ranks, false, texts, 3);
 
     auto &results = res.at("results");
     EXPECT_EQ(results[0].at("index").get<int>(), 1); // highest: 0.9
@@ -215,10 +215,11 @@ TEST(FormatResponseRerank, JinaFormat_SortedDescendingByScore) {
 
 TEST(FormatResponseRerank, TopN_LimitsResultCount) {
     json request = json::object();
-    json ranks   = json::array({make_rank(0, 0.5), make_rank(1, 0.9), make_rank(2, 0.1)});
+    json ranks = json::array({make_rank(0, 0.5), make_rank(1, 0.9), make_rank(2, 0.1)});
     std::vector<std::string> texts = {"a", "b", "c"};
 
-    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), ranks, false, texts, /*top_n=*/1);
+    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)),
+                                      ranks, false, texts, /*top_n=*/1);
 
     EXPECT_EQ(res.at("results").size(), 1u);
     // The single returned result must be the highest-scoring one
@@ -227,11 +228,11 @@ TEST(FormatResponseRerank, TopN_LimitsResultCount) {
 
 TEST(FormatResponseRerank, TopN_Two_KeepsTopTwo) {
     json request = json::object();
-    json ranks   = json::array({
-        make_rank(0, 0.1), make_rank(1, 0.9), make_rank(2, 0.5), make_rank(3, 0.7)});
+    json ranks = json::array({make_rank(0, 0.1), make_rank(1, 0.9), make_rank(2, 0.5), make_rank(3, 0.7)});
     std::vector<std::string> texts = {"a", "b", "c", "d"};
 
-    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), ranks, false, texts, 2);
+    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)),
+                                      ranks, false, texts, 2);
 
     EXPECT_EQ(res.at("results").size(), 2u);
     EXPECT_EQ(res.at("results")[0].at("index").get<int>(), 1); // 0.9
@@ -240,10 +241,11 @@ TEST(FormatResponseRerank, TopN_Two_KeepsTopTwo) {
 
 TEST(FormatResponseRerank, TopN_LargerThanCount_ReturnsAll) {
     json request = json::object();
-    json ranks   = json::array({make_rank(0, 0.8), make_rank(1, 0.2)});
+    json ranks = json::array({make_rank(0, 0.8), make_rank(1, 0.2)});
     std::vector<std::string> texts = {"x", "y"};
 
-    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), ranks, false, texts, /*top_n=*/100);
+    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)),
+                                      ranks, false, texts, /*top_n=*/100);
 
     EXPECT_EQ(res.at("results").size(), 2u);
 }
@@ -251,10 +253,11 @@ TEST(FormatResponseRerank, TopN_LargerThanCount_ReturnsAll) {
 TEST(FormatResponseRerank, TopN_Zero_ReturnsEmptyResults) {
     // top_n=0 must truncate to zero elements, not crash or return all
     json request = json::object();
-    json ranks   = json::array({make_rank(0, 0.9), make_rank(1, 0.5)});
+    json ranks = json::array({make_rank(0, 0.9), make_rank(1, 0.5)});
     std::vector<std::string> texts = {"a", "b"};
 
-    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), ranks, false, texts, /*top_n=*/0);
+    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)),
+                                      ranks, false, texts, /*top_n=*/0);
 
     ASSERT_TRUE(res.at("results").is_array());
     EXPECT_TRUE(res.at("results").empty());
@@ -262,21 +265,23 @@ TEST(FormatResponseRerank, TopN_Zero_ReturnsEmptyResults) {
 
 TEST(FormatResponseRerank, TokenCounting_Accumulated) {
     json request = json::object();
-    json ranks   = json::array({make_rank(0, 0.5, 15), make_rank(1, 0.9, 25)});
+    json ranks = json::array({make_rank(0, 0.5, 15), make_rank(1, 0.9, 25)});
     std::vector<std::string> texts = {"a", "b"};
 
-    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), ranks, false, texts, 2);
+    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)),
+                                      ranks, false, texts, 2);
 
     EXPECT_EQ(res.at("usage").at("prompt_tokens").get<int>(), 40); // 15 + 25
-    EXPECT_EQ(res.at("usage").at("total_tokens").get<int>(),  40);
+    EXPECT_EQ(res.at("usage").at("total_tokens").get<int>(), 40);
 }
 
 TEST(FormatResponseRerank, TeiFormat_ReturnsArrayDirectly) {
     json request = json::object();
-    json ranks   = json::array({make_rank(0, 0.8), make_rank(1, 0.3)});
+    json ranks = json::array({make_rank(0, 0.8), make_rank(1, 0.3)});
     std::vector<std::string> texts = {"x", "y"};
 
-    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), ranks, /*is_tei=*/true, texts, 2);
+    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)),
+                                      ranks, /*is_tei=*/true, texts, 2);
 
     EXPECT_TRUE(res.is_array()); // no outer wrapper object
     EXPECT_EQ(res.size(), 2u);
@@ -284,10 +289,11 @@ TEST(FormatResponseRerank, TeiFormat_ReturnsArrayDirectly) {
 
 TEST(FormatResponseRerank, TeiFormat_UsesScoreLabel) {
     json request = json::object();
-    json ranks   = json::array({make_rank(0, 0.8)});
+    json ranks = json::array({make_rank(0, 0.8)});
     std::vector<std::string> texts = {"doc"};
 
-    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), ranks, true, texts, 1);
+    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)),
+                                      ranks, true, texts, 1);
 
     ASSERT_TRUE(res.is_array());
     EXPECT_TRUE(res[0].contains("score"));
@@ -296,10 +302,11 @@ TEST(FormatResponseRerank, TeiFormat_UsesScoreLabel) {
 
 TEST(FormatResponseRerank, TeiFormat_ReturnText_IncludesDocumentText) {
     json request = {{"return_text", true}};
-    json ranks   = json::array({make_rank(0, 0.9)});
+    json ranks = json::array({make_rank(0, 0.9)});
     std::vector<std::string> texts = {"my document content"};
 
-    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), ranks, true, texts, 1);
+    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)),
+                                      ranks, true, texts, 1);
 
     ASSERT_TRUE(res.is_array());
     EXPECT_TRUE(res[0].contains("text"));
@@ -308,10 +315,11 @@ TEST(FormatResponseRerank, TeiFormat_ReturnText_IncludesDocumentText) {
 
 TEST(FormatResponseRerank, TeiFormat_NoReturnText_NoTextField) {
     json request = {{"return_text", false}};
-    json ranks   = json::array({make_rank(0, 0.9)});
+    json ranks = json::array({make_rank(0, 0.9)});
     std::vector<std::string> texts = {"doc"};
 
-    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), ranks, true, texts, 1);
+    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)),
+                                      ranks, true, texts, 1);
 
     ASSERT_TRUE(res.is_array());
     EXPECT_FALSE(res[0].contains("text"));
@@ -319,10 +327,11 @@ TEST(FormatResponseRerank, TeiFormat_NoReturnText_NoTextField) {
 
 TEST(FormatResponseRerank, TeiFormat_SortedDescendingByScore) {
     json request = json::object();
-    json ranks   = json::array({make_rank(0, 0.1), make_rank(1, 0.9), make_rank(2, 0.5)});
+    json ranks = json::array({make_rank(0, 0.1), make_rank(1, 0.9), make_rank(2, 0.5)});
     std::vector<std::string> texts = {"a", "b", "c"};
 
-    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), ranks, true, texts, 3);
+    json res = format_response_rerank(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)),
+                                      ranks, true, texts, 3);
 
     ASSERT_TRUE(res.is_array());
     EXPECT_EQ(res[0].at("index").get<int>(), 1); // 0.9
@@ -541,18 +550,14 @@ TEST(ServerTokens, MoveAssign_TransfersOwnership) {
 TEST(ServerTokens, CopyIsDeleted) {
     // Compile-time assertion: copying must be disabled to prevent
     // accidental shallow copies of the chunk map.
-    static_assert(!std::is_copy_constructible<server_tokens>::value,
-                  "server_tokens must not be copy-constructible");
-    static_assert(!std::is_copy_assignable<server_tokens>::value,
-                  "server_tokens must not be copy-assignable");
+    static_assert(!std::is_copy_constructible<server_tokens>::value, "server_tokens must not be copy-constructible");
+    static_assert(!std::is_copy_assignable<server_tokens>::value, "server_tokens must not be copy-assignable");
     SUCCEED();
 }
 
 TEST(ServerTokens, MoveIsAllowed) {
-    static_assert(std::is_move_constructible<server_tokens>::value,
-                  "server_tokens must be move-constructible");
-    static_assert(std::is_move_assignable<server_tokens>::value,
-                  "server_tokens must be move-assignable");
+    static_assert(std::is_move_constructible<server_tokens>::value, "server_tokens must be move-constructible");
+    static_assert(std::is_move_assignable<server_tokens>::value, "server_tokens must be move-assignable");
     SUCCEED();
 }
 
@@ -639,17 +644,11 @@ TEST(JsonValue, BoolValue) {
 // json_is_array_of_numbers / json_is_array_of_mixed
 // ============================================================
 
-TEST(JsonArrayChecks, ArrayOfIntegers_IsNumbers) {
-    EXPECT_TRUE(json_is_array_of_numbers(json{1, 2, 3}));
-}
+TEST(JsonArrayChecks, ArrayOfIntegers_IsNumbers) { EXPECT_TRUE(json_is_array_of_numbers(json{1, 2, 3})); }
 
-TEST(JsonArrayChecks, EmptyArray_IsNumbers) {
-    EXPECT_TRUE(json_is_array_of_numbers(json::array()));
-}
+TEST(JsonArrayChecks, EmptyArray_IsNumbers) { EXPECT_TRUE(json_is_array_of_numbers(json::array())); }
 
-TEST(JsonArrayChecks, ArrayWithString_NotNumbers) {
-    EXPECT_FALSE(json_is_array_of_numbers(json{1, "hello", 3}));
-}
+TEST(JsonArrayChecks, ArrayWithString_NotNumbers) { EXPECT_FALSE(json_is_array_of_numbers(json{1, "hello", 3})); }
 
 TEST(JsonArrayChecks, NonArray_NotNumbers) {
     EXPECT_FALSE(json_is_array_of_numbers(json("just a string")));
@@ -660,17 +659,11 @@ TEST(JsonArrayChecks, MixedNumbersAndStrings_IsMixed) {
     EXPECT_TRUE(json_is_array_of_mixed_numbers_strings(json{1, "hello", 3}));
 }
 
-TEST(JsonArrayChecks, OnlyNumbers_NotMixed) {
-    EXPECT_FALSE(json_is_array_of_mixed_numbers_strings(json{1, 2, 3}));
-}
+TEST(JsonArrayChecks, OnlyNumbers_NotMixed) { EXPECT_FALSE(json_is_array_of_mixed_numbers_strings(json{1, 2, 3})); }
 
-TEST(JsonArrayChecks, OnlyStrings_NotMixed) {
-    EXPECT_FALSE(json_is_array_of_mixed_numbers_strings(json{"a", "b"}));
-}
+TEST(JsonArrayChecks, OnlyStrings_NotMixed) { EXPECT_FALSE(json_is_array_of_mixed_numbers_strings(json{"a", "b"})); }
 
-TEST(JsonArrayChecks, EmptyArray_NotMixed) {
-    EXPECT_FALSE(json_is_array_of_mixed_numbers_strings(json::array()));
-}
+TEST(JsonArrayChecks, EmptyArray_NotMixed) { EXPECT_FALSE(json_is_array_of_mixed_numbers_strings(json::array())); }
 
 // json_is_array_and_contains_numbers
 //   Returns true when the input is an array that has at least one integer
@@ -689,9 +682,7 @@ TEST(JsonArrayChecks, EmptyArray_NotContainsNumbers) {
     EXPECT_FALSE(json_is_array_and_contains_numbers(json::array()));
 }
 
-TEST(JsonArrayChecks, NonArray_NotContainsNumbers) {
-    EXPECT_FALSE(json_is_array_and_contains_numbers(json(42)));
-}
+TEST(JsonArrayChecks, NonArray_NotContainsNumbers) { EXPECT_FALSE(json_is_array_and_contains_numbers(json(42))); }
 
 // ============================================================
 // validate_utf8 — pure logic, no llama.cpp deps
@@ -702,9 +693,7 @@ TEST(ValidateUtf8, AsciiOnly_ReturnsFullLength) {
     EXPECT_EQ(validate_utf8(s), s.size());
 }
 
-TEST(ValidateUtf8, EmptyString_ReturnsZero) {
-    EXPECT_EQ(validate_utf8(""), 0u);
-}
+TEST(ValidateUtf8, EmptyString_ReturnsZero) { EXPECT_EQ(validate_utf8(""), 0u); }
 
 TEST(ValidateUtf8, ValidTwoByteSequence_FullLength) {
     // "é" = 0xC3 0xA9
@@ -746,13 +735,9 @@ TEST(ValidateUtf8, MixedAsciiAndMultiByte_ReturnsFullLength) {
 // is_valid_utf8 — pure logic, no llama.cpp deps
 // ============================================================
 
-TEST(IsValidUtf8, PlainAscii_Valid) {
-    EXPECT_TRUE(is_valid_utf8("Hello, World!"));
-}
+TEST(IsValidUtf8, PlainAscii_Valid) { EXPECT_TRUE(is_valid_utf8("Hello, World!")); }
 
-TEST(IsValidUtf8, EmptyString_Valid) {
-    EXPECT_TRUE(is_valid_utf8(""));
-}
+TEST(IsValidUtf8, EmptyString_Valid) { EXPECT_TRUE(is_valid_utf8("")); }
 
 TEST(IsValidUtf8, TwoByteChar_Valid) {
     EXPECT_TRUE(is_valid_utf8("\xC3\xA9")); // é
@@ -767,9 +752,7 @@ TEST(IsValidUtf8, FourByteChar_Valid) {
     EXPECT_TRUE(is_valid_utf8("\xF0\x9F\x98\x80"));
 }
 
-TEST(IsValidUtf8, InvalidLeadByte_Invalid) {
-    EXPECT_FALSE(is_valid_utf8("\xFF\xFF"));
-}
+TEST(IsValidUtf8, InvalidLeadByte_Invalid) { EXPECT_FALSE(is_valid_utf8("\xFF\xFF")); }
 
 TEST(IsValidUtf8, TruncatedTwoByte_Invalid) {
     EXPECT_FALSE(is_valid_utf8("\xC3")); // missing continuation byte
@@ -911,7 +894,8 @@ json make_embedding_elem(const std::vector<float> &vec, int tokens = 4) {
 TEST(FormatEmbeddingsResponse, SingleEmbedding_Fields) {
     const json request = {{"model", "test-model"}};
     const json embeddings = json::array({make_embedding_elem({0.1f, 0.2f, 0.3f})});
-    const json res = format_embeddings_response_oaicompat(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), embeddings);
+    const json res = format_embeddings_response_oaicompat(
+        request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), embeddings);
     EXPECT_EQ(res.at("object").get<std::string>(), "list");
     EXPECT_EQ(res.at("model").get<std::string>(), "test-model");
     EXPECT_EQ(res.at("data").size(), 1u);
@@ -922,7 +906,8 @@ TEST(FormatEmbeddingsResponse, SingleEmbedding_Fields) {
 TEST(FormatEmbeddingsResponse, TokensAccumulated) {
     const json request = {};
     const json embeddings = json::array({make_embedding_elem({1.0f}, 3), make_embedding_elem({2.0f}, 7)});
-    const json res = format_embeddings_response_oaicompat(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), embeddings);
+    const json res = format_embeddings_response_oaicompat(
+        request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), embeddings);
     EXPECT_EQ(res.at("usage").at("prompt_tokens").get<int>(), 10);
     EXPECT_EQ(res.at("usage").at("total_tokens").get<int>(), 10);
 }
@@ -934,7 +919,8 @@ TEST(FormatEmbeddingsResponse, MultipleEmbeddings_IndicesIncrement) {
         make_embedding_elem({0.2f}),
         make_embedding_elem({0.3f}),
     });
-    const json res = format_embeddings_response_oaicompat(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), embeddings);
+    const json res = format_embeddings_response_oaicompat(
+        request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), embeddings);
     EXPECT_EQ(res.at("data").size(), 3u);
     EXPECT_EQ(res.at("data")[0].at("index").get<int>(), 0);
     EXPECT_EQ(res.at("data")[1].at("index").get<int>(), 1);
@@ -944,7 +930,8 @@ TEST(FormatEmbeddingsResponse, MultipleEmbeddings_IndicesIncrement) {
 TEST(FormatEmbeddingsResponse, Base64Format_EncodingFormatField) {
     const json request = {};
     const json embeddings = json::array({make_embedding_elem({1.0f, 0.0f})});
-    const json res = format_embeddings_response_oaicompat(request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), embeddings, /*use_base64=*/true);
+    const json res = format_embeddings_response_oaicompat(
+        request, json_value(request, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), embeddings, /*use_base64=*/true);
     const json &elem = res.at("data")[0];
     EXPECT_TRUE(elem.contains("encoding_format"));
     EXPECT_EQ(elem.at("encoding_format").get<std::string>(), "base64");
@@ -989,9 +976,7 @@ TEST(SafeJsonToStr, NormalJson_ProducesCompactString) {
     EXPECT_EQ(s.find('\n'), std::string::npos);
 }
 
-TEST(SafeJsonToStr, EmptyObject_ProducesEmptyBraces) {
-    EXPECT_EQ(safe_json_to_str(json::object()), "{}");
-}
+TEST(SafeJsonToStr, EmptyObject_ProducesEmptyBraces) { EXPECT_EQ(safe_json_to_str(json::object()), "{}"); }
 
 TEST(SafeJsonToStr, ArrayValue_Roundtrips) {
     const json j = json::array({1, 2, 3});
@@ -1014,9 +999,8 @@ namespace {
 // Minimal helper: build body + options + out_files for early-throw tests
 std::vector<raw_buffer> g_out_files;
 
-json make_chat_body_with_messages(const json &messages_override = json::array({
-    {{"role", "user"}, {"content", "hello"}}
-})) {
+json make_chat_body_with_messages(const json &messages_override = json::array({{{"role", "user"},
+                                                                                {"content", "hello"}}})) {
     return json{{"messages", messages_override}};
 }
 
@@ -1059,64 +1043,51 @@ TEST(OaicompatChatParams, AssistantMissingBothContentAndToolCalls_Throws) {
 }
 
 TEST(OaicompatChatParams, ToolsWithoutJinja_Throws) {
-    json body = {
-        {"messages", json::array({{{"role", "user"}, {"content", "hi"}}})},
-        {"tools", json::array({{{"type", "function"}}})}
-    };
+    json body = {{"messages", json::array({{{"role", "user"}, {"content", "hi"}}})},
+                 {"tools", json::array({{{"type", "function"}}})}};
     server_chat_params opt = make_no_jinja_opts();
     std::vector<raw_buffer> files;
     EXPECT_THROW(oaicompat_chat_params_parse(body, opt, files), std::exception);
 }
 
 TEST(OaicompatChatParams, NonAutoToolChoiceWithoutJinja_Throws) {
-    json body = {
-        {"messages", json::array({{{"role", "user"}, {"content", "hi"}}})},
-        {"tool_choice", "none"}
-    };
+    json body = {{"messages", json::array({{{"role", "user"}, {"content", "hi"}}})}, {"tool_choice", "none"}};
     server_chat_params opt = make_no_jinja_opts();
     std::vector<raw_buffer> files;
     EXPECT_THROW(oaicompat_chat_params_parse(body, opt, files), std::exception);
 }
 
 TEST(OaicompatChatParams, GrammarAndJsonSchema_Throws) {
-    json body = {
-        {"messages", json::array({{{"role", "user"}, {"content", "hi"}}})},
-        {"grammar", "root ::= [a-z]+"},
-        {"json_schema", {{"type", "object"}}}
-    };
+    json body = {{"messages", json::array({{{"role", "user"}, {"content", "hi"}}})},
+                 {"grammar", "root ::= [a-z]+"},
+                 {"json_schema", {{"type", "object"}}}};
     server_chat_params opt = make_no_jinja_opts();
     std::vector<raw_buffer> files;
     EXPECT_THROW(oaicompat_chat_params_parse(body, opt, files), std::exception);
 }
 
 TEST(OaicompatChatParams, InvalidResponseFormatType_Throws) {
-    json body = {
-        {"messages", json::array({{{"role", "user"}, {"content", "hi"}}})},
-        {"response_format", {{"type", "invalid_type"}}}
-    };
+    json body = {{"messages", json::array({{{"role", "user"}, {"content", "hi"}}})},
+                 {"response_format", {{"type", "invalid_type"}}}};
     server_chat_params opt = make_no_jinja_opts();
     std::vector<raw_buffer> files;
     EXPECT_THROW(oaicompat_chat_params_parse(body, opt, files), std::exception);
 }
 
 TEST(OaicompatChatParams, ContentPartTypeUnsupported_Throws) {
-    json body = {{"messages", json::array({{
-        {"role", "user"},
-        {"content", json::array({{{"type", "video_url"}, {"url", "x"}}})}
-    }})}};
+    json body = {{"messages", json::array({{{"role", "user"},
+                                            {"content", json::array({{{"type", "video_url"}, {"url", "x"}}})}}})}};
     server_chat_params opt = make_no_jinja_opts();
     std::vector<raw_buffer> files;
     EXPECT_THROW(oaicompat_chat_params_parse(body, opt, files), std::exception);
 }
 
 TEST(OaicompatChatParams, ImageUrlWithoutAllowImage_Throws) {
-    json body = {{"messages", json::array({{
-        {"role", "user"},
-        {"content", json::array({{
-            {"type", "image_url"},
-            {"image_url", {{"url", "data:image/png;base64,abc"}}}
-        }})}
-    }})}};
+    json body = {
+        {"messages",
+         json::array({{{"role", "user"},
+                       {"content", json::array({{{"type", "image_url"},
+                                                 {"image_url", {{"url", "data:image/png;base64,abc"}}}}})}}})}};
     server_chat_params opt = make_no_jinja_opts();
     opt.allow_image = false;
     std::vector<raw_buffer> files;
@@ -1140,26 +1111,18 @@ namespace {
 common_adapter_lora_info make_lora(float scale, struct llama_adapter_lora *ptr = nullptr) {
     common_adapter_lora_info info;
     info.scale = scale;
-    info.ptr   = ptr;
+    info.ptr = ptr;
     return info;
 }
 } // namespace
 
-TEST(AreLoraEqual, BothEmpty_AreEqual) {
-    EXPECT_TRUE(are_lora_equal({}, {}));
-}
+TEST(AreLoraEqual, BothEmpty_AreEqual) { EXPECT_TRUE(are_lora_equal({}, {})); }
 
-TEST(AreLoraEqual, DifferentSizes_NotEqual) {
-    EXPECT_FALSE(are_lora_equal({make_lora(1.0f)}, {}));
-}
+TEST(AreLoraEqual, DifferentSizes_NotEqual) { EXPECT_FALSE(are_lora_equal({make_lora(1.0f)}, {})); }
 
-TEST(AreLoraEqual, SameScaleNullPtr_AreEqual) {
-    EXPECT_TRUE(are_lora_equal({make_lora(0.5f)}, {make_lora(0.5f)}));
-}
+TEST(AreLoraEqual, SameScaleNullPtr_AreEqual) { EXPECT_TRUE(are_lora_equal({make_lora(0.5f)}, {make_lora(0.5f)})); }
 
-TEST(AreLoraEqual, DifferentScale_NotEqual) {
-    EXPECT_FALSE(are_lora_equal({make_lora(0.5f)}, {make_lora(1.0f)}));
-}
+TEST(AreLoraEqual, DifferentScale_NotEqual) { EXPECT_FALSE(are_lora_equal({make_lora(0.5f)}, {make_lora(1.0f)})); }
 
 TEST(AreLoraEqual, DifferentPtr_NotEqual) {
     int dummy = 0;
@@ -1347,7 +1310,7 @@ TEST(TokenPieceValue, ValidThreeByteChar_ReturnsString) {
 TEST(FormatOaiSse, SingleObject_ProducesOneLine) {
     const json j = {{"content", "hello"}};
     const std::string s = format_oai_sse(j);
-    EXPECT_EQ(s.rfind("data: ", 0), 0u);  // starts with "data: "
+    EXPECT_EQ(s.rfind("data: ", 0), 0u); // starts with "data: "
     EXPECT_NE(s.find("\"content\""), std::string::npos);
     EXPECT_EQ(s.substr(s.size() - 2), "\n\n");
 }
@@ -1358,13 +1321,14 @@ TEST(FormatOaiSse, Array_ProducesMultipleEvents) {
     // Each element generates one "data: ... \n\n"
     size_t count = 0;
     size_t pos = 0;
-    while ((pos = s.find("data: ", pos)) != std::string::npos) { ++count; ++pos; }
+    while ((pos = s.find("data: ", pos)) != std::string::npos) {
+        ++count;
+        ++pos;
+    }
     EXPECT_EQ(count, 2u);
 }
 
-TEST(FormatOaiSse, StringValue_DoesNotThrow) {
-    EXPECT_NO_THROW(format_oai_sse(json("done")));
-}
+TEST(FormatOaiSse, StringValue_DoesNotThrow) { EXPECT_NO_THROW(format_oai_sse(json("done"))); }
 
 // ============================================================
 // format_oai_resp_sse
@@ -1381,10 +1345,8 @@ TEST(FormatOaiRespSse, SingleEvent_HasEventAndDataLines) {
 }
 
 TEST(FormatOaiRespSse, Array_ProducesMultipleEventBlocks) {
-    const json arr = json::array({
-        {{"event", "e1"}, {"data", json::object()}},
-        {{"event", "e2"}, {"data", json::object()}}
-    });
+    const json arr =
+        json::array({{{"event", "e1"}, {"data", json::object()}}, {{"event", "e2"}, {"data", json::object()}}});
     const std::string s = format_oai_resp_sse(arr);
     EXPECT_NE(s.find("event: e1"), std::string::npos);
     EXPECT_NE(s.find("event: e2"), std::string::npos);
@@ -1412,10 +1374,7 @@ TEST(FormatAnthropicSse, WithoutEventField_BareLine) {
 }
 
 TEST(FormatAnthropicSse, Array_EachElementDispatchedCorrectly) {
-    const json arr = json::array({
-        {{"event", "ping"}, {"data", json::object()}},
-        {{"type", "bare"}}
-    });
+    const json arr = json::array({{{"event", "ping"}, {"data", json::object()}}, {{"type", "bare"}}});
     const std::string s = format_anthropic_sse(arr);
     EXPECT_NE(s.find("event: ping"), std::string::npos);
     // second element is bare

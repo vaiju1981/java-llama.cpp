@@ -50,23 +50,23 @@ struct server_response_reader;
 // worker thread.  Stored as the Java-side `ctx` (jlong) pointer.
 // ---------------------------------------------------------------------------
 struct jllama_context {
-    server_context    server;                 // value member (pimpl inside)
-    std::thread       worker;
-    bool              vocab_only        = false;
+    server_context server; // value member (pimpl inside)
+    std::thread worker;
+    bool vocab_only = false;
     std::atomic<bool> worker_ready{false};
 
     // Cached after load_model() — valid for the lifetime of this context.
-    const llama_vocab *vocab             = nullptr;
+    const llama_vocab *vocab = nullptr;
     // Non-null only in vocab-only mode (bypasses server_context entirely).
-    llama_model       *vocab_only_model  = nullptr;
+    llama_model *vocab_only_model = nullptr;
 
     // Saved copy of common_params used to load the model.
     // Required by server_task::params_from_json_cmpl which takes common_params&.
-    common_params      params;
+    common_params params;
 
     // Per-streaming-task response readers, keyed by task id.
     // Guarded by readers_mutex.
-    std::mutex         readers_mutex;
+    std::mutex readers_mutex;
     std::map<int, std::unique_ptr<server_response_reader>> readers;
 };
 
@@ -80,9 +80,7 @@ inline void erase_reader(jllama_context *jctx, int id_task) {
 
 // Guard: throw and return false if the model was loaded without embedding
 // support enabled. Used by every JNI entry point that produces embeddings.
-[[nodiscard]] inline bool require_embedding_support(JNIEnv         *env,
-                                                     bool            embedding_enabled,
-                                                     jclass          error_class) {
+[[nodiscard]] inline bool require_embedding_support(JNIEnv *env, bool embedding_enabled, jclass error_class) {
     if (embedding_enabled) {
         return true;
     }
@@ -101,9 +99,7 @@ inline void erase_reader(jllama_context *jctx, int id_task) {
 // already deleted (or never fully initialised), which is a valid no-op for
 // a destructor-style call.
 // ---------------------------------------------------------------------------
-[[nodiscard]] inline jllama_context *get_jllama_context_impl(JNIEnv   *env,
-                                                              jobject   obj,
-                                                              jfieldID  field_id) {
+[[nodiscard]] inline jllama_context *get_jllama_context_impl(JNIEnv *env, jobject obj, jfieldID field_id) {
     const jlong handle = env->GetLongField(obj, field_id);
     if (handle == 0) {
         return nullptr;
@@ -117,10 +113,8 @@ inline void erase_reader(jllama_context *jctx, int id_task) {
 // Checks that `data` contains the given key.  Returns true if present.
 // On missing key: throws "<field> is required" via JNI and returns false.
 // ---------------------------------------------------------------------------
-[[nodiscard]] inline bool require_json_field_impl(JNIEnv               *env,
-                                                   const nlohmann::json &data,
-                                                   const char           *field,
-                                                   jclass                error_class) {
+[[nodiscard]] inline bool require_json_field_impl(JNIEnv *env, const nlohmann::json &data, const char *field,
+                                                  jclass error_class) {
     if (data.contains(field)) {
         return true;
     }
@@ -135,10 +129,9 @@ inline void erase_reader(jllama_context *jctx, int id_task) {
 // Reads a Java int array into a std::vector<int32_t> and releases the JNI
 // array elements with JNI_ABORT (read-only — no writeback needed).
 // ---------------------------------------------------------------------------
-[[nodiscard]] inline std::vector<int32_t> jint_array_to_tokens_impl(
-        JNIEnv *env, jintArray array) {
+[[nodiscard]] inline std::vector<int32_t> jint_array_to_tokens_impl(JNIEnv *env, jintArray array) {
     const jsize length = env->GetArrayLength(array);
-    jint *elements     = env->GetIntArrayElements(array, nullptr);
+    jint *elements = env->GetIntArrayElements(array, nullptr);
     std::vector<int32_t> tokens(elements, elements + length);
     env->ReleaseIntArrayElements(array, elements, JNI_ABORT);
     return tokens;
@@ -170,9 +163,7 @@ inline void erase_reader(jllama_context *jctx, int id_task) {
 // construction to results_to_json (json_helpers.hpp) and serialisation to
 // json_to_jstring_impl.
 // ---------------------------------------------------------------------------
-[[nodiscard]] inline jstring results_to_jstring_impl(
-        JNIEnv                                    *env,
-        const std::vector<server_task_result_ptr> &results) {
+[[nodiscard]] inline jstring results_to_jstring_impl(JNIEnv *env, const std::vector<server_task_result_ptr> &results) {
     return json_to_jstring_impl(env, results_to_json(results));
 }
 
@@ -184,13 +175,9 @@ inline void erase_reader(jllama_context *jctx, int id_task) {
 // On allocation failure: throws via JNI with oom_class and returns nullptr.
 // ---------------------------------------------------------------------------
 template <typename JArray, typename JElem, typename CppElem>
-[[nodiscard]] inline JArray vec_to_jarray_impl(
-        JNIEnv                     *env,
-        const std::vector<CppElem> &values,
-        jclass                      oom_class,
-        const char                 *oom_msg,
-        JArray (JNIEnv_::*alloc)(jsize),
-        void (JNIEnv_::*copy)(JArray, jsize, jsize, const JElem *)) {
+[[nodiscard]] inline JArray vec_to_jarray_impl(JNIEnv *env, const std::vector<CppElem> &values, jclass oom_class,
+                                               const char *oom_msg, JArray (JNIEnv_::*alloc)(jsize),
+                                               void (JNIEnv_::*copy)(JArray, jsize, jsize, const JElem *)) {
     const jsize len = static_cast<jsize>(values.size());
     JArray arr = (env->*alloc)(len);
     if (arr == nullptr) {
@@ -202,21 +189,15 @@ template <typename JArray, typename JElem, typename CppElem>
 }
 
 // Converts a float vector to a Java jfloatArray.
-[[nodiscard]] inline jfloatArray embedding_to_jfloat_array_impl(
-        JNIEnv                   *env,
-        const std::vector<float> &values,
-        jclass                    oom_class) {
-    return vec_to_jarray_impl<jfloatArray, jfloat>(
-            env, values, oom_class, "could not allocate embedding",
-            &JNIEnv_::NewFloatArray, &JNIEnv_::SetFloatArrayRegion);
+[[nodiscard]] inline jfloatArray embedding_to_jfloat_array_impl(JNIEnv *env, const std::vector<float> &values,
+                                                                jclass oom_class) {
+    return vec_to_jarray_impl<jfloatArray, jfloat>(env, values, oom_class, "could not allocate embedding",
+                                                   &JNIEnv_::NewFloatArray, &JNIEnv_::SetFloatArrayRegion);
 }
 
 // Converts a token vector to a Java jintArray.
-[[nodiscard]] inline jintArray tokens_to_jint_array_impl(
-        JNIEnv                       *env,
-        const std::vector<int32_t>   &tokens,
-        jclass                        oom_class) {
-    return vec_to_jarray_impl<jintArray, jint>(
-            env, tokens, oom_class, "could not allocate token memory",
-            &JNIEnv_::NewIntArray, &JNIEnv_::SetIntArrayRegion);
+[[nodiscard]] inline jintArray tokens_to_jint_array_impl(JNIEnv *env, const std::vector<int32_t> &tokens,
+                                                         jclass oom_class) {
+    return vec_to_jarray_impl<jintArray, jint>(env, tokens, oom_class, "could not allocate token memory",
+                                               &JNIEnv_::NewIntArray, &JNIEnv_::SetIntArrayRegion);
 }
