@@ -820,10 +820,9 @@ jobs:
       - name: Build JARs
         # `assembly` additionally produces the fat jar-with-dependencies uber JAR
         # (llama-<version>-jar-with-dependencies.jar: library classes + Java runtime deps +
-        # default-platform native libs in one drop-on-classpath JAR; no Main-Class - it is a
-        # library). It lands in target/ and is uploaded in the `llama-jars` artifact below - a
-        # CI run artifact only, NOT a Maven Central / GitHub-Release asset. Documented as
-        # deliberate non-parity (BAF + jllama only) in workspace/crossrepostatus.md.
+        # default-platform native libs in one drop-on-classpath JAR, runnable via its
+        # LlamaServer Main-Class). It lands in target/ and is uploaded in the `llama-jars`
+        # artifact below - a CI run artifact only, not a Maven Central / GitHub-Release asset.
         run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android,assembly -Dmaven.test.skip=true -Dgpg.skip=true package
       - name: Upload JARs
         uses: actions/upload-artifact@v7

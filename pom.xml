@@ -992,12 +992,11 @@ SPDX-License-Identifier: MIT
 			<!--
 				Builds the fat jar-with-dependencies uber JAR: the library classes, the
 				default-platform native libs from src/main/resources, and all runtime Java
-				dependencies in one drop-on-classpath JAR. No Main-Class (this is a library,
-				not a CLI). Off by default; the CI `package` job activates it so the uber JAR
-				rides along in the `llama-jars` upload-artifact bundle (a CI run artifact only,
-				not a Maven Central / GitHub-Release asset). Documented in CLAUDE.md
-				"Build Commands" as `mvn -P assembly package` and as deliberate cross-repo
-				non-parity (BAF + jllama only) in workspace/crossrepostatus.md.
+				dependencies in one drop-on-classpath JAR, runnable via the LlamaServer
+				Main-Class (set below) to start the OpenAI-compatible HTTP server. Off by
+				default; the CI `package` job activates it so the uber JAR rides along in the
+				`llama-jars` upload-artifact bundle. Documented in CLAUDE.md "Build Commands"
+				as `mvn -P assembly package`.
 			-->
 			<id>assembly</id>
 			<build>
