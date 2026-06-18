@@ -20,11 +20,11 @@
 
 #include <gtest/gtest.h>
 
+#include "server-chat.h"
+#include "server-common.h"
 #include "server-context.h"
 #include "server-queue.h"
 #include "server-task.h"
-#include "server-common.h"
-#include "server-chat.h"
 #include "utils.hpp"
 
 // ============================================================
@@ -38,14 +38,14 @@ namespace {
 
 result_timings make_base_timings() {
     result_timings t;
-    t.prompt_n              = 10;
-    t.prompt_ms             = 200.0;
-    t.prompt_per_token_ms   = 20.0;
-    t.prompt_per_second     = 50.0;
-    t.predicted_n           = 5;
-    t.predicted_ms          = 100.0;
+    t.prompt_n = 10;
+    t.prompt_ms = 200.0;
+    t.prompt_per_token_ms = 20.0;
+    t.prompt_per_second = 50.0;
+    t.predicted_n = 5;
+    t.predicted_ms = 100.0;
     t.predicted_per_token_ms = 20.0;
-    t.predicted_per_second  = 50.0;
+    t.predicted_per_second = 50.0;
     return t;
 }
 
@@ -76,9 +76,9 @@ TEST(ResultTimings, BaseFieldValues_MatchInput) {
     result_timings t = make_base_timings();
     const json j = t.to_json();
 
-    EXPECT_EQ(j.at("prompt_n").get<int>(),    10);
+    EXPECT_EQ(j.at("prompt_n").get<int>(), 10);
     EXPECT_EQ(j.at("predicted_n").get<int>(), 5);
-    EXPECT_DOUBLE_EQ(j.at("prompt_ms").get<double>(),          200.0);
+    EXPECT_DOUBLE_EQ(j.at("prompt_ms").get<double>(), 200.0);
     EXPECT_DOUBLE_EQ(j.at("predicted_per_second").get<double>(), 50.0);
 }
 
@@ -89,44 +89,40 @@ TEST(ResultTimings, WithoutSpeculative_DraftFieldsAbsent) {
 
     const json j = t.to_json();
 
-    EXPECT_FALSE(j.contains("draft_n"))
-        << "draft_n must be absent when draft_n == 0";
-    EXPECT_FALSE(j.contains("draft_n_accepted"))
-        << "draft_n_accepted must be absent when draft_n == 0";
+    EXPECT_FALSE(j.contains("draft_n")) << "draft_n must be absent when draft_n == 0";
+    EXPECT_FALSE(j.contains("draft_n_accepted")) << "draft_n_accepted must be absent when draft_n == 0";
 }
 
 TEST(ResultTimings, WithSpeculative_DraftFieldsPresent) {
     result_timings t = make_base_timings();
-    t.draft_n          = 50;
+    t.draft_n = 50;
     t.draft_n_accepted = 35;
 
     const json j = t.to_json();
 
-    EXPECT_TRUE(j.contains("draft_n"))
-        << "draft_n must be present when draft_n > 0";
-    EXPECT_TRUE(j.contains("draft_n_accepted"))
-        << "draft_n_accepted must be present when draft_n > 0";
-    EXPECT_EQ(j.at("draft_n").get<int>(),          50);
+    EXPECT_TRUE(j.contains("draft_n")) << "draft_n must be present when draft_n > 0";
+    EXPECT_TRUE(j.contains("draft_n_accepted")) << "draft_n_accepted must be present when draft_n > 0";
+    EXPECT_EQ(j.at("draft_n").get<int>(), 50);
     EXPECT_EQ(j.at("draft_n_accepted").get<int>(), 35);
 }
 
 TEST(ResultTimings, DraftNOne_FieldsPresent) {
     // Edge case: even a single speculative token triggers the fields
     result_timings t = make_base_timings();
-    t.draft_n          = 1;
+    t.draft_n = 1;
     t.draft_n_accepted = 0;
 
     const json j = t.to_json();
 
     EXPECT_TRUE(j.contains("draft_n"));
     EXPECT_TRUE(j.contains("draft_n_accepted"));
-    EXPECT_EQ(j.at("draft_n").get<int>(),          1);
+    EXPECT_EQ(j.at("draft_n").get<int>(), 1);
     EXPECT_EQ(j.at("draft_n_accepted").get<int>(), 0);
 }
 
 TEST(ResultTimings, DraftFieldsAbsent_WhenExplicitlyZero) {
     result_timings t = make_base_timings();
-    t.draft_n          = 0;
+    t.draft_n = 0;
     t.draft_n_accepted = 0;
 
     const json j = t.to_json();
@@ -170,8 +166,7 @@ TEST(SlotParamsToJson, NewChatSyntaxFields_Present) {
     task_params p;
     const json j = p.to_json();
 
-    EXPECT_TRUE(j.contains("chat_format"))
-        << "chat_format must come from oaicompat_chat_syntax.format";
+    EXPECT_TRUE(j.contains("chat_format")) << "chat_format must come from oaicompat_chat_syntax.format";
     EXPECT_TRUE(j.contains("reasoning_format"))
         << "reasoning_format must come from oaicompat_chat_syntax.reasoning_format";
     EXPECT_TRUE(j.contains("reasoning_in_content"))
@@ -185,8 +180,7 @@ TEST(SlotParamsToJson, OldChatFormatEnum_NotPresent) {
     task_params p;
     const json j = p.to_json();
 
-    EXPECT_FALSE(j.contains("oaicompat_chat_format"))
-        << "Legacy oaicompat_chat_format field must not appear in b8576";
+    EXPECT_FALSE(j.contains("oaicompat_chat_format")) << "Legacy oaicompat_chat_format field must not appear in b8576";
 }
 
 TEST(SlotParamsToJson, GrammarValue_EmptyByDefault) {
@@ -274,7 +268,7 @@ TEST(SlotParamsToJson, Lora_PopulatedEntries) {
     const json j = p.to_json();
     // Each entry is {id, scale}; order not guaranteed — build a map to verify
     ASSERT_EQ(j.at("lora").size(), 2u);
-    std::map<int,float> got;
+    std::map<int, float> got;
     for (const auto &entry : j.at("lora")) {
         got[entry.at("id").get<int>()] = entry.at("scale").get<float>();
     }
@@ -286,7 +280,7 @@ TEST(SlotParamsToJson, GrammarTriggers_SerialiseViaServerGrammarTrigger) {
     task_params p;
     // Add a WORD trigger — must be serialised through server_grammar_trigger
     common_grammar_trigger trigger;
-    trigger.type  = COMMON_GRAMMAR_TRIGGER_TYPE_WORD;
+    trigger.type = COMMON_GRAMMAR_TRIGGER_TYPE_WORD;
     trigger.value = "```json";
     p.sampling.grammar_triggers.push_back(trigger);
 
@@ -389,9 +383,7 @@ TEST(StrToBytes, AsciiChars) {
     EXPECT_EQ(bytes[2].get<int>(), static_cast<int>('C'));
 }
 
-TEST(StrToBytes, EmptyString) {
-    EXPECT_TRUE(str_to_bytes("").empty());
-}
+TEST(StrToBytes, EmptyString) { EXPECT_TRUE(str_to_bytes("").empty()); }
 
 TEST(StrToBytes, HighByte) {
     // Byte 0xFF must survive the conversion unchanged
@@ -402,9 +394,13 @@ TEST(StrToBytes, HighByte) {
 
 TEST(CompletionTokenOutput, ToJson_PostSampling_UsesProbLabel) {
     completion_token_output cto;
-    cto.tok = 1; cto.prob = 0.5f; cto.text_to_send = "hi";
+    cto.tok = 1;
+    cto.prob = 0.5f;
+    cto.text_to_send = "hi";
     completion_token_output::prob_info pi;
-    pi.tok = 1; pi.txt = "hi"; pi.prob = 0.5f;
+    pi.tok = 1;
+    pi.txt = "hi";
+    pi.prob = 0.5f;
     cto.probs.push_back(pi);
 
     const json j = cto.to_json(/*post_sampling_probs=*/true);
@@ -417,9 +413,13 @@ TEST(CompletionTokenOutput, ToJson_PostSampling_UsesProbLabel) {
 
 TEST(CompletionTokenOutput, ToJson_PreSampling_UsesLogprobLabel) {
     completion_token_output cto;
-    cto.tok = 2; cto.prob = 0.25f; cto.text_to_send = "x";
+    cto.tok = 2;
+    cto.prob = 0.25f;
+    cto.text_to_send = "x";
     completion_token_output::prob_info pi;
-    pi.tok = 2; pi.txt = "x"; pi.prob = 0.25f;
+    pi.tok = 2;
+    pi.txt = "x";
+    pi.prob = 0.25f;
     cto.probs.push_back(pi);
 
     const json j = cto.to_json(/*post_sampling_probs=*/false);
@@ -437,7 +437,9 @@ TEST(CompletionTokenOutput, ProbsVectorToJson_Empty_ReturnsEmptyArray) {
 
 TEST(CompletionTokenOutput, ProbsVectorToJson_TokenFields) {
     completion_token_output cto;
-    cto.tok = 7; cto.prob = 1.0f; cto.text_to_send = "ok";
+    cto.tok = 7;
+    cto.prob = 1.0f;
+    cto.text_to_send = "ok";
     const json j = completion_token_output::probs_vector_to_json({cto}, true);
     ASSERT_EQ(j.size(), 1u);
     EXPECT_EQ(j[0].at("id").get<int>(), 7);
@@ -453,8 +455,8 @@ TEST(CompletionTokenOutput, ProbsVectorToJson_TokenFields) {
 
 TEST(ServerTaskResultRerank, ToJson_AllFieldsPresent) {
     server_task_result_rerank r;
-    r.index    = 3;
-    r.score    = 0.87f;
+    r.index = 3;
+    r.score = 0.87f;
     r.n_tokens = 42;
 
     const json j = r.to_json();
@@ -477,7 +479,7 @@ TEST(ServerTaskResultRerank, ToJson_DefaultScore_IsNegativeLarge) {
 
 TEST(ServerTaskResultEmbd, NonOaicompat_ShapeCorrect) {
     server_task_result_embd e;
-    e.index    = 1;
+    e.index = 1;
     e.embedding = {{0.1f, 0.2f}, {0.3f, 0.4f}};
     e.n_tokens = 5;
     e.res_type = TASK_RESPONSE_TYPE_NONE;
@@ -491,7 +493,7 @@ TEST(ServerTaskResultEmbd, NonOaicompat_ShapeCorrect) {
 
 TEST(ServerTaskResultEmbd, Oaicompat_UsesFirstRow) {
     server_task_result_embd e;
-    e.index    = 0;
+    e.index = 0;
     e.embedding = {{1.0f, 2.0f}, {3.0f, 4.0f}};
     e.n_tokens = 8;
     e.res_type = TASK_RESPONSE_TYPE_OAI_EMBD;
@@ -499,7 +501,7 @@ TEST(ServerTaskResultEmbd, Oaicompat_UsesFirstRow) {
     const json j = e.to_json();
     // OAI compat exposes only embedding[0]
     ASSERT_TRUE(j.at("embedding").is_array());
-    EXPECT_EQ(j.at("embedding").size(), 2u);  // first row has 2 elements
+    EXPECT_EQ(j.at("embedding").size(), 2u); // first row has 2 elements
     EXPECT_FLOAT_EQ(j.at("embedding")[0].get<float>(), 1.0f);
     EXPECT_EQ(j.at("tokens_evaluated").get<int>(), 8);
 }
@@ -508,8 +510,8 @@ TEST(ServerTaskResultEmbd, NonOaicompat_NTokensAbsent) {
     // tokens_evaluated must not appear in the non-OAI shape
     server_task_result_embd e;
     e.embedding = {{0.5f}};
-    e.n_tokens  = 3;
-    e.res_type  = TASK_RESPONSE_TYPE_NONE;
+    e.n_tokens = 3;
+    e.res_type = TASK_RESPONSE_TYPE_NONE;
     const json j = e.to_json();
     EXPECT_FALSE(j.contains("tokens_evaluated"));
 }
@@ -518,9 +520,9 @@ TEST(ServerTaskResultEmbd, NonOaicompat_SingleRowValues) {
     // Verify the float values survive the JSON round-trip
     server_task_result_embd e;
     e.embedding = {{0.1f, 0.2f, 0.3f}};
-    e.res_type  = TASK_RESPONSE_TYPE_NONE;
+    e.res_type = TASK_RESPONSE_TYPE_NONE;
     const json j = e.to_json();
-    ASSERT_EQ(j.at("embedding").size(), 1u);   // one row
+    ASSERT_EQ(j.at("embedding").size(), 1u);    // one row
     ASSERT_EQ(j.at("embedding")[0].size(), 3u); // three elements
     EXPECT_FLOAT_EQ(j.at("embedding")[0][1].get<float>(), 0.2f);
 }
@@ -529,7 +531,7 @@ TEST(ServerTaskResultEmbd, Dispatcher_NoneRoutes_ToNonOaicompat) {
     // to_json() dispatches on res_type; NONE → non-oaicompat (full matrix)
     server_task_result_embd e;
     e.embedding = {{1.0f, 2.0f}, {3.0f, 4.0f}};
-    e.res_type  = TASK_RESPONSE_TYPE_NONE;
+    e.res_type = TASK_RESPONSE_TYPE_NONE;
     const json j = e.to_json();
     EXPECT_EQ(j.at("embedding").size(), 2u); // full 2D matrix
     EXPECT_FALSE(j.contains("tokens_evaluated"));
@@ -541,7 +543,11 @@ TEST(ServerTaskResultEmbd, Dispatcher_NoneRoutes_ToNonOaicompat) {
 // ============================================================
 
 namespace {
-struct ErrorCase { error_type type; int code; std::string type_str; };
+struct ErrorCase {
+    error_type type;
+    int code;
+    std::string type_str;
+};
 } // namespace
 
 TEST(FormatErrorResponse, InvalidRequest_400) {
@@ -594,37 +600,101 @@ TEST(FormatErrorResponse, NotSupported_501) {
 // ============================================================
 
 TEST(ServerTaskTypeHelpers, NeedEmbd_TrueForEmbeddingAndRerank) {
-    { server_task t; t.type = SERVER_TASK_TYPE_EMBEDDING; EXPECT_TRUE(t.need_embd()); }
-    { server_task t; t.type = SERVER_TASK_TYPE_RERANK;    EXPECT_TRUE(t.need_embd()); }
+    {
+        server_task t;
+        t.type = SERVER_TASK_TYPE_EMBEDDING;
+        EXPECT_TRUE(t.need_embd());
+    }
+    {
+        server_task t;
+        t.type = SERVER_TASK_TYPE_RERANK;
+        EXPECT_TRUE(t.need_embd());
+    }
 }
 
 TEST(ServerTaskTypeHelpers, NeedEmbd_FalseForOtherTypes) {
-    { server_task t; t.type = SERVER_TASK_TYPE_COMPLETION; EXPECT_FALSE(t.need_embd()); }
-    { server_task t; t.type = SERVER_TASK_TYPE_INFILL;     EXPECT_FALSE(t.need_embd()); }
-    { server_task t; t.type = SERVER_TASK_TYPE_METRICS;    EXPECT_FALSE(t.need_embd()); }
-    { server_task t; t.type = SERVER_TASK_TYPE_CANCEL;     EXPECT_FALSE(t.need_embd()); }
+    {
+        server_task t;
+        t.type = SERVER_TASK_TYPE_COMPLETION;
+        EXPECT_FALSE(t.need_embd());
+    }
+    {
+        server_task t;
+        t.type = SERVER_TASK_TYPE_INFILL;
+        EXPECT_FALSE(t.need_embd());
+    }
+    {
+        server_task t;
+        t.type = SERVER_TASK_TYPE_METRICS;
+        EXPECT_FALSE(t.need_embd());
+    }
+    {
+        server_task t;
+        t.type = SERVER_TASK_TYPE_CANCEL;
+        EXPECT_FALSE(t.need_embd());
+    }
 }
 
 TEST(ServerTaskTypeHelpers, NeedLogits_TrueForCompletionAndInfill) {
-    { server_task t; t.type = SERVER_TASK_TYPE_COMPLETION; EXPECT_TRUE(t.need_logits()); }
-    { server_task t; t.type = SERVER_TASK_TYPE_INFILL;     EXPECT_TRUE(t.need_logits()); }
+    {
+        server_task t;
+        t.type = SERVER_TASK_TYPE_COMPLETION;
+        EXPECT_TRUE(t.need_logits());
+    }
+    {
+        server_task t;
+        t.type = SERVER_TASK_TYPE_INFILL;
+        EXPECT_TRUE(t.need_logits());
+    }
 }
 
 TEST(ServerTaskTypeHelpers, NeedLogits_FalseForOtherTypes) {
-    { server_task t; t.type = SERVER_TASK_TYPE_EMBEDDING; EXPECT_FALSE(t.need_logits()); }
-    { server_task t; t.type = SERVER_TASK_TYPE_RERANK;    EXPECT_FALSE(t.need_logits()); }
-    { server_task t; t.type = SERVER_TASK_TYPE_METRICS;   EXPECT_FALSE(t.need_logits()); }
+    {
+        server_task t;
+        t.type = SERVER_TASK_TYPE_EMBEDDING;
+        EXPECT_FALSE(t.need_logits());
+    }
+    {
+        server_task t;
+        t.type = SERVER_TASK_TYPE_RERANK;
+        EXPECT_FALSE(t.need_logits());
+    }
+    {
+        server_task t;
+        t.type = SERVER_TASK_TYPE_METRICS;
+        EXPECT_FALSE(t.need_logits());
+    }
 }
 
 TEST(ServerTaskTypeHelpers, NeedSampling_TrueForCompletionAndInfill) {
-    { server_task t; t.type = SERVER_TASK_TYPE_COMPLETION; EXPECT_TRUE(t.need_sampling()); }
-    { server_task t; t.type = SERVER_TASK_TYPE_INFILL;     EXPECT_TRUE(t.need_sampling()); }
+    {
+        server_task t;
+        t.type = SERVER_TASK_TYPE_COMPLETION;
+        EXPECT_TRUE(t.need_sampling());
+    }
+    {
+        server_task t;
+        t.type = SERVER_TASK_TYPE_INFILL;
+        EXPECT_TRUE(t.need_sampling());
+    }
 }
 
 TEST(ServerTaskTypeHelpers, NeedSampling_FalseForNonGenerativeTasks) {
-    { server_task t; t.type = SERVER_TASK_TYPE_EMBEDDING; EXPECT_FALSE(t.need_sampling()); }
-    { server_task t; t.type = SERVER_TASK_TYPE_RERANK;    EXPECT_FALSE(t.need_sampling()); }
-    { server_task t; t.type = SERVER_TASK_TYPE_METRICS;   EXPECT_FALSE(t.need_sampling()); }
+    {
+        server_task t;
+        t.type = SERVER_TASK_TYPE_EMBEDDING;
+        EXPECT_FALSE(t.need_sampling());
+    }
+    {
+        server_task t;
+        t.type = SERVER_TASK_TYPE_RERANK;
+        EXPECT_FALSE(t.need_sampling());
+    }
+    {
+        server_task t;
+        t.type = SERVER_TASK_TYPE_METRICS;
+        EXPECT_FALSE(t.need_sampling());
+    }
 }
 
 // ============================================================
@@ -652,20 +722,20 @@ TEST(ServerTaskNTokens, PopulatedTokens_ReturnsCount) {
 namespace {
 server_task_result_metrics make_metrics() {
     server_task_result_metrics m;
-    m.n_idle_slots       = 2;
+    m.n_idle_slots = 2;
     m.n_processing_slots = 1;
-    m.n_tasks_deferred   = 3;
-    m.t_start            = 1234567890LL;
+    m.n_tasks_deferred = 3;
+    m.t_start = 1234567890LL;
     m.n_prompt_tokens_processed_total = 100;
-    m.t_prompt_processing_total       = 50;
-    m.n_tokens_predicted_total        = 200;
-    m.t_tokens_generation_total       = 80;
-    m.n_prompt_tokens_processed       = 10;
-    m.t_prompt_processing             = 5;
-    m.n_tokens_predicted              = 20;
-    m.t_tokens_generation             = 8;
-    m.n_decode_total                  = 300;
-    m.n_busy_slots_total              = 4;
+    m.t_prompt_processing_total = 50;
+    m.n_tokens_predicted_total = 200;
+    m.t_tokens_generation_total = 80;
+    m.n_prompt_tokens_processed = 10;
+    m.t_prompt_processing = 5;
+    m.n_tokens_predicted = 20;
+    m.t_tokens_generation = 8;
+    m.n_decode_total = 300;
+    m.n_busy_slots_total = 4;
     return m;
 }
 } // namespace
@@ -720,12 +790,12 @@ TEST(ServerTaskResultMetrics, ToJson_SlotDataIsArray) {
 
 TEST(ServerTaskResultSlotSaveLoad, SaveMode_CorrectFields) {
     server_task_result_slot_save_load r;
-    r.id_slot  = 0;
+    r.id_slot = 0;
     r.filename = "slot_0.bin";
-    r.is_save  = true;
+    r.is_save = true;
     r.n_tokens = 128;
-    r.n_bytes  = 4096;
-    r.t_ms     = 12.5;
+    r.n_bytes = 4096;
+    r.t_ms = 12.5;
 
     const json j = r.to_json();
     EXPECT_EQ(j.at("filename").get<std::string>(), "slot_0.bin");
@@ -739,12 +809,12 @@ TEST(ServerTaskResultSlotSaveLoad, SaveMode_CorrectFields) {
 
 TEST(ServerTaskResultSlotSaveLoad, LoadMode_CorrectFields) {
     server_task_result_slot_save_load r;
-    r.id_slot  = 1;
+    r.id_slot = 1;
     r.filename = "slot_1.bin";
-    r.is_save  = false;
+    r.is_save = false;
     r.n_tokens = 64;
-    r.n_bytes  = 2048;
-    r.t_ms     = 7.3;
+    r.n_bytes = 2048;
+    r.t_ms = 7.3;
 
     const json j = r.to_json();
     EXPECT_EQ(j.at("n_restored").get<size_t>(), 64u);
@@ -762,7 +832,7 @@ TEST(ServerTaskResultSlotSaveLoad, LoadMode_CorrectFields) {
 
 TEST(ServerTaskResultSlotErase, ToJson_NErasedPresent) {
     server_task_result_slot_erase r;
-    r.id_slot  = 2;
+    r.id_slot = 2;
     r.n_erased = 512;
 
     const json j = r.to_json();
@@ -787,7 +857,7 @@ TEST(ServerTaskResultApplyLora, ToJson_SuccessTrue) {
 TEST(ServerTaskResultError, StandardError_HasMessageField) {
     server_task_result_error e;
     e.err_type = ERROR_TYPE_SERVER;
-    e.err_msg  = "something went wrong";
+    e.err_msg = "something went wrong";
     const json j = e.to_json();
     EXPECT_EQ(j.at("message").get<std::string>(), "something went wrong");
 }
@@ -795,7 +865,7 @@ TEST(ServerTaskResultError, StandardError_HasMessageField) {
 TEST(ServerTaskResultError, StandardError_HasCodeAndType) {
     server_task_result_error e;
     e.err_type = ERROR_TYPE_INVALID_REQUEST;
-    e.err_msg  = "bad param";
+    e.err_msg = "bad param";
     const json j = e.to_json();
     EXPECT_EQ(j.at("code").get<int>(), 400);
     EXPECT_EQ(j.at("type").get<std::string>(), "invalid_request_error");
@@ -808,10 +878,10 @@ TEST(ServerTaskResultError, IsError_ReturnsTrue) {
 
 TEST(ServerTaskResultError, ExceedContextSize_AddsExtraFields) {
     server_task_result_error e;
-    e.err_type        = ERROR_TYPE_EXCEED_CONTEXT_SIZE;
-    e.err_msg         = "context full";
+    e.err_type = ERROR_TYPE_EXCEED_CONTEXT_SIZE;
+    e.err_msg = "context full";
     e.n_prompt_tokens = 512;
-    e.n_ctx           = 256;
+    e.n_ctx = 256;
     const json j = e.to_json();
     EXPECT_EQ(j.at("n_prompt_tokens").get<int>(), 512);
     EXPECT_EQ(j.at("n_ctx").get<int>(), 256);
@@ -820,7 +890,7 @@ TEST(ServerTaskResultError, ExceedContextSize_AddsExtraFields) {
 TEST(ServerTaskResultError, DefaultError_NoExtraContextFields) {
     server_task_result_error e;
     e.err_type = ERROR_TYPE_SERVER;
-    e.err_msg  = "fail";
+    e.err_msg = "fail";
     const json j = e.to_json();
     EXPECT_FALSE(j.contains("n_prompt_tokens"));
     EXPECT_FALSE(j.contains("n_ctx"));
@@ -834,13 +904,13 @@ TEST(ServerTaskResultError, DefaultError_NoExtraContextFields) {
 
 TEST(ResultPromptProgress, ToJson_AllFourFields) {
     result_prompt_progress p;
-    p.total     = 100;
-    p.cache     = 40;
+    p.total = 100;
+    p.cache = 40;
     p.processed = 60;
-    p.time_ms   = 1234;
+    p.time_ms = 1234;
     const json j = p.to_json();
-    EXPECT_EQ(j.at("total").get<int>(),     100);
-    EXPECT_EQ(j.at("cache").get<int>(),     40);
+    EXPECT_EQ(j.at("total").get<int>(), 100);
+    EXPECT_EQ(j.at("cache").get<int>(), 40);
     EXPECT_EQ(j.at("processed").get<int>(), 60);
     EXPECT_EQ(j.at("time_ms").get<int64_t>(), 1234);
 }
@@ -848,8 +918,8 @@ TEST(ResultPromptProgress, ToJson_AllFourFields) {
 TEST(ResultPromptProgress, ToJson_DefaultZeros) {
     result_prompt_progress p;
     const json j = p.to_json();
-    EXPECT_EQ(j.at("total").get<int>(),     0);
-    EXPECT_EQ(j.at("cache").get<int>(),     0);
+    EXPECT_EQ(j.at("total").get<int>(), 0);
+    EXPECT_EQ(j.at("cache").get<int>(), 0);
     EXPECT_EQ(j.at("processed").get<int>(), 0);
     EXPECT_EQ(j.at("time_ms").get<int64_t>(), 0);
 }
@@ -864,10 +934,10 @@ TEST(ResultPromptProgress, ToJson_DefaultZeros) {
 
 TEST(ServerTaskResultCmplPartial, NonOaicompat_CoreFields) {
     server_task_result_cmpl_partial p;
-    p.is_updated      = true;
-    p.res_type        = TASK_RESPONSE_TYPE_NONE;
-    p.content         = "hello";
-    p.n_decoded       = 3;
+    p.is_updated = true;
+    p.res_type = TASK_RESPONSE_TYPE_NONE;
+    p.content = "hello";
+    p.n_decoded = 3;
     p.n_prompt_tokens = 10;
 
     const json j = p.to_json_non_oaicompat();
@@ -881,7 +951,7 @@ TEST(ServerTaskResultCmplPartial, NonOaicompat_CoreFields) {
 TEST(ServerTaskResultCmplPartial, NonOaicompat_TimingsAbsentByDefault) {
     server_task_result_cmpl_partial p;
     p.is_updated = true;
-    p.res_type   = TASK_RESPONSE_TYPE_NONE;
+    p.res_type = TASK_RESPONSE_TYPE_NONE;
     // timings.prompt_n == 0 by default → timings should be absent
     const json j = p.to_json_non_oaicompat();
     EXPECT_FALSE(j.contains("timings"));
@@ -889,8 +959,8 @@ TEST(ServerTaskResultCmplPartial, NonOaicompat_TimingsAbsentByDefault) {
 
 TEST(ServerTaskResultCmplPartial, NonOaicompat_TimingsPresentWhenPromptNNonzero) {
     server_task_result_cmpl_partial p;
-    p.is_updated      = true;
-    p.res_type        = TASK_RESPONSE_TYPE_NONE;
+    p.is_updated = true;
+    p.res_type = TASK_RESPONSE_TYPE_NONE;
     p.timings.prompt_n = 5;
     const json j = p.to_json_non_oaicompat();
     EXPECT_TRUE(j.contains("timings"));
@@ -898,19 +968,19 @@ TEST(ServerTaskResultCmplPartial, NonOaicompat_TimingsPresentWhenPromptNNonzero)
 
 TEST(ServerTaskResultCmplPartial, NonOaicompat_ProgressAbsentWhenNotProgress) {
     server_task_result_cmpl_partial p;
-    p.is_updated  = true;
-    p.res_type    = TASK_RESPONSE_TYPE_NONE;
+    p.is_updated = true;
+    p.res_type = TASK_RESPONSE_TYPE_NONE;
     p.is_progress = false;
-    const json j  = p.to_json_non_oaicompat();
+    const json j = p.to_json_non_oaicompat();
     EXPECT_FALSE(j.contains("prompt_progress"));
 }
 
 TEST(ServerTaskResultCmplPartial, NonOaicompat_ProgressPresentWhenIsProgress) {
     server_task_result_cmpl_partial p;
-    p.is_updated         = true;
-    p.res_type           = TASK_RESPONSE_TYPE_NONE;
-    p.is_progress        = true;
-    p.progress.total     = 20;
+    p.is_updated = true;
+    p.res_type = TASK_RESPONSE_TYPE_NONE;
+    p.is_progress = true;
+    p.progress.total = 20;
     p.progress.processed = 10;
     const json j = p.to_json_non_oaicompat();
     ASSERT_TRUE(j.contains("prompt_progress"));
@@ -925,8 +995,8 @@ TEST(ServerTaskResultCmplPartial, IsStop_ReturnsFalse) {
 TEST(ServerTaskResultCmplPartial, NonOaicompat_IdSlotField) {
     server_task_result_cmpl_partial p;
     p.is_updated = true;
-    p.res_type   = TASK_RESPONSE_TYPE_NONE;
-    p.id_slot    = 3;
+    p.res_type = TASK_RESPONSE_TYPE_NONE;
+    p.id_slot = 3;
     const json j = p.to_json_non_oaicompat();
     EXPECT_EQ(j.at("id_slot").get<int>(), 3);
 }
@@ -934,7 +1004,7 @@ TEST(ServerTaskResultCmplPartial, NonOaicompat_IdSlotField) {
 TEST(ServerTaskResultCmplPartial, NonOaicompat_CompletionProbabilitiesAbsentWhenProbsEmpty) {
     server_task_result_cmpl_partial p;
     p.is_updated = true;
-    p.res_type   = TASK_RESPONSE_TYPE_NONE;
+    p.res_type = TASK_RESPONSE_TYPE_NONE;
     // prob_output.probs is empty by default
     const json j = p.to_json_non_oaicompat();
     EXPECT_FALSE(j.contains("completion_probabilities"));
@@ -942,11 +1012,13 @@ TEST(ServerTaskResultCmplPartial, NonOaicompat_CompletionProbabilitiesAbsentWhen
 
 TEST(ServerTaskResultCmplPartial, NonOaicompat_CompletionProbabilitiesPresentWhenProbsSet) {
     server_task_result_cmpl_partial p;
-    p.is_updated          = true;
-    p.res_type            = TASK_RESPONSE_TYPE_NONE;
+    p.is_updated = true;
+    p.res_type = TASK_RESPONSE_TYPE_NONE;
     p.post_sampling_probs = true;
     completion_token_output::prob_info pi;
-    pi.tok = 5; pi.txt = "hi"; pi.prob = 0.8f;
+    pi.tok = 5;
+    pi.txt = "hi";
+    pi.prob = 0.8f;
     p.prob_output.probs.push_back(pi);
     const json j = p.to_json_non_oaicompat();
     ASSERT_TRUE(j.contains("completion_probabilities"));
@@ -966,8 +1038,8 @@ TEST(ServerTaskResultCmplFinal, IsStop_ReturnsTrue) {
 
 TEST(ServerTaskResultCmplFinal, NonOaicompat_StopAlwaysTrue) {
     server_task_result_cmpl_final f;
-    f.content         = "done";
-    f.n_decoded       = 3;
+    f.content = "done";
+    f.n_decoded = 3;
     f.n_prompt_tokens = 7;
     const json j = f.to_json_non_oaicompat();
     EXPECT_TRUE(j.at("stop").get<bool>());
@@ -992,7 +1064,7 @@ TEST(ServerTaskResultCmplFinal, NonOaicompat_StopType_Eos) {
 
 TEST(ServerTaskResultCmplFinal, NonOaicompat_StopType_Word) {
     server_task_result_cmpl_final f;
-    f.stop         = STOP_TYPE_WORD;
+    f.stop = STOP_TYPE_WORD;
     f.stopping_word = "</s>";
     const json j = f.to_json_non_oaicompat();
     EXPECT_EQ(j.at("stop_type").get<std::string>(), "word");
@@ -1019,10 +1091,12 @@ TEST(ServerTaskResultCmplFinal, NonOaicompat_NoProbsOutput_CompletionProbabiliti
 TEST(ServerTaskResultCmplFinal, NonOaicompat_WithProbsOutput_CompletionProbabilitiesPresent) {
     // When probs_output is non-empty and stream==false, the key must appear.
     server_task_result_cmpl_final f;
-    f.stream              = false;
+    f.stream = false;
     f.post_sampling_probs = true;
     completion_token_output cto;
-    cto.tok = 42; cto.prob = 0.9f; cto.text_to_send = "hi";
+    cto.tok = 42;
+    cto.prob = 0.9f;
+    cto.text_to_send = "hi";
     f.probs_output.push_back(cto);
     const json j = f.to_json_non_oaicompat();
     ASSERT_TRUE(j.contains("completion_probabilities"));
@@ -1032,10 +1106,12 @@ TEST(ServerTaskResultCmplFinal, NonOaicompat_WithProbsOutput_CompletionProbabili
 TEST(ServerTaskResultCmplFinal, NonOaicompat_StreamModeWithProbs_CompletionProbabilitiesAbsent) {
     // stream==true suppresses completion_probabilities even if probs_output is set.
     server_task_result_cmpl_final f;
-    f.stream              = true;
+    f.stream = true;
     f.post_sampling_probs = true;
     completion_token_output cto;
-    cto.tok = 1; cto.prob = 0.5f; cto.text_to_send = "x";
+    cto.tok = 1;
+    cto.prob = 0.5f;
+    cto.text_to_send = "x";
     f.probs_output.push_back(cto);
     const json j = f.to_json_non_oaicompat();
     EXPECT_FALSE(j.contains("completion_probabilities"));
@@ -1049,19 +1125,19 @@ TEST(ServerTaskResultCmplFinal, NonOaicompat_StreamModeWithProbs_CompletionProba
 
 TEST(ServerTaskResultCmplFinal, UsageJsonOaicompat_FieldsCorrect) {
     server_task_result_cmpl_final f;
-    f.n_decoded              = 17;
-    f.n_prompt_tokens        = 8;
-    f.n_prompt_tokens_cache  = 3;
+    f.n_decoded = 17;
+    f.n_prompt_tokens = 8;
+    f.n_prompt_tokens_cache = 3;
     const json j = f.usage_json_oaicompat();
     EXPECT_EQ(j.at("completion_tokens").get<int>(), 17);
     EXPECT_EQ(j.at("prompt_tokens").get<int>(), 8);
-    EXPECT_EQ(j.at("total_tokens").get<int>(), 25);  // 17 + 8
+    EXPECT_EQ(j.at("total_tokens").get<int>(), 25); // 17 + 8
     EXPECT_EQ(j.at("prompt_tokens_details").at("cached_tokens").get<int>(), 3);
 }
 
 TEST(ServerTaskResultCmplFinal, UsageJsonOaicompat_TotalTokensIsSumOfBoth) {
     server_task_result_cmpl_final f;
-    f.n_decoded       = 5;
+    f.n_decoded = 5;
     f.n_prompt_tokens = 10;
     const json j = f.usage_json_oaicompat();
     EXPECT_EQ(j.at("total_tokens").get<int>(), f.n_decoded + f.n_prompt_tokens);
@@ -1077,10 +1153,10 @@ TEST(ServerTaskResultCmplFinal, UsageJsonOaicompat_TotalTokensIsSumOfBoth) {
 namespace {
 server_task_result_cmpl_final make_oai_final(const std::string &content = "hello") {
     server_task_result_cmpl_final f;
-    f.content         = content;
+    f.content = content;
     f.oaicompat_model = "test-model";
     f.oaicompat_cmpl_id = "cmpl-test";
-    f.n_decoded       = 3;
+    f.n_decoded = 3;
     f.n_prompt_tokens = 5;
     return f;
 }
@@ -1184,7 +1260,7 @@ TEST(CmplFinalOaicompatChat, Usage_Present) {
 
 TEST(CmplFinalOaicompatChat, WithExplicitOaicompatMsg_MessageContentUsed) {
     auto f = make_oai_final("ignored");
-    f.oaicompat_msg.role    = "assistant";
+    f.oaicompat_msg.role = "assistant";
     f.oaicompat_msg.content = "explicit reply";
     const json j = f.to_json_oaicompat_chat();
     EXPECT_EQ(j.at("choices")[0].at("message").at("content").get<std::string>(), "explicit reply");
@@ -1195,8 +1271,8 @@ TEST(CmplFinalOaicompatChat, WithToolCalls_FinishReason_IsToolCalls) {
     // be "tool_calls" (not "stop").
     auto f = make_oai_final("");
     common_chat_tool_call tc;
-    tc.id        = "call_1";
-    tc.name      = "search";
+    tc.id = "call_1";
+    tc.name = "search";
     tc.arguments = R"({"q":"test"})";
     f.oaicompat_msg.tool_calls.push_back(tc);
     f.stop = STOP_TYPE_EOS;
@@ -1207,8 +1283,8 @@ TEST(CmplFinalOaicompatChat, WithToolCalls_FinishReason_IsToolCalls) {
 TEST(CmplFinalOaicompatChat, WithToolCalls_MessageHasToolCallsArray) {
     auto f = make_oai_final("");
     common_chat_tool_call tc;
-    tc.id        = "call_1";
-    tc.name      = "search";
+    tc.id = "call_1";
+    tc.name = "search";
     tc.arguments = R"({"q":"test"})";
     f.oaicompat_msg.tool_calls.push_back(tc);
     const json j = f.to_json_oaicompat_chat();
@@ -1243,9 +1319,9 @@ TEST(CmplFinalAnthropic, StopReason_EndTurnForEos) {
 
 TEST(CmplFinalAnthropic, StopReason_EndTurnForWord) {
     auto f = make_oai_final();
-    f.stop         = STOP_TYPE_WORD;
+    f.stop = STOP_TYPE_WORD;
     f.stopping_word = "</s>";
-    const json j   = f.to_json_anthropic();
+    const json j = f.to_json_anthropic();
     EXPECT_EQ(j.at("stop_reason").get<std::string>(), "end_turn");
 }
 
@@ -1257,32 +1333,35 @@ TEST(CmplFinalAnthropic, StopSequence_NullWhenEmpty) {
 
 TEST(CmplFinalAnthropic, StopSequence_ReflectsStoppingWord) {
     auto f = make_oai_final();
-    f.stop         = STOP_TYPE_WORD;
+    f.stop = STOP_TYPE_WORD;
     f.stopping_word = "</tool>";
     f.oaicompat_msg.content = "done";
-    const json j   = f.to_json_anthropic();
+    const json j = f.to_json_anthropic();
     EXPECT_EQ(j.at("stop_sequence").get<std::string>(), "</tool>");
 }
 
 TEST(CmplFinalAnthropic, ContentBlock_TextBlockForPlainContent) {
     auto f = make_oai_final("plain text");
-    const json j     = f.to_json_anthropic();
+    const json j = f.to_json_anthropic();
     const json &blks = j.at("content");
     ASSERT_FALSE(blks.empty());
     // last block is the text block when no reasoning
     bool found_text = false;
     for (const auto &b : blks) {
-        if (b.at("type").get<std::string>() == "text") { found_text = true; break; }
+        if (b.at("type").get<std::string>() == "text") {
+            found_text = true;
+            break;
+        }
     }
     EXPECT_TRUE(found_text);
 }
 
 TEST(CmplFinalAnthropic, ContentBlock_ThinkingBlockFirst) {
     auto f = make_oai_final("answer");
-    f.oaicompat_msg.role              = "assistant";
-    f.oaicompat_msg.content           = "answer";
+    f.oaicompat_msg.role = "assistant";
+    f.oaicompat_msg.content = "answer";
     f.oaicompat_msg.reasoning_content = "step by step";
-    const json j   = f.to_json_anthropic();
+    const json j = f.to_json_anthropic();
     const json &blks = j.at("content");
     ASSERT_GE(blks.size(), 2u);
     EXPECT_EQ(blks[0].at("type").get<std::string>(), "thinking");
@@ -1292,18 +1371,18 @@ TEST(CmplFinalAnthropic, ContentBlock_ThinkingBlockFirst) {
 TEST(CmplFinalAnthropic, ContentBlock_ToolUseBlock) {
     auto f = make_oai_final("");
     common_chat_tool_call tc;
-    tc.id        = "call_1";
-    tc.name      = "get_weather";
+    tc.id = "call_1";
+    tc.name = "get_weather";
     tc.arguments = R"({"city":"Paris"})";
     f.oaicompat_msg.tool_calls.push_back(tc);
     f.stop = STOP_TYPE_EOS;
-    const json j   = f.to_json_anthropic();
+    const json j = f.to_json_anthropic();
     EXPECT_EQ(j.at("stop_reason").get<std::string>(), "tool_use");
     bool found_tool = false;
     for (const auto &b : j.at("content")) {
         if (b.at("type").get<std::string>() == "tool_use") {
             EXPECT_EQ(b.at("name").get<std::string>(), "get_weather");
-            EXPECT_EQ(b.at("id").get<std::string>(),   "call_1");
+            EXPECT_EQ(b.at("id").get<std::string>(), "call_1");
             EXPECT_EQ(b.at("input").at("city").get<std::string>(), "Paris");
             found_tool = true;
         }
@@ -1321,10 +1400,10 @@ TEST(CmplFinalAnthropic, ContentBlock_ToolUseBlock) {
 namespace {
 server_task_result_cmpl_partial make_partial(const std::string &content = "tok") {
     server_task_result_cmpl_partial p;
-    p.is_updated        = true;
-    p.res_type          = TASK_RESPONSE_TYPE_OAI_CMPL;
-    p.content           = content;
-    p.oaicompat_model   = "test-model";
+    p.is_updated = true;
+    p.res_type = TASK_RESPONSE_TYPE_OAI_CMPL;
+    p.content = content;
+    p.oaicompat_model = "test-model";
     p.oaicompat_cmpl_id = "cmpl-part";
     return p;
 }
@@ -1362,7 +1441,9 @@ TEST(CmplPartialOaicompat, LogProbs_NonEmptyProbs_HasContentArray) {
     // When probs are set, logprobs becomes {"content": [...]} (not null)
     auto p = make_partial();
     completion_token_output::prob_info pi;
-    pi.tok = 5; pi.txt = "hi"; pi.prob = 0.8f;
+    pi.tok = 5;
+    pi.txt = "hi";
+    pi.prob = 0.8f;
     p.prob_output.probs.push_back(pi);
     const json j = p.to_json_oaicompat();
     ASSERT_FALSE(j.at("choices")[0].at("logprobs").is_null());
@@ -1381,19 +1462,19 @@ TEST(CmplPartialOaicompat, LogProbs_NonEmptyProbs_HasContentArray) {
 TEST(CmplPartialToJsonDispatch, ResTypeNone_RoutesToNonOaicompat) {
     server_task_result_cmpl_partial p;
     p.is_updated = true;
-    p.res_type   = TASK_RESPONSE_TYPE_NONE;
-    p.content    = "hello";
-    const json j = p.to_json();   // must not assert/abort
+    p.res_type = TASK_RESPONSE_TYPE_NONE;
+    p.content = "hello";
+    const json j = p.to_json(); // must not assert/abort
     // non-oaicompat shape has "content" directly
     EXPECT_EQ(j.at("content").get<std::string>(), "hello");
 }
 
 TEST(CmplPartialToJsonDispatch, ResTypeOaiCmpl_RoutesToOaicompat) {
     server_task_result_cmpl_partial p;
-    p.is_updated        = true;
-    p.res_type          = TASK_RESPONSE_TYPE_OAI_CMPL;
-    p.content           = "hi";
-    p.oaicompat_model   = "m";
+    p.is_updated = true;
+    p.res_type = TASK_RESPONSE_TYPE_OAI_CMPL;
+    p.content = "hi";
+    p.oaicompat_model = "m";
     p.oaicompat_cmpl_id = "c";
     const json j = p.to_json();
     // oaicompat shape wraps content inside choices
@@ -1407,7 +1488,7 @@ TEST(CmplPartialToJsonDispatch, NotUpdated_Asserts) {
     // so we verify the flag semantics by checking the truthy case passes.
     // (The death test would require EXPECT_DEATH which needs signal handling.)
     p.is_updated = true;
-    p.res_type   = TASK_RESPONSE_TYPE_NONE;
+    p.res_type = TASK_RESPONSE_TYPE_NONE;
     EXPECT_NO_THROW(p.to_json());
 }
 
@@ -1416,10 +1497,10 @@ TEST(CmplPartialToJsonDispatch, ResTypeAnthropic_RoutesToAnthropicStream) {
     // returns a json::array (not a json::object like the OAI arms).
     // With n_decoded==1 the first-token message_start event is emitted.
     server_task_result_cmpl_partial p;
-    p.is_updated        = true;
-    p.res_type          = TASK_RESPONSE_TYPE_ANTHROPIC;
-    p.n_decoded         = 1;
-    p.oaicompat_model   = "m";
+    p.is_updated = true;
+    p.res_type = TASK_RESPONSE_TYPE_ANTHROPIC;
+    p.n_decoded = 1;
+    p.oaicompat_model = "m";
     p.oaicompat_cmpl_id = "id";
     const json j = p.to_json();
     EXPECT_TRUE(j.is_array());
@@ -1436,14 +1517,13 @@ TEST(CmplPartialToJsonDispatch, ResTypeAnthropic_RoutesToAnthropicStream) {
 
 namespace {
 // Minimal final result ready for to_json(); no vocab-dependent fields.
-server_task_result_cmpl_final make_dispatched_final(task_response_type rt,
-                                                     bool stream = false) {
+server_task_result_cmpl_final make_dispatched_final(task_response_type rt, bool stream = false) {
     server_task_result_cmpl_final f;
-    f.is_updated        = true;
-    f.res_type          = rt;
-    f.stream            = stream;
-    f.content           = "hi";
-    f.oaicompat_model   = "m";
+    f.is_updated = true;
+    f.res_type = rt;
+    f.stream = stream;
+    f.content = "hi";
+    f.oaicompat_model = "m";
     f.oaicompat_cmpl_id = "id";
     return f;
 }
@@ -1527,7 +1607,7 @@ TEST(CmplFinalVerboseFlag, Oaicompat_TimingsAbsentByDefault) {
 
 TEST(CmplFinalVerboseFlag, Oaicompat_TimingsPresentWhenPromptNNonNeg) {
     auto f = make_oai_final();
-    f.timings.prompt_n = 0;  // >= 0 triggers inclusion
+    f.timings.prompt_n = 0; // >= 0 triggers inclusion
     const json j = f.to_json_oaicompat();
     EXPECT_TRUE(j.contains("timings"));
 }
@@ -1547,10 +1627,10 @@ TEST(CmplFinalVerboseFlag, Oaicompat_TimingsPresentWhenPromptNNonNeg) {
 namespace {
 server_task_result_cmpl_final make_stream_final(bool include_usage = false) {
     server_task_result_cmpl_final f;
-    f.oaicompat_model   = "m";
+    f.oaicompat_model = "m";
     f.oaicompat_cmpl_id = "id";
-    f.stop              = STOP_TYPE_EOS;
-    f.include_usage     = include_usage;
+    f.stop = STOP_TYPE_EOS;
+    f.include_usage = include_usage;
     // No oaicompat_msg_diffs → just the single terminal chunk
     return f;
 }
@@ -1575,7 +1655,7 @@ TEST(CmplFinalChatStream, LastChunk_HasNonNullFinishReason) {
     const json &last_chunk = j.back();
     const json &fr = last_chunk.at("choices")[0].at("finish_reason");
     EXPECT_FALSE(fr.is_null());
-    EXPECT_EQ(fr.get<std::string>(), "stop");  // STOP_TYPE_EOS → "stop"
+    EXPECT_EQ(fr.get<std::string>(), "stop"); // STOP_TYPE_EOS → "stop"
 }
 
 TEST(CmplFinalChatStream, IncludeUsageFalse_NoUsageChunk) {
@@ -1655,8 +1735,7 @@ TEST(ParamsFromJsonCmpl, NDiscard_Negative_ClampedToZero) {
 }
 
 TEST(ParamsFromJsonCmpl, EmptyDrySequenceBreakers_Throws) {
-    EXPECT_THROW(parse_params({{"dry_sequence_breakers", json::array()}}),
-                 std::runtime_error);
+    EXPECT_THROW(parse_params({{"dry_sequence_breakers", json::array()}}), std::runtime_error);
 }
 
 TEST(ParamsFromJsonCmpl, LoraNotArray_Throws) {
@@ -1668,8 +1747,7 @@ TEST(ParamsFromJsonCmpl, RepeatLastN_BelowMinusOne_Throws) {
 }
 
 TEST(ParamsFromJsonCmpl, StreamOptions_IncludeUsage_Parsed) {
-    const json data = {{"stream", true},
-                       {"stream_options", {{"include_usage", true}}}};
+    const json data = {{"stream", true}, {"stream_options", {{"include_usage", true}}}};
     const auto p = parse_params(data);
     EXPECT_TRUE(p.include_usage);
 }
@@ -1770,19 +1848,14 @@ TEST(ParamsFromJsonCmpl, ReasoningBudgetTokens_ExplicitMinusOne_Disabled) {
 
 TEST(ParamsFromJsonCmpl, JsonSchema_SetsOutputFormatGrammarType) {
     // json_schema without "grammar" → grammar type OUTPUT_FORMAT
-    const json data = {
-        {"json_schema", {{"type", "object"}, {"properties", json::object()}}}
-    };
+    const json data = {{"json_schema", {{"type", "object"}, {"properties", json::object()}}}};
     const auto p = parse_params(data);
     EXPECT_EQ(p.sampling.grammar.type, COMMON_GRAMMAR_TYPE_OUTPUT_FORMAT);
 }
 
 TEST(ParamsFromJsonCmpl, GrammarTypeToolCalls_SetsToolCallsType) {
     // grammar_type="tool_calls" routes to COMMON_GRAMMAR_TYPE_TOOL_CALLS
-    const json data = {
-        {"grammar",      "root ::= object"},
-        {"grammar_type", "tool_calls"}
-    };
+    const json data = {{"grammar", "root ::= object"}, {"grammar_type", "tool_calls"}};
     const auto p = parse_params(data);
     EXPECT_EQ(p.sampling.grammar.type, COMMON_GRAMMAR_TYPE_TOOL_CALLS);
 }
@@ -1803,8 +1876,8 @@ TEST(ParamsFromJsonCmpl, PlainGrammar_NoGrammarType_SetsUserType) {
 
 TEST(CmplFinalResponseFields, EmptyList_AllFieldsPresent) {
     server_task_result_cmpl_final f;
-    f.content    = "hi";
-    f.stop       = STOP_TYPE_EOS;
+    f.content = "hi";
+    f.stop = STOP_TYPE_EOS;
     // response_fields is empty by default → full object returned
     const json j = f.to_json_non_oaicompat();
     EXPECT_TRUE(j.contains("content"));
@@ -1814,21 +1887,21 @@ TEST(CmplFinalResponseFields, EmptyList_AllFieldsPresent) {
 
 TEST(CmplFinalResponseFields, NonEmptyList_OnlyRequestedFieldsPresent) {
     server_task_result_cmpl_final f;
-    f.content         = "projected";
+    f.content = "projected";
     f.response_fields = {"content", "tokens_predicted"};
-    const json j      = f.to_json_non_oaicompat();
+    const json j = f.to_json_non_oaicompat();
     EXPECT_TRUE(j.contains("content"));
     EXPECT_TRUE(j.contains("tokens_predicted"));
-    EXPECT_FALSE(j.contains("stop_type"));    // filtered out
-    EXPECT_FALSE(j.contains("timings"));      // filtered out
-    EXPECT_FALSE(j.contains("prompt"));       // filtered out
+    EXPECT_FALSE(j.contains("stop_type")); // filtered out
+    EXPECT_FALSE(j.contains("timings"));   // filtered out
+    EXPECT_FALSE(j.contains("prompt"));    // filtered out
 }
 
 TEST(CmplFinalResponseFields, ContentValue_PreservedThroughProjection) {
     server_task_result_cmpl_final f;
-    f.content         = "keep this";
+    f.content = "keep this";
     f.response_fields = {"content"};
-    const json j      = f.to_json_non_oaicompat();
+    const json j = f.to_json_non_oaicompat();
     EXPECT_EQ(j.at("content").get<std::string>(), "keep this");
 }
 
@@ -1844,10 +1917,10 @@ TEST(CmplFinalResponseFields, ContentValue_PreservedThroughProjection) {
 namespace {
 server_task_result_cmpl_partial make_chat_partial(int n_decoded = 1) {
     server_task_result_cmpl_partial p;
-    p.is_updated        = true;
-    p.res_type          = TASK_RESPONSE_TYPE_OAI_CHAT;
-    p.n_decoded         = n_decoded;
-    p.oaicompat_model   = "m";
+    p.is_updated = true;
+    p.res_type = TASK_RESPONSE_TYPE_OAI_CHAT;
+    p.n_decoded = n_decoded;
+    p.oaicompat_model = "m";
     p.oaicompat_cmpl_id = "id";
     return p;
 }
@@ -1907,8 +1980,8 @@ TEST(CmplPartialOaicompatChat, AllChunks_FinishReasonIsNull) {
 namespace {
 server_task_result_cmpl_final make_anthropic_stream_final(stop_type st = STOP_TYPE_EOS) {
     server_task_result_cmpl_final f;
-    f.stop              = st;
-    f.oaicompat_model   = "m";
+    f.stop = st;
+    f.oaicompat_model = "m";
     f.oaicompat_cmpl_id = "id";
     return f;
 }
@@ -1926,7 +1999,7 @@ TEST(CmplFinalAnthropicStream, LastEvent_IsMessageStop) {
 }
 
 TEST(CmplFinalAnthropicStream, SecondToLast_IsMessageDelta_WithStopReason) {
-    const json j     = make_anthropic_stream_final(STOP_TYPE_EOS).to_json_anthropic_stream();
+    const json j = make_anthropic_stream_final(STOP_TYPE_EOS).to_json_anthropic_stream();
     // message_delta is always the penultimate event
     ASSERT_GE(j.size(), 2u);
     const json &md = j[j.size() - 2];
@@ -1957,8 +2030,10 @@ TEST(CmplFinalAnthropicStream, WithTextDiff_EmitsContentBlockEvents) {
     bool found_start = false, found_delta = false;
     for (const auto &ev : j) {
         const std::string e = ev.at("event").get<std::string>();
-        if (e == "content_block_start") found_start = true;
-        if (e == "content_block_delta") found_delta = true;
+        if (e == "content_block_start")
+            found_start = true;
+        if (e == "content_block_delta")
+            found_delta = true;
     }
     EXPECT_TRUE(found_start);
     EXPECT_TRUE(found_delta);
@@ -1997,11 +2072,11 @@ TEST(CmplFinalAnthropicStream, WithThinkingDiff_EmitsThinkingBlockEvents) {
 namespace {
 server_task_result_cmpl_partial make_anthropic_partial(int n_decoded = 1) {
     server_task_result_cmpl_partial p;
-    p.is_updated        = true;
-    p.res_type          = TASK_RESPONSE_TYPE_ANTHROPIC;
-    p.n_decoded         = n_decoded;
-    p.n_prompt_tokens   = 10;
-    p.oaicompat_model   = "test-model";
+    p.is_updated = true;
+    p.res_type = TASK_RESPONSE_TYPE_ANTHROPIC;
+    p.n_decoded = n_decoded;
+    p.n_prompt_tokens = 10;
+    p.oaicompat_model = "test-model";
     p.oaicompat_cmpl_id = "msg-id";
     return p;
 }
@@ -2014,7 +2089,7 @@ TEST(CmplPartialAnthropicStream, FirstToken_EmitsMessageStart) {
 }
 
 TEST(CmplPartialAnthropicStream, FirstToken_MessageStart_HasIdModelRole) {
-    const json j   = make_anthropic_partial(1).to_json_anthropic();
+    const json j = make_anthropic_partial(1).to_json_anthropic();
     const json &msg = j.front().at("data").at("message");
     EXPECT_EQ(msg.at("id").get<std::string>(), "msg-id");
     EXPECT_EQ(msg.at("model").get<std::string>(), "test-model");
@@ -2025,11 +2100,11 @@ TEST(CmplPartialAnthropicStream, FirstToken_MessageStart_HasIdModelRole) {
 
 TEST(CmplPartialAnthropicStream, FirstToken_MessageStart_HasUsageCounts) {
     auto p = make_anthropic_partial(1);
-    p.n_prompt_tokens       = 12;
+    p.n_prompt_tokens = 12;
     p.n_prompt_tokens_cache = 4;
-    const json j     = p.to_json_anthropic();
+    const json j = p.to_json_anthropic();
     const json &usage = j.front().at("data").at("message").at("usage");
-    EXPECT_EQ(usage.at("input_tokens").get<int>(), 8);            // 12 - 4
+    EXPECT_EQ(usage.at("input_tokens").get<int>(), 8); // 12 - 4
     EXPECT_EQ(usage.at("cache_read_input_tokens").get<int>(), 4);
     EXPECT_EQ(usage.at("output_tokens").get<int>(), 0);
 }
@@ -2107,9 +2182,9 @@ TEST(CmplPartialAnthropicStream, WithReasoningFlag_TextBlockIndex_IsOne) {
 TEST(CmplPartialAnthropicStream, WithToolCallDiff_EmitsToolUseBlockStart) {
     auto p = make_anthropic_partial(/*n_decoded=*/2);
     common_chat_msg_diff diff;
-    diff.tool_call_index      = 0;
+    diff.tool_call_index = 0;
     diff.tool_call_delta.name = "get_weather";
-    diff.tool_call_delta.id   = "call_abc";
+    diff.tool_call_delta.id = "call_abc";
     p.oaicompat_msg_diffs.push_back(diff);
     const json j = p.to_json_anthropic();
     bool found_tool_start = false;
@@ -2118,11 +2193,10 @@ TEST(CmplPartialAnthropicStream, WithToolCallDiff_EmitsToolUseBlockStart) {
             const json &cb = ev.at("data").at("content_block");
             if (cb.at("type").get<std::string>() == "tool_use") {
                 EXPECT_EQ(cb.at("name").get<std::string>(), "get_weather");
-                EXPECT_EQ(cb.at("id").get<std::string>(),   "call_abc");
+                EXPECT_EQ(cb.at("id").get<std::string>(), "call_abc");
                 found_tool_start = true;
             }
         }
     }
     EXPECT_TRUE(found_tool_start);
 }
-

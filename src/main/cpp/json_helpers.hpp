@@ -51,8 +51,7 @@
 // jni_helpers.hpp, and directly in receiveCompletionJson, embed, and
 // handleRerank in jllama.cpp.
 // ---------------------------------------------------------------------------
-[[nodiscard]] inline std::string get_result_error_message(
-        const server_task_result_ptr &result) {
+[[nodiscard]] inline std::string get_result_error_message(const server_task_result_ptr &result) {
     return result->to_json()["message"].get<std::string>();
 }
 
@@ -68,8 +67,7 @@
 // This mirrors the OpenAI API convention used by handleCompletions,
 // handleCompletionsOai, handleChatCompletions, and handleInfill.
 // ---------------------------------------------------------------------------
-[[nodiscard]] inline json results_to_json(
-        const std::vector<server_task_result_ptr> &results) {
+[[nodiscard]] inline json results_to_json(const std::vector<server_task_result_ptr> &results) {
     if (results.size() == 1) {
         return results[0]->to_json();
     }
@@ -87,19 +85,14 @@
 // Each element contains the original document text (looked up via the
 // result's "index" field), the index, and the relevance score.
 // ---------------------------------------------------------------------------
-[[nodiscard]] inline json rerank_results_to_json(
-        const std::vector<server_task_result_ptr> &results,
-        const std::vector<std::string>            &documents) {
+[[nodiscard]] inline json rerank_results_to_json(const std::vector<server_task_result_ptr> &results,
+                                                 const std::vector<std::string> &documents) {
     json arr = json::array();
     for (const auto &result : results) {
         const auto out = result->to_json();
-        int   index = out["index"].get<int>();
+        int index = out["index"].get<int>();
         float score = out["score"].get<float>();
-        arr.push_back({
-            {"document", documents[index]},
-            {"index",    index},
-            {"score",    score}
-        });
+        arr.push_back({{"document", documents[index]}, {"index", index}, {"score", score}});
     }
     return arr;
 }
@@ -119,8 +112,12 @@
         return false;
     }
     const std::string format = body.at("encoding_format").get<std::string>();
-    if (format == "base64") { return true; }
-    if (format == "float")  { return false; }
+    if (format == "base64") {
+        return true;
+    }
+    if (format == "float") {
+        return false;
+    }
     throw std::invalid_argument("encoding_format must be \"float\" or \"base64\"");
 }
 
@@ -135,8 +132,7 @@
 //   when "content" was used — the caller must downgrade oaicompat to NONE.
 // Throws std::invalid_argument if neither "input" nor "content" is present.
 // ---------------------------------------------------------------------------
-[[nodiscard]] inline json extract_embedding_prompt(const json &body,
-                                                    bool       &force_no_oaicompat) {
+[[nodiscard]] inline json extract_embedding_prompt(const json &body, bool &force_no_oaicompat) {
     force_no_oaicompat = false;
     if (body.count("input") != 0) {
         return body.at("input");
@@ -168,8 +164,7 @@
 // Returns float          — validated value in [0.0, 1.0].
 // Throws std::invalid_argument — present but outside [0.0, 1.0].
 // ---------------------------------------------------------------------------
-[[nodiscard]] inline std::optional<float>
-parse_slot_prompt_similarity(const json &config) {
+[[nodiscard]] inline std::optional<float> parse_slot_prompt_similarity(const json &config) {
     if (!config.contains("slot_prompt_similarity")) {
         return std::nullopt;
     }
@@ -189,8 +184,7 @@ parse_slot_prompt_similarity(const json &config) {
 // Returns int            — validated value > 0.
 // Throws std::invalid_argument("<key> must be greater than 0") — present but ≤ 0.
 // ---------------------------------------------------------------------------
-[[nodiscard]] inline std::optional<int>
-parse_positive_int_config(const json &config, const char *key) {
+[[nodiscard]] inline std::optional<int> parse_positive_int_config(const json &config, const char *key) {
     if (!config.contains(key)) {
         return std::nullopt;
     }

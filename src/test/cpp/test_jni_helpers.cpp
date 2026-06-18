@@ -22,17 +22,17 @@
 
 #include <gtest/gtest.h>
 
+#include "jni_helpers.hpp"
+#include "server-chat.h"
+#include "server-common.h"
+#include "server-context.h"
+#include "server-queue.h"
+#include "server-task.h"
+#include "utils.hpp"
 #include <cstring>
 #include <memory>
 #include <string>
 #include <thread>
-#include "server-context.h"
-#include "server-queue.h"
-#include "server-task.h"
-#include "server-common.h"
-#include "server-chat.h"
-#include "utils.hpp"
-#include "jni_helpers.hpp"
 
 // embedding_to_jfloat_array_impl and tokens_to_jint_array_impl are also tested
 // in this file (see bottom).
@@ -58,21 +58,19 @@ static server_task_result_ptr make_ok(int id_, const std::string &msg = "ok") {
 // ============================================================
 
 // State captured by stubs — reset in each fixture's SetUp().
-static bool        g_throw_called        = false;
+static bool g_throw_called = false;
 static std::string g_throw_message;
 static std::string g_new_string_utf_value;
-static jlong       g_mock_handle         = 0;
+static jlong g_mock_handle = 0;
 
 static jstring g_new_string_utf_sentinel = reinterpret_cast<jstring>(0xBEEF);
 
-static jint    JNICALL stub_ThrowNew(JNIEnv *, jclass, const char *msg) {
-    g_throw_called  = true;
+static jint JNICALL stub_ThrowNew(JNIEnv *, jclass, const char *msg) {
+    g_throw_called = true;
     g_throw_message = msg ? msg : "";
     return 0;
 }
-static jlong   JNICALL stub_GetLongField(JNIEnv *, jobject, jfieldID) {
-    return g_mock_handle;
-}
+static jlong JNICALL stub_GetLongField(JNIEnv *, jobject, jfieldID) { return g_mock_handle; }
 static jstring JNICALL stub_NewStringUTF(JNIEnv *, const char *utf) {
     g_new_string_utf_value = utf ? utf : "";
     return g_new_string_utf_sentinel;
@@ -81,25 +79,25 @@ static jstring JNICALL stub_NewStringUTF(JNIEnv *, const char *utf) {
 // Minimal env: ThrowNew + GetLongField + NewStringUTF.
 JNIEnv *make_mock_env(JNINativeInterface_ &table, JNIEnv_ &env_obj) {
     std::memset(&table, 0, sizeof(table));
-    table.ThrowNew     = stub_ThrowNew;
+    table.ThrowNew = stub_ThrowNew;
     table.GetLongField = stub_GetLongField;
     table.NewStringUTF = stub_NewStringUTF;
-    env_obj.functions  = &table;
+    env_obj.functions = &table;
     return &env_obj;
 }
 
 // Base fixture: resets all mock state.
 struct MockJniFixture : ::testing::Test {
     JNINativeInterface_ table{};
-    JNIEnv_             env_obj{};
-    JNIEnv             *env          = nullptr;
-    jfieldID            dummy_field  = reinterpret_cast<jfieldID>(0x1);
-    jclass              dummy_class  = reinterpret_cast<jclass>(0x2);
+    JNIEnv_ env_obj{};
+    JNIEnv *env = nullptr;
+    jfieldID dummy_field = reinterpret_cast<jfieldID>(0x1);
+    jclass dummy_class = reinterpret_cast<jclass>(0x2);
 
     void SetUp() override {
-        env                    = make_mock_env(table, env_obj);
-        g_mock_handle          = 0;
-        g_throw_called         = false;
+        env = make_mock_env(table, env_obj);
+        g_mock_handle = 0;
+        g_throw_called = false;
         g_throw_message.clear();
         g_new_string_utf_value.clear();
     }
@@ -297,8 +295,7 @@ TEST_F(MockJniFixture, RequireJsonField_MissingField_ReturnsFalseAndThrows) {
 }
 
 TEST_F(MockJniFixture, RequireJsonField_EmptyJson_ReturnsFalseAndThrows) {
-    EXPECT_FALSE(require_json_field_impl(
-        env, nlohmann::json::object(), "input_suffix", dummy_class));
+    EXPECT_FALSE(require_json_field_impl(env, nlohmann::json::object(), "input_suffix", dummy_class));
     EXPECT_TRUE(g_throw_called);
     EXPECT_EQ(g_throw_message, "\"input_suffix\" is required");
 }
@@ -319,40 +316,38 @@ TEST_F(MockJniFixture, RequireJsonField_NullValue_ReturnsTrueNoThrow) {
 
 namespace {
 
-static jint  g_array_data[8]  = {};
-static jsize g_array_length   = 0;
-static bool  g_release_called = false;
-static jint  g_release_mode   = -1;
+static jint g_array_data[8] = {};
+static jsize g_array_length = 0;
+static bool g_release_called = false;
+static jint g_release_mode = -1;
 
 static jsize JNICALL stub_GetArrayLength(JNIEnv *, jarray) { return g_array_length; }
-static jint *JNICALL stub_GetIntArrayElements(JNIEnv *, jintArray, jboolean *) {
-    return g_array_data;
-}
-static void  JNICALL stub_ReleaseIntArrayElements(JNIEnv *, jintArray, jint *, jint mode) {
+static jint *JNICALL stub_GetIntArrayElements(JNIEnv *, jintArray, jboolean *) { return g_array_data; }
+static void JNICALL stub_ReleaseIntArrayElements(JNIEnv *, jintArray, jint *, jint mode) {
     g_release_called = true;
-    g_release_mode   = mode;
+    g_release_mode = mode;
 }
 
 JNIEnv *make_array_env(JNINativeInterface_ &table, JNIEnv_ &env_obj) {
     std::memset(&table, 0, sizeof(table));
-    table.GetArrayLength          = stub_GetArrayLength;
-    table.GetIntArrayElements     = stub_GetIntArrayElements;
+    table.GetArrayLength = stub_GetArrayLength;
+    table.GetIntArrayElements = stub_GetIntArrayElements;
     table.ReleaseIntArrayElements = stub_ReleaseIntArrayElements;
-    env_obj.functions             = &table;
+    env_obj.functions = &table;
     return &env_obj;
 }
 
 struct ArrayFixture : ::testing::Test {
     JNINativeInterface_ table{};
-    JNIEnv_             env_obj{};
-    JNIEnv             *env = nullptr;
+    JNIEnv_ env_obj{};
+    JNIEnv *env = nullptr;
 
     void SetUp() override {
-        env              = make_array_env(table, env_obj);
+        env = make_array_env(table, env_obj);
         g_release_called = false;
-        g_release_mode   = -1;
+        g_release_mode = -1;
         std::memset(g_array_data, 0, sizeof(g_array_data));
-        g_array_length   = 0;
+        g_array_length = 0;
     }
 };
 
@@ -367,8 +362,10 @@ TEST_F(ArrayFixture, JintArrayToTokens_EmptyArray_ReturnsEmptyVector) {
 }
 
 TEST_F(ArrayFixture, JintArrayToTokens_ThreeElements_CopiedCorrectly) {
-    g_array_data[0] = 10; g_array_data[1] = 20; g_array_data[2] = 30;
-    g_array_length  = 3;
+    g_array_data[0] = 10;
+    g_array_data[1] = 20;
+    g_array_data[2] = 30;
+    g_array_length = 3;
     auto tokens = jint_array_to_tokens_impl(env, nullptr);
     ASSERT_EQ(tokens.size(), 3u);
     EXPECT_EQ(tokens[0], 10);
@@ -377,7 +374,8 @@ TEST_F(ArrayFixture, JintArrayToTokens_ThreeElements_CopiedCorrectly) {
 }
 
 TEST_F(ArrayFixture, JintArrayToTokens_ReleasesWithAbortFlag) {
-    g_array_length = 1; g_array_data[0] = 42;
+    g_array_length = 1;
+    g_array_data[0] = 42;
     (void)jint_array_to_tokens_impl(env, nullptr);
     EXPECT_TRUE(g_release_called);
     EXPECT_EQ(g_release_mode, JNI_ABORT);
@@ -463,8 +461,8 @@ TEST_F(MockJniFixture, ResultsToJstring_EmptyVector_ReturnsEmptyArray) {
 
 namespace {
 
-static bool  g_float_new_called  = false;
-static jsize g_float_alloc_size  = -1;
+static bool g_float_new_called = false;
+static jsize g_float_alloc_size = -1;
 static jsize g_float_copied_size = -1;
 
 static jfloatArray JNICALL stub_NewFloatArray(JNIEnv *, jsize n) {
@@ -479,10 +477,10 @@ static void JNICALL stub_SetFloatArrayRegion(JNIEnv *, jfloatArray, jsize, jsize
 struct FloatArrayFixture : MockJniFixture {
     void SetUp() override {
         MockJniFixture::SetUp();
-        g_float_new_called  = false;
-        g_float_alloc_size  = -1;
+        g_float_new_called = false;
+        g_float_alloc_size = -1;
         g_float_copied_size = -1;
-        table.NewFloatArray       = stub_NewFloatArray;
+        table.NewFloatArray = stub_NewFloatArray;
         table.SetFloatArrayRegion = stub_SetFloatArrayRegion;
     }
 };
@@ -529,8 +527,8 @@ TEST_F(FloatArrayFixture, EmbeddingToJfloatArray_AllocFails_ThrowsOomAndReturnsN
 
 namespace {
 
-static bool  g_int_new_called  = false;
-static jsize g_int_alloc_size  = -1;
+static bool g_int_new_called = false;
+static jsize g_int_alloc_size = -1;
 static jsize g_int_copied_size = -1;
 
 static jintArray JNICALL stub_NewIntArray(JNIEnv *, jsize n) {
@@ -538,17 +536,15 @@ static jintArray JNICALL stub_NewIntArray(JNIEnv *, jsize n) {
     g_int_alloc_size = n;
     return reinterpret_cast<jintArray>(0xF2);
 }
-static void JNICALL stub_SetIntArrayRegion(JNIEnv *, jintArray, jsize, jsize n, const jint *) {
-    g_int_copied_size = n;
-}
+static void JNICALL stub_SetIntArrayRegion(JNIEnv *, jintArray, jsize, jsize n, const jint *) { g_int_copied_size = n; }
 
 struct IntArrayFixture : MockJniFixture {
     void SetUp() override {
         MockJniFixture::SetUp();
-        g_int_new_called  = false;
-        g_int_alloc_size  = -1;
+        g_int_new_called = false;
+        g_int_alloc_size = -1;
         g_int_copied_size = -1;
-        table.NewIntArray       = stub_NewIntArray;
+        table.NewIntArray = stub_NewIntArray;
         table.SetIntArrayRegion = stub_SetIntArrayRegion;
     }
 };

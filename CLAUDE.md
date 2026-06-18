@@ -392,9 +392,20 @@ not track the loader's own Java package). This is the same
 `spotbugs-exclude.xml`, PIT `targetClasses`, and `CMakeLists.txt` OSInfo repairs.
 
 ### Code Formatting
+
+C++ formatting is **enforced in CI** (`.github/workflows/clang-format.yml`) with a **pinned**
+clang-format — currently **22.1.5**, installed via `pip install clang-format==22.1.5`. Format with
+that exact version before committing; a different clang-format version reflows code differently and
+will fail the check.
+
 ```bash
-clang-format -i src/main/cpp/*.cpp src/main/cpp/*.hpp   # Format C++ code
+pip install "clang-format==22.1.5"
+clang-format -i src/main/cpp/*.cpp src/main/cpp/*.hpp src/test/cpp/*.cpp   # Format C++ code
 ```
+
+The generated JNI header `src/main/cpp/jllama.h` (produced by `javac -h`) is intentionally excluded.
+To bump the enforced version, update the pin in **both** the workflow (`CLANG_FORMAT_VERSION`) and
+this line, then reformat the whole tree with the new version in the same commit.
 
 ### Javadoc — must build cleanly before `mvn package`
 
