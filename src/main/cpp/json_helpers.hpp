@@ -32,6 +32,7 @@
 //   6.  is_infill_request               — used by nothing above it
 //   7.  parse_slot_prompt_similarity    — used by nothing above it
 //   8.  parse_positive_int_config       — used by nothing above it
+//   9.  wrap_stream_chunk               — used by nothing above it
 
 #include "nlohmann/json.hpp"
 
@@ -198,4 +199,25 @@ parse_positive_int_config(const json &config, const char *key) {
         throw std::invalid_argument(std::string(key) + " must be greater than 0");
     }
     return v;
+}
+
+// ---------------------------------------------------------------------------
+// wrap_stream_chunk
+//
+// Wraps one streaming chat result payload together with its stop flag into a
+// single transport object so the Java side has a uniform shape to parse:
+//
+//   {"data": <payload>, "stop": <bool>}
+//
+// `payload` is whatever a streaming OAI chat result's to_json() produced — a
+// single chat.completion.chunk object for a partial token, or a JSON array of
+// chunk objects for the final result (final delta + optional usage chunk).
+// The Java consumer reads "stop" and emits each element of "data" as its own
+// SSE `data:` event.  Used by receiveChatCompletionChunk in jllama.cpp.
+// ---------------------------------------------------------------------------
+[[nodiscard]] inline json wrap_stream_chunk(json payload, bool stop) {
+    json out;
+    out["data"] = std::move(payload);
+    out["stop"] = stop;
+    return out;
 }

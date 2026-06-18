@@ -20,6 +20,7 @@
 //   is_infill_request
 //   parse_slot_prompt_similarity
 //   parse_positive_int_config
+//   wrap_stream_chunk
 
 #include <gtest/gtest.h>
 
@@ -426,4 +427,46 @@ TEST(ParsePositiveIntConfig, ErrorMessage_ContainsKeyName) {
     } catch (const std::invalid_argument &e) {
         EXPECT_NE(std::string(e.what()).find("n_threads_batch"), std::string::npos);
     }
+}
+
+// ============================================================
+// wrap_stream_chunk
+// ============================================================
+
+TEST(WrapStreamChunk, ObjectPayload_NotStopped) {
+    json chunk = {{"object", "chat.completion.chunk"},
+                  {"choices", json::array({{{"delta", {{"content", "hi"}}}}})}};
+    json out = wrap_stream_chunk(chunk, false);
+    EXPECT_FALSE(out.at("stop").get<bool>());
+    ASSERT_TRUE(out.at("data").is_object());
+    EXPECT_EQ(out.at("data").at("object").get<std::string>(), "chat.completion.chunk");
+}
+
+TEST(WrapStreamChunk, ArrayPayload_Stopped) {
+    json final_chunks = json::array({
+        {{"choices", json::array({{{"finish_reason", "stop"}, {"delta", json::object()}}})}},
+        {{"usage", {{"completion_tokens", 3}}}}
+    });
+    json out = wrap_stream_chunk(final_chunks, true);
+    EXPECT_TRUE(out.at("stop").get<bool>());
+    ASSERT_TRUE(out.at("data").is_array());
+    EXPECT_EQ(out.at("data").size(), 2u);
+}
+
+TEST(WrapStreamChunk, StopFlagPropagates) {
+    EXPECT_TRUE(wrap_stream_chunk(json::object(), true).at("stop").get<bool>());
+    EXPECT_FALSE(wrap_stream_chunk(json::object(), false).at("stop").get<bool>());
+}
+
+TEST(WrapStreamChunk, NullPayload_DataIsNull) {
+    json out = wrap_stream_chunk(json(), false);
+    EXPECT_TRUE(out.at("data").is_null());
+    EXPECT_FALSE(out.at("stop").get<bool>());
+}
+
+TEST(WrapStreamChunk, ExactlyTwoKeys) {
+    json out = wrap_stream_chunk(json::object(), false);
+    EXPECT_EQ(out.size(), 2u);
+    EXPECT_TRUE(out.contains("data"));
+    EXPECT_TRUE(out.contains("stop"));
 }

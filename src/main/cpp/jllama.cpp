@@ -839,6 +839,52 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveCompletionJ
     return json_to_jstring_impl(env, response);
 }
 
+// Streaming OpenAI chat: poll one step of a chat.completion.chunk stream.
+// Returns {"data": <chunk-object-or-array>, "stop": <bool>} — `data` is exactly
+// what the streaming result's to_json() produced (a single chunk object for a
+// partial token, or a JSON array of chunks for the final delta + usage). The
+// uniform envelope avoids injecting a "stop" key into an array. Skips the
+// header-only nullptr sentinels (upstream b9437+) and releases the reader on stop.
+JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveChatCompletionChunk(JNIEnv *env, jobject obj,
+                                                                               jint id_task) {
+    REQUIRE_SERVER_CONTEXT(nullptr);
+
+    server_response_reader *rd;
+    {
+        std::lock_guard<std::mutex> lk(jctx->readers_mutex);
+        auto it = jctx->readers.find(id_task);
+        if (it == jctx->readers.end()) {
+            env->ThrowNew(c_llama_error, "Task not found");
+            return nullptr;
+        }
+        rd = it->second.get();
+    }
+
+    json payload;
+    bool stop = false;
+    while (true) {
+        server_task_result_ptr result = rd->next([] { return false; });
+
+        if (!result_ok_or_throw(env, result)) {
+            erase_reader(jctx, id_task);
+            return nullptr;
+        }
+
+        json chunk = result->to_json();
+        if (chunk.is_null()) {
+            continue;
+        }
+        payload = std::move(chunk);
+        stop    = result->is_stop();
+        if (stop) {
+            erase_reader(jctx, id_task);
+        }
+        break;
+    }
+
+    return json_to_jstring_impl(env, wrap_stream_chunk(std::move(payload), stop));
+}
+
 JNIEXPORT jfloatArray JNICALL Java_net_ladenthin_llama_LlamaModel_embed(JNIEnv *env, jobject obj, jstring jprompt) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
@@ -942,6 +988,23 @@ JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestChatCompletion
 
     return dispatch_streaming_completion(env, jctx, data,
                                          SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_NONE);
+}
+
+// Streaming OpenAI chat with OAI-formatted chunks. Mirrors requestChatCompletion
+// but sets TASK_RESPONSE_TYPE_OAI_CHAT so each polled result formats as an
+// OpenAI chat.completion.chunk (including streamed delta.tool_calls). The params
+// must carry "stream": true so the upstream formatter emits chunk deltas; poll
+// the returned task id with receiveChatCompletionChunk.
+JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestChatCompletionStream(JNIEnv *env, jobject obj,
+                                                                             jstring jparams) {
+    REQUIRE_SERVER_CONTEXT(0);
+
+    json body = parse_json_params(env, jparams);
+    json data;
+    if (!parse_oai_chat_params(env, ctx_server, body, data)) return 0;
+
+    return dispatch_streaming_completion(env, jctx, data,
+                                         SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_OAI_CHAT);
 }
 
 JNIEXPORT jintArray JNICALL Java_net_ladenthin_llama_LlamaModel_encode(JNIEnv *env, jobject obj, jstring jprompt) {

@@ -126,6 +126,10 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleChatCompleti
  */
 JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestChatCompletion(JNIEnv *, jobject, jstring);
 
+JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestChatCompletionStream(JNIEnv *, jobject, jstring);
+
+JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveChatCompletionChunk(JNIEnv *, jobject, jint);
+
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleCompletions(JNIEnv *, jobject, jstring);
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleCompletionsOai(JNIEnv *, jobject, jstring);

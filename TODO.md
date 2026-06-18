@@ -13,6 +13,26 @@ cross-cutting initiative.
 
 ## Open — jllama-specific
 
+### OpenAI-compatible HTTP endpoint (shipped; follow-ups open)
+
+`net.ladenthin.llama.server.OpenAiCompatServer` exposes `POST /v1/chat/completions` (streaming via
+SSE + non-streaming) and `GET /v1/models` over the JDK's built-in `com.sun.net.httpserver` (no new
+dependency), so editors that speak the OpenAI protocol (e.g. VS Code Copilot "Custom Endpoint") can
+drive a local model. Streaming uses the native OAI chunk path (`requestChatCompletionStream` /
+`receiveChatCompletionChunk`), preserving `delta.tool_calls` for agent mode. Follow-ups, deferred
+until requested:
+
+- **Multi-model registry.** Only one model id is advertised/served today; support several models
+  chosen by the request `model` field (and listed in `/v1/models`).
+- **`stream_options.include_usage` passthrough** so the final streamed `usage` chunk is emitted
+  (needs a generic raw-param passthrough on `InferenceParameters`, or explicit mapping).
+- **Additional `apiType`s.** VS Code "Custom Endpoint" also offers Anthropic `messages` and OpenAI
+  `responses`; only `chat-completions` is implemented. Also consider `/v1/completions` and
+  `/v1/embeddings` routes.
+- **Gemma 4 tool-calling validation.** Confirm the pinned llama.cpp (`b9682`) includes the Gemma 4
+  tool-call parser fixes (landed upstream ~Apr 2026); if not, bump per the upgrade procedure so
+  streamed/blocking `tool_calls` come through for Gemma 4 GGUFs.
+
 ### llama.cpp upstream feature exposure (queued, deferred by policy)
 
 These are JNI plumbing items for upstream API additions. Policy: add only after a real user request — they are mostly relevant to specific model families or specialized workflows.

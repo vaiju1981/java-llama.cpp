@@ -1,0 +1,257 @@
+// SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
+package net.ladenthin.llama.server;
+
+import org.jspecify.annotations.Nullable;
+
+/**
+ * Immutable configuration for {@link OpenAiCompatServer}.
+ *
+ * <p>Sensible localhost defaults are provided; build instances with {@link #builder()}. The API key is
+ * deliberately excluded from {@link #toString()} so it is never written to logs.
+ */
+public final class OpenAiServerConfig {
+
+    /** Default bind address: loopback only, so the endpoint is not exposed off-host. */
+    public static final String DEFAULT_HOST = "127.0.0.1";
+
+    /** Default TCP port. */
+    public static final int DEFAULT_PORT = 8080;
+
+    /** Default advertised model id (the {@code id} echoed by {@code GET /v1/models}). */
+    public static final String DEFAULT_MODEL_ID = "local-model";
+
+    /** Default advertised maximum input tokens. */
+    public static final int DEFAULT_MAX_INPUT_TOKENS = 8192;
+
+    /** Default advertised maximum output tokens. */
+    public static final int DEFAULT_MAX_OUTPUT_TOKENS = 2048;
+
+    /** Default Server-Sent-Events heartbeat interval, in milliseconds. */
+    public static final long DEFAULT_HEARTBEAT_MILLIS = 15_000L;
+
+    private final String host;
+    private final int port;
+    private final @Nullable String apiKey;
+    private final String modelId;
+    private final int maxInputTokens;
+    private final int maxOutputTokens;
+    private final long heartbeatMillis;
+
+    private OpenAiServerConfig(Builder builder) {
+        this.host = builder.host;
+        this.port = builder.port;
+        this.apiKey = builder.apiKey;
+        this.modelId = builder.modelId;
+        this.maxInputTokens = builder.maxInputTokens;
+        this.maxOutputTokens = builder.maxOutputTokens;
+        this.heartbeatMillis = builder.heartbeatMillis;
+    }
+
+    /**
+     * Returns a new builder seeded with the localhost defaults.
+     *
+     * @return a fresh {@link Builder}
+     */
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    /**
+     * The bind address (loopback by default).
+     *
+     * @return the host the server binds to
+     */
+    public String getHost() {
+        return host;
+    }
+
+    /**
+     * The TCP port.
+     *
+     * @return the port the server listens on
+     */
+    public int getPort() {
+        return port;
+    }
+
+    /**
+     * The optional bearer API key. When {@code null}, no {@code Authorization} header is required.
+     *
+     * @return the configured API key, or {@code null} when authentication is disabled
+     */
+    public @Nullable String getApiKey() {
+        return apiKey;
+    }
+
+    /**
+     * The advertised model id.
+     *
+     * @return the model id reported by {@code GET /v1/models}
+     */
+    public String getModelId() {
+        return modelId;
+    }
+
+    /**
+     * The advertised maximum input-token budget.
+     *
+     * @return the advertised max input tokens
+     */
+    public int getMaxInputTokens() {
+        return maxInputTokens;
+    }
+
+    /**
+     * The advertised maximum output-token budget.
+     *
+     * @return the advertised max output tokens
+     */
+    public int getMaxOutputTokens() {
+        return maxOutputTokens;
+    }
+
+    /**
+     * The Server-Sent-Events heartbeat interval.
+     *
+     * @return the heartbeat interval in milliseconds
+     */
+    public long getHeartbeatMillis() {
+        return heartbeatMillis;
+    }
+
+    /**
+     * Whether bearer-token authentication is enabled (an API key is configured).
+     *
+     * @return {@code true} if requests must present a matching bearer token
+     */
+    public boolean isAuthenticationEnabled() {
+        return apiKey != null && !apiKey.isEmpty();
+    }
+
+    /**
+     * Renders the configuration without exposing the API key.
+     *
+     * @return a log-safe description of this configuration
+     */
+    @Override
+    public String toString() {
+        return "OpenAiServerConfig{host="
+                + host
+                + ", port="
+                + port
+                + ", authEnabled="
+                + isAuthenticationEnabled()
+                + ", modelId="
+                + modelId
+                + ", maxInputTokens="
+                + maxInputTokens
+                + ", maxOutputTokens="
+                + maxOutputTokens
+                + ", heartbeatMillis="
+                + heartbeatMillis
+                + '}';
+    }
+
+    /** Mutable builder for {@link OpenAiServerConfig}; not thread-safe. */
+    public static final class Builder {
+
+        private String host = DEFAULT_HOST;
+        private int port = DEFAULT_PORT;
+        private @Nullable String apiKey;
+        private String modelId = DEFAULT_MODEL_ID;
+        private int maxInputTokens = DEFAULT_MAX_INPUT_TOKENS;
+        private int maxOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS;
+        private long heartbeatMillis = DEFAULT_HEARTBEAT_MILLIS;
+
+        private Builder() {}
+
+        /**
+         * Sets the bind address.
+         *
+         * @param host the host to bind (e.g. {@code "127.0.0.1"})
+         * @return this builder
+         */
+        public Builder host(String host) {
+            this.host = host;
+            return this;
+        }
+
+        /**
+         * Sets the TCP port.
+         *
+         * @param port the port to listen on
+         * @return this builder
+         */
+        public Builder port(int port) {
+            this.port = port;
+            return this;
+        }
+
+        /**
+         * Sets the optional bearer API key. Pass {@code null} (the default) to disable authentication.
+         *
+         * @param apiKey the required bearer token, or {@code null} for no authentication
+         * @return this builder
+         */
+        public Builder apiKey(@Nullable String apiKey) {
+            this.apiKey = apiKey;
+            return this;
+        }
+
+        /**
+         * Sets the advertised model id.
+         *
+         * @param modelId the model id to advertise
+         * @return this builder
+         */
+        public Builder modelId(String modelId) {
+            this.modelId = modelId;
+            return this;
+        }
+
+        /**
+         * Sets the advertised maximum input tokens.
+         *
+         * @param maxInputTokens the advertised max input tokens
+         * @return this builder
+         */
+        public Builder maxInputTokens(int maxInputTokens) {
+            this.maxInputTokens = maxInputTokens;
+            return this;
+        }
+
+        /**
+         * Sets the advertised maximum output tokens.
+         *
+         * @param maxOutputTokens the advertised max output tokens
+         * @return this builder
+         */
+        public Builder maxOutputTokens(int maxOutputTokens) {
+            this.maxOutputTokens = maxOutputTokens;
+            return this;
+        }
+
+        /**
+         * Sets the Server-Sent-Events heartbeat interval.
+         *
+         * @param heartbeatMillis the heartbeat interval in milliseconds
+         * @return this builder
+         */
+        public Builder heartbeatMillis(long heartbeatMillis) {
+            this.heartbeatMillis = heartbeatMillis;
+            return this;
+        }
+
+        /**
+         * Builds the immutable configuration.
+         *
+         * @return a new {@link OpenAiServerConfig}
+         */
+        public OpenAiServerConfig build() {
+            return new OpenAiServerConfig(this);
+        }
+    }
+}
