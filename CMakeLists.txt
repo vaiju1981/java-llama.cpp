@@ -286,11 +286,13 @@ endif()
 # and link.
 #
 # server-http.cpp does `#include "ui.h"` — the WebUI asset table that tools/ui
-# normally GENERATES.  We do not ship the Svelte WebUI (it needs npm / a prebuilt
-# asset download), so src/main/cpp/webui_stub/ui.h supplies the upstream "empty
-# asset table" interface instead (see that file).  <cpp-httplib/httplib.h> already
-# resolves via llama-common's vendor/ include dir, whose bundled nlohmann/json is
-# the same 3.12.0 as our FetchContent copy, so adding nothing there shadows it.
+# normally GENERATES.  The WebUI is built once in CI (the build-webui job) and
+# shared to every native build as a generated, platform-independent ui.cpp/ui.h;
+# the "WebUI assets" block below compiles it in when present and otherwise falls
+# back to the empty-asset stub (src/main/cpp/webui_stub/ui.h).
+# <cpp-httplib/httplib.h> already resolves via llama-common's vendor/ include dir,
+# whose bundled nlohmann/json is the same 3.12.0 as our FetchContent copy, so
+# adding nothing there shadows it.
 target_sources(jllama PRIVATE
     ${llama.cpp_SOURCE_DIR}/tools/server/server-http.cpp
     ${llama.cpp_SOURCE_DIR}/vendor/cpp-httplib/httplib.cpp
@@ -315,14 +317,33 @@ if(WIN32 AND NOT MSVC)
     target_link_libraries(jllama PRIVATE ws2_32)
 endif()
 
+# WebUI assets.  The llama.cpp WebUI is built once in CI by the build-webui job
+# (upstream Svelte build + llama-ui-embed, run against the pinned llama.cpp tag)
+# and shared to every native build as the generated, platform-independent
+# ui.cpp / ui.h under webui-generated/ (git-ignored; downloaded as the
+# "webui-generated" artifact — this repo commits no build outputs).  When present,
+# compile it in so libjllama serves the real WebUI: the generated ui.h #defines
+# LLAMA_UI_HAS_ASSETS, which activates server-http.cpp's static-asset routes.  When
+# absent (local builds, or any job without the artifact) fall back to the empty-
+# asset stub so the server still builds and runs, just without an embedded WebUI.
+set(JLLAMA_WEBUI_GENERATED_DIR ${CMAKE_SOURCE_DIR}/webui-generated)
+if(EXISTS ${JLLAMA_WEBUI_GENERATED_DIR}/ui.cpp AND EXISTS ${JLLAMA_WEBUI_GENERATED_DIR}/ui.h)
+    message(STATUS "WebUI: embedding generated assets from ${JLLAMA_WEBUI_GENERATED_DIR}")
+    target_sources(jllama PRIVATE ${JLLAMA_WEBUI_GENERATED_DIR}/ui.cpp)
+    target_include_directories(jllama PRIVATE ${JLLAMA_WEBUI_GENERATED_DIR})
+else()
+    message(STATUS "WebUI: no generated assets found; using empty-asset stub (no embedded WebUI)")
+    target_include_directories(jllama PRIVATE ${CMAKE_SOURCE_DIR}/src/main/cpp/webui_stub)
+endif()
+
 set_target_properties(jllama PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(jllama PRIVATE
     src/main/cpp
-    # webui_stub/ui.h stands in for the generated llama-ui header (see Phase 2 above)
-    src/main/cpp/webui_stub
     ${JNI_INCLUDE_DIRS}
     ${llama.cpp_SOURCE_DIR}/tools/mtmd
     ${llama.cpp_SOURCE_DIR}/tools/server)
+# Note: the WebUI ui.h include dir (generated webui-generated/ or the empty stub
+# src/main/cpp/webui_stub) is added by the "WebUI assets" conditional above.
 target_link_libraries(jllama PRIVATE llama-common mtmd llama nlohmann_json)
 target_compile_features(jllama PRIVATE cxx_std_11)
 

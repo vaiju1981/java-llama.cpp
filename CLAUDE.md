@@ -121,6 +121,50 @@ At runtime the device must provide its own OpenCL ICD (`libOpenCL.so`);
 Qualcomm Adreno drivers do. Devices without an ICD should use the default
 CPU-only Android JAR.
 
+## WebUI (llama.cpp Svelte UI) embedding
+
+The llama.cpp WebUI is **built once in CI and shared to every native build**, then
+compiled into `libjllama` so the embedded server (`server-http.cpp`) can serve it.
+This repo commits no build outputs, so the assets are produced per-pipeline, never
+checked in (same policy as the native libs).
+
+Pipeline (`.github/workflows/publish.yml`):
+
+1. **`build-webui` job** (ubuntu — the *only* job that runs `npm`): resolves the
+   pinned `b<nnnn>` tag from `CMakeLists.txt`'s `GIT_TAG`, sparse-checks-out
+   `ggml-org/llama.cpp@<tag>` `tools/ui`, runs the upstream Svelte build
+   (`npm ci && npm run build`), gzips `dist/` into `dist/_gzip/` (LLAMA_UI_GZIP
+   parity), builds the self-contained `llama-ui-embed` host tool (plain C++17, **no
+   npm**) and runs it to produce the platform-independent **`webui-generated/ui.cpp`
+   + `ui.h`**, uploaded as the `webui-generated` artifact.
+2. **Every native build job** (`needs: [startgate, build-webui]`) downloads that
+   artifact into `webui-generated/` before building. npm never runs in the dockcross
+   cross-compilers (which have no node) or per-platform.
+3. **CMake** (the "WebUI assets" block in `CMakeLists.txt`): if
+   `webui-generated/ui.cpp` + `ui.h` exist, compiles `ui.cpp` in and adds its dir to
+   the include path — the generated `ui.h` `#define`s `LLAMA_UI_HAS_ASSETS`, which
+   activates `server-http.cpp`'s static-asset routes. If absent, it falls back to the
+   empty-asset stub `src/main/cpp/webui_stub/ui.h` (no embedded UI) so local builds —
+   and any job without the artifact — still build and run.
+
+The WebUI version **auto-follows** the pinned `GIT_TAG`: a llama.cpp version bump
+needs no extra step here, `build-webui` re-reads the tag and rebuilds the matching UI.
+
+**Building the WebUI locally** (optional — a plain `cmake` build uses the stub and
+ships no UI):
+```bash
+# needs node/npm + network; embed.cpp is plain C++17 (no npm)
+git clone --depth 1 --branch b9682 https://github.com/ggml-org/llama.cpp /tmp/lc
+( cd /tmp/lc/tools/ui && npm ci && npm run build \
+  && ( cd dist && find . -type f -not -path './_gzip/*' \
+       | while read -r f; do mkdir -p "_gzip/$(dirname "$f")"; gzip -9 -c "$f" > "_gzip/$f"; done ) \
+  && g++ -O2 -std=c++17 -o /tmp/llama-ui-embed embed.cpp )
+mkdir -p webui-generated
+/tmp/llama-ui-embed webui-generated/ui.cpp webui-generated/ui.h /tmp/lc/tools/ui/dist
+cmake -B build && cmake --build build --target jllama   # now embeds the real UI
+```
+`webui-generated/` is git-ignored.
+
 ## Upgrading/Downgrading llama.cpp Version
 
 To change the llama.cpp version, update the following **three** files:

@@ -82,12 +82,98 @@ jobs:
           echo "=== internal package dependency graph (jdeps, bytecode) ==="
           jdeps -verbose:package target/classes | grep 'net.ladenthin.llama' || true
 
-  crosscompile-linux-x86_64-cuda:
-    name: Cross-Compile manylinux_2_28 x86_64 (CUDA)
+  # ---------------------------------------------------------------------------
+  # Build the llama.cpp WebUI ONCE, from the same pinned tag CMakeLists.txt fetches,
+  # and share it to every native build as the generated, platform-independent
+  # ui.cpp/ui.h ("webui-generated" artifact).  The native builds embed it into
+  # libjllama (CMake's "WebUI assets" block); when this job's artifact is absent the
+  # build falls back to the empty-asset stub.  npm runs only here, in one controlled
+  # job — never in the dockcross cross-compilers (which have no node) or per-platform.
+  # ---------------------------------------------------------------------------
+  build-webui:
+    name: Build WebUI assets (shared)
     needs: startgate
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Resolve pinned llama.cpp tag from CMakeLists.txt
+        id: tag
+        shell: bash
+        run: |
+          TAG=$(grep -oE 'GIT_TAG[[:space:]]+b[0-9]+' CMakeLists.txt | grep -oE 'b[0-9]+' | head -1)
+          if [ -z "$TAG" ]; then
+            echo "could not resolve llama.cpp GIT_TAG (b<nnnn>) from CMakeLists.txt" >&2
+            exit 1
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Pinned llama.cpp WebUI tag: $TAG"
+      - name: Checkout llama.cpp tools/ui at the pinned tag
+        uses: actions/checkout@v6
+        with:
+          repository: ggml-org/llama.cpp
+          ref: ${{ steps.tag.outputs.tag }}
+          path: llamacpp-ui
+          sparse-checkout: tools/ui
+          sparse-checkout-cone-mode: true
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: llamacpp-ui/tools/ui/package-lock.json
+      - name: Build WebUI (Svelte/Vite)
+        working-directory: llamacpp-ui/tools/ui
+        env:
+          HF_UI_VERSION: ${{ steps.tag.outputs.tag }}
+          LLAMA_BUILD_NUMBER: ${{ steps.tag.outputs.tag }}
+        run: |
+          npm ci
+          npm run build
+          test -f dist/index.html
+      - name: Embed assets into ui.cpp / ui.h (gzip parity with upstream)
+        working-directory: llamacpp-ui/tools/ui
+        shell: bash
+        run: |
+          set -euo pipefail
+          # gzip every asset into dist/_gzip/<path> so llama-ui-embed embeds the
+          # compressed bytes (LLAMA_UI_GZIP parity); embed auto-detects _gzip.
+          ( cd dist && find . -type f -not -path './_gzip/*' | while read -r f; do
+              mkdir -p "_gzip/$(dirname "$f")"
+              gzip -9 -c "$f" > "_gzip/$f"
+            done )
+          # llama-ui-embed is a self-contained C++17 host tool (no npm) — build + run it.
+          g++ -O2 -std=c++17 -o llama-ui-embed embed.cpp
+          mkdir -p "$GITHUB_WORKSPACE/webui-generated"
+          ./llama-ui-embed \
+            "$GITHUB_WORKSPACE/webui-generated/ui.cpp" \
+            "$GITHUB_WORKSPACE/webui-generated/ui.h" \
+            dist
+          echo "=== generated WebUI assets ==="
+          ls -la "$GITHUB_WORKSPACE/webui-generated"
+          if grep -q LLAMA_UI_HAS_ASSETS "$GITHUB_WORKSPACE/webui-generated/ui.h"; then
+            echo "LLAMA_UI_HAS_ASSETS: present (real WebUI embedded)"
+          else
+            echo "ERROR: embed produced an empty asset table" >&2
+            exit 1
+          fi
+      - name: Upload WebUI artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/webui-generated/
+          retention-days: 1
+          if-no-files-found: error
+
+  crosscompile-linux-x86_64-cuda:
+    name: Cross-Compile manylinux_2_28 x86_64 (CUDA)
+    needs: [startgate, build-webui]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/webui-generated/
       - name: Display CPU Info
         shell: bash
         run: |
@@ -108,10 +194,15 @@ jobs:
 
   crosscompile-linux-x86_64:
     name: Cross-Compile manylinux2014 x86_64
-    needs: startgate
+    needs: [startgate, build-webui]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/webui-generated/
       - name: Display CPU Info
         shell: bash
         run: |
@@ -132,10 +223,15 @@ jobs:
 
   crosscompile-linux-aarch64:
     name: Cross-Compile Linux aarch64 (LTS)
-    needs: startgate
+    needs: [startgate, build-webui]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/webui-generated/
       - name: Display CPU Info
         shell: bash
         run: |
@@ -156,10 +252,15 @@ jobs:
 
   crosscompile-android-aarch64:
     name: Cross-Compile Android aarch64
-    needs: startgate
+    needs: [startgate, build-webui]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/webui-generated/
       - name: Display CPU Info
         shell: bash
         run: |
@@ -180,10 +281,15 @@ jobs:
 
   crosscompile-android-aarch64-opencl:
     name: Cross-Compile Android aarch64 (OpenCL/Adreno)
-    needs: startgate
+    needs: [startgate, build-webui]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/webui-generated/
       - name: Build libraries
         shell: bash
         run: |
@@ -200,10 +306,15 @@ jobs:
 
   build-macos-arm64-no-metal:
     name: Build and Test macOS 15 arm64 (no Metal)
-    needs: startgate
+    needs: [startgate, build-webui]
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v6
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/webui-generated/
       - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
@@ -231,10 +342,15 @@ jobs:
 
   build-macos-arm64-metal:
     name: Build and Test macOS 14 arm64 (Metal)
-    needs: startgate
+    needs: [startgate, build-webui]
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v6
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/webui-generated/
       - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
@@ -262,10 +378,15 @@ jobs:
 
   build-windows-x86_64:
     name: Build and Test Windows 2025 x86_64 (VS 2026)
-    needs: startgate
+    needs: [startgate, build-webui]
     runs-on: windows-2025-vs2026
     steps:
       - uses: actions/checkout@v6
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/webui-generated/
       - name: Display CPU Info
         shell: pwsh
         run: |
@@ -291,10 +412,15 @@ jobs:
 
   build-windows-x86:
     name: Build and Test Windows 2025 x86 (VS 2026)
-    needs: startgate
+    needs: [startgate, build-webui]
     runs-on: windows-2025-vs2026
     steps:
       - uses: actions/checkout@v6
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/webui-generated/
       - name: Display CPU Info
         shell: pwsh
         run: |
@@ -348,10 +474,15 @@ jobs:
 
   build-macos-arm64-metal-15:
     name: Build and Test macOS 15 arm64 (Metal)
-    needs: startgate
+    needs: [startgate, build-webui]
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v6
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/webui-generated/
       - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
