@@ -33,12 +33,11 @@ public class RerankingModelTest {
     @BeforeAll
     public static void setup() {
         Assumptions.assumeTrue(
-                new File("models/jina-reranker-v1-tiny-en-Q4_0.gguf").exists(),
-                "Reranking model not available, skipping tests");
+                new File(TestConstants.RERANKING_MODEL_PATH).exists(), "Reranking model not available, skipping tests");
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
         model = new LlamaModel(new ModelParameters()
                 .setCtxSize(128)
-                .setModel("models/jina-reranker-v1-tiny-en-Q4_0.gguf")
+                .setModel(TestConstants.RERANKING_MODEL_PATH)
                 .setGpuLayers(gpuLayers)
                 .enableReranking()
                 .enableLogTimestamps()
