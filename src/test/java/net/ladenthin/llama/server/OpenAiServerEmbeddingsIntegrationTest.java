@@ -14,6 +14,7 @@ import java.io.File;
 import java.io.IOException;
 import net.ladenthin.llama.LlamaModel;
 import net.ladenthin.llama.TestConstants;
+import net.ladenthin.llama.args.PoolingType;
 import net.ladenthin.llama.parameters.ModelParameters;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
@@ -43,11 +44,17 @@ public class OpenAiServerEmbeddingsIntegrationTest extends OpenAiServerTestSuppo
                 new File(TestConstants.MODEL_PATH).exists(),
                 "Text model (CodeLlama-7B) not found, skipping embeddings server integration test");
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
+        // The OpenAI /v1/embeddings path (oaicompat=true) requires a real pooling type: llama.cpp rejects
+        // pooling type NONE there ("pooling type 'none' is not OAI compatible"). CodeLlama's GGUF reports
+        // pooling = -1 (NONE), so an explicit MEAN pooling is set here — MEAN/LAST both produce a single
+        // pooled sentence vector for decoder-only models (see LlamaEmbeddingsTest). enableEmbedding()
+        // alone (as the low-level LlamaModel#embed path uses) leaves pooling NONE and would 500 here.
         model = new LlamaModel(new ModelParameters()
                 .setModel(TestConstants.MODEL_PATH)
                 .setCtxSize(512)
                 .setGpuLayers(gpuLayers)
-                .enableEmbedding());
+                .enableEmbedding()
+                .setPoolingType(PoolingType.MEAN));
         server = new OpenAiCompatServer(
                         model,
                         OpenAiServerConfig.builder().port(0).modelId(MODEL_ID).build())
