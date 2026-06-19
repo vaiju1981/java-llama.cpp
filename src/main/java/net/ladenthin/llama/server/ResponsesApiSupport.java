@@ -1,0 +1,250 @@
+// SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
+package net.ladenthin.llama.server;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.IOException;
+
+/**
+ * Pure translators between the OpenAI Responses API ({@code POST /v1/responses}) and the internal OpenAI
+ * chat shape, plus builders for the Responses streaming SSE events. Lets clients/editors that use the
+ * newer Responses protocol (e.g. Copilot's {@code responses} apiType) drive the local model.
+ *
+ * <p>Request mapping: {@code instructions} becomes a system message; {@code input} (a string, or an array
+ * of {@code message} / {@code function_call} / {@code function_call_output} items) is flattened to OpenAI
+ * messages; Responses function tools ({@code {type:"function",name,description,parameters}}) become OpenAI
+ * function tools. Responses replies wrap the assistant turn in a {@code response} object whose
+ * {@code output} array holds a {@code message} item (with {@code output_text} content) and one
+ * {@code function_call} item per tool call.
+ *
+ * <p>Stateless and free of JNI / model dependencies; unit-testable with JSON literals. Streaming state is
+ * held by {@link ResponsesStreamTranslator}.
+ */
+final class ResponsesApiSupport {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    private ResponsesApiSupport() {}
+
+    /**
+     * Whether the Responses request asks for a streamed response ({@code "stream"} defaults to false).
+     *
+     * @param request the parsed Responses request
+     * @return {@code true} if {@code "stream"} is explicitly true
+     */
+    static boolean isStreaming(JsonNode request) {
+        return request.path("stream").asBoolean(false);
+    }
+
+    /**
+     * Translate an OpenAI Responses request into the internal OpenAI chat request shape.
+     *
+     * @param request the parsed Responses request
+     * @return an OpenAI {@code /v1/chat/completions} request object
+     */
+    static ObjectNode toOpenAiChatRequest(JsonNode request) {
+        ObjectNode openAi = OBJECT_MAPPER.createObjectNode();
+        if (request.path("model").isTextual()) {
+            openAi.put("model", request.path("model").asText());
+        }
+
+        ArrayNode messages = openAi.putArray("messages");
+        if (request.path("instructions").isTextual()) {
+            ObjectNode system = messages.addObject();
+            system.put("role", "system");
+            system.put("content", request.path("instructions").asText());
+        }
+        appendInput(messages, request.path("input"));
+
+        JsonNode tools = request.path("tools");
+        if (tools.isArray() && tools.size() > 0) {
+            ArrayNode openAiTools = openAi.putArray("tools");
+            for (JsonNode tool : tools) {
+                if (!"function".equals(tool.path("type").asText(""))) {
+                    continue;
+                }
+                ObjectNode openAiTool = openAiTools.addObject();
+                openAiTool.put("type", "function");
+                ObjectNode function = openAiTool.putObject("function");
+                function.put("name", tool.path("name").asText(""));
+                if (tool.path("description").isTextual()) {
+                    function.put("description", tool.path("description").asText());
+                }
+                if (tool.path("parameters").isObject()) {
+                    function.set("parameters", tool.path("parameters").deepCopy());
+                }
+            }
+        }
+
+        copyNumber(request, "temperature", openAi, "temperature");
+        copyNumber(request, "top_p", openAi, "top_p");
+        copyNumber(request, "max_output_tokens", openAi, "max_tokens");
+        return openAi;
+    }
+
+    private static void appendInput(ArrayNode messages, JsonNode input) {
+        if (input.isTextual()) {
+            ObjectNode message = messages.addObject();
+            message.put("role", "user");
+            message.put("content", input.asText());
+            return;
+        }
+        if (!input.isArray()) {
+            return;
+        }
+        for (JsonNode item : input) {
+            String type = item.path("type").asText("message");
+            switch (type) {
+                case "function_call":
+                    ObjectNode assistant = messages.addObject();
+                    assistant.put("role", "assistant");
+                    assistant.putNull("content");
+                    ArrayNode toolCalls = assistant.putArray("tool_calls");
+                    ObjectNode toolCall = toolCalls.addObject();
+                    toolCall.put(
+                            "id", item.path("call_id").asText(item.path("id").asText("")));
+                    toolCall.put("type", "function");
+                    ObjectNode function = toolCall.putObject("function");
+                    function.put("name", item.path("name").asText(""));
+                    function.put("arguments", item.path("arguments").asText(""));
+                    break;
+                case "function_call_output":
+                    ObjectNode toolMessage = messages.addObject();
+                    toolMessage.put("role", "tool");
+                    toolMessage.put("tool_call_id", item.path("call_id").asText(""));
+                    toolMessage.put("content", item.path("output").asText(""));
+                    break;
+                case "message":
+                default:
+                    ObjectNode message = messages.addObject();
+                    message.put("role", item.path("role").asText("user"));
+                    message.put("content", inputContentText(item.path("content")));
+                    break;
+            }
+        }
+    }
+
+    private static String inputContentText(JsonNode content) {
+        if (content.isTextual()) {
+            return content.asText();
+        }
+        if (content.isArray()) {
+            StringBuilder sb = new StringBuilder();
+            for (JsonNode part : content) {
+                if (part.path("text").isTextual()) {
+                    sb.append(part.path("text").asText());
+                }
+            }
+            return sb.toString();
+        }
+        return "";
+    }
+
+    private static void copyNumber(JsonNode from, String fromKey, ObjectNode to, String toKey) {
+        JsonNode value = from.path(fromKey);
+        if (value.isNumber()) {
+            to.set(toKey, value);
+        }
+    }
+
+    /**
+     * Translate a non-streaming OpenAI {@code chat.completion} into a Responses API response object.
+     *
+     * @param openAiCompletionJson the OpenAI completion body
+     * @param model the model id to echo
+     * @param responseId the response id to assign
+     * @return the Responses object serialized as JSON
+     */
+    static String toResponsesResponse(String openAiCompletionJson, String model, String responseId) {
+        ObjectNode root = newResponseShell(model, responseId, "completed");
+        ArrayNode output = root.putArray("output");
+        ObjectNode usage = root.putObject("usage");
+        usage.put("input_tokens", 0);
+        usage.put("output_tokens", 0);
+        usage.put("total_tokens", 0);
+        try {
+            JsonNode completion = OBJECT_MAPPER.readTree(openAiCompletionJson);
+            JsonNode message = completion.path("choices").path(0).path("message");
+            String text = message.path("content").asText("");
+            ObjectNode messageItem = output.addObject();
+            messageItem.put("type", "message");
+            messageItem.put("id", "msg_" + responseId);
+            messageItem.put("status", "completed");
+            messageItem.put("role", "assistant");
+            ArrayNode content = messageItem.putArray("content");
+            ObjectNode textPart = content.addObject();
+            textPart.put("type", "output_text");
+            textPart.put("text", text);
+            textPart.putArray("annotations");
+            JsonNode toolCalls = message.path("tool_calls");
+            if (toolCalls.isArray()) {
+                for (JsonNode toolCall : toolCalls) {
+                    output.add(functionCallItem(toolCall));
+                }
+            }
+            JsonNode openAiUsage = completion.path("usage");
+            if (openAiUsage.isObject()) {
+                int in = openAiUsage.path("prompt_tokens").asInt(0);
+                int out = openAiUsage.path("completion_tokens").asInt(0);
+                usage.put("input_tokens", in);
+                usage.put("output_tokens", out);
+                usage.put("total_tokens", in + out);
+            }
+        } catch (IOException e) {
+            // Defensive: an unexpected body still yields a valid, empty completed response.
+            output.removeAll();
+        }
+        return root.toString();
+    }
+
+    /** Build a Responses {@code function_call} output item from an OpenAI tool call. */
+    static ObjectNode functionCallItem(JsonNode openAiToolCall) {
+        JsonNode function = openAiToolCall.path("function");
+        ObjectNode item = OBJECT_MAPPER.createObjectNode();
+        item.put("type", "function_call");
+        item.put("id", "fc_" + openAiToolCall.path("id").asText(""));
+        item.put("call_id", openAiToolCall.path("id").asText(""));
+        item.put("name", function.path("name").asText(""));
+        item.put("arguments", function.path("arguments").asText(""));
+        item.put("status", "completed");
+        return item;
+    }
+
+    /** A bare Responses API object shell (no output/usage), used by both the final reply and events. */
+    static ObjectNode newResponseShell(String model, String responseId, String status) {
+        ObjectNode root = OBJECT_MAPPER.createObjectNode();
+        root.put("id", responseId);
+        root.put("object", "response");
+        root.put("created_at", 0);
+        root.put("status", status);
+        root.put("model", model);
+        return root;
+    }
+
+    // ----- streaming SSE event builders -----
+
+    /**
+     * Frame a Responses SSE event: {@code event: <type>\ndata: <json>\n\n}, where the data object carries
+     * the event {@code type} and {@code sequence_number}.
+     *
+     * @param type the event type (e.g. {@code response.output_text.delta})
+     * @param sequenceNumber the monotonic event sequence number
+     * @param data the event payload (the {@code type}/{@code sequence_number} are added here)
+     * @return the framed SSE event
+     */
+    static String sseEvent(String type, int sequenceNumber, ObjectNode data) {
+        data.put("type", type);
+        data.put("sequence_number", sequenceNumber);
+        return "event: " + type + "\ndata: " + data + "\n\n";
+    }
+
+    /** New empty data object for an event payload. */
+    static ObjectNode dataObject() {
+        return OBJECT_MAPPER.createObjectNode();
+    }
+}

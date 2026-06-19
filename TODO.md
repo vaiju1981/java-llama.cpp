@@ -37,22 +37,25 @@ primary goal: agentic tool-calling with Qwen):
 - `POST /v1/rerank` (RAG) → `handleRerank` reshaped to `results`/`data` (`OaiRerankSupport`).
 - CORS preflight + `Access-Control-Allow-Origin`; bare-path (no `/v1`) aliases; `cache_prompt=true`
   default; `--mmproj` (vision), `--embedding`, `--reranking` CLI flags.
+- **Alternative protocol surfaces** (pure translation over the OpenAI core; tool calls reconstructed by
+  `ToolCallDeltaAccumulator`): **Ollama-native** (`/api/version`, `/api/tags`, `/api/show`, `/api/chat`
+  with NDJSON streaming — `OllamaApiSupport`; `/api/show` advertises tools/insert/vision + context
+  length); **Anthropic Messages** (`POST /v1/messages`, SSE events — `AnthropicApiSupport` +
+  `AnthropicStreamTranslator`); **OpenAI Responses** (`POST /v1/responses`, SSE events —
+  `ResponsesApiSupport` + `ResponsesStreamTranslator`).
 
 **Open follow-ups (deferred — need a decision before building):**
 
-- **Ollama native-API emulation** (`GET /api/version`, `/api/tags`, `POST /api/show`, `/api/chat`,
-  `/api/generate`). Unlocks Copilot's built-in *Ollama* provider on older VS Code and tools hard-coded
-  to Ollama's endpoints. Downgraded by the research because the OpenAI Custom Endpoint provider reached
-  VS Code Stable in 1.122 (May 2026), so the clean OpenAI surface already covers current Copilot
-  chat/agent. Medium effort + a second protocol to maintain.
-- **Anthropic `POST /v1/messages` + OpenAI `POST /v1/responses` shims** for Copilot's other `apiType`s
-  and Claude-shaped clients (Claude Code). The native layer already emits the Anthropic shape
-  (`server_task_result_*::to_json_anthropic`, exercised in `test_server.cpp`); the gap is the HTTP
-  routes + request translation. `chat-completions` suffices for Qwen agentic, so this is medium–large
-  and deferred.
 - **Continue's native `llama.cpp` provider** posts to `POST /completion` (singular) expecting the
   *native* (non-OAI) completion shape; we return OAI shapes. Add a `/completion` route → native
   `handleCompletions` if Continue's `llama.cpp` (not `openai`) provider must be supported.
+- **Ollama `POST /api/generate`** (prompt completion / FIM via the Ollama protocol). Only `/api/chat`
+  is implemented today; add `/api/generate` if a client drives autocomplete through Ollama rather than
+  `/infill`.
+- **Incremental tool-call streaming on the alternative surfaces.** Ollama/Anthropic/Responses emit each
+  tool call *whole* at end-of-stream (reconstructed by `ToolCallDeltaAccumulator`) rather than streaming
+  argument fragments. This is fine for clients that apply tool calls after generation completes; revisit
+  if a client needs incremental `input_json_delta` / `function_call_arguments.delta` fidelity.
 - **Per-model FIM template registry** (Qwen/CodeLlama/DeepSeek v1&V2/StarCoder2/Codestral) — only needed
   if we also expose `/v1/completions`-with-`suffix` FIM; `/infill` applies the model's FIM tokens
   server-side, so this is lower value.

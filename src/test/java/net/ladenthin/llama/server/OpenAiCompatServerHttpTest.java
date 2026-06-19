@@ -169,6 +169,55 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
     }
 
     @Test
+    public void anthropicMessagesNonStreamingReturnsMessage() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            String body = "{\"model\":\"test-model\",\"max_tokens\":16,"
+                    + "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}";
+            Response response = post(server.getPort(), "/v1/messages", body, "");
+            assertThat(response.code, is(200));
+            assertThat(response.body, containsString("\"type\":\"message\""));
+            assertThat(response.body, containsString("hello")); // FakeBackend.complete text
+        }
+    }
+
+    @Test
+    public void anthropicMessagesStreamingEmitsEventSequence() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            String body = "{\"model\":\"test-model\",\"stream\":true,\"max_tokens\":16,"
+                    + "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}";
+            Response response = post(server.getPort(), "/v1/messages", body, "");
+            assertThat(response.code, is(200));
+            assertThat(response.body, containsString("event: message_start"));
+            assertThat(response.body, containsString("event: content_block_delta"));
+            assertThat(response.body, containsString("event: message_stop"));
+        }
+    }
+
+    @Test
+    public void responsesNonStreamingReturnsResponseObject() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            String body = "{\"model\":\"test-model\",\"input\":\"hi\"}";
+            Response response = post(server.getPort(), "/v1/responses", body, "");
+            assertThat(response.code, is(200));
+            assertThat(response.body, containsString("\"object\":\"response\""));
+            assertThat(response.body, containsString("output_text"));
+            assertThat(response.body, containsString("hello"));
+        }
+    }
+
+    @Test
+    public void responsesStreamingEmitsEventSequence() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            String body = "{\"model\":\"test-model\",\"stream\":true,\"input\":\"hi\"}";
+            Response response = post(server.getPort(), "/v1/responses", body, "");
+            assertThat(response.code, is(200));
+            assertThat(response.body, containsString("event: response.created"));
+            assertThat(response.body, containsString("event: response.output_text.delta"));
+            assertThat(response.body, containsString("event: response.completed"));
+        }
+    }
+
+    @Test
     public void healthEndpointReturnsOk() throws IOException {
         try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
             Response response = get(server.getPort(), "/health", "");

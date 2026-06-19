@@ -34,6 +34,22 @@
  * ({@code OPTIONS}) requests, and stamps {@code Access-Control-Allow-Origin} on responses so
  * browser/webview clients are not blocked.</p>
  *
+ * <p><strong>Alternative protocol surfaces</strong> let non-OpenAI clients drive the same model without a
+ * second inference path — each is a pure translation over the OpenAI chat core:</p>
+ * <ul>
+ *   <li><strong>Ollama-native</strong> ({@code GET /api/version}, {@code GET /api/tags},
+ *       {@code POST /api/show}, {@code POST /api/chat} with NDJSON streaming) — for Copilot's built-in
+ *       Ollama provider; see {@link net.ladenthin.llama.server.OllamaApiSupport}.</li>
+ *   <li><strong>Anthropic Messages</strong> ({@code POST /v1/messages}, SSE event stream) — see
+ *       {@link net.ladenthin.llama.server.AnthropicApiSupport} /
+ *       {@link net.ladenthin.llama.server.AnthropicStreamTranslator}.</li>
+ *   <li><strong>OpenAI Responses</strong> ({@code POST /v1/responses}, SSE event stream) — see
+ *       {@link net.ladenthin.llama.server.ResponsesApiSupport} /
+ *       {@link net.ladenthin.llama.server.ResponsesStreamTranslator}.</li>
+ * </ul>
+ * <p>Streamed tool calls on these surfaces are reconstructed from the OpenAI {@code delta.tool_calls}
+ * fragments by {@link net.ladenthin.llama.server.ToolCallDeltaAccumulator}.</p>
+ *
  * <p>The HTTP surface is decoupled from the model behind {@link net.ladenthin.llama.server.OpenAiBackend}
  * (production implementation {@link net.ladenthin.llama.server.LlamaModelBackend}) so routing,
  * authentication, SSE framing and heartbeats are unit-testable with a fake backend — no socket and no

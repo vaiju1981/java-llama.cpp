@@ -463,6 +463,19 @@ Every route is also reachable **without the `/v1` prefix**, the server answers *
 completions cannot be served by any local endpoint — only its chat/agent surfaces — so use one of
 those autocomplete plugins for ghost text.
 
+**Alternative protocol surfaces.** For clients that don't speak OpenAI Chat Completions, the same model
+is exposed through additional protocols (pure translation over the OpenAI core — no extra inference
+path), all supporting tools and streaming:
+
+| Surface | Routes | For |
+|---|---|---|
+| **Ollama-native** | `GET /api/version`, `GET /api/tags`, `POST /api/show`, `POST /api/chat` (NDJSON streaming) | Copilot's built-in **Ollama** provider; Ollama-hardcoded tools |
+| **Anthropic Messages** | `POST /v1/messages` (SSE event stream) | Claude-shaped clients (Claude Code); Copilot `messages` apiType |
+| **OpenAI Responses** | `POST /v1/responses` (SSE event stream) | Copilot `responses` apiType; Responses-API clients |
+
+`/api/show` advertises the model's capabilities (`tools`, `insert`, and `vision` when `--mmproj` is set)
+and context length, which Copilot's Ollama provider reads to enable agent mode.
+
 Embed it in your app:
 
 ```java

@@ -7,6 +7,7 @@ package net.ladenthin.llama.server;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.Filter;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -75,6 +76,12 @@ public final class OpenAiCompatServer implements AutoCloseable {
 
     /** The rerank route (requires the model loaded in reranking mode). */
     public static final String PATH_RERANK = "/v1/rerank";
+
+    /** The Anthropic Messages API route. */
+    public static final String PATH_MESSAGES = "/v1/messages";
+
+    /** The OpenAI Responses API route. */
+    public static final String PATH_RESPONSES = "/v1/responses";
 
     /**
      * The fill-in-the-middle (autocomplete) route. Deliberately the llama.cpp-native bare path (no
@@ -166,6 +173,10 @@ public final class OpenAiCompatServer implements AutoCloseable {
         register("/reranking", this::handleRerank);
         register(PATH_INFILL, this::handleInfill);
         register("/v1/infill", this::handleInfill);
+        register(PATH_MESSAGES, this::handleAnthropicMessages);
+        register("/messages", this::handleAnthropicMessages);
+        register(PATH_RESPONSES, this::handleResponses);
+        register("/responses", this::handleResponses);
         // Ollama-native surface (Copilot's built-in Ollama provider + Ollama-hardcoded tools).
         register(PATH_OLLAMA_VERSION, this::handleOllamaVersion);
         register(PATH_OLLAMA_TAGS, this::handleOllamaTags);
@@ -466,6 +477,158 @@ public final class OpenAiCompatServer implements AutoCloseable {
 
     private static String ollamaError(String message) {
         return OBJECT_MAPPER.createObjectNode().put("error", message).toString();
+    }
+
+    // ----- Anthropic Messages API -----
+
+    private void handleAnthropicMessages(HttpExchange exchange) throws IOException {
+        try {
+            JsonNode request = requirePostJson(exchange);
+            if (request == null) {
+                return;
+            }
+            JsonNode openAiRequest = AnthropicApiSupport.toOpenAiChatRequest(request);
+            String model = request.path("model").asText(config.getModelId());
+            if (AnthropicApiSupport.isStreaming(request)) {
+                streamAnthropic(exchange, openAiRequest, model);
+            } else {
+                final String body;
+                try {
+                    body = backend.complete(openAiRequest);
+                } catch (IllegalArgumentException e) {
+                    sendJson(exchange, HTTP_BAD_REQUEST, anthropicError(message(e)));
+                    return;
+                } catch (IOException | RuntimeException e) {
+                    LOG.warn("anthropic messages failed", e);
+                    sendJson(exchange, HTTP_SERVER_ERROR, anthropicError(message(e)));
+                    return;
+                }
+                sendJson(exchange, HTTP_OK, AnthropicApiSupport.toAnthropicResponse(body, model));
+            }
+        } finally {
+            exchange.close();
+        }
+    }
+
+    /** Stream an Anthropic {@code /v1/messages} response as the Anthropic SSE event sequence. */
+    private void streamAnthropic(HttpExchange exchange, JsonNode openAiRequest, String model) throws IOException {
+        exchange.getResponseHeaders().set("Content-Type", CONTENT_TYPE_SSE);
+        exchange.getResponseHeaders().set("Cache-Control", "no-cache");
+        exchange.sendResponseHeaders(HTTP_OK, 0);
+        final OutputStream os = exchange.getResponseBody();
+        final Object writeLock = new Object();
+        final AnthropicStreamTranslator translator =
+                new AnthropicStreamTranslator("msg_" + Long.toHexString(System.nanoTime()), model);
+        final ScheduledFuture<?> heartbeat = heartbeatExecutor.scheduleAtFixedRate(
+                () -> writeQuietly(os, writeLock, OpenAiSseFormatter.heartbeat()),
+                config.getHeartbeatMillis(),
+                config.getHeartbeatMillis(),
+                TimeUnit.MILLISECONDS);
+        try {
+            writeStrict(os, writeLock, translator.begin());
+            backend.stream(openAiRequest, chunkJson -> {
+                String events = translator.onChunk(chunkJson);
+                if (!events.isEmpty()) {
+                    writeStrict(os, writeLock, events);
+                }
+            });
+            writeStrict(os, writeLock, translator.end());
+        } catch (IllegalArgumentException e) {
+            writeQuietly(os, writeLock, AnthropicApiSupport.sseEvent("error", anthropicError(message(e))));
+        } catch (IOException e) {
+            LOG.debug("anthropic client disconnected during stream", e);
+        } catch (RuntimeException e) {
+            LOG.warn("anthropic streaming failed", e);
+            writeQuietly(os, writeLock, AnthropicApiSupport.sseEvent("error", anthropicError(message(e))));
+        } finally {
+            heartbeat.cancel(false);
+            closeQuietly(os, writeLock);
+        }
+    }
+
+    private static String anthropicError(String message) {
+        ObjectNode root = OBJECT_MAPPER.createObjectNode();
+        root.put("type", "error");
+        ObjectNode error = root.putObject("error");
+        error.put("type", "invalid_request_error");
+        error.put("message", message);
+        return root.toString();
+    }
+
+    // ----- OpenAI Responses API -----
+
+    private void handleResponses(HttpExchange exchange) throws IOException {
+        try {
+            JsonNode request = requirePostJson(exchange);
+            if (request == null) {
+                return;
+            }
+            JsonNode openAiRequest = ResponsesApiSupport.toOpenAiChatRequest(request);
+            String model = request.path("model").asText(config.getModelId());
+            String responseId = "resp_" + Long.toHexString(System.nanoTime());
+            if (ResponsesApiSupport.isStreaming(request)) {
+                streamResponses(exchange, openAiRequest, model, responseId);
+            } else {
+                final String body;
+                try {
+                    body = backend.complete(openAiRequest);
+                } catch (IllegalArgumentException e) {
+                    sendError(exchange, HTTP_BAD_REQUEST, ERROR_TYPE_REQUEST, message(e));
+                    return;
+                } catch (IOException | RuntimeException e) {
+                    LOG.warn("responses failed", e);
+                    sendError(exchange, HTTP_SERVER_ERROR, ERROR_TYPE_SERVER, message(e));
+                    return;
+                }
+                sendJson(exchange, HTTP_OK, ResponsesApiSupport.toResponsesResponse(body, model, responseId));
+            }
+        } finally {
+            exchange.close();
+        }
+    }
+
+    /** Stream a Responses {@code /v1/responses} reply as the Responses SSE event sequence. */
+    private void streamResponses(HttpExchange exchange, JsonNode openAiRequest, String model, String responseId)
+            throws IOException {
+        exchange.getResponseHeaders().set("Content-Type", CONTENT_TYPE_SSE);
+        exchange.getResponseHeaders().set("Cache-Control", "no-cache");
+        exchange.sendResponseHeaders(HTTP_OK, 0);
+        final OutputStream os = exchange.getResponseBody();
+        final Object writeLock = new Object();
+        final ResponsesStreamTranslator translator = new ResponsesStreamTranslator(model, responseId);
+        final ScheduledFuture<?> heartbeat = heartbeatExecutor.scheduleAtFixedRate(
+                () -> writeQuietly(os, writeLock, OpenAiSseFormatter.heartbeat()),
+                config.getHeartbeatMillis(),
+                config.getHeartbeatMillis(),
+                TimeUnit.MILLISECONDS);
+        try {
+            writeStrict(os, writeLock, translator.begin());
+            backend.stream(openAiRequest, chunkJson -> {
+                String events = translator.onChunk(chunkJson);
+                if (!events.isEmpty()) {
+                    writeStrict(os, writeLock, events);
+                }
+            });
+            writeStrict(os, writeLock, translator.end());
+        } catch (IllegalArgumentException e) {
+            writeQuietly(
+                    os,
+                    writeLock,
+                    "event: error\ndata: " + OpenAiSseFormatter.errorJson(message(e), ERROR_TYPE_REQUEST, null)
+                            + "\n\n");
+        } catch (IOException e) {
+            LOG.debug("responses client disconnected during stream", e);
+        } catch (RuntimeException e) {
+            LOG.warn("responses streaming failed", e);
+            writeQuietly(
+                    os,
+                    writeLock,
+                    "event: error\ndata: " + OpenAiSseFormatter.errorJson(message(e), ERROR_TYPE_SERVER, null)
+                            + "\n\n");
+        } finally {
+            heartbeat.cancel(false);
+            closeQuietly(os, writeLock);
+        }
     }
 
     private void handleModels(HttpExchange exchange) throws IOException {
