@@ -469,12 +469,14 @@ path), all supporting tools and streaming:
 
 | Surface | Routes | For |
 |---|---|---|
-| **Ollama-native** | `GET /api/version`, `GET /api/tags`, `POST /api/show`, `POST /api/chat` (NDJSON streaming) | Copilot's built-in **Ollama** provider; Ollama-hardcoded tools |
+| **Ollama-native** | `GET /api/version`, `GET /api/tags`, `POST /api/show`, `POST /api/chat` (NDJSON streaming), `POST /api/generate` (prompt completion / FIM) | Copilot's built-in **Ollama** provider; Ollama-hardcoded tools |
 | **Anthropic Messages** | `POST /v1/messages` (SSE event stream) | Claude-shaped clients (Claude Code); Copilot `messages` apiType |
 | **OpenAI Responses** | `POST /v1/responses` (SSE event stream) | Copilot `responses` apiType; Responses-API clients |
 
 `/api/show` advertises the model's capabilities (`tools`, `insert`, and `vision` when `--mmproj` is set)
-and context length, which Copilot's Ollama provider reads to enable agent mode.
+and context length, which Copilot's Ollama provider reads to enable agent mode. The llama.cpp-native
+`GET /props` reports `default_generation_settings.n_ctx` and a `modalities` block, which autocomplete
+clients such as llama.vscode read to size their context window.
 
 Embed it in your app:
 

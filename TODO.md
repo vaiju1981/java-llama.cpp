@@ -39,30 +39,31 @@ primary goal: agentic tool-calling with Qwen):
   default; `--mmproj` (vision), `--embedding`, `--reranking` CLI flags.
 - **Alternative protocol surfaces** (pure translation over the OpenAI core; tool calls reconstructed by
   `ToolCallDeltaAccumulator`): **Ollama-native** (`/api/version`, `/api/tags`, `/api/show`, `/api/chat`
-  with NDJSON streaming — `OllamaApiSupport`; `/api/show` advertises tools/insert/vision + context
-  length); **Anthropic Messages** (`POST /v1/messages`, SSE events — `AnthropicApiSupport` +
-  `AnthropicStreamTranslator`); **OpenAI Responses** (`POST /v1/responses`, SSE events —
-  `ResponsesApiSupport` + `ResponsesStreamTranslator`).
+  with NDJSON streaming, `/api/generate` prompt-completion/FIM — `OllamaApiSupport`; `/api/show`
+  advertises tools/insert/vision + context length); **Anthropic Messages** (`POST /v1/messages`, SSE
+  events — `AnthropicApiSupport` + `AnthropicStreamTranslator`); **OpenAI Responses** (`POST
+  /v1/responses`, SSE events — `ResponsesApiSupport` + `ResponsesStreamTranslator`).
+- **`GET /props`** (llama.cpp-native): `default_generation_settings.n_ctx` + `modalities` so autocomplete
+  clients (llama.vscode) size their context window (`OpenAiSseFormatter.propsJson`).
 
-**Open follow-ups (deferred — need a decision before building):**
+**Open follow-ups (deferred):**
 
-- **Continue's native `llama.cpp` provider** posts to `POST /completion` (singular) expecting the
-  *native* (non-OAI) completion shape; we return OAI shapes. Add a `/completion` route → native
-  `handleCompletions` if Continue's `llama.cpp` (not `openai`) provider must be supported.
-- **Ollama `POST /api/generate`** (prompt completion / FIM via the Ollama protocol). Only `/api/chat`
-  is implemented today; add `/api/generate` if a client drives autocomplete through Ollama rather than
-  `/infill`.
+- **Streaming raw-completion path (the shared blocker).** A new native streaming method
+  (`requestCompletionStream` alongside the existing chat one) is needed before these can be done
+  token-incrementally: (a) **streaming `/v1/completions`**, (b) **token-streaming `/api/generate`**
+  (today it computes the full text then emits one NDJSON content line), and (c) **Continue's native
+  `llama.cpp` provider** which streams `POST /completion` in the native (non-OAI) shape. Until then these
+  either run non-streaming or emit a single content chunk. JNI + C++ work; the agentic-chat goal does
+  not need it.
 - **Incremental tool-call streaming on the alternative surfaces.** Ollama/Anthropic/Responses emit each
   tool call *whole* at end-of-stream (reconstructed by `ToolCallDeltaAccumulator`) rather than streaming
-  argument fragments. This is fine for clients that apply tool calls after generation completes; revisit
-  if a client needs incremental `input_json_delta` / `function_call_arguments.delta` fidelity.
+  argument fragments. Fine for clients that apply tool calls after generation; revisit if a client needs
+  incremental `input_json_delta` / `function_call_arguments.delta` fidelity.
 - **Per-model FIM template registry** (Qwen/CodeLlama/DeepSeek v1&V2/StarCoder2/Codestral) — only needed
-  if we also expose `/v1/completions`-with-`suffix` FIM; `/infill` applies the model's FIM tokens
-  server-side, so this is lower value.
-- **`/props` (or `/v1/models`) context-length + capability reporting** so clients can auto-size prompts
-  and light up tools/vision without manual config.
-- **Streaming `/v1/completions`** (the chat route streams; `/v1/completions` is non-streaming today).
-- **Multi-model registry.** Only one model id is advertised/served today.
+  if we also expose `/v1/completions`-with-`suffix` FIM; `/infill` (and Ollama `/api/generate` with a
+  `suffix`) applies the model's FIM tokens server-side, so this is lower value.
+- **Multi-model registry.** Only one model id is advertised/served today; serving several would need
+  multi-model load + lifecycle management.
 - **Gemma 4 tool-calling validation.** Confirm the pinned llama.cpp (`b9682`) includes the Gemma 4
   tool-call parser fixes; if not, bump per the upgrade procedure.
 

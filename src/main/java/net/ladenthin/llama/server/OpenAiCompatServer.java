@@ -95,6 +95,9 @@ public final class OpenAiCompatServer implements AutoCloseable {
     /** The liveness-probe route. */
     public static final String PATH_HEALTH = "/health";
 
+    /** The llama.cpp-native server-properties route (context length + modalities). */
+    public static final String PATH_PROPS = "/props";
+
     /** Ollama-native discovery route (version). */
     public static final String PATH_OLLAMA_VERSION = "/api/version";
 
@@ -106,6 +109,9 @@ public final class OpenAiCompatServer implements AutoCloseable {
 
     /** Ollama-native chat route. */
     public static final String PATH_OLLAMA_CHAT = "/api/chat";
+
+    /** Ollama-native generate route (prompt completion / fill-in-the-middle). */
+    public static final String PATH_OLLAMA_GENERATE = "/api/generate";
 
     private static final String CONTENT_TYPE_NDJSON = "application/x-ndjson";
 
@@ -158,6 +164,7 @@ public final class OpenAiCompatServer implements AutoCloseable {
         this.corsFilter = buildCorsFilter(config.getCorsAllowOrigin());
         register("/", this::handleNotFound);
         register(PATH_HEALTH, this::handleHealth);
+        register(PATH_PROPS, this::handleProps);
         // Each route is registered under its canonical path and a bare alias (clients disagree on
         // whether to include the /v1 prefix), so both forms resolve to the same handler.
         register(PATH_MODELS, this::handleModels);
@@ -182,6 +189,7 @@ public final class OpenAiCompatServer implements AutoCloseable {
         register(PATH_OLLAMA_TAGS, this::handleOllamaTags);
         register(PATH_OLLAMA_SHOW, this::handleOllamaShow);
         register(PATH_OLLAMA_CHAT, this::handleOllamaChat);
+        register(PATH_OLLAMA_GENERATE, this::handleOllamaGenerate);
         http.setExecutor(requestExecutor);
     }
 
@@ -475,6 +483,48 @@ public final class OpenAiCompatServer implements AutoCloseable {
         }
     }
 
+    private void handleOllamaGenerate(HttpExchange exchange) throws IOException {
+        try {
+            JsonNode request = requirePostJson(exchange);
+            if (request == null) {
+                return;
+            }
+            String model = request.path("model").asText(config.getModelId());
+            // Generation runs to completion first (there is no streaming raw-completion path), then the
+            // text is wrapped — as a single NDJSON content line + done line when stream is requested.
+            final String text;
+            try {
+                if (OllamaApiSupport.hasSuffix(request)) {
+                    text = OllamaApiSupport.extractInfillContent(
+                            backend.infill(OllamaApiSupport.toInfillRequest(request)));
+                } else {
+                    text = OllamaApiSupport.extractCompletionText(
+                            backend.completions(OllamaApiSupport.toOpenAiCompletionRequest(request)));
+                }
+            } catch (IllegalArgumentException e) {
+                sendJson(exchange, HTTP_BAD_REQUEST, ollamaError(message(e)));
+                return;
+            } catch (IOException | RuntimeException e) {
+                LOG.warn("ollama generate failed", e);
+                sendJson(exchange, HTTP_SERVER_ERROR, ollamaError(message(e)));
+                return;
+            }
+            if (OllamaApiSupport.isStreaming(request)) {
+                byte[] bytes =
+                        OllamaApiSupport.toOllamaGenerateStream(text, model).getBytes(StandardCharsets.UTF_8);
+                exchange.getResponseHeaders().set("Content-Type", CONTENT_TYPE_NDJSON);
+                exchange.sendResponseHeaders(HTTP_OK, bytes.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(bytes);
+                }
+            } else {
+                sendJson(exchange, HTTP_OK, OllamaApiSupport.toOllamaGenerateResponse(text, model));
+            }
+        } finally {
+            exchange.close();
+        }
+    }
+
     private static String ollamaError(String message) {
         return OBJECT_MAPPER.createObjectNode().put("error", message).toString();
     }
@@ -655,6 +705,22 @@ public final class OpenAiCompatServer implements AutoCloseable {
                 return;
             }
             sendJson(exchange, HTTP_OK, HEALTH_BODY);
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void handleProps(HttpExchange exchange) throws IOException {
+        try {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only GET is supported");
+                return;
+            }
+            int contextLength = config.getMaxInputTokens() + config.getMaxOutputTokens();
+            sendJson(
+                    exchange,
+                    HTTP_OK,
+                    OpenAiSseFormatter.propsJson(config.getModelId(), contextLength, config.isSupportsVision()));
         } finally {
             exchange.close();
         }

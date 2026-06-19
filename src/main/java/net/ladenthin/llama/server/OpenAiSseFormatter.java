@@ -133,4 +133,28 @@ final class OpenAiSseFormatter {
         root.set("data", data);
         return root.toString();
     }
+
+    /**
+     * Build the llama.cpp-native {@code GET /props} body. Autocomplete clients (e.g. llama.vscode) read
+     * {@code default_generation_settings.n_ctx} from here to size their context window, and newer clients
+     * read the {@code modalities} block to gate image input.
+     *
+     * @param modelId the served model id
+     * @param nCtx the advertised context length
+     * @param vision whether image input is supported
+     * @return the props object serialized as JSON
+     */
+    static String propsJson(String modelId, int nCtx, boolean vision) {
+        ObjectNode root = OBJECT_MAPPER.createObjectNode();
+        ObjectNode defaults = root.putObject("default_generation_settings");
+        defaults.put("n_ctx", nCtx);
+        defaults.put("model", modelId);
+        root.put("total_slots", 1);
+        root.put("model_alias", modelId);
+        root.put("chat_template", "");
+        ObjectNode modalities = root.putObject("modalities");
+        modalities.put("vision", vision);
+        modalities.put("audio", false);
+        return root.toString();
+    }
 }

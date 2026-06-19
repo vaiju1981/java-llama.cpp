@@ -135,6 +135,53 @@ public class OllamaApiSupportTest {
     }
 
     @Test
+    public void generateHasSuffixDetectsFimRequests() throws IOException {
+        assertThat(OllamaApiSupport.hasSuffix(read("{\"prompt\":\"a\",\"suffix\":\"b\"}")), is(true));
+        assertThat(OllamaApiSupport.hasSuffix(read("{\"prompt\":\"a\"}")), is(false));
+    }
+
+    @Test
+    public void generateMapsPromptAndOptionsToCompletionRequest() throws IOException {
+        JsonNode openAi = OllamaApiSupport.toOpenAiCompletionRequest(
+                read("{\"prompt\":\"once\",\"options\":{\"num_predict\":32,\"temperature\":0.5}}"));
+        assertThat(openAi.path("prompt").asText(), is("once"));
+        assertThat(openAi.path("max_tokens").asInt(), is(32));
+        assertThat(openAi.path("temperature").asDouble(), is(0.5));
+    }
+
+    @Test
+    public void generateWithSuffixMapsToInfillRequest() throws IOException {
+        JsonNode infill = OllamaApiSupport.toInfillRequest(
+                read("{\"prompt\":\"pre\",\"suffix\":\"suf\",\"options\":{\"num_predict\":16}}"));
+        assertThat(infill.path("input_prefix").asText(), is("pre"));
+        assertThat(infill.path("input_suffix").asText(), is("suf"));
+        assertThat(infill.path("n_predict").asInt(), is(16));
+    }
+
+    @Test
+    public void generateTextExtractors() {
+        assertThat(OllamaApiSupport.extractCompletionText("{\"choices\":[{\"text\":\"hi\"}]}"), is("hi"));
+        assertThat(OllamaApiSupport.extractInfillContent("{\"content\":\"world\"}"), is("world"));
+        // Unexpected bodies yield empty text rather than throwing.
+        assertThat(OllamaApiSupport.extractCompletionText("not json"), is(""));
+    }
+
+    @Test
+    public void generateResponseAndStreamShapes() throws IOException {
+        JsonNode nonStream = read(OllamaApiSupport.toOllamaGenerateResponse("hello", "m"));
+        assertThat(nonStream.path("response").asText(), is("hello"));
+        assertThat(nonStream.path("done").asBoolean(), is(true));
+
+        String stream = OllamaApiSupport.toOllamaGenerateStream("hello", "m");
+        String[] lines = stream.trim().split("\n");
+        assertThat(lines.length, is(2));
+        JsonNode first = read(lines[0]);
+        assertThat(first.path("response").asText(), is("hello"));
+        assertThat(first.path("done").asBoolean(), is(false));
+        assertThat(read(lines[1]).path("done").asBoolean(), is(true));
+    }
+
+    @Test
     public void toOllamaDoneLineCarriesAccumulatedToolCalls() throws IOException {
         ToolCallDeltaAccumulator accumulator = new ToolCallDeltaAccumulator();
         accumulator.accept("{\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"c1\","

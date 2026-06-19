@@ -28,6 +28,8 @@
  *       clients (llama.vscode, Twinny, Tabby); the model's FIM tokens are applied server-side.</li>
  *   <li>{@code GET /v1/models} — advertises the configured model id.</li>
  *   <li>{@code GET /health} — unauthenticated liveness probe.</li>
+ *   <li>{@code GET /props} — llama.cpp-native server properties (context length + modalities) that
+ *       autocomplete clients read to size their context window.</li>
  * </ul>
  *
  * <p>Every route is also reachable without the {@code /v1} prefix, answers CORS preflight
@@ -38,8 +40,9 @@
  * second inference path — each is a pure translation over the OpenAI chat core:</p>
  * <ul>
  *   <li><strong>Ollama-native</strong> ({@code GET /api/version}, {@code GET /api/tags},
- *       {@code POST /api/show}, {@code POST /api/chat} with NDJSON streaming) — for Copilot's built-in
- *       Ollama provider; see {@link net.ladenthin.llama.server.OllamaApiSupport}.</li>
+ *       {@code POST /api/show}, {@code POST /api/chat} with NDJSON streaming, {@code POST /api/generate}
+ *       for prompt completion / fill-in-the-middle) — for Copilot's built-in Ollama provider; see
+ *       {@link net.ladenthin.llama.server.OllamaApiSupport}.</li>
  *   <li><strong>Anthropic Messages</strong> ({@code POST /v1/messages}, SSE event stream) — see
  *       {@link net.ladenthin.llama.server.AnthropicApiSupport} /
  *       {@link net.ladenthin.llama.server.AnthropicStreamTranslator}.</li>

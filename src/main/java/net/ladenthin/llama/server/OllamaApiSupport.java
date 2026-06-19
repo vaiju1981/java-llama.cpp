@@ -307,4 +307,129 @@ final class OllamaApiSupport {
         }
         return OBJECT_MAPPER.createObjectNode();
     }
+
+    // ----- /api/generate (prompt completion / FIM) -----
+
+    /**
+     * Whether the {@code /api/generate} request carries a {@code suffix} (a fill-in-the-middle request).
+     *
+     * @param request the parsed Ollama generate request
+     * @return {@code true} if a textual {@code suffix} is present
+     */
+    static boolean hasSuffix(JsonNode request) {
+        return request.path("suffix").isTextual();
+    }
+
+    /**
+     * Translate an Ollama {@code /api/generate} request into the internal OpenAI {@code /v1/completions}
+     * request shape ({@code prompt} + sampling). Used when there is no {@code suffix}.
+     *
+     * @param request the parsed Ollama generate request
+     * @return an OpenAI completion request object
+     */
+    static ObjectNode toOpenAiCompletionRequest(JsonNode request) {
+        ObjectNode openAi = OBJECT_MAPPER.createObjectNode();
+        openAi.put("prompt", request.path("prompt").asText(""));
+        JsonNode options = request.path("options");
+        copyNumber(options, "temperature", openAi, "temperature");
+        copyNumber(options, "top_p", openAi, "top_p");
+        copyNumber(options, "top_k", openAi, "top_k");
+        copyNumber(options, "seed", openAi, "seed");
+        copyNumber(options, "num_predict", openAi, "max_tokens");
+        if (options.path("stop").isArray()) {
+            openAi.set("stop", options.path("stop").deepCopy());
+        }
+        return openAi;
+    }
+
+    /**
+     * Translate an Ollama {@code /api/generate} request with a {@code suffix} into the native infill
+     * request shape ({@code input_prefix} / {@code input_suffix}).
+     *
+     * @param request the parsed Ollama generate request
+     * @return a native {@code /infill} request object
+     */
+    static ObjectNode toInfillRequest(JsonNode request) {
+        ObjectNode infill = OBJECT_MAPPER.createObjectNode();
+        infill.put("input_prefix", request.path("prompt").asText(""));
+        infill.put("input_suffix", request.path("suffix").asText(""));
+        JsonNode options = request.path("options");
+        copyNumber(options, "temperature", infill, "temperature");
+        copyNumber(options, "num_predict", infill, "n_predict");
+        return infill;
+    }
+
+    /**
+     * Extract the generated text from an OpenAI completion body ({@code choices[0].text}).
+     *
+     * @param openAiCompletionJson the OpenAI {@code /v1/completions} response
+     * @return the completion text, or empty on an unexpected body
+     */
+    static String extractCompletionText(String openAiCompletionJson) {
+        try {
+            return OBJECT_MAPPER
+                    .readTree(openAiCompletionJson)
+                    .path("choices")
+                    .path(0)
+                    .path("text")
+                    .asText("");
+        } catch (IOException e) {
+            return "";
+        }
+    }
+
+    /**
+     * Extract the generated text from a native infill body ({@code content}).
+     *
+     * @param infillJson the native {@code /infill} response
+     * @return the infill content, or empty on an unexpected body
+     */
+    static String extractInfillContent(String infillJson) {
+        try {
+            return OBJECT_MAPPER.readTree(infillJson).path("content").asText("");
+        } catch (IOException e) {
+            return "";
+        }
+    }
+
+    /**
+     * Build a non-streaming Ollama {@code /api/generate} response wrapping {@code text}.
+     *
+     * @param text the generated text
+     * @param model the model id to echo
+     * @return the Ollama generate response serialized as JSON
+     */
+    static String toOllamaGenerateResponse(String text, String model) {
+        ObjectNode root = OBJECT_MAPPER.createObjectNode();
+        root.put("model", model);
+        root.put("created_at", nowIso());
+        root.put("response", text);
+        root.put("done", true);
+        root.put("done_reason", "stop");
+        return root.toString();
+    }
+
+    /**
+     * Build the streamed Ollama {@code /api/generate} NDJSON: a single response line carrying {@code text}
+     * followed by a terminating {@code "done":true} line. (Generation completes before emission, so this
+     * is one content chunk rather than token-by-token streaming.)
+     *
+     * @param text the generated text
+     * @param model the model id to echo
+     * @return the two NDJSON lines, concatenated (each with a trailing newline)
+     */
+    static String toOllamaGenerateStream(String text, String model) {
+        ObjectNode line = OBJECT_MAPPER.createObjectNode();
+        line.put("model", model);
+        line.put("created_at", nowIso());
+        line.put("response", text);
+        line.put("done", false);
+        ObjectNode done = OBJECT_MAPPER.createObjectNode();
+        done.put("model", model);
+        done.put("created_at", nowIso());
+        done.put("response", "");
+        done.put("done", true);
+        done.put("done_reason", "stop");
+        return line + "\n" + done + "\n";
+    }
 }

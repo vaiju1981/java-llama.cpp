@@ -104,4 +104,13 @@ public class OpenAiSseFormatterTest {
         assertThat(root.path("data").get(0).path("id").asText(), is("gemma-local"));
         assertThat(root.path("data").get(0).path("object").asText(), is("model"));
     }
+
+    @Test
+    public void propsJsonReportsContextLengthAndModalities() throws IOException {
+        JsonNode root = MAPPER.readTree(OpenAiSseFormatter.propsJson("local", 8192, true));
+        assertThat(root.path("default_generation_settings").path("n_ctx").asInt(), is(8192));
+        assertThat(root.path("model_alias").asText(), is("local"));
+        assertThat(root.path("modalities").path("vision").asBoolean(), is(true));
+        assertThat(root.path("modalities").path("audio").asBoolean(), is(false));
+    }
 }

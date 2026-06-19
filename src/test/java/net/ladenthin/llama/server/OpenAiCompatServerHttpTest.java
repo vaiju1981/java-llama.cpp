@@ -218,6 +218,48 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
     }
 
     @Test
+    public void propsEndpointReportsContextLength() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            Response response = get(server.getPort(), "/props", "");
+            assertThat(response.code, is(200));
+            assertThat(response.body, containsString("n_ctx"));
+            assertThat(response.body, containsString("modalities"));
+        }
+    }
+
+    @Test
+    public void ollamaGenerateNonStreamingReturnsResponse() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            String body = "{\"model\":\"test-model\",\"prompt\":\"once upon\",\"stream\":false}";
+            Response response = post(server.getPort(), "/api/generate", body, "");
+            assertThat(response.code, is(200));
+            assertThat(response.body, containsString("\"response\":\"hello\"")); // FakeBackend.completions text
+            assertThat(response.body, containsString("\"done\":true"));
+        }
+    }
+
+    @Test
+    public void ollamaGenerateWithSuffixUsesInfill() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            String body = "{\"model\":\"test-model\",\"prompt\":\"def f():\",\"suffix\":\"\",\"stream\":false}";
+            Response response = post(server.getPort(), "/api/generate", body, "");
+            assertThat(response.code, is(200));
+            // FakeBackend.infill returns content " world".
+            assertThat(response.body, containsString("world"));
+        }
+    }
+
+    @Test
+    public void ollamaGenerateStreamingReturnsNdjsonDone() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            String body = "{\"model\":\"test-model\",\"prompt\":\"hi\",\"stream\":true}";
+            Response response = post(server.getPort(), "/api/generate", body, "");
+            assertThat(response.code, is(200));
+            assertThat(response.body, containsString("\"done\":true"));
+        }
+    }
+
+    @Test
     public void healthEndpointReturnsOk() throws IOException {
         try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
             Response response = get(server.getPort(), "/health", "");
