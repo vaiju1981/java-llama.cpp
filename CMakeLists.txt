@@ -261,7 +261,6 @@ add_library(jllama SHARED
 
 # Phase 1 refactoring: compile upstream server library units directly into jllama
 # server.hpp has been replaced by direct upstream includes in jllama.cpp.
-# server-http.cpp and server.cpp (main) are intentionally excluded.
 # server-context.cpp, server-queue.cpp, server-task.cpp compile on all platforms
 # including Android.  server-models.cpp is excluded on Android because it pulls
 # in subprocess.h which calls posix_spawn_*, declared but not implemented by the
@@ -278,9 +277,49 @@ if(NOT ANDROID_ABI AND NOT OS_NAME MATCHES "Android")
     )
 endif()
 
+# Phase 2: also compile the upstream HTTP transport (server-http.cpp) and its
+# cpp-httplib backend directly into jllama, so the OpenAI-compatible server can be
+# driven natively from JNI — shipped inside libjllama, with no separate
+# llama-server executable (a JNI .so/.dll/.dylib loads everywhere a JVM runs,
+# unlike a standalone binary).  Only server.cpp (the standalone main() + route
+# wiring) stays excluded for now; this first step just makes the HTTP layer build
+# and link.
+#
+# server-http.cpp does `#include "ui.h"` — the WebUI asset table that tools/ui
+# normally GENERATES.  We do not ship the Svelte WebUI (it needs npm / a prebuilt
+# asset download), so src/main/cpp/webui_stub/ui.h supplies the upstream "empty
+# asset table" interface instead (see that file).  <cpp-httplib/httplib.h> already
+# resolves via llama-common's vendor/ include dir, whose bundled nlohmann/json is
+# the same 3.12.0 as our FetchContent copy, so adding nothing there shadows it.
+target_sources(jllama PRIVATE
+    ${llama.cpp_SOURCE_DIR}/tools/server/server-http.cpp
+    ${llama.cpp_SOURCE_DIR}/vendor/cpp-httplib/httplib.cpp
+)
+
+# cpp-httplib is third-party: silence its warnings (matching upstream's own
+# cpp-httplib target, which compiles it with -w / /w).  No SSL is enabled —
+# CPPHTTPLIB_OPENSSL_SUPPORT is left undefined — so the embedded server is
+# plain-HTTP for now (bind to localhost or front it with a TLS proxy).
+if(MSVC)
+    set_source_files_properties(
+        ${llama.cpp_SOURCE_DIR}/vendor/cpp-httplib/httplib.cpp
+        PROPERTIES COMPILE_FLAGS "/w")
+else()
+    set_source_files_properties(
+        ${llama.cpp_SOURCE_DIR}/vendor/cpp-httplib/httplib.cpp
+        PROPERTIES COMPILE_FLAGS "-w")
+endif()
+
+# MinGW needs ws2_32 explicitly; MSVC auto-links it via a #pragma in httplib.h.
+if(WIN32 AND NOT MSVC)
+    target_link_libraries(jllama PRIVATE ws2_32)
+endif()
+
 set_target_properties(jllama PROPERTIES POSITION_INDEPENDENT_CODE ON)
 target_include_directories(jllama PRIVATE
     src/main/cpp
+    # webui_stub/ui.h stands in for the generated llama-ui header (see Phase 2 above)
+    src/main/cpp/webui_stub
     ${JNI_INCLUDE_DIRS}
     ${llama.cpp_SOURCE_DIR}/tools/mtmd
     ${llama.cpp_SOURCE_DIR}/tools/server)
@@ -289,6 +328,13 @@ target_compile_features(jllama PRIVATE cxx_std_11)
 
 target_compile_definitions(jllama PRIVATE
     SERVER_VERBOSE=$<BOOL:${LLAMA_VERBOSE}>
+    # cpp-httplib tuning — mirror the defines upstream's cpp-httplib target sets so
+    # httplib.cpp and every TU that includes httplib.h (server-http.cpp) agree on
+    # the inline behaviour these macros control.
+    CPPHTTPLIB_FORM_URL_ENCODED_PAYLOAD_MAX_LENGTH=1048576
+    CPPHTTPLIB_LISTEN_BACKLOG=512
+    CPPHTTPLIB_REQUEST_URI_MAX_LENGTH=32768
+    CPPHTTPLIB_TCP_NODELAY=1
 )
 
 if(OS_NAME STREQUAL "Windows")
