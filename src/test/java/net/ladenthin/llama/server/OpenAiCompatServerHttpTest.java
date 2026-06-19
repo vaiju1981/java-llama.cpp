@@ -119,6 +119,16 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
     }
 
     @Test
+    public void rerankRouteReturnsResults() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            String body = "{\"query\":\"q\",\"documents\":[\"a\",\"b\"]}";
+            Response response = post(server.getPort(), "/v1/rerank", body, "");
+            assertThat(response.code, is(200));
+            assertThat(response.body, containsString("relevance_score"));
+        }
+    }
+
+    @Test
     public void healthEndpointReturnsOk() throws IOException {
         try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
             Response response = get(server.getPort(), "/health", "");
@@ -251,6 +261,12 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
         public String infill(JsonNode request) {
             return "{\"content\":\" world\",\"stop\":true}";
         }
+
+        @Override
+        public String rerank(JsonNode request) {
+            return "{\"object\":\"list\",\"results\":[{\"index\":0,\"relevance_score\":0.9}],"
+                    + "\"data\":[{\"index\":0,\"relevance_score\":0.9}]}";
+        }
     }
 
     /** Backend that stalls before emitting, so the server's heartbeat fires during the gap. */
@@ -285,6 +301,11 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
         @Override
         public String infill(JsonNode request) {
             return "{\"content\":\"\"}";
+        }
+
+        @Override
+        public String rerank(JsonNode request) {
+            return "{\"object\":\"list\",\"results\":[],\"data\":[]}";
         }
     }
 }

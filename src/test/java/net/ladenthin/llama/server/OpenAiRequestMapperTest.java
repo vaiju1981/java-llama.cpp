@@ -128,6 +128,14 @@ public class OpenAiRequestMapperTest {
     }
 
     @Test
+    public void responseFormatForwardedVerbatim() throws IOException {
+        // Structured outputs: json_object / json_schema must reach the native grammar constraint.
+        JsonNode out = mapAndSerialize("{\"messages\":[{\"role\":\"user\",\"content\":\"x\"}],"
+                + "\"response_format\":{\"type\":\"json_object\"}}");
+        assertThat(out.path("response_format").path("type").asText(), is("json_object"));
+    }
+
+    @Test
     public void cachePromptDefaultedTrue() throws IOException {
         // The mapper defaults cache_prompt=true so the slot KV prefix is reused across IDE turns.
         JsonNode out = mapAndSerialize("{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}");

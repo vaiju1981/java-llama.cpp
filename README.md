@@ -444,12 +444,24 @@ serves:
 | `POST /v1/chat/completions` | `LlamaModel.streamChatCompletion` (streaming SSE) / `chatComplete` (blocking) |
 | `POST /v1/completions` | `LlamaModel.handleCompletionsOai` |
 | `POST /v1/embeddings` (requires `--embedding`) | `LlamaModel.handleEmbeddings` |
+| `POST /v1/rerank` (requires `--reranking`) | `LlamaModel.handleRerank` (reshaped to `results`/`data`) |
+| `POST /infill` | `LlamaModel.handleInfill` (fill-in-the-middle autocomplete) |
 | `GET /v1/models` | the configured model id |
 | `GET /health` | static `{"status":"ok"}` (unauthenticated) |
 
 Chat completions support **streaming via Server-Sent Events** and non-streaming, forwarding
-`messages`/`tools` verbatim. The streaming path carries `delta.tool_calls`, so agent/tool-calling
-clients work. Completions and embeddings are non-streaming (the full JSON result per request).
+`messages`/`tools` verbatim. The streaming path carries `delta.tool_calls` and (with
+`stream_options.include_usage`) a trailing `usage` chunk, so **agent/tool-calling clients work** —
+this is the recommended surface for VS Code Copilot agent mode, Cline, Roo Code and Continue.
+`response_format` (`json_object` / `json_schema`) is forwarded for structured outputs. Completions,
+embeddings, rerank and infill are non-streaming.
+
+Every route is also reachable **without the `/v1` prefix**, the server answers **CORS preflight**
+(`OPTIONS`) and stamps `Access-Control-Allow-Origin` (so browser/webview clients work), and
+`POST /infill` is the llama.cpp-native FIM endpoint for local ghost-text autocomplete plugins
+(llama.vscode, Twinny, Tabby, Continue's `llama.cpp` provider). Note: GitHub Copilot's **inline**
+completions cannot be served by any local endpoint — only its chat/agent surfaces — so use one of
+those autocomplete plugins for ghost text.
 
 Embed it in your app:
 
@@ -477,7 +489,8 @@ java -cp target/llama-<version>.jar net.ladenthin.llama.server.OpenAiCompatServe
 ```
 
 Run with `--help` for the full option list (`-m/--model`, `--host`, `-p/--port`, `-c/--ctx-size`,
-`-ngl/--n-gpu-layers`, `-t/--threads`, `--parallel`, `--model-id`, `--api-key`, `--embedding`).
+`-ngl/--n-gpu-layers`, `-t/--threads`, `--parallel`, `--model-id`, `--api-key`, `--mmproj`,
+`--embedding`, `--reranking`).
 
 Verify with curl (streaming chat):
 

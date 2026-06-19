@@ -21,6 +21,9 @@
  *       so streamed {@code delta.tool_calls} are preserved for agent-mode tool use.</li>
  *   <li>{@code POST /v1/completions} and {@code POST /v1/embeddings} — non-streaming, forwarding the
  *       request body to the matching {@code LlamaModel.handle*} method.</li>
+ *   <li>{@code POST /v1/rerank} — document reranking for RAG (requires the model loaded in reranking
+ *       mode); the native result array is reshaped to {@code results}/{@code data} of
+ *       {@code {index, relevance_score}}.</li>
  *   <li>{@code POST /infill} — non-streaming fill-in-the-middle for local ghost-text autocomplete
  *       clients (llama.vscode, Twinny, Tabby); the model's FIM tokens are applied server-side.</li>
  *   <li>{@code GET /v1/models} — advertises the configured model id.</li>

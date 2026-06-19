@@ -103,6 +103,13 @@ final class OpenAiRequestMapper {
             params = params.withStreamOptions(streamOptions.toString());
         }
 
+        // Forward response_format verbatim (json_object / json_schema) so the native server applies the
+        // matching grammar constraint — the OpenAI "structured outputs" feature used by strict clients.
+        JsonNode responseFormat = request.path("response_format");
+        if (responseFormat.isObject()) {
+            params = params.withResponseFormat(responseFormat.toString());
+        }
+
         return params;
     }
 

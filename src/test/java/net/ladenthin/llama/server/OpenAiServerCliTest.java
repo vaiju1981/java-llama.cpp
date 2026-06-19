@@ -89,6 +89,20 @@ public class OpenAiServerCliTest {
     }
 
     @Test
+    public void mmprojFlagParsed() {
+        OpenAiServerCli.Options options = OpenAiServerCli.parse("-m", "m.gguf", "--mmproj", "proj.gguf");
+        assertThat(options.getMmproj(), is("proj.gguf"));
+        assertThat(OpenAiServerCli.parse("-m", "m.gguf").getMmproj(), is((String) null));
+    }
+
+    @Test
+    public void rerankingFlagParsed() {
+        assertThat(OpenAiServerCli.parse("-m", "m.gguf", "--reranking").isReranking(), is(true));
+        assertThat(OpenAiServerCli.parse("-m", "m.gguf", "--rerank").isReranking(), is(true));
+        assertThat(OpenAiServerCli.parse("-m", "m.gguf").isReranking(), is(false));
+    }
+
+    @Test
     public void modelIdDerivedFromNestedPath() {
         OpenAiServerCli.Options options = OpenAiServerCli.parse("-m", "/opt/models/Llama-3.gguf");
         assertThat(options.getModelId(), is("Llama-3.gguf"));

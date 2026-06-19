@@ -15,30 +15,53 @@ cross-cutting initiative.
 
 ### OpenAI-compatible HTTP endpoint (shipped; follow-ups open)
 
-`net.ladenthin.llama.server.OpenAiCompatServer` is the single OpenAI-compatible server. It exposes
-`POST /v1/chat/completions` (streaming via SSE + non-streaming), `POST /v1/completions`,
-`POST /v1/embeddings`, `GET /v1/models` and `GET /health` over the JDK's built-in
-`com.sun.net.httpserver` (no new dependency), and is the fat-jar `Main-Class`. Streaming chat uses the
-native OAI chunk path (`requestChatCompletionStream` / `receiveChatCompletionChunk` + the C++
-`wrap_stream_chunk` helper), preserving `delta.tool_calls` for agent mode; completions/embeddings
-forward verbatim to `LlamaModel.handleCompletionsOai` / `handleEmbeddings`. The CLI is parsed by the
-testable `OpenAiServerCli`. (Consolidated from the two interim implementations — PR #240's JDK +
-streaming server and #242's NanoHTTPD server — by keeping the JDK/streaming core, porting the extra
-routes + a fuller CLI + the fat-jar entry point onto it, and deleting the NanoHTTPD impl + its
-`org.nanohttpd` dependency.) Follow-ups, deferred until requested:
+`net.ladenthin.llama.server.OpenAiCompatServer` is the single OpenAI-compatible server (JDK
+`com.sun.net.httpserver`, no new dependency, fat-jar `Main-Class`). It exposes
+`POST /v1/chat/completions` (streaming SSE + non-streaming), `/v1/completions`, `/v1/embeddings`,
+`/v1/rerank`, `/infill`, `GET /v1/models` and `GET /health` (every route also reachable without `/v1`).
+The CLI is parsed by the testable `OpenAiServerCli`. (Consolidated from PR #240's JDK + streaming
+server and #242's NanoHTTPD server; NanoHTTPD + its dependency deleted.)
 
-- **Multi-model registry.** Only one model id is advertised/served today; support several models
-  chosen by the request `model` field (and listed in `/v1/models`).
-- **`stream_options.include_usage` passthrough** so the final streamed `usage` chunk is emitted
-  (needs a generic raw-param passthrough on `InferenceParameters`, or explicit mapping).
-- **Streaming `/v1/completions`.** The chat route streams; `/v1/completions` is non-streaming today
-  (a `"stream": true` body still returns one full JSON object). Honour SSE there too if a client needs
-  it.
-- **Additional `apiType`s.** VS Code "Custom Endpoint" also offers Anthropic `messages` and OpenAI
-  `responses`; only `chat-completions` is implemented.
+**IDE/agent backend hardening — DONE** (from the deep-research investigation
+[`docs/feature-investigation-ide-agent-backend.md`](docs/feature-investigation-ide-agent-backend.md);
+primary goal: agentic tool-calling with Qwen):
+
+- Agentic tool-calling verified wire-correct: C++ guard pins `tool_calls.function.arguments` as a JSON
+  **string** (not object) at b9682 (llama.cpp #20198), plus the existing `finish_reason:"tool_calls"`
+  test.
+- `stream_options.include_usage` forwarded (new `InferenceParameters.withStreamOptions`) so the trailing
+  usage chunk is emitted, and `OpenAiSseFormatter.ensureUsageCachedTokens` guarantees
+  `usage.prompt_tokens_details.cached_tokens` (fixes the Copilot custom-endpoint crash, vscode #273482).
+- `response_format` (`json_object`/`json_schema`) forwarded for structured outputs.
+- `POST /infill` (FIM autocomplete for llama.vscode/Twinny/Tabby/Continue) → native `handleInfill`.
+- `POST /v1/rerank` (RAG) → `handleRerank` reshaped to `results`/`data` (`OaiRerankSupport`).
+- CORS preflight + `Access-Control-Allow-Origin`; bare-path (no `/v1`) aliases; `cache_prompt=true`
+  default; `--mmproj` (vision), `--embedding`, `--reranking` CLI flags.
+
+**Open follow-ups (deferred — need a decision before building):**
+
+- **Ollama native-API emulation** (`GET /api/version`, `/api/tags`, `POST /api/show`, `/api/chat`,
+  `/api/generate`). Unlocks Copilot's built-in *Ollama* provider on older VS Code and tools hard-coded
+  to Ollama's endpoints. Downgraded by the research because the OpenAI Custom Endpoint provider reached
+  VS Code Stable in 1.122 (May 2026), so the clean OpenAI surface already covers current Copilot
+  chat/agent. Medium effort + a second protocol to maintain.
+- **Anthropic `POST /v1/messages` + OpenAI `POST /v1/responses` shims** for Copilot's other `apiType`s
+  and Claude-shaped clients (Claude Code). The native layer already emits the Anthropic shape
+  (`server_task_result_*::to_json_anthropic`, exercised in `test_server.cpp`); the gap is the HTTP
+  routes + request translation. `chat-completions` suffices for Qwen agentic, so this is medium–large
+  and deferred.
+- **Continue's native `llama.cpp` provider** posts to `POST /completion` (singular) expecting the
+  *native* (non-OAI) completion shape; we return OAI shapes. Add a `/completion` route → native
+  `handleCompletions` if Continue's `llama.cpp` (not `openai`) provider must be supported.
+- **Per-model FIM template registry** (Qwen/CodeLlama/DeepSeek v1&V2/StarCoder2/Codestral) — only needed
+  if we also expose `/v1/completions`-with-`suffix` FIM; `/infill` applies the model's FIM tokens
+  server-side, so this is lower value.
+- **`/props` (or `/v1/models`) context-length + capability reporting** so clients can auto-size prompts
+  and light up tools/vision without manual config.
+- **Streaming `/v1/completions`** (the chat route streams; `/v1/completions` is non-streaming today).
+- **Multi-model registry.** Only one model id is advertised/served today.
 - **Gemma 4 tool-calling validation.** Confirm the pinned llama.cpp (`b9682`) includes the Gemma 4
-  tool-call parser fixes (landed upstream ~Apr 2026); if not, bump per the upgrade procedure so
-  streamed/blocking `tool_calls` come through for Gemma 4 GGUFs.
+  tool-call parser fixes; if not, bump per the upgrade procedure.
 
 ### llama.cpp upstream feature exposure (queued, deferred by policy)
 

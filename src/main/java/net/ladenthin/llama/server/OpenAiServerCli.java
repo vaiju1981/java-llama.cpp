@@ -61,11 +61,13 @@ public final class OpenAiServerCli {
         @Nullable String modelPath = null;
         @Nullable String modelId = null;
         @Nullable String apiKey = null;
+        @Nullable String mmproj = null;
         int ctxSize = 0;
         int gpuLayers = 0;
         int threads = 0;
         int parallel = 0;
         boolean embedding = false;
+        boolean reranking = false;
 
         for (int i = 0; i < args.length; i++) {
             final String arg = args[i];
@@ -105,9 +107,16 @@ public final class OpenAiServerCli {
                 case "--api-key":
                     apiKey = nextValue(args, ++i, arg);
                     break;
+                case "--mmproj":
+                    mmproj = nextValue(args, ++i, arg);
+                    break;
                 case "--embedding":
                 case "--embeddings":
                     embedding = true;
+                    break;
+                case "--reranking":
+                case "--rerank":
+                    reranking = true;
                     break;
                 case "-h":
                 case "--help":
@@ -121,7 +130,9 @@ public final class OpenAiServerCli {
         if (modelPath == null) {
             throw error("Missing required argument: -m/--model <path-to-gguf>");
         }
-        return new Options(host, port, modelPath, modelId, apiKey, ctxSize, gpuLayers, threads, parallel, embedding);
+        return new Options(
+                host, port, modelPath, modelId, apiKey, mmproj, ctxSize, gpuLayers, threads, parallel, embedding,
+                reranking);
     }
 
     /**
@@ -149,13 +160,17 @@ public final class OpenAiServerCli {
                 "  --parallel <n>             Parallel inference slots (default: llama.cpp default)",
                 "  --model-id <name>          Model id reported by /v1/models (default: file name)",
                 "  --api-key <key>            Require an 'Authorization: Bearer <key>' header",
+                "  --mmproj <path>            Multimodal projector for vision models (enables image input)",
                 "  --embedding                Load in embedding mode (enables POST /v1/embeddings)",
+                "  --reranking                Load in reranking mode (enables POST /v1/rerank)",
                 "  -h,  --help                Show this help and exit",
                 "",
                 "Endpoints:",
                 "  POST /v1/chat/completions  (streaming via SSE + non-streaming)",
                 "  POST /v1/completions",
                 "  POST /v1/embeddings        (requires --embedding)",
+                "  POST /v1/rerank            (requires --reranking)",
+                "  POST /infill               (fill-in-the-middle / autocomplete)",
                 "  GET  /v1/models",
                 "  GET  /health");
     }
@@ -197,11 +212,13 @@ public final class OpenAiServerCli {
         private final String modelPath;
         private final @Nullable String modelId;
         private final @Nullable String apiKey;
+        private final @Nullable String mmproj;
         private final int ctxSize;
         private final int gpuLayers;
         private final int threads;
         private final int parallel;
         private final boolean embedding;
+        private final boolean reranking;
 
         private Options(
                 String host,
@@ -209,21 +226,25 @@ public final class OpenAiServerCli {
                 String modelPath,
                 @Nullable String modelId,
                 @Nullable String apiKey,
+                @Nullable String mmproj,
                 int ctxSize,
                 int gpuLayers,
                 int threads,
                 int parallel,
-                boolean embedding) {
+                boolean embedding,
+                boolean reranking) {
             this.host = host;
             this.port = port;
             this.modelPath = modelPath;
             this.modelId = modelId;
             this.apiKey = apiKey;
+            this.mmproj = mmproj;
             this.ctxSize = ctxSize;
             this.gpuLayers = gpuLayers;
             this.threads = threads;
             this.parallel = parallel;
             this.embedding = embedding;
+            this.reranking = reranking;
         }
 
         /**
@@ -276,6 +297,15 @@ public final class OpenAiServerCli {
         }
 
         /**
+         * The optional multimodal projector path for vision models.
+         *
+         * @return the mmproj path, or {@code null} when no vision projector is configured
+         */
+        public @Nullable String getMmproj() {
+            return mmproj;
+        }
+
+        /**
          * The context window size, or {@code 0} for the llama.cpp default.
          *
          * @return the context size
@@ -321,6 +351,15 @@ public final class OpenAiServerCli {
         }
 
         /**
+         * Whether to load the model in reranking mode.
+         *
+         * @return {@code true} if reranking mode is requested
+         */
+        public boolean isReranking() {
+            return reranking;
+        }
+
+        /**
          * Build the {@link ModelParameters} for loading the model described by these options.
          *
          * @return the model parameters
@@ -328,6 +367,9 @@ public final class OpenAiServerCli {
         public ModelParameters toModelParameters() {
             final ModelParameters params =
                     new ModelParameters().setModel(modelPath).setGpuLayers(gpuLayers);
+            if (mmproj != null) {
+                params.setMmproj(mmproj);
+            }
             if (ctxSize > 0) {
                 params.setCtxSize(ctxSize);
             }
@@ -339,6 +381,9 @@ public final class OpenAiServerCli {
             }
             if (embedding) {
                 params.enableEmbedding();
+            }
+            if (reranking) {
+                params.enableReranking();
             }
             return params;
         }

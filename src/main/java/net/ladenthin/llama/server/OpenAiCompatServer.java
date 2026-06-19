@@ -73,6 +73,9 @@ public final class OpenAiCompatServer implements AutoCloseable {
     /** The embeddings route. */
     public static final String PATH_EMBEDDINGS = "/v1/embeddings";
 
+    /** The rerank route (requires the model loaded in reranking mode). */
+    public static final String PATH_RERANK = "/v1/rerank";
+
     /**
      * The fill-in-the-middle (autocomplete) route. Deliberately the llama.cpp-native bare path (no
      * {@code /v1}) so ghost-text clients such as llama.vscode and Tabby reach it unchanged.
@@ -144,6 +147,9 @@ public final class OpenAiCompatServer implements AutoCloseable {
         register("/completions", this::handleCompletions);
         register(PATH_EMBEDDINGS, this::handleEmbeddings);
         register("/embeddings", this::handleEmbeddings);
+        register(PATH_RERANK, this::handleRerank);
+        register("/rerank", this::handleRerank);
+        register("/reranking", this::handleRerank);
         register(PATH_INFILL, this::handleInfill);
         register("/v1/infill", this::handleInfill);
         http.setExecutor(requestExecutor);
@@ -263,6 +269,17 @@ public final class OpenAiCompatServer implements AutoCloseable {
             JsonNode request = requirePostJson(exchange);
             if (request != null) {
                 completeNonStreaming(exchange, request, backend::infill);
+            }
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void handleRerank(HttpExchange exchange) throws IOException {
+        try {
+            JsonNode request = requirePostJson(exchange);
+            if (request != null) {
+                completeNonStreaming(exchange, request, backend::rerank);
             }
         } finally {
             exchange.close();

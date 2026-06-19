@@ -62,6 +62,18 @@ interface OpenAiBackend {
     String embeddings(JsonNode request) throws IOException;
 
     /**
+     * Rerank documents against a query ({@code POST /v1/rerank}). Requires the model to have been loaded
+     * in reranking mode; otherwise the native call fails and the caller surfaces a server error.
+     *
+     * @param request the parsed rerank request ({@code query} string + {@code documents} array, optional
+     *                {@code top_n})
+     * @return the rerank response serialized as JSON ({@code results}/{@code data} of
+     *         {@code {index, relevance_score}})
+     * @throws IOException if reranking fails in a way the caller should surface as a server error
+     */
+    String rerank(JsonNode request) throws IOException;
+
+    /**
      * Run a (non-streaming) fill-in-the-middle completion ({@code POST /infill}). The request body is
      * forwarded verbatim to the native llama.cpp infill handler, which applies the model's FIM control
      * tokens server-side from GGUF metadata — so callers send raw {@code input_prefix} /

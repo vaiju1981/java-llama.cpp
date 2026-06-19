@@ -87,4 +87,14 @@ final class LlamaModelBackend implements OpenAiBackend {
         // the model's FIM tokens from GGUF metadata; forward verbatim.
         return model.handleInfill(request.toString());
     }
+
+    @Override
+    public String rerank(JsonNode request) {
+        final String query = OaiRerankSupport.readQuery(request);
+        final String[] documents = OaiRerankSupport.readDocuments(request);
+        final int topN = OaiRerankSupport.readTopN(request);
+        final String requestModel = request.path("model").asText("");
+        final String nativeJson = model.handleRerank(query, documents);
+        return OaiRerankSupport.toOaiResponse(nativeJson, requestModel, topN);
+    }
 }
