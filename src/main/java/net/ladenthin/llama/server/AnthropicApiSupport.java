@@ -128,6 +128,7 @@ final class AnthropicApiSupport {
 
         StringBuilder text = new StringBuilder();
         ArrayNode toolCalls = OBJECT_MAPPER.createArrayNode();
+        boolean hadToolResult = false;
         for (JsonNode block : content) {
             String type = block.path("type").asText("");
             switch (type) {
@@ -149,23 +150,29 @@ final class AnthropicApiSupport {
                     toolMessage.put("role", "tool");
                     toolMessage.put("tool_call_id", block.path("tool_use_id").asText(""));
                     toolMessage.put("content", toolResultText(block.path("content")));
+                    hadToolResult = true;
                     break;
                 default:
                     break;
             }
         }
-        if (text.length() > 0 || toolCalls.size() == 0) {
+        if (text.length() > 0 || toolCalls.size() > 0) {
             ObjectNode message = out.addObject();
             message.put("role", role);
-            message.put("content", text.toString());
+            if (toolCalls.size() > 0 && text.length() == 0) {
+                message.putNull("content"); // assistant tool-call turn carries null content
+            } else {
+                message.put("content", text.toString());
+            }
             if (toolCalls.size() > 0) {
                 message.set("tool_calls", toolCalls);
             }
-        } else if (toolCalls.size() > 0) {
+        } else if (!hadToolResult) {
+            // Genuinely empty/plain content (no text, no tool calls, no tool_result) — keep a slot.
+            // A content array of only tool_result blocks emits no extra message (they became tool messages).
             ObjectNode message = out.addObject();
             message.put("role", role);
-            message.putNull("content");
-            message.set("tool_calls", toolCalls);
+            message.put("content", "");
         }
     }
 

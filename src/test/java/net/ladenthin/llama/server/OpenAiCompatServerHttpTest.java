@@ -318,6 +318,19 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
     }
 
     @Test
+    public void getOnNewPostRoutesReturns405() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            int port = server.getPort();
+            // The protocol-shim POST routes go through the shared requirePostJson preamble.
+            assertThat(get(port, "/v1/rerank", "").code, is(405));
+            assertThat(get(port, "/v1/messages", "").code, is(405));
+            assertThat(get(port, "/v1/responses", "").code, is(405));
+            assertThat(get(port, "/api/chat", "").code, is(405));
+            assertThat(get(port, "/api/generate", "").code, is(405));
+        }
+    }
+
+    @Test
     public void optionsPreflightReturns204WithCorsHeaders() throws IOException {
         try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
             Response response = options(server.getPort(), "/v1/chat/completions");

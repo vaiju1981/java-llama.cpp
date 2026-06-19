@@ -82,6 +82,45 @@ public class AnthropicApiSupportTest {
     }
 
     @Test
+    public void requestConcatenatesSystemBlocksAndMapsStopSequences() throws IOException {
+        JsonNode openAi = AnthropicApiSupport.toOpenAiChatRequest(
+                read("{\"system\":[{\"type\":\"text\",\"text\":\"a\"},{\"type\":\"text\",\"text\":\"b\"}],"
+                        + "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],"
+                        + "\"stop_sequences\":[\"X\",\"Y\"]}"));
+        // system blocks are concatenated into one system message.
+        assertThat(openAi.path("messages").get(0).path("role").asText(), is("system"));
+        assertThat(openAi.path("messages").get(0).path("content").asText(), is("ab"));
+        // stop_sequences -> OpenAI stop.
+        assertThat(openAi.path("stop").size(), is(2));
+        assertThat(openAi.path("stop").get(0).asText(), is("X"));
+    }
+
+    @Test
+    public void toolChoiceAnyMapsToRequired() throws IOException {
+        JsonNode openAi =
+                AnthropicApiSupport.toOpenAiChatRequest(read("{\"messages\":[{\"role\":\"user\",\"content\":\"x\"}],"
+                        + "\"tools\":[{\"name\":\"f\",\"input_schema\":{\"type\":\"object\"}}],"
+                        + "\"tool_choice\":{\"type\":\"any\"}}"));
+        assertThat(openAi.path("tool_choice").asText(), is("required"));
+    }
+
+    @Test
+    public void toolResultOnlyUserMessageEmitsOnlyToolMessage() throws IOException {
+        // A user turn that carries only tool_result blocks must become exactly one role:"tool"
+        // message — not a tool message plus a spurious empty user message.
+        JsonNode openAi = AnthropicApiSupport.toOpenAiChatRequest(
+                read("{\"messages\":[{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\","
+                        + "\"tool_use_id\":\"c1\",\"content\":[{\"type\":\"text\",\"text\":\"su\"},"
+                        + "{\"type\":\"text\",\"text\":\"nny\"}]}]}]}"));
+        assertThat(openAi.path("messages").size(), is(1));
+        JsonNode toolMessage = openAi.path("messages").get(0);
+        assertThat(toolMessage.path("role").asText(), is("tool"));
+        assertThat(toolMessage.path("tool_call_id").asText(), is("c1"));
+        // tool_result content blocks are flattened to text.
+        assertThat(toolMessage.path("content").asText(), is("sunny"));
+    }
+
+    @Test
     public void responseEmitsTextAndToolUseBlocksAndStopReason() throws IOException {
         String openAi = "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"hi\","
                 + "\"tool_calls\":[{\"id\":\"c1\",\"type\":\"function\",\"function\":{\"name\":\"f\","

@@ -72,6 +72,28 @@ public class ResponsesApiSupportTest {
     }
 
     @Test
+    public void requestWithoutInstructionsHasNoSystemMessage() throws IOException {
+        JsonNode openAi = ResponsesApiSupport.toOpenAiChatRequest(read("{\"input\":\"hi\"}"));
+        // First (and only) message is the user input — no leading system message.
+        assertThat(openAi.path("messages").size(), is(1));
+        assertThat(openAi.path("messages").get(0).path("role").asText(), is("user"));
+        assertThat(openAi.path("messages").get(0).path("content").asText(), is("hi"));
+    }
+
+    @Test
+    public void requestMapsAssistantMessageItemAndSkipsNonFunctionTools() throws IOException {
+        JsonNode openAi = ResponsesApiSupport.toOpenAiChatRequest(read("{\"input\":["
+                + "{\"type\":\"message\",\"role\":\"assistant\","
+                + "\"content\":[{\"type\":\"output_text\",\"text\":\"prior\"}]}],"
+                + "\"tools\":[{\"type\":\"web_search\"},{\"type\":\"function\",\"name\":\"f\"}]}"));
+        assertThat(openAi.path("messages").get(0).path("role").asText(), is("assistant"));
+        assertThat(openAi.path("messages").get(0).path("content").asText(), is("prior"));
+        // Only the function tool survives; the non-function (web_search) tool is dropped.
+        assertThat(openAi.path("tools").size(), is(1));
+        assertThat(openAi.path("tools").get(0).path("function").path("name").asText(), is("f"));
+    }
+
+    @Test
     public void responseWrapsOutputMessageWithOutputTextAndUsage() throws IOException {
         String openAi = "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"hello\"},"
                 + "\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":1}}";

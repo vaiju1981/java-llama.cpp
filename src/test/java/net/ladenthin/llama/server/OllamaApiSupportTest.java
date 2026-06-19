@@ -97,6 +97,31 @@ public class OllamaApiSupportTest {
     }
 
     @Test
+    public void toOpenAiChatRequestMapsFormatSchemaToJsonSchema() throws IOException {
+        // Ollama `format` as a JSON Schema object -> OpenAI response_format json_schema.
+        JsonNode openAi =
+                OllamaApiSupport.toOpenAiChatRequest(read("{\"messages\":[{\"role\":\"user\",\"content\":\"x\"}],"
+                        + "\"format\":{\"type\":\"object\",\"properties\":{\"a\":{\"type\":\"string\"}}}}"));
+        assertThat(openAi.path("response_format").path("type").asText(), is("json_schema"));
+        assertThat(
+                openAi.path("response_format")
+                        .path("json_schema")
+                        .path("schema")
+                        .path("type")
+                        .asText(),
+                is("object"));
+    }
+
+    @Test
+    public void toOpenAiChatRequestForwardsStopFromOptions() throws IOException {
+        JsonNode openAi =
+                OllamaApiSupport.toOpenAiChatRequest(read("{\"messages\":[{\"role\":\"user\",\"content\":\"x\"}],"
+                        + "\"options\":{\"stop\":[\"\\n\",\"END\"]}}"));
+        assertThat(openAi.path("stop").size(), is(2));
+        assertThat(openAi.path("stop").get(1).asText(), is("END"));
+    }
+
+    @Test
     public void toOllamaChatResponseExtractsContentAndCountsAndDone() throws IOException {
         String openAi = "{\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"hello\"},"
                 + "\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3}}";

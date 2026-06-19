@@ -96,6 +96,16 @@ public class OpenAiServerCliTest {
     }
 
     @Test
+    public void mmprojEnablesVisionCapabilityInServerConfig() {
+        assertThat(
+                OpenAiServerCli.parse("-m", "m.gguf", "--mmproj", "proj.gguf")
+                        .toServerConfig()
+                        .isSupportsVision(),
+                is(true));
+        assertThat(OpenAiServerCli.parse("-m", "m.gguf").toServerConfig().isSupportsVision(), is(false));
+    }
+
+    @Test
     public void rerankingFlagParsed() {
         assertThat(OpenAiServerCli.parse("-m", "m.gguf", "--reranking").isReranking(), is(true));
         assertThat(OpenAiServerCli.parse("-m", "m.gguf", "--rerank").isReranking(), is(true));
