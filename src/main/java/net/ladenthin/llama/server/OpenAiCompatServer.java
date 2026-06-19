@@ -7,7 +7,9 @@ package net.ladenthin.llama.server;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sun.net.httpserver.Filter;
 import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
 import java.io.InputStream;
@@ -71,6 +73,12 @@ public final class OpenAiCompatServer implements AutoCloseable {
     /** The embeddings route. */
     public static final String PATH_EMBEDDINGS = "/v1/embeddings";
 
+    /**
+     * The fill-in-the-middle (autocomplete) route. Deliberately the llama.cpp-native bare path (no
+     * {@code /v1}) so ghost-text clients such as llama.vscode and Tabby reach it unchanged.
+     */
+    public static final String PATH_INFILL = "/infill";
+
     /** The model-list route. */
     public static final String PATH_MODELS = "/v1/models";
 
@@ -94,6 +102,7 @@ public final class OpenAiCompatServer implements AutoCloseable {
     private final OpenAiServerConfig config;
     private final OpenAiBackend backend;
     private final HttpServer http;
+    private final Filter corsFilter;
     private final ExecutorService requestExecutor;
     private final ScheduledExecutorService heartbeatExecutor;
 
@@ -122,12 +131,21 @@ public final class OpenAiCompatServer implements AutoCloseable {
         this.requestExecutor = Executors.newCachedThreadPool(namedFactory("jllama-openai-http"));
         this.heartbeatExecutor = Executors.newScheduledThreadPool(1, namedFactory("jllama-openai-hb"));
         this.http = HttpServer.create(new InetSocketAddress(config.getHost(), config.getPort()), 0);
-        http.createContext("/", this::handleNotFound);
-        http.createContext(PATH_HEALTH, this::handleHealth);
-        http.createContext(PATH_MODELS, this::handleModels);
-        http.createContext(PATH_CHAT_COMPLETIONS, this::handleChatCompletions);
-        http.createContext(PATH_COMPLETIONS, this::handleCompletions);
-        http.createContext(PATH_EMBEDDINGS, this::handleEmbeddings);
+        this.corsFilter = buildCorsFilter(config.getCorsAllowOrigin());
+        register("/", this::handleNotFound);
+        register(PATH_HEALTH, this::handleHealth);
+        // Each route is registered under its canonical path and a bare alias (clients disagree on
+        // whether to include the /v1 prefix), so both forms resolve to the same handler.
+        register(PATH_MODELS, this::handleModels);
+        register("/models", this::handleModels);
+        register(PATH_CHAT_COMPLETIONS, this::handleChatCompletions);
+        register("/chat/completions", this::handleChatCompletions);
+        register(PATH_COMPLETIONS, this::handleCompletions);
+        register("/completions", this::handleCompletions);
+        register(PATH_EMBEDDINGS, this::handleEmbeddings);
+        register("/embeddings", this::handleEmbeddings);
+        register(PATH_INFILL, this::handleInfill);
+        register("/v1/infill", this::handleInfill);
         http.setExecutor(requestExecutor);
     }
 
@@ -157,6 +175,42 @@ public final class OpenAiCompatServer implements AutoCloseable {
         http.stop(0);
         requestExecutor.shutdownNow();
         heartbeatExecutor.shutdownNow();
+    }
+
+    /**
+     * Register {@code handler} for {@code path} with the CORS filter attached. Centralised so the
+     * cross-cutting CORS/preflight wiring applies uniformly to every route (including the catch-all).
+     */
+    private void register(String path, HttpHandler handler) {
+        http.createContext(path, handler).getFilters().add(corsFilter);
+    }
+
+    /**
+     * Build a CORS filter that stamps {@code Access-Control-Allow-Origin} on every response and answers
+     * {@code OPTIONS} preflights with {@code 204} + the allowed methods/headers — so browser- and
+     * webview-based clients (which preflight an {@code Authorization} header) are not blocked.
+     */
+    private static Filter buildCorsFilter(String allowOrigin) {
+        return new Filter() {
+            @Override
+            public void doFilter(HttpExchange exchange, Chain chain) throws IOException {
+                exchange.getResponseHeaders().set("Access-Control-Allow-Origin", allowOrigin);
+                if ("OPTIONS".equalsIgnoreCase(exchange.getRequestMethod())) {
+                    exchange.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+                    exchange.getResponseHeaders().set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+                    exchange.getResponseHeaders().set("Access-Control-Max-Age", "86400");
+                    exchange.sendResponseHeaders(204, -1);
+                    exchange.close();
+                    return;
+                }
+                chain.doFilter(exchange);
+            }
+
+            @Override
+            public String description() {
+                return "CORS preflight + Access-Control-Allow-Origin";
+            }
+        };
     }
 
     // ----- handlers -----
@@ -204,6 +258,17 @@ public final class OpenAiCompatServer implements AutoCloseable {
         }
     }
 
+    private void handleInfill(HttpExchange exchange) throws IOException {
+        try {
+            JsonNode request = requirePostJson(exchange);
+            if (request != null) {
+                completeNonStreaming(exchange, request, backend::infill);
+            }
+        } finally {
+            exchange.close();
+        }
+    }
+
     /**
      * Run a non-streaming request through {@code producer} and write its JSON body, translating an
      * {@link IllegalArgumentException} to {@code 400} and any other failure to {@code 500}.
@@ -236,7 +301,12 @@ public final class OpenAiCompatServer implements AutoCloseable {
                 config.getHeartbeatMillis(),
                 TimeUnit.MILLISECONDS);
         try {
-            backend.stream(request, chunkJson -> writeStrict(os, writeLock, OpenAiSseFormatter.sseData(chunkJson)));
+            backend.stream(
+                    request,
+                    chunkJson -> writeStrict(
+                            os,
+                            writeLock,
+                            OpenAiSseFormatter.sseData(OpenAiSseFormatter.ensureUsageCachedTokens(chunkJson))));
             writeStrict(os, writeLock, OpenAiSseFormatter.sseDone());
         } catch (IllegalArgumentException e) {
             writeQuietly(

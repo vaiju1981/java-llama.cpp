@@ -60,4 +60,19 @@ interface OpenAiBackend {
      * @throws IOException if generation fails in a way the caller should surface as a server error
      */
     String embeddings(JsonNode request) throws IOException;
+
+    /**
+     * Run a (non-streaming) fill-in-the-middle completion ({@code POST /infill}). The request body is
+     * forwarded verbatim to the native llama.cpp infill handler, which applies the model's FIM control
+     * tokens server-side from GGUF metadata — so callers send raw {@code input_prefix} /
+     * {@code input_suffix} (and optional {@code input_extra} / {@code prompt}). This is the endpoint
+     * that drives local ghost-text autocomplete clients (llama.vscode, llama.vim, Twinny, Tabby,
+     * Continue's {@code llama.cpp} provider).
+     *
+     * @param request the parsed llama.cpp {@code /infill} request (typically {@code input_prefix} +
+     *                {@code input_suffix})
+     * @return the infill response serialized as JSON (clients read the {@code "content"} field)
+     * @throws IOException if generation fails in a way the caller should surface as a server error
+     */
+    String infill(JsonNode request) throws IOException;
 }

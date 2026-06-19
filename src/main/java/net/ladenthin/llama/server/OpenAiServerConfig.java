@@ -32,6 +32,13 @@ public final class OpenAiServerConfig {
     /** Default Server-Sent-Events heartbeat interval, in milliseconds. */
     public static final long DEFAULT_HEARTBEAT_MILLIS = 15_000L;
 
+    /**
+     * Default {@code Access-Control-Allow-Origin} value: {@code "*"}. Browser- and webview-based clients
+     * send a CORS preflight and require this header; {@code "*"} is the pragmatic default for a server
+     * that binds loopback and authenticates with a bearer token (not cookies).
+     */
+    public static final String DEFAULT_CORS_ALLOW_ORIGIN = "*";
+
     private final String host;
     private final int port;
     private final @Nullable String apiKey;
@@ -39,6 +46,7 @@ public final class OpenAiServerConfig {
     private final int maxInputTokens;
     private final int maxOutputTokens;
     private final long heartbeatMillis;
+    private final String corsAllowOrigin;
 
     private OpenAiServerConfig(Builder builder) {
         this.host = builder.host;
@@ -48,6 +56,7 @@ public final class OpenAiServerConfig {
         this.maxInputTokens = builder.maxInputTokens;
         this.maxOutputTokens = builder.maxOutputTokens;
         this.heartbeatMillis = builder.heartbeatMillis;
+        this.corsAllowOrigin = builder.corsAllowOrigin;
     }
 
     /**
@@ -123,6 +132,15 @@ public final class OpenAiServerConfig {
     }
 
     /**
+     * The {@code Access-Control-Allow-Origin} value sent on every response and CORS preflight.
+     *
+     * @return the allowed CORS origin
+     */
+    public String getCorsAllowOrigin() {
+        return corsAllowOrigin;
+    }
+
+    /**
      * Whether bearer-token authentication is enabled (an API key is configured).
      *
      * @return {@code true} if requests must present a matching bearer token
@@ -152,6 +170,8 @@ public final class OpenAiServerConfig {
                 + maxOutputTokens
                 + ", heartbeatMillis="
                 + heartbeatMillis
+                + ", corsAllowOrigin="
+                + corsAllowOrigin
                 + '}';
     }
 
@@ -165,6 +185,7 @@ public final class OpenAiServerConfig {
         private int maxInputTokens = DEFAULT_MAX_INPUT_TOKENS;
         private int maxOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS;
         private long heartbeatMillis = DEFAULT_HEARTBEAT_MILLIS;
+        private String corsAllowOrigin = DEFAULT_CORS_ALLOW_ORIGIN;
 
         private Builder() {}
 
@@ -242,6 +263,17 @@ public final class OpenAiServerConfig {
          */
         public Builder heartbeatMillis(long heartbeatMillis) {
             this.heartbeatMillis = heartbeatMillis;
+            return this;
+        }
+
+        /**
+         * Sets the {@code Access-Control-Allow-Origin} value (CORS).
+         *
+         * @param corsAllowOrigin the allowed origin (e.g. {@code "*"} or a specific scheme/host/port)
+         * @return this builder
+         */
+        public Builder corsAllowOrigin(String corsAllowOrigin) {
+            this.corsAllowOrigin = corsAllowOrigin;
             return this;
         }
 

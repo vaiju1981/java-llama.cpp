@@ -89,6 +89,36 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
     }
 
     @Test
+    public void infillRouteReturnsContent() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            String body = "{\"input_prefix\":\"def add(a,b):\\n    return \",\"input_suffix\":\"\"}";
+            Response response = post(server.getPort(), "/infill", body, "");
+            assertThat(response.code, is(200));
+            assertThat(response.body, containsString("content"));
+        }
+    }
+
+    @Test
+    public void getOnInfillReturns405() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            Response response = get(server.getPort(), "/infill", "");
+            assertThat(response.code, is(405));
+        }
+    }
+
+    @Test
+    public void barePathAliasesResolveToTheSameHandlers() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            int port = server.getPort();
+            // Clients disagree on the /v1 prefix; the bare aliases must reach the same handlers.
+            assertThat(get(port, "/models", "").code, is(200));
+            assertThat(post(port, "/completions", "{\"prompt\":\"hi\"}", "").code, is(200));
+            assertThat(post(port, "/embeddings", "{\"input\":\"hi\"}", "").code, is(200));
+            assertThat(post(port, "/chat/completions", CHAT_BODY, "").code, is(200));
+        }
+    }
+
+    @Test
     public void healthEndpointReturnsOk() throws IOException {
         try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
             Response response = get(server.getPort(), "/health", "");
@@ -147,6 +177,24 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
     }
 
     @Test
+    public void optionsPreflightReturns204WithCorsHeaders() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            Response response = options(server.getPort(), "/v1/chat/completions");
+            assertThat(response.code, is(204));
+            assertThat(response.corsAllowOrigin, is("*"));
+        }
+    }
+
+    @Test
+    public void normalResponsesCarryCorsAllowOrigin() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            Response response = post(server.getPort(), "/v1/chat/completions", CHAT_BODY, "");
+            assertThat(response.code, is(200));
+            assertThat(response.corsAllowOrigin, is("*"));
+        }
+    }
+
+    @Test
     public void authRequiredWhenApiKeyConfigured() throws IOException {
         OpenAiServerConfig cfg = OpenAiServerConfig.builder()
                 .host("127.0.0.1")
@@ -198,6 +246,11 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
         public String embeddings(JsonNode request) {
             return "{\"object\":\"list\",\"data\":[{\"object\":\"embedding\",\"embedding\":[0.1,0.2]}]}";
         }
+
+        @Override
+        public String infill(JsonNode request) {
+            return "{\"content\":\" world\",\"stop\":true}";
+        }
     }
 
     /** Backend that stalls before emitting, so the server's heartbeat fires during the gap. */
@@ -227,6 +280,11 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
         @Override
         public String embeddings(JsonNode request) {
             return "{\"object\":\"list\",\"data\":[]}";
+        }
+
+        @Override
+        public String infill(JsonNode request) {
+            return "{\"content\":\"\"}";
         }
     }
 }

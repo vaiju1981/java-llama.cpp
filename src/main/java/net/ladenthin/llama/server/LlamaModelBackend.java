@@ -80,4 +80,11 @@ final class LlamaModelBackend implements OpenAiBackend {
         // oaiCompat=true so the response uses the OpenAI {"object":"list","data":[{embedding}]} shape.
         return model.handleEmbeddings(request.toString(), true);
     }
+
+    @Override
+    public String infill(JsonNode request) {
+        // The native /infill handler parses the body itself (input_prefix/input_suffix/...) and applies
+        // the model's FIM tokens from GGUF metadata; forward verbatim.
+        return model.handleInfill(request.toString());
+    }
 }

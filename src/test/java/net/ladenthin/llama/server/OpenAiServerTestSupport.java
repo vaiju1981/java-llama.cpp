@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Shared HTTP plumbing for {@link OpenAiCompatServer} tests: tiny helpers that POST/GET against a
@@ -59,6 +60,20 @@ abstract class OpenAiServerTestSupport {
         return read(conn);
     }
 
+    /**
+     * Send a CORS preflight ({@code OPTIONS}) to {@code path}.
+     *
+     * @param port the server port
+     * @param path the request path
+     * @return the captured response (status + {@code Access-Control-*} headers)
+     * @throws IOException on transport failure
+     */
+    Response options(int port, String path) throws IOException {
+        HttpURLConnection conn = open(port, path, "");
+        conn.setRequestMethod("OPTIONS");
+        return read(conn);
+    }
+
     private static HttpURLConnection open(int port, String path, String auth) throws IOException {
         HttpURLConnection conn = (HttpURLConnection) new URL("http://127.0.0.1:" + port + path).openConnection();
         if (!auth.isEmpty()) {
@@ -69,9 +84,10 @@ abstract class OpenAiServerTestSupport {
 
     private static Response read(HttpURLConnection conn) throws IOException {
         int code = conn.getResponseCode();
+        String corsAllowOrigin = conn.getHeaderField("Access-Control-Allow-Origin");
         InputStream is = code < 400 ? conn.getInputStream() : conn.getErrorStream();
         String body = is == null ? "" : readAll(is);
-        return new Response(code, body);
+        return new Response(code, body, corsAllowOrigin);
     }
 
     private static String readAll(InputStream is) throws IOException {
@@ -84,14 +100,16 @@ abstract class OpenAiServerTestSupport {
         return new String(buffer.toByteArray(), UTF_8);
     }
 
-    /** Captured HTTP response: status code and body text. */
+    /** Captured HTTP response: status code, body text, and the {@code Access-Control-Allow-Origin} header. */
     static final class Response {
         final int code;
         final String body;
+        final @Nullable String corsAllowOrigin;
 
-        Response(int code, String body) {
+        Response(int code, String body, @Nullable String corsAllowOrigin) {
             this.code = code;
             this.body = body;
+            this.corsAllowOrigin = corsAllowOrigin;
         }
     }
 }

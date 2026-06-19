@@ -41,7 +41,12 @@ final class OpenAiRequestMapper {
             throw new IllegalArgumentException("'messages' must be a non-empty array");
         }
 
-        InferenceParameters params = InferenceParameters.empty().withMessagesJson(messages.toString());
+        // cache_prompt=true reuses the slot's KV prefix across turns — the standard llama.cpp-server
+        // default and what IDE clients rely on for acceptable repeated-prefix latency. OpenAI requests
+        // never carry this llama.cpp-specific flag, so defaulting it here is safe.
+        InferenceParameters params = InferenceParameters.empty()
+                .withMessagesJson(messages.toString())
+                .withCachePrompt(true);
 
         JsonNode tools = request.path("tools");
         if (tools.isArray() && tools.size() > 0) {
@@ -89,6 +94,13 @@ final class OpenAiRequestMapper {
         String[] stops = readStops(request);
         if (stops.length > 0) {
             params = params.withStopStrings(stops);
+        }
+
+        // Forward stream_options verbatim (e.g. {"include_usage":true}) so the native server emits the
+        // trailing usage chunk the OpenAI streaming protocol — and the Copilot custom endpoint — expect.
+        JsonNode streamOptions = request.path("stream_options");
+        if (streamOptions.isObject()) {
+            params = params.withStreamOptions(streamOptions.toString());
         }
 
         return params;

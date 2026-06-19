@@ -58,6 +58,7 @@ public final class InferenceParameters extends JsonParameters {
     private static final String PARAM_INPUT_PREFIX = "input_prefix";
     private static final String PARAM_INPUT_SUFFIX = "input_suffix";
     private static final String PARAM_CACHE_PROMPT = "cache_prompt";
+    private static final String PARAM_STREAM_OPTIONS = "stream_options";
     private static final String PARAM_N_PREDICT = "n_predict";
     private static final String PARAM_TOP_K = "top_k";
     private static final String PARAM_TOP_P = "top_p";
@@ -437,6 +438,19 @@ public final class InferenceParameters extends JsonParameters {
      */
     public InferenceParameters withJsonSchema(String schema) {
         return withRaw(PARAM_JSON_SCHEMA, schema);
+    }
+
+    /**
+     * Returns a new request with the OpenAI streaming {@code stream_options} object replaced. Passing
+     * {@code {"include_usage":true}} makes the native server emit a trailing {@code usage} chunk after
+     * the stream completes (with an empty {@code choices} array), which OpenAI clients — notably the
+     * VS&nbsp;Code Copilot custom endpoint — rely on for token accounting.
+     *
+     * @param streamOptionsJson the {@code stream_options} object as a JSON-encoded string
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withStreamOptions(String streamOptionsJson) {
+        return withRaw(PARAM_STREAM_OPTIONS, streamOptionsJson);
     }
 
     /**
