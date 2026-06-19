@@ -47,6 +47,7 @@ public final class OpenAiServerConfig {
     private final int maxOutputTokens;
     private final long heartbeatMillis;
     private final String corsAllowOrigin;
+    private final boolean supportsVision;
 
     private OpenAiServerConfig(Builder builder) {
         this.host = builder.host;
@@ -57,6 +58,7 @@ public final class OpenAiServerConfig {
         this.maxOutputTokens = builder.maxOutputTokens;
         this.heartbeatMillis = builder.heartbeatMillis;
         this.corsAllowOrigin = builder.corsAllowOrigin;
+        this.supportsVision = builder.supportsVision;
     }
 
     /**
@@ -141,6 +143,16 @@ public final class OpenAiServerConfig {
     }
 
     /**
+     * Whether the served model supports image input (a multimodal projector was configured). Advertised
+     * to clients that gate on a vision capability (e.g. Copilot's Ollama provider via {@code /api/show}).
+     *
+     * @return {@code true} if vision/image input is available
+     */
+    public boolean isSupportsVision() {
+        return supportsVision;
+    }
+
+    /**
      * Whether bearer-token authentication is enabled (an API key is configured).
      *
      * @return {@code true} if requests must present a matching bearer token
@@ -186,6 +198,7 @@ public final class OpenAiServerConfig {
         private int maxOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS;
         private long heartbeatMillis = DEFAULT_HEARTBEAT_MILLIS;
         private String corsAllowOrigin = DEFAULT_CORS_ALLOW_ORIGIN;
+        private boolean supportsVision;
 
         private Builder() {}
 
@@ -274,6 +287,17 @@ public final class OpenAiServerConfig {
          */
         public Builder corsAllowOrigin(String corsAllowOrigin) {
             this.corsAllowOrigin = corsAllowOrigin;
+            return this;
+        }
+
+        /**
+         * Sets whether the served model supports image input (a multimodal projector is configured).
+         *
+         * @param supportsVision {@code true} if vision/image input is available
+         * @return this builder
+         */
+        public Builder supportsVision(boolean supportsVision) {
+            this.supportsVision = supportsVision;
             return this;
         }
 

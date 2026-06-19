@@ -88,6 +88,20 @@ public final class OpenAiCompatServer implements AutoCloseable {
     /** The liveness-probe route. */
     public static final String PATH_HEALTH = "/health";
 
+    /** Ollama-native discovery route (version). */
+    public static final String PATH_OLLAMA_VERSION = "/api/version";
+
+    /** Ollama-native discovery route (model list). */
+    public static final String PATH_OLLAMA_TAGS = "/api/tags";
+
+    /** Ollama-native discovery route (model capabilities). */
+    public static final String PATH_OLLAMA_SHOW = "/api/show";
+
+    /** Ollama-native chat route. */
+    public static final String PATH_OLLAMA_CHAT = "/api/chat";
+
+    private static final String CONTENT_TYPE_NDJSON = "application/x-ndjson";
+
     private static final int HTTP_OK = 200;
     private static final int HTTP_BAD_REQUEST = 400;
     private static final int HTTP_UNAUTHORIZED = 401;
@@ -152,6 +166,11 @@ public final class OpenAiCompatServer implements AutoCloseable {
         register("/reranking", this::handleRerank);
         register(PATH_INFILL, this::handleInfill);
         register("/v1/infill", this::handleInfill);
+        // Ollama-native surface (Copilot's built-in Ollama provider + Ollama-hardcoded tools).
+        register(PATH_OLLAMA_VERSION, this::handleOllamaVersion);
+        register(PATH_OLLAMA_TAGS, this::handleOllamaTags);
+        register(PATH_OLLAMA_SHOW, this::handleOllamaShow);
+        register(PATH_OLLAMA_CHAT, this::handleOllamaChat);
         http.setExecutor(requestExecutor);
     }
 
@@ -342,6 +361,111 @@ public final class OpenAiCompatServer implements AutoCloseable {
             heartbeat.cancel(false);
             closeQuietly(os, writeLock);
         }
+    }
+
+    // ----- Ollama-native surface -----
+
+    private void handleOllamaVersion(HttpExchange exchange) throws IOException {
+        try {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only GET is supported");
+                return;
+            }
+            sendJson(exchange, HTTP_OK, OllamaApiSupport.versionJson());
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void handleOllamaTags(HttpExchange exchange) throws IOException {
+        try {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only GET is supported");
+                return;
+            }
+            sendJson(exchange, HTTP_OK, OllamaApiSupport.tagsJson(config.getModelId()));
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void handleOllamaShow(HttpExchange exchange) throws IOException {
+        try {
+            if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only POST is supported");
+                return;
+            }
+            // The request body (optionally {"model":...}) is ignored: this server serves one model.
+            int contextLength = config.getMaxInputTokens() + config.getMaxOutputTokens();
+            sendJson(
+                    exchange,
+                    HTTP_OK,
+                    OllamaApiSupport.showJson(config.getModelId(), contextLength, config.isSupportsVision()));
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void handleOllamaChat(HttpExchange exchange) throws IOException {
+        try {
+            JsonNode request = requirePostJson(exchange);
+            if (request == null) {
+                return;
+            }
+            JsonNode openAiRequest = OllamaApiSupport.toOpenAiChatRequest(request);
+            String model = request.path("model").asText(config.getModelId());
+            if (OllamaApiSupport.isStreaming(request)) {
+                streamOllamaChat(exchange, openAiRequest, model);
+            } else {
+                final String body;
+                try {
+                    body = backend.complete(openAiRequest);
+                } catch (IllegalArgumentException e) {
+                    sendJson(exchange, HTTP_BAD_REQUEST, ollamaError(message(e)));
+                    return;
+                } catch (IOException | RuntimeException e) {
+                    LOG.warn("ollama chat failed", e);
+                    sendJson(exchange, HTTP_SERVER_ERROR, ollamaError(message(e)));
+                    return;
+                }
+                sendJson(exchange, HTTP_OK, OllamaApiSupport.toOllamaChatResponse(body, model));
+            }
+        } finally {
+            exchange.close();
+        }
+    }
+
+    /** Stream an Ollama {@code /api/chat} response as newline-delimited JSON, ending with a done line. */
+    private void streamOllamaChat(HttpExchange exchange, JsonNode openAiRequest, String model) throws IOException {
+        exchange.getResponseHeaders().set("Content-Type", CONTENT_TYPE_NDJSON);
+        exchange.getResponseHeaders().set("Cache-Control", "no-cache");
+        exchange.sendResponseHeaders(HTTP_OK, 0);
+        final OutputStream os = exchange.getResponseBody();
+        final Object writeLock = new Object();
+        final ToolCallDeltaAccumulator accumulator = new ToolCallDeltaAccumulator();
+        try {
+            backend.stream(openAiRequest, chunkJson -> {
+                accumulator.accept(chunkJson);
+                String line = OllamaApiSupport.toOllamaContentLine(chunkJson, model);
+                if (line != null) {
+                    writeStrict(os, writeLock, line);
+                }
+            });
+            writeStrict(os, writeLock, OllamaApiSupport.toOllamaDoneLine(model, accumulator));
+        } catch (IllegalArgumentException e) {
+            writeQuietly(os, writeLock, ollamaError(message(e)) + "\n");
+        } catch (IOException e) {
+            LOG.debug("ollama client disconnected during stream", e);
+        } catch (RuntimeException e) {
+            LOG.warn("ollama streaming chat failed", e);
+            writeQuietly(os, writeLock, ollamaError(message(e)) + "\n");
+        } finally {
+            closeQuietly(os, writeLock);
+        }
+    }
+
+    private static String ollamaError(String message) {
+        return OBJECT_MAPPER.createObjectNode().put("error", message).toString();
     }
 
     private void handleModels(HttpExchange exchange) throws IOException {

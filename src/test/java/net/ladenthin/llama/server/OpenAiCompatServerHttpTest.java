@@ -129,6 +129,46 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
     }
 
     @Test
+    public void ollamaVersionTagsAndShowRespond() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            int port = server.getPort();
+            Response version = get(port, "/api/version", "");
+            assertThat(version.code, is(200));
+            assertThat(version.body, containsString("version"));
+            Response tags = get(port, "/api/tags", "");
+            assertThat(tags.code, is(200));
+            assertThat(tags.body, containsString("test-model"));
+            Response show = post(port, "/api/show", "{\"model\":\"test-model\"}", "");
+            assertThat(show.code, is(200));
+            assertThat(show.body, containsString("capabilities"));
+        }
+    }
+
+    @Test
+    public void ollamaChatNonStreamingReturnsDone() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            String body = "{\"model\":\"test-model\",\"stream\":false,"
+                    + "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}";
+            Response response = post(server.getPort(), "/api/chat", body, "");
+            assertThat(response.code, is(200));
+            assertThat(response.body, containsString("hello")); // from FakeBackend.complete
+            assertThat(response.body, containsString("\"done\":true"));
+        }
+    }
+
+    @Test
+    public void ollamaChatStreamingReturnsNdjsonEndingWithDone() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            // stream defaults to true for Ollama.
+            String body = "{\"model\":\"test-model\",\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}";
+            Response response = post(server.getPort(), "/api/chat", body, "");
+            assertThat(response.code, is(200));
+            assertThat(response.body, containsString("llo")); // streamed content delta
+            assertThat(response.body, containsString("\"done\":true"));
+        }
+    }
+
+    @Test
     public void healthEndpointReturnsOk() throws IOException {
         try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
             Response response = get(server.getPort(), "/health", "");

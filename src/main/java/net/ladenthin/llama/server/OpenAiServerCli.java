@@ -395,8 +395,11 @@ public final class OpenAiServerCli {
          * @return the server configuration
          */
         public OpenAiServerConfig toServerConfig() {
-            final OpenAiServerConfig.Builder builder =
-                    OpenAiServerConfig.builder().host(host).port(port).modelId(getModelId());
+            final OpenAiServerConfig.Builder builder = OpenAiServerConfig.builder()
+                    .host(host)
+                    .port(port)
+                    .modelId(getModelId())
+                    .supportsVision(mmproj != null);
             if (apiKey != null) {
                 builder.apiKey(apiKey);
             }
