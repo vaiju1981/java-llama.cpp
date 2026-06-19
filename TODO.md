@@ -48,6 +48,10 @@ primary goal: agentic tool-calling with Qwen):
   /v1/responses`, SSE events — `ResponsesApiSupport` + `ResponsesStreamTranslator`).
 - **`GET /props`** (llama.cpp-native): `default_generation_settings.n_ctx` + `modalities` so autocomplete
   clients (llama.vscode) size their context window (`OpenAiSseFormatter.propsJson`).
+- Gated **integration round-trips** (`OpenAiCompatServerIntegrationTest`, Qwen3-0.6B over a real socket;
+  runs in CI's `test-java-linux-x86_64` job, self-skips when the model is absent): OpenAI chat
+  (non-stream/stream/tools/models) plus Ollama `/api/chat` + discovery, Anthropic `/v1/messages`, OpenAI
+  `/v1/responses` (non-stream + stream) and `/props` — structural assertions only.
 
 **Open follow-ups (deferred):**
 
@@ -67,11 +71,12 @@ primary goal: agentic tool-calling with Qwen):
   `suffix`) applies the model's FIM tokens server-side, so this is lower value.
 - **Multi-model registry.** Only one model id is advertised/served today; serving several would need
   multi-model load + lifecycle management.
-- **Live end-to-end validation of the alternative protocols.** The OpenAI chat path has a gated
-  integration test (`OpenAiCompatServerIntegrationTest`, Qwen3-0.6B); the Ollama / Anthropic / Responses
-  surfaces are currently covered only by model-free unit + HTTP (fake-backend) tests. Add gated
-  integration tests (and/or manual validation) against a real model and the real clients (Copilot's
-  Ollama provider, Claude Code, a Responses client) to confirm the wire shapes end-to-end.
+- **Remaining live validation.** Gated server-side round-trips now exist for all four protocols (above).
+  Still open: (a) manual validation against the actual editor clients — point Copilot's Ollama provider /
+  a Custom Endpoint, Claude Code, and a Responses client at the running server; (b) gated round-trips for
+  `/v1/embeddings`, `/v1/rerank` and `/infill`, which need their own server fixtures in the matching mode
+  (`enableEmbedding` / `enableReranking` / a FIM-capable model). The models are already downloaded in CI
+  (nomic-embed, jina-reranker, CodeLlama-7B), so only the test fixtures are missing.
 - **Gemma 4 tool-calling validation.** Confirm the pinned llama.cpp (`b9682`) includes the Gemma 4
   tool-call parser fixes; if not, bump per the upgrade procedure.
 
