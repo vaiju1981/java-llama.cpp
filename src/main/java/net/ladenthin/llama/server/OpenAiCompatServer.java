@@ -17,6 +17,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -885,21 +886,37 @@ public final class OpenAiCompatServer implements AutoCloseable {
         }
 
         OpenAiServerConfig config = options.toServerConfig();
-        LlamaModel model = new LlamaModel(options.toModelParameters());
-        OpenAiCompatServer server = new OpenAiCompatServer(model, config);
+
+        // The server runs on daemon threads, so the main thread blocks until the JVM is asked to
+        // shut down (Ctrl-C / SIGTERM); the try-with-resources then closes the server and model.
+        // Two latches keep that shutdown graceful and race-free: the hook signals stopRequested and
+        // then waits on cleanedUp, so the JVM — which blocks until shutdown hooks return — does not
+        // halt until the close has actually run.
+        final CountDownLatch stopRequested = new CountDownLatch(1);
+        final CountDownLatch cleanedUp = new CountDownLatch(1);
         Runtime.getRuntime()
                 .addShutdownHook(new Thread(
                         () -> {
-                            server.close();
-                            model.close();
+                            stopRequested.countDown();
+                            try {
+                                cleanedUp.await();
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                            }
                         },
                         "jllama-openai-shutdown"));
-        server.start();
-        printReady(config, server.getPort());
-        try {
-            Thread.currentThread().join();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
+
+        try (LlamaModel model = new LlamaModel(options.toModelParameters());
+                OpenAiCompatServer server = new OpenAiCompatServer(model, config)) {
+            server.start();
+            printReady(config, server.getPort());
+            try {
+                stopRequested.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        } finally {
+            cleanedUp.countDown();
         }
     }
 
