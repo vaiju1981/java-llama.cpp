@@ -16,11 +16,14 @@ cross-cutting initiative.
 ### OpenAI-compatible HTTP endpoint (shipped; follow-ups open)
 
 `net.ladenthin.llama.server.OpenAiCompatServer` is the single OpenAI-compatible server (JDK
-`com.sun.net.httpserver`, no new dependency, fat-jar `Main-Class`). It exposes
+`com.sun.net.httpserver`, no new dependency, fat-jar `Main-Class`). It exposes the OpenAI routes
 `POST /v1/chat/completions` (streaming SSE + non-streaming), `/v1/completions`, `/v1/embeddings`,
-`/v1/rerank`, `/infill`, `GET /v1/models` and `GET /health` (every route also reachable without `/v1`).
-The CLI is parsed by the testable `OpenAiServerCli`. (Consolidated from PR #240's JDK + streaming
-server and #242's NanoHTTPD server; NanoHTTPD + its dependency deleted.)
+`/v1/rerank`, `/infill`, `GET /v1/models`, `GET /health` and `GET /props`, **plus three alternative
+protocol surfaces** — Ollama-native (`/api/version`, `/api/tags`, `/api/show`, `/api/chat`,
+`/api/generate`), Anthropic Messages (`POST /v1/messages`) and OpenAI Responses (`POST /v1/responses`).
+Every route is also reachable without the `/v1` prefix and sits behind a CORS filter. The CLI is parsed
+by the testable `OpenAiServerCli`. (Consolidated from PR #240's JDK + streaming server and #242's
+NanoHTTPD server; NanoHTTPD + its dependency deleted.)
 
 **IDE/agent backend hardening — DONE** (from the deep-research investigation
 [`docs/feature-investigation-ide-agent-backend.md`](docs/feature-investigation-ide-agent-backend.md);
@@ -64,6 +67,11 @@ primary goal: agentic tool-calling with Qwen):
   `suffix`) applies the model's FIM tokens server-side, so this is lower value.
 - **Multi-model registry.** Only one model id is advertised/served today; serving several would need
   multi-model load + lifecycle management.
+- **Live end-to-end validation of the alternative protocols.** The OpenAI chat path has a gated
+  integration test (`OpenAiCompatServerIntegrationTest`, Qwen3-0.6B); the Ollama / Anthropic / Responses
+  surfaces are currently covered only by model-free unit + HTTP (fake-backend) tests. Add gated
+  integration tests (and/or manual validation) against a real model and the real clients (Copilot's
+  Ollama provider, Claude Code, a Responses client) to confirm the wire shapes end-to-end.
 - **Gemma 4 tool-calling validation.** Confirm the pinned llama.cpp (`b9682`) includes the Gemma 4
   tool-call parser fixes; if not, bump per the upgrade procedure.
 
