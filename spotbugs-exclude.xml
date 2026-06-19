@@ -457,23 +457,6 @@ SPDX-License-Identifier: MIT
     </Match>
 
     <!--
-        The streaming write helpers writeStrict / writeQuietly receive a per-request lock Object (created
-        by the streaming handler) as a parameter and synchronize on it, so the generation thread and the
-        heartbeat-timer task never interleave writes on the same response stream. fb-contrib NOS flags
-        synchronizing on a method parameter ("non-owned"), but the lock is owned by the in-flight request,
-        not shared across requests; promoting it to an instance field would incorrectly serialize
-        independent concurrent streams. The dedicated per-request lock is the intended design.
-    -->
-    <Match>
-        <Class name="net.ladenthin.llama.server.OpenAiCompatServer"/>
-        <Bug pattern="NOS_NON_OWNED_SYNCHRONIZATION"/>
-        <Or>
-            <Method name="writeStrict"/>
-            <Method name="writeQuietly"/>
-        </Or>
-    </Match>
-
-    <!--
         OpenAiSseFormatter.sseDone() and heartbeat() are self-documenting accessors for the two fixed SSE
         protocol tokens (the stream terminator and the comment-line keep-alive). They sit alongside
         sseData(String) to form one cohesive SSE-framing vocabulary; the constant return value IS the

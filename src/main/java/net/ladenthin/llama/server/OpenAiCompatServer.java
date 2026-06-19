@@ -348,45 +348,33 @@ public final class OpenAiCompatServer implements AutoCloseable {
         exchange.getResponseHeaders().set("Content-Type", CONTENT_TYPE_SSE);
         exchange.getResponseHeaders().set("Cache-Control", "no-cache");
         exchange.sendResponseHeaders(HTTP_OK, 0);
-        final OutputStream os = exchange.getResponseBody();
-        final Object writeLock = new Object();
-        ScheduledFuture<?> heartbeat = null;
-        try {
-            heartbeat = heartbeatExecutor.scheduleAtFixedRate(
-                    () -> writeQuietly(os, writeLock, OpenAiSseFormatter.heartbeat()),
-                    config.getHeartbeatMillis(),
-                    config.getHeartbeatMillis(),
-                    TimeUnit.MILLISECONDS);
-            backend.stream(
-                    request,
-                    chunkJson -> writeStrict(
-                            os,
-                            writeLock,
-                            OpenAiSseFormatter.sseData(OpenAiSseFormatter.ensureUsageCachedTokens(chunkJson))));
-            writeStrict(os, writeLock, OpenAiSseFormatter.sseDone());
-        } catch (IllegalArgumentException e) {
-            writeQuietly(
-                    os,
-                    writeLock,
-                    OpenAiSseFormatter.sseData(OpenAiSseFormatter.errorJson(message(e), ERROR_TYPE_REQUEST, null)));
-        } catch (IOException e) {
-            LOG.debug("client disconnected during stream", e);
-        } catch (RuntimeException e) {
-            LOG.warn("streaming chat completion failed", e);
-            writeQuietly(
-                    os,
-                    writeLock,
-                    OpenAiSseFormatter.sseData(OpenAiSseFormatter.errorJson(message(e), ERROR_TYPE_SERVER, null)));
-        } finally {
-            if (heartbeat != null) {
-                heartbeat.cancel(false);
-            }
-            // Close under the write lock so the close never races a still-in-flight heartbeat write.
-            synchronized (writeLock) {
-                try {
-                    os.close();
-                } catch (IOException e) {
-                    LOG.trace("stream close failed", e);
+        try (ResponseStream out = new ResponseStream(exchange.getResponseBody())) {
+            ScheduledFuture<?> heartbeat = null;
+            try {
+                heartbeat = heartbeatExecutor.scheduleAtFixedRate(
+                        () -> out.writeQuietly(OpenAiSseFormatter.heartbeat()),
+                        config.getHeartbeatMillis(),
+                        config.getHeartbeatMillis(),
+                        TimeUnit.MILLISECONDS);
+                backend.stream(
+                        request,
+                        chunkJson -> out.writeStrict(
+                                OpenAiSseFormatter.sseData(OpenAiSseFormatter.ensureUsageCachedTokens(chunkJson))));
+                out.writeStrict(OpenAiSseFormatter.sseDone());
+            } catch (IllegalArgumentException e) {
+                out.writeQuietly(
+                        OpenAiSseFormatter.sseData(OpenAiSseFormatter.errorJson(message(e), ERROR_TYPE_REQUEST, null)));
+            } catch (IOException e) {
+                LOG.debug("client disconnected during stream", e);
+            } catch (RuntimeException e) {
+                LOG.warn("streaming chat completion failed", e);
+                out.writeQuietly(
+                        OpenAiSseFormatter.sseData(OpenAiSseFormatter.errorJson(message(e), ERROR_TYPE_SERVER, null)));
+            } finally {
+                // try-with-resources closes the stream (under its lock) after the heartbeat is cancelled,
+                // so the close never races a still-in-flight heartbeat write.
+                if (heartbeat != null) {
+                    heartbeat.cancel(false);
                 }
             }
         }
@@ -469,33 +457,24 @@ public final class OpenAiCompatServer implements AutoCloseable {
         exchange.getResponseHeaders().set("Content-Type", CONTENT_TYPE_NDJSON);
         exchange.getResponseHeaders().set("Cache-Control", "no-cache");
         exchange.sendResponseHeaders(HTTP_OK, 0);
-        final OutputStream os = exchange.getResponseBody();
-        final Object writeLock = new Object();
         final ToolCallDeltaAccumulator accumulator = new ToolCallDeltaAccumulator();
-        try {
-            backend.stream(openAiRequest, chunkJson -> {
-                accumulator.accept(chunkJson);
-                String line = OllamaApiSupport.toOllamaContentLine(chunkJson, model);
-                if (line != null) {
-                    writeStrict(os, writeLock, line);
-                }
-            });
-            writeStrict(os, writeLock, OllamaApiSupport.toOllamaDoneLine(model, accumulator));
-        } catch (IllegalArgumentException e) {
-            writeQuietly(os, writeLock, ollamaError(message(e)) + "\n");
-        } catch (IOException e) {
-            LOG.debug("ollama client disconnected during stream", e);
-        } catch (RuntimeException e) {
-            LOG.warn("ollama streaming chat failed", e);
-            writeQuietly(os, writeLock, ollamaError(message(e)) + "\n");
-        } finally {
-            // Close under the write lock so the close never races a concurrent best-effort write.
-            synchronized (writeLock) {
-                try {
-                    os.close();
-                } catch (IOException e) {
-                    LOG.trace("stream close failed", e);
-                }
+        try (ResponseStream out = new ResponseStream(exchange.getResponseBody())) {
+            try {
+                backend.stream(openAiRequest, chunkJson -> {
+                    accumulator.accept(chunkJson);
+                    String line = OllamaApiSupport.toOllamaContentLine(chunkJson, model);
+                    if (line != null) {
+                        out.writeStrict(line);
+                    }
+                });
+                out.writeStrict(OllamaApiSupport.toOllamaDoneLine(model, accumulator));
+            } catch (IllegalArgumentException e) {
+                out.writeQuietly(ollamaError(message(e)) + "\n");
+            } catch (IOException e) {
+                LOG.debug("ollama client disconnected during stream", e);
+            } catch (RuntimeException e) {
+                LOG.warn("ollama streaming chat failed", e);
+                out.writeQuietly(ollamaError(message(e)) + "\n");
             }
         }
     }
@@ -582,42 +561,34 @@ public final class OpenAiCompatServer implements AutoCloseable {
         exchange.getResponseHeaders().set("Content-Type", CONTENT_TYPE_SSE);
         exchange.getResponseHeaders().set("Cache-Control", "no-cache");
         exchange.sendResponseHeaders(HTTP_OK, 0);
-        final OutputStream os = exchange.getResponseBody();
-        final Object writeLock = new Object();
         final AnthropicStreamTranslator translator =
                 new AnthropicStreamTranslator("msg_" + Long.toHexString(System.nanoTime()), model);
-        ScheduledFuture<?> heartbeat = null;
-        try {
-            heartbeat = heartbeatExecutor.scheduleAtFixedRate(
-                    () -> writeQuietly(os, writeLock, OpenAiSseFormatter.heartbeat()),
-                    config.getHeartbeatMillis(),
-                    config.getHeartbeatMillis(),
-                    TimeUnit.MILLISECONDS);
-            writeStrict(os, writeLock, translator.begin());
-            backend.stream(openAiRequest, chunkJson -> {
-                String events = translator.onChunk(chunkJson);
-                if (!events.isEmpty()) {
-                    writeStrict(os, writeLock, events);
-                }
-            });
-            writeStrict(os, writeLock, translator.end());
-        } catch (IllegalArgumentException e) {
-            writeQuietly(os, writeLock, AnthropicApiSupport.sseEvent("error", anthropicError(message(e))));
-        } catch (IOException e) {
-            LOG.debug("anthropic client disconnected during stream", e);
-        } catch (RuntimeException e) {
-            LOG.warn("anthropic streaming failed", e);
-            writeQuietly(os, writeLock, AnthropicApiSupport.sseEvent("error", anthropicError(message(e))));
-        } finally {
-            if (heartbeat != null) {
-                heartbeat.cancel(false);
-            }
-            // Close under the write lock so the close never races a still-in-flight heartbeat write.
-            synchronized (writeLock) {
-                try {
-                    os.close();
-                } catch (IOException e) {
-                    LOG.trace("stream close failed", e);
+        try (ResponseStream out = new ResponseStream(exchange.getResponseBody())) {
+            ScheduledFuture<?> heartbeat = null;
+            try {
+                heartbeat = heartbeatExecutor.scheduleAtFixedRate(
+                        () -> out.writeQuietly(OpenAiSseFormatter.heartbeat()),
+                        config.getHeartbeatMillis(),
+                        config.getHeartbeatMillis(),
+                        TimeUnit.MILLISECONDS);
+                out.writeStrict(translator.begin());
+                backend.stream(openAiRequest, chunkJson -> {
+                    String events = translator.onChunk(chunkJson);
+                    if (!events.isEmpty()) {
+                        out.writeStrict(events);
+                    }
+                });
+                out.writeStrict(translator.end());
+            } catch (IllegalArgumentException e) {
+                out.writeQuietly(AnthropicApiSupport.sseEvent("error", anthropicError(message(e))));
+            } catch (IOException e) {
+                LOG.debug("anthropic client disconnected during stream", e);
+            } catch (RuntimeException e) {
+                LOG.warn("anthropic streaming failed", e);
+                out.writeQuietly(AnthropicApiSupport.sseEvent("error", anthropicError(message(e))));
+            } finally {
+                if (heartbeat != null) {
+                    heartbeat.cancel(false);
                 }
             }
         }
@@ -670,49 +641,35 @@ public final class OpenAiCompatServer implements AutoCloseable {
         exchange.getResponseHeaders().set("Content-Type", CONTENT_TYPE_SSE);
         exchange.getResponseHeaders().set("Cache-Control", "no-cache");
         exchange.sendResponseHeaders(HTTP_OK, 0);
-        final OutputStream os = exchange.getResponseBody();
-        final Object writeLock = new Object();
         final ResponsesStreamTranslator translator = new ResponsesStreamTranslator(model, responseId);
-        ScheduledFuture<?> heartbeat = null;
-        try {
-            heartbeat = heartbeatExecutor.scheduleAtFixedRate(
-                    () -> writeQuietly(os, writeLock, OpenAiSseFormatter.heartbeat()),
-                    config.getHeartbeatMillis(),
-                    config.getHeartbeatMillis(),
-                    TimeUnit.MILLISECONDS);
-            writeStrict(os, writeLock, translator.begin());
-            backend.stream(openAiRequest, chunkJson -> {
-                String events = translator.onChunk(chunkJson);
-                if (!events.isEmpty()) {
-                    writeStrict(os, writeLock, events);
-                }
-            });
-            writeStrict(os, writeLock, translator.end());
-        } catch (IllegalArgumentException e) {
-            writeQuietly(
-                    os,
-                    writeLock,
-                    "event: error\ndata: " + OpenAiSseFormatter.errorJson(message(e), ERROR_TYPE_REQUEST, null)
-                            + "\n\n");
-        } catch (IOException e) {
-            LOG.debug("responses client disconnected during stream", e);
-        } catch (RuntimeException e) {
-            LOG.warn("responses streaming failed", e);
-            writeQuietly(
-                    os,
-                    writeLock,
-                    "event: error\ndata: " + OpenAiSseFormatter.errorJson(message(e), ERROR_TYPE_SERVER, null)
-                            + "\n\n");
-        } finally {
-            if (heartbeat != null) {
-                heartbeat.cancel(false);
-            }
-            // Close under the write lock so the close never races a still-in-flight heartbeat write.
-            synchronized (writeLock) {
-                try {
-                    os.close();
-                } catch (IOException e) {
-                    LOG.trace("stream close failed", e);
+        try (ResponseStream out = new ResponseStream(exchange.getResponseBody())) {
+            ScheduledFuture<?> heartbeat = null;
+            try {
+                heartbeat = heartbeatExecutor.scheduleAtFixedRate(
+                        () -> out.writeQuietly(OpenAiSseFormatter.heartbeat()),
+                        config.getHeartbeatMillis(),
+                        config.getHeartbeatMillis(),
+                        TimeUnit.MILLISECONDS);
+                out.writeStrict(translator.begin());
+                backend.stream(openAiRequest, chunkJson -> {
+                    String events = translator.onChunk(chunkJson);
+                    if (!events.isEmpty()) {
+                        out.writeStrict(events);
+                    }
+                });
+                out.writeStrict(translator.end());
+            } catch (IllegalArgumentException e) {
+                out.writeQuietly("event: error\ndata: "
+                        + OpenAiSseFormatter.errorJson(message(e), ERROR_TYPE_REQUEST, null) + "\n\n");
+            } catch (IOException e) {
+                LOG.debug("responses client disconnected during stream", e);
+            } catch (RuntimeException e) {
+                LOG.warn("responses streaming failed", e);
+                out.writeQuietly("event: error\ndata: "
+                        + OpenAiSseFormatter.errorJson(message(e), ERROR_TYPE_SERVER, null) + "\n\n");
+            } finally {
+                if (heartbeat != null) {
+                    heartbeat.cancel(false);
                 }
             }
         }
@@ -831,22 +788,51 @@ public final class OpenAiCompatServer implements AutoCloseable {
         sendJson(exchange, status, OpenAiSseFormatter.errorJson(message, type, null));
     }
 
-    /** Write under the response lock, propagating failures so a streaming generation can be cancelled. */
-    private void writeStrict(OutputStream os, Object writeLock, String text) throws IOException {
-        synchronized (writeLock) {
-            os.write(text.getBytes(StandardCharsets.UTF_8));
-            os.flush();
-        }
-    }
+    /**
+     * Per-request, thread-safe wrapper over a streaming HTTP response body. Every write and the close are
+     * serialized on a {@code private final} lock, so the generation thread and the heartbeat-timer task
+     * never write to (or close) the same stream concurrently. The lock is owned by this per-request
+     * instance rather than shared, so independent concurrent streams never serialize against each other.
+     * It is {@link AutoCloseable} so callers drive it with try-with-resources, which closes the stream
+     * (under the lock) on every exit path.
+     */
+    private static final class ResponseStream implements AutoCloseable {
 
-    /** Write under the response lock, swallowing failures (used for heartbeats and best-effort events). */
-    private void writeQuietly(OutputStream os, Object writeLock, String text) {
-        synchronized (writeLock) {
-            try {
+        private final OutputStream os;
+        private final Object lock = new Object();
+
+        ResponseStream(OutputStream os) {
+            this.os = os;
+        }
+
+        /** Write under the lock, propagating failures so a streaming generation can be cancelled. */
+        void writeStrict(String text) throws IOException {
+            synchronized (lock) {
                 os.write(text.getBytes(StandardCharsets.UTF_8));
                 os.flush();
-            } catch (IOException e) {
-                LOG.trace("stream write failed (client likely disconnected)", e);
+            }
+        }
+
+        /** Write under the lock, swallowing failures (used for heartbeats and best-effort events). */
+        void writeQuietly(String text) {
+            synchronized (lock) {
+                try {
+                    os.write(text.getBytes(StandardCharsets.UTF_8));
+                    os.flush();
+                } catch (IOException e) {
+                    LOG.trace("stream write failed (client likely disconnected)", e);
+                }
+            }
+        }
+
+        @Override
+        public void close() {
+            synchronized (lock) {
+                try {
+                    os.close();
+                } catch (IOException e) {
+                    LOG.trace("stream close failed", e);
+                }
             }
         }
     }
