@@ -853,7 +853,7 @@ public class LlamaModel implements AutoCloseable {
      * result in OAI format with a {@code "choices"} array. This is the raw JSON-in/JSON-out
      * form used by {@link #chatComplete(net.ladenthin.llama.parameters.InferenceParameters)}
      * and by the embedded OpenAI-compatible server
-     * ({@link net.ladenthin.llama.server.LlamaServer}); it is the chat counterpart of
+     * ({@link net.ladenthin.llama.server.OpenAiCompatServer}); it is the chat counterpart of
      * {@link #handleCompletionsOai(String)} and {@link #handleEmbeddings(String, boolean)}.
      *
      * @param params JSON string with OAI-compatible chat-completion parameters (incl. {@code "messages"})

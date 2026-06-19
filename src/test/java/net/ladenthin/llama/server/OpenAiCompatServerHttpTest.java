@@ -14,8 +14,9 @@ import org.junit.jupiter.api.Test;
 
 /**
  * End-to-end HTTP tests for {@link OpenAiCompatServer} driven over a real socket with a
- * {@link FakeChatBackend} — no native library and no model are loaded. Exercises routing,
- * authentication, the non-streaming and Server-Sent-Events paths, heartbeats, and error statuses.
+ * {@link FakeBackend} — no native library and no model are loaded. Exercises routing, authentication,
+ * the non-streaming and Server-Sent-Events paths, heartbeats, the completions/embeddings/health routes,
+ * and error statuses.
  *
  * <p>HTTP request plumbing is inherited from {@link OpenAiServerTestSupport}.
  */
@@ -33,7 +34,7 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
 
     @Test
     public void nonStreamingReturnsTheCompletionBody() throws IOException {
-        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeChatBackend(), config()).start()) {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
             Response response = post(server.getPort(), "/v1/chat/completions", CHAT_BODY, "");
             assertThat(response.code, is(200));
             assertThat(response.body, containsString("chat.completion"));
@@ -43,7 +44,7 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
 
     @Test
     public void streamingReturnsSseChunksThenDone() throws IOException {
-        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeChatBackend(), config()).start()) {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
             String body = "{\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}";
             Response response = post(server.getPort(), "/v1/chat/completions", body, "");
             assertThat(response.code, is(200));
@@ -60,7 +61,7 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
                 .port(0)
                 .heartbeatMillis(50L)
                 .build();
-        try (OpenAiCompatServer server = new OpenAiCompatServer(new SlowFakeChatBackend(), cfg).start()) {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new SlowFakeBackend(), cfg).start()) {
             String body = "{\"stream\":true,\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}";
             Response response = post(server.getPort(), "/v1/chat/completions", body, "");
             assertThat(response.code, is(200));
@@ -70,8 +71,35 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
     }
 
     @Test
+    public void completionsRouteReturnsTextCompletionBody() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            Response response = post(server.getPort(), "/v1/completions", "{\"prompt\":\"hi\"}", "");
+            assertThat(response.code, is(200));
+            assertThat(response.body, containsString("text_completion"));
+        }
+    }
+
+    @Test
+    public void embeddingsRouteReturnsEmbeddingList() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            Response response = post(server.getPort(), "/v1/embeddings", "{\"input\":\"hi\"}", "");
+            assertThat(response.code, is(200));
+            assertThat(response.body, containsString("embedding"));
+        }
+    }
+
+    @Test
+    public void healthEndpointReturnsOk() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            Response response = get(server.getPort(), "/health", "");
+            assertThat(response.code, is(200));
+            assertThat(response.body, containsString("\"status\":\"ok\""));
+        }
+    }
+
+    @Test
     public void modelsEndpointAdvertisesConfiguredModel() throws IOException {
-        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeChatBackend(), config()).start()) {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
             Response response = get(server.getPort(), "/v1/models", "");
             assertThat(response.code, is(200));
             assertThat(response.body, containsString("test-model"));
@@ -80,15 +108,15 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
 
     @Test
     public void unknownPathReturns404() throws IOException {
-        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeChatBackend(), config()).start()) {
-            Response response = get(server.getPort(), "/v1/embeddings", "");
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            Response response = get(server.getPort(), "/v1/does-not-exist", "");
             assertThat(response.code, is(404));
         }
     }
 
     @Test
     public void missingMessagesReturns400() throws IOException {
-        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeChatBackend(), config()).start()) {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
             Response response = post(server.getPort(), "/v1/chat/completions", "{}", "");
             assertThat(response.code, is(400));
         }
@@ -96,7 +124,7 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
 
     @Test
     public void malformedJsonReturns400() throws IOException {
-        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeChatBackend(), config()).start()) {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
             Response response = post(server.getPort(), "/v1/chat/completions", "not json", "");
             assertThat(response.code, is(400));
         }
@@ -104,8 +132,16 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
 
     @Test
     public void getOnChatCompletionsReturns405() throws IOException {
-        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeChatBackend(), config()).start()) {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
             Response response = get(server.getPort(), "/v1/chat/completions", "");
+            assertThat(response.code, is(405));
+        }
+    }
+
+    @Test
+    public void getOnEmbeddingsReturns405() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            Response response = get(server.getPort(), "/v1/embeddings", "");
             assertThat(response.code, is(405));
         }
     }
@@ -117,7 +153,7 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
                 .port(0)
                 .apiKey("secret")
                 .build();
-        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeChatBackend(), cfg).start()) {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), cfg).start()) {
             int port = server.getPort();
             assertThat(post(port, "/v1/chat/completions", CHAT_BODY, "").code, is(401));
             assertThat(post(port, "/v1/chat/completions", CHAT_BODY, "Bearer wrong").code, is(401));
@@ -125,8 +161,21 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
         }
     }
 
-    /** Deterministic backend that returns canned OpenAI shapes. */
-    static final class FakeChatBackend implements ChatBackend {
+    @Test
+    public void healthEndpointIsUnauthenticated() throws IOException {
+        OpenAiServerConfig cfg = OpenAiServerConfig.builder()
+                .host("127.0.0.1")
+                .port(0)
+                .apiKey("secret")
+                .build();
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), cfg).start()) {
+            // No Authorization header, yet /health must still answer 200 for orchestrator probes.
+            assertThat(get(server.getPort(), "/health", "").code, is(200));
+        }
+    }
+
+    /** Deterministic backend that returns canned OpenAI shapes for every operation. */
+    static final class FakeBackend implements OpenAiBackend {
         @Override
         public String complete(JsonNode request) {
             return "{\"object\":\"chat.completion\",\"choices\":[{\"index\":0,"
@@ -139,10 +188,20 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
             sink.accept("{\"object\":\"chat.completion.chunk\","
                     + "\"choices\":[{\"delta\":{\"content\":\"llo\"},\"finish_reason\":\"stop\"}]}");
         }
+
+        @Override
+        public String completions(JsonNode request) {
+            return "{\"object\":\"text_completion\",\"choices\":[{\"text\":\"hello\"}]}";
+        }
+
+        @Override
+        public String embeddings(JsonNode request) {
+            return "{\"object\":\"list\",\"data\":[{\"object\":\"embedding\",\"embedding\":[0.1,0.2]}]}";
+        }
     }
 
     /** Backend that stalls before emitting, so the server's heartbeat fires during the gap. */
-    static final class SlowFakeChatBackend implements ChatBackend {
+    static final class SlowFakeBackend implements OpenAiBackend {
         @Override
         public String complete(JsonNode request) {
             return "{\"object\":\"chat.completion\",\"choices\":[]}";
@@ -158,6 +217,16 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
             }
             sink.accept("{\"object\":\"chat.completion.chunk\","
                     + "\"choices\":[{\"delta\":{\"content\":\"done\"},\"finish_reason\":\"stop\"}]}");
+        }
+
+        @Override
+        public String completions(JsonNode request) {
+            return "{\"object\":\"text_completion\",\"choices\":[]}";
+        }
+
+        @Override
+        public String embeddings(JsonNode request) {
+            return "{\"object\":\"list\",\"data\":[]}";
         }
     }
 }

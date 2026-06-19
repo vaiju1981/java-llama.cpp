@@ -13,52 +13,29 @@ cross-cutting initiative.
 
 ## Open — jllama-specific
 
-### ⚠️ OpenAI server: TWO implementations to consolidate ("best of both")
-
-Two independent, Claude-generated OpenAI-compatible servers now coexist in
-`net.ladenthin.llama.server` after PR #240 was merged on top of the NanoHTTPD server that landed
-via #242. **This is a temporary state**; one unified implementation must be chosen. Until then both
-compile and are tested side by side.
-
-| | **Option A — `OpenAiCompatServer`** (from PR #240) | **Option B — `LlamaServer`** (from #242) |
-|---|---|---|
-| HTTP layer | JDK `com.sun.net.httpserver` (the supported `jdk.httpserver` module — **no dependency**) | NanoHTTPD (`<optional>` dep, bundled only in fat jar) |
-| Streaming | **Yes** — SSE with `delta.tool_calls`, heartbeats during prefill | No — blocking, full JSON per request |
-| Routes | `POST /v1/chat/completions`, `GET /v1/models` | `POST /v1/chat/completions`, `/v1/completions`, `/v1/embeddings`, `GET /v1/models`, `GET /health` |
-| Entry point | CLI launcher + embeddable; `OpenAiServerConfig` builder; optional bearer auth; binds `127.0.0.1` | fat-jar `Main-Class`; `LlamaServerArgs` CLI (`--host/--port/--ctx-size/--threads/…`) |
-| Native path | `requestChatCompletionStream` / `receiveChatCompletionChunk` (+ `wrap_stream_chunk` C++ helper) | `LlamaModel.handle*` (blocking) |
-| Tests | mapper/SSE/parser unit tests + model-free HTTP test over a socket (`ChatBackend` seam) | `OaiRouterTest`, `LlamaServerArgsTest`, `OaiHttpServerIntegrationTest` |
-
-**Important cross-insight:** Option B's own follow-up TODO below ("OpenAI-compatible server: token
-streaming (SSE) + Java-8 HTTP layer") lists SSE as *the main functional gap* and says to **avoid**
-`com.sun.net.httpserver` because it is "ArchUnit-banned". Option A **already implements that SSE
-streaming** with `com.sun.net.httpserver`, and the ban was lifted correctly: `com.sun.net.httpserver`
-is a *supported, exported* JDK API (the `jdk.httpserver` module), not an internal `com.sun..` package —
-the `noInternalJdkImports` ArchUnit rule now carries an explicit exception for it. So the premise that
-blocked the JDK approach on Option B's side does not hold.
-
-**Consolidation task (separate session — a kickoff prompt accompanies this change):** go through both
-implementations, take the best of each, settle on ONE server, delete the other, reconcile the
-dependency (`pom.xml` NanoHTTPD + assembly), the ArchUnit `layeredArchitecture` `Server` layer, the
-`spotbugs-exclude.xml` entries, `package-info.java`, the README "OpenAI-compatible HTTP server"
-section, and this TODO (including the now-partly-moot SSE section below).
-
 ### OpenAI-compatible HTTP endpoint (shipped; follow-ups open)
 
-`net.ladenthin.llama.server.OpenAiCompatServer` exposes `POST /v1/chat/completions` (streaming via
-SSE + non-streaming) and `GET /v1/models` over the JDK's built-in `com.sun.net.httpserver` (no new
-dependency), so editors that speak the OpenAI protocol (e.g. VS Code Copilot "Custom Endpoint") can
-drive a local model. Streaming uses the native OAI chunk path (`requestChatCompletionStream` /
-`receiveChatCompletionChunk`), preserving `delta.tool_calls` for agent mode. Follow-ups, deferred
-until requested:
+`net.ladenthin.llama.server.OpenAiCompatServer` is the single OpenAI-compatible server. It exposes
+`POST /v1/chat/completions` (streaming via SSE + non-streaming), `POST /v1/completions`,
+`POST /v1/embeddings`, `GET /v1/models` and `GET /health` over the JDK's built-in
+`com.sun.net.httpserver` (no new dependency), and is the fat-jar `Main-Class`. Streaming chat uses the
+native OAI chunk path (`requestChatCompletionStream` / `receiveChatCompletionChunk` + the C++
+`wrap_stream_chunk` helper), preserving `delta.tool_calls` for agent mode; completions/embeddings
+forward verbatim to `LlamaModel.handleCompletionsOai` / `handleEmbeddings`. The CLI is parsed by the
+testable `OpenAiServerCli`. (Consolidated from the two interim implementations — PR #240's JDK +
+streaming server and #242's NanoHTTPD server — by keeping the JDK/streaming core, porting the extra
+routes + a fuller CLI + the fat-jar entry point onto it, and deleting the NanoHTTPD impl + its
+`org.nanohttpd` dependency.) Follow-ups, deferred until requested:
 
 - **Multi-model registry.** Only one model id is advertised/served today; support several models
   chosen by the request `model` field (and listed in `/v1/models`).
 - **`stream_options.include_usage` passthrough** so the final streamed `usage` chunk is emitted
   (needs a generic raw-param passthrough on `InferenceParameters`, or explicit mapping).
+- **Streaming `/v1/completions`.** The chat route streams; `/v1/completions` is non-streaming today
+  (a `"stream": true` body still returns one full JSON object). Honour SSE there too if a client needs
+  it.
 - **Additional `apiType`s.** VS Code "Custom Endpoint" also offers Anthropic `messages` and OpenAI
-  `responses`; only `chat-completions` is implemented. Also consider `/v1/completions` and
-  `/v1/embeddings` routes.
+  `responses`; only `chat-completions` is implemented.
 - **Gemma 4 tool-calling validation.** Confirm the pinned llama.cpp (`b9682`) includes the Gemma 4
   tool-call parser fixes (landed upstream ~Apr 2026); if not, bump per the upgrade procedure so
   streamed/blocking `tool_calls` come through for Gemma 4 GGUFs.
@@ -104,40 +81,6 @@ These are JNI plumbing items for upstream API additions. Policy: add only after 
   - **Maintenance cost.** Native Image adds a second build matrix (per OS × per backend × per JDK) and a new failure surface (Native Image config drift when a llama.cpp version bump adds new JNI-reachable types). Should ship only with a CI job that exercises the Native Image build on at least one OS, otherwise the config files will rot silently.
 
   **Out of scope until evidence supports it**: actually implementing any of the above. This entry exists so that when someone asks "can I ship java-llama.cpp as a single 30 MB binary?" the answer points to a concrete investigation plan rather than restarting from zero.
-
-### OpenAI-compatible server: token streaming (SSE) + Java-8 HTTP layer
-
-The `net.ladenthin.llama.server.LlamaServer` MVP is **non-streaming**: every request calls
-the blocking `LlamaModel.handle*` method and returns the full JSON response in one shot. A
-client that sends `"stream": true` still receives a single response, not the incremental
-`text/event-stream` (SSE) `data: {chunk}\n\n` events the OpenAI API emits for streaming
-chat/completions. This is the main functional gap of the server today.
-
-The token source already exists — `LlamaModel.generateChat(InferenceParameters)` /
-`generate(...)` yield tokens incrementally through a Java `Iterator` (`LlamaIterable`). What
-is missing is an HTTP layer that emits SSE.
-
-**Find a Java-8-compatible HTTP layer with good SSE support (alternative to Javalin), or
-implement SSE on NanoHTTPD.** Javalin has a first-class `ctx.sse(...)` API but is **not
-usable here**: Javalin 5 requires Java 11 and Javalin 6 requires Java 17, while this repo
-targets Java 8; Javalin 4 (the last Java-8 release) is EOL. Options, in rough order of
-preference:
-- **Implement SSE on the existing NanoHTTPD** via `NanoHTTPD.newChunkedResponse(status,
-  "text/event-stream", InputStream)`, bridging a `LlamaIterable` to an `InputStream` that
-  writes `data: {chunk}\n\n` frames. No new dependency, stays Java-8 clean; likely the right
-  answer. Cost: the iterator→SSE bridge plus closing the `LlamaIterable` on client
-  disconnect.
-- **Undertow** — Java-8 compatible, has a server-sent-events handler, but a heavier
-  dependency tree.
-- **Spark Java** (Jetty 9) — Java-8 compatible; SSE support is limited/manual.
-- Avoid: Javalin 5/6 (Java 11/17), Javalin 4 (EOL), and the JDK `com.sun.net.httpserver`
-  (ArchUnit-banned `com.sun..`).
-
-Scope when implemented: honour `"stream": true` on `POST /v1/chat/completions` and
-`POST /v1/completions`, emit OpenAI-style SSE chunks terminated by `data: [DONE]`, close the
-underlying `LlamaIterable` on disconnect, and keep the non-streaming path as the default. Add
-a model-free routing test plus a real-socket SSE integration test (mirroring
-`OaiHttpServerIntegrationTest`).
 
 ## Open — cross-cutting (slice for this repo)
 

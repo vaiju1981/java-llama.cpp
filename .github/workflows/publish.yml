@@ -838,7 +838,7 @@ jobs:
         # `assembly` additionally produces the fat jar-with-dependencies uber JAR
         # (llama-<version>-jar-with-dependencies.jar: library classes + Java runtime deps +
         # default-platform native libs in one drop-on-classpath JAR, runnable via its
-        # LlamaServer Main-Class). It lands in target/ and is uploaded in the `llama-jars`
+        # OpenAiCompatServer Main-Class). It lands in target/ and is uploaded in the `llama-jars`
         # artifact below - a CI run artifact only, not a Maven Central / GitHub-Release asset.
         run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android,assembly -Dmaven.test.skip=true -Dgpg.skip=true package
       - name: Upload JARs

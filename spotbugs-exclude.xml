@@ -380,7 +380,7 @@ SPDX-License-Identifier: MIT
     </Match>
 
     <!--
-        LlamaServerArgs.parse is a flat command-line flag dispatcher: a single switch over
+        OpenAiServerCli.parse is a flat command-line flag dispatcher: a single switch over
         the known flags, one case per option, read top to bottom. javac desugars a String
         switch into a hashCode lookup plus an equals chain (two branches per case), which
         fb-contrib's bytecode-level CC_CYCLOMATIC_COMPLEXITY counts as a very high score.
@@ -388,23 +388,9 @@ SPDX-License-Identifier: MIT
         map would not make it clearer, so we accept the detector artifact here.
     -->
     <Match>
-        <Class name="net.ladenthin.llama.server.LlamaServerArgs"/>
+        <Class name="net.ladenthin.llama.server.OpenAiServerCli"/>
         <Bug pattern="CC_CYCLOMATIC_COMPLEXITY"/>
         <Method name="parse"/>
-    </Match>
-
-    <!--
-        LlamaModelOaiBackend is a thin non-owning wrapper around a LlamaModel (the same
-        deliberate dependency-injection contract as Session above): the server owns the one
-        LlamaModel and its native context, and the backend holds the passed-in reference to
-        serve requests. The model must NOT be defensively copied, so storing the reference is
-        by design; spotbugs flags it as EI_EXPOSE_REP2 because the constructor stores an
-        externally-mutable object, which is true but intended.
-    -->
-    <Match>
-        <Class name="net.ladenthin.llama.server.LlamaModelOaiBackend"/>
-        <Bug pattern="EI_EXPOSE_REP2"/>
-        <Method name="&lt;init&gt;"/>
     </Match>
 
 </FindBugsFilter>

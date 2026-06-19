@@ -14,8 +14,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -24,21 +22,25 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.ladenthin.llama.LlamaModel;
-import net.ladenthin.llama.parameters.ModelParameters;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * A minimal OpenAI-compatible HTTP endpoint over a loaded {@link LlamaModel}, built only on the JDK's
- * {@code com.sun.net.httpserver.HttpServer} (no new runtime dependency).
+ * An OpenAI-compatible HTTP endpoint over a loaded {@link LlamaModel}, built only on the JDK's
+ * {@code com.sun.net.httpserver.HttpServer} (no new runtime dependency). It is both embeddable and the
+ * {@code Main-Class} of the {@code -jar-with-dependencies} assembly.
  *
  * <p>Routes:
  * <ul>
  *   <li>{@code POST /v1/chat/completions} — streaming (Server-Sent Events) and non-streaming chat
  *       completions, forwarded faithfully (messages/tools verbatim; streamed {@code delta.tool_calls}
  *       preserved).</li>
+ *   <li>{@code POST /v1/completions} — non-streaming text completion.</li>
+ *   <li>{@code POST /v1/embeddings} — embeddings (requires the model to be loaded in embedding
+ *       mode).</li>
  *   <li>{@code GET /v1/models} — advertises the single configured model.</li>
+ *   <li>{@code GET /health} — liveness probe returning {@code {"status":"ok"}} (no authentication).</li>
  * </ul>
  *
  * <p>During streaming, the server emits SSE comment heartbeats on a timer so a long prompt prefill on
@@ -63,8 +65,17 @@ public final class OpenAiCompatServer implements AutoCloseable {
     /** The chat-completions route. */
     public static final String PATH_CHAT_COMPLETIONS = "/v1/chat/completions";
 
+    /** The text-completions route. */
+    public static final String PATH_COMPLETIONS = "/v1/completions";
+
+    /** The embeddings route. */
+    public static final String PATH_EMBEDDINGS = "/v1/embeddings";
+
     /** The model-list route. */
     public static final String PATH_MODELS = "/v1/models";
+
+    /** The liveness-probe route. */
+    public static final String PATH_HEALTH = "/health";
 
     private static final int HTTP_OK = 200;
     private static final int HTTP_BAD_REQUEST = 400;
@@ -78,9 +89,10 @@ public final class OpenAiCompatServer implements AutoCloseable {
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String ERROR_TYPE_REQUEST = "invalid_request_error";
     private static final String ERROR_TYPE_SERVER = "server_error";
+    private static final String HEALTH_BODY = "{\"status\":\"ok\"}";
 
     private final OpenAiServerConfig config;
-    private final ChatBackend backend;
+    private final OpenAiBackend backend;
     private final HttpServer http;
     private final ExecutorService requestExecutor;
     private final ScheduledExecutorService heartbeatExecutor;
@@ -93,26 +105,29 @@ public final class OpenAiCompatServer implements AutoCloseable {
      * @throws IOException if the listening socket cannot be bound
      */
     public OpenAiCompatServer(LlamaModel model, OpenAiServerConfig config) throws IOException {
-        this(new LlamaModelChatBackend(model, new OpenAiRequestMapper()), config);
+        this(new LlamaModelBackend(model, new OpenAiRequestMapper()), config);
     }
 
     /**
-     * Create a server backed by an arbitrary {@link ChatBackend}. Used by tests to drive the full HTTP
+     * Create a server backed by an arbitrary {@link OpenAiBackend}. Used by tests to drive the full HTTP
      * surface without a native library or model.
      *
-     * @param backend the chat engine seam
+     * @param backend the inference engine seam
      * @param config the server configuration
      * @throws IOException if the listening socket cannot be bound
      */
-    OpenAiCompatServer(ChatBackend backend, OpenAiServerConfig config) throws IOException {
+    OpenAiCompatServer(OpenAiBackend backend, OpenAiServerConfig config) throws IOException {
         this.config = config;
         this.backend = backend;
         this.requestExecutor = Executors.newCachedThreadPool(namedFactory("jllama-openai-http"));
         this.heartbeatExecutor = Executors.newScheduledThreadPool(1, namedFactory("jllama-openai-hb"));
         this.http = HttpServer.create(new InetSocketAddress(config.getHost(), config.getPort()), 0);
         http.createContext("/", this::handleNotFound);
+        http.createContext(PATH_HEALTH, this::handleHealth);
         http.createContext(PATH_MODELS, this::handleModels);
         http.createContext(PATH_CHAT_COMPLETIONS, this::handleChatCompletions);
+        http.createContext(PATH_COMPLETIONS, this::handleCompletions);
+        http.createContext(PATH_EMBEDDINGS, this::handleEmbeddings);
         http.setExecutor(requestExecutor);
     }
 
@@ -148,17 +163,8 @@ public final class OpenAiCompatServer implements AutoCloseable {
 
     private void handleChatCompletions(HttpExchange exchange) throws IOException {
         try {
-            if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
-                sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only POST is supported");
-                return;
-            }
-            if (!authorized(exchange)) {
-                sendError(exchange, HTTP_UNAUTHORIZED, ERROR_TYPE_REQUEST, "Missing or invalid API key");
-                return;
-            }
-            JsonNode request = readBody(exchange);
-            if (request == null || !request.isObject()) {
-                sendError(exchange, HTTP_BAD_REQUEST, ERROR_TYPE_REQUEST, "Request body must be a JSON object");
+            JsonNode request = requirePostJson(exchange);
+            if (request == null) {
                 return;
             }
             JsonNode messages = request.path("messages");
@@ -169,22 +175,49 @@ public final class OpenAiCompatServer implements AutoCloseable {
             if (request.path("stream").asBoolean(false)) {
                 streamChat(exchange, request);
             } else {
-                completeChat(exchange, request);
+                completeNonStreaming(exchange, request, backend::complete);
             }
         } finally {
             exchange.close();
         }
     }
 
-    private void completeChat(HttpExchange exchange, JsonNode request) throws IOException {
+    private void handleCompletions(HttpExchange exchange) throws IOException {
+        try {
+            JsonNode request = requirePostJson(exchange);
+            if (request != null) {
+                completeNonStreaming(exchange, request, backend::completions);
+            }
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void handleEmbeddings(HttpExchange exchange) throws IOException {
+        try {
+            JsonNode request = requirePostJson(exchange);
+            if (request != null) {
+                completeNonStreaming(exchange, request, backend::embeddings);
+            }
+        } finally {
+            exchange.close();
+        }
+    }
+
+    /**
+     * Run a non-streaming request through {@code producer} and write its JSON body, translating an
+     * {@link IllegalArgumentException} to {@code 400} and any other failure to {@code 500}.
+     */
+    private void completeNonStreaming(HttpExchange exchange, JsonNode request, BodyProducer producer)
+            throws IOException {
         final String body;
         try {
-            body = backend.complete(request);
+            body = producer.produce(request);
         } catch (IllegalArgumentException e) {
             sendError(exchange, HTTP_BAD_REQUEST, ERROR_TYPE_REQUEST, message(e));
             return;
         } catch (IOException | RuntimeException e) {
-            LOG.warn("chat completion failed", e);
+            LOG.warn("request failed", e);
             sendError(exchange, HTTP_SERVER_ERROR, ERROR_TYPE_SERVER, message(e));
             return;
         }
@@ -240,6 +273,19 @@ public final class OpenAiCompatServer implements AutoCloseable {
         }
     }
 
+    private void handleHealth(HttpExchange exchange) throws IOException {
+        try {
+            // Liveness probe: deliberately unauthenticated so orchestrators can poll it without a key.
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only GET is supported");
+                return;
+            }
+            sendJson(exchange, HTTP_OK, HEALTH_BODY);
+        } finally {
+            exchange.close();
+        }
+    }
+
     private void handleNotFound(HttpExchange exchange) throws IOException {
         try {
             sendError(exchange, HTTP_NOT_FOUND, ERROR_TYPE_REQUEST, "Not found: " + exchange.getRequestURI());
@@ -249,6 +295,27 @@ public final class OpenAiCompatServer implements AutoCloseable {
     }
 
     // ----- helpers -----
+
+    /**
+     * Shared preamble for the {@code POST} JSON routes: enforce the method, authentication and a JSON
+     * object body, sending the matching error and returning {@code null} when any precondition fails.
+     */
+    private @Nullable JsonNode requirePostJson(HttpExchange exchange) throws IOException {
+        if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+            sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only POST is supported");
+            return null;
+        }
+        if (!authorized(exchange)) {
+            sendError(exchange, HTTP_UNAUTHORIZED, ERROR_TYPE_REQUEST, "Missing or invalid API key");
+            return null;
+        }
+        JsonNode request = readBody(exchange);
+        if (request == null || !request.isObject()) {
+            sendError(exchange, HTTP_BAD_REQUEST, ERROR_TYPE_REQUEST, "Request body must be a JSON object");
+            return null;
+        }
+        return request;
+    }
 
     private boolean authorized(HttpExchange exchange) {
         if (!config.isAuthenticationEnabled()) {
@@ -331,74 +398,41 @@ public final class OpenAiCompatServer implements AutoCloseable {
         };
     }
 
+    /** Produces a non-streaming response body from a parsed request; may fail with {@link IOException}. */
+    @FunctionalInterface
+    private interface BodyProducer {
+        String produce(JsonNode request) throws IOException;
+    }
+
     // ----- standalone launcher -----
 
     /**
-     * Command-line launcher: load a GGUF model and serve it over the OpenAI-compatible endpoint.
+     * Command-line launcher: load a GGUF model and serve it over the OpenAI-compatible endpoint. This is
+     * the {@code Main-Class} of the {@code -jar-with-dependencies} assembly.
      *
-     * <p>Options: {@code --model <path.gguf>} (required), {@code --host}, {@code --port},
-     * {@code --api-key}, {@code --model-id}, {@code --ctx}, {@code --gpu-layers}, {@code --parallel}.
+     * <p>Parsing, validation and the option list live in {@link OpenAiServerCli}; run with
+     * {@code --help} for the full usage text. No {@code System.exit} is used (the {@code noSystemExit}
+     * architecture rule forbids it): a usage error prints to stderr and returns.
      *
      * @param args command-line options
      * @throws IOException if the listening socket cannot be bound
      */
     public static void main(String[] args) throws IOException {
-        Map<String, String> opts = parseArgs(args);
-        String modelPath = opts.get("model");
-        if (modelPath == null) {
-            System.err.println("Usage: OpenAiCompatServer --model <path.gguf> [--host 127.0.0.1] [--port 8080]"
-                    + " [--api-key KEY] [--model-id ID] [--ctx 8192] [--gpu-layers N] [--parallel N]");
+        if (OpenAiServerCli.isHelpRequested(args)) {
+            System.out.println(OpenAiServerCli.usage());
             return;
         }
 
-        ModelParameters modelParams = new ModelParameters().setModel(modelPath);
-        OpenAiServerConfig.Builder cfg = OpenAiServerConfig.builder();
-
-        String host = opts.get("host");
-        if (host != null) {
-            cfg.host(host);
-        }
-        String apiKey = opts.get("api-key");
-        if (apiKey != null) {
-            cfg.apiKey(apiKey);
-        }
-        String modelId = opts.get("model-id");
-        if (modelId != null) {
-            cfg.modelId(modelId);
-        }
-
-        // Parse all numeric options in one place so a non-numeric value (e.g. "--port abc") yields a
-        // clear message instead of an uncaught NumberFormatException stack trace. No System.exit here
-        // — the noSystemExit architecture rule forbids it; print to stderr and return like the
-        // missing-"--model" path above.
+        final OpenAiServerCli.Options options;
         try {
-            String ctx = opts.get("ctx");
-            if (ctx != null) {
-                int ctxSize = Integer.parseInt(ctx);
-                modelParams.setCtxSize(ctxSize);
-                cfg.maxOutputTokens(Math.min(OpenAiServerConfig.DEFAULT_MAX_OUTPUT_TOKENS, Math.max(1, ctxSize / 2)));
-                cfg.maxInputTokens(Math.max(1, ctxSize - OpenAiServerConfig.DEFAULT_MAX_OUTPUT_TOKENS));
-            }
-            String gpuLayers = opts.get("gpu-layers");
-            if (gpuLayers != null) {
-                modelParams.setGpuLayers(Integer.parseInt(gpuLayers));
-            }
-            String parallel = opts.get("parallel");
-            if (parallel != null) {
-                modelParams.setParallel(Integer.parseInt(parallel));
-            }
-            String port = opts.get("port");
-            if (port != null) {
-                cfg.port(Integer.parseInt(port));
-            }
-        } catch (NumberFormatException e) {
-            System.err.println("Invalid numeric option (expected an integer): " + e.getMessage());
+            options = OpenAiServerCli.parse(args);
+        } catch (IllegalArgumentException e) {
+            System.err.println(e.getMessage());
             return;
         }
 
-        OpenAiServerConfig config = cfg.build();
-
-        LlamaModel model = new LlamaModel(modelParams);
+        OpenAiServerConfig config = options.toServerConfig();
+        LlamaModel model = new LlamaModel(options.toModelParameters());
         OpenAiCompatServer server = new OpenAiCompatServer(model, config);
         Runtime.getRuntime()
                 .addShutdownHook(new Thread(
@@ -414,18 +448,6 @@ public final class OpenAiCompatServer implements AutoCloseable {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-    }
-
-    private static Map<String, String> parseArgs(String[] args) {
-        Map<String, String> opts = new HashMap<>();
-        for (int i = 0; i < args.length; i++) {
-            String arg = args[i];
-            if (arg.startsWith("--") && i + 1 < args.length) {
-                opts.put(arg.substring(2), args[i + 1]);
-                i++;
-            }
-        }
-        return opts;
     }
 
     private static void printReady(OpenAiServerConfig config, int port) {

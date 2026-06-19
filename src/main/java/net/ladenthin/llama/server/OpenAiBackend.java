@@ -1,0 +1,63 @@
+// SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
+package net.ladenthin.llama.server;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import java.io.IOException;
+
+/**
+ * The inference engine seam behind {@link OpenAiCompatServer}.
+ *
+ * <p>Decoupling the HTTP layer from {@link net.ladenthin.llama.LlamaModel} lets the whole server —
+ * routing, authentication, Server-Sent-Events framing, heartbeats — be exercised by tests with a fake
+ * backend, with no native library and no model loaded. The production implementation is
+ * {@link LlamaModelBackend}.
+ *
+ * <p>Every method receives the parsed OpenAI request object (already validated as a JSON object by the
+ * handler) and returns the OpenAI-shaped response JSON, except {@link #stream} which delivers chunks
+ * incrementally. The {@code GET /v1/models} response is built from configuration alone and so is not
+ * part of this seam.
+ */
+interface OpenAiBackend {
+
+    /**
+     * Run a non-streaming chat completion ({@code POST /v1/chat/completions}).
+     *
+     * @param request the parsed OpenAI {@code /v1/chat/completions} request
+     * @return the complete OpenAI {@code chat.completion} response serialized as JSON
+     * @throws IOException if generation fails in a way the caller should surface as a server error
+     */
+    String complete(JsonNode request) throws IOException;
+
+    /**
+     * Run a streaming chat completion, delivering each {@code chat.completion.chunk} to {@code sink}
+     * in order. Implementations must not emit the terminating {@code [DONE]} marker; the caller adds it.
+     *
+     * @param request the parsed OpenAI {@code /v1/chat/completions} request
+     * @param sink receiver for each streamed chunk's JSON
+     * @throws IOException if a chunk cannot be delivered or generation fails
+     */
+    void stream(JsonNode request, ChunkSink sink) throws IOException;
+
+    /**
+     * Run a (non-streaming) text completion ({@code POST /v1/completions}). The request body is
+     * forwarded verbatim to the native OpenAI-compatible completion handler.
+     *
+     * @param request the parsed OpenAI {@code /v1/completions} request (must contain {@code "prompt"})
+     * @return the OpenAI {@code text_completion} response serialized as JSON
+     * @throws IOException if generation fails in a way the caller should surface as a server error
+     */
+    String completions(JsonNode request) throws IOException;
+
+    /**
+     * Generate embeddings ({@code POST /v1/embeddings}). Requires the model to have been loaded in
+     * embedding mode; otherwise the native call fails and the caller surfaces a server error.
+     *
+     * @param request the parsed OpenAI {@code /v1/embeddings} request (must contain {@code "input"})
+     * @return the OpenAI embeddings response serialized as JSON
+     * @throws IOException if generation fails in a way the caller should surface as a server error
+     */
+    String embeddings(JsonNode request) throws IOException;
+}
