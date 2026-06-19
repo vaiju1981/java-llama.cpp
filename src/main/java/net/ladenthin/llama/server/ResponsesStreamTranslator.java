@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
+import lombok.ToString;
 
 /**
  * Stateful translator that turns the OpenAI streaming chat chunks into the OpenAI Responses SSE event
@@ -23,6 +24,7 @@ import java.io.IOException;
  * emitted as whole {@code function_call} items at the end. Free of JNI / model dependencies;
  * unit-testable by feeding chunk JSON.
  */
+@ToString
 final class ResponsesStreamTranslator {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();

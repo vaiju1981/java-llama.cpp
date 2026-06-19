@@ -4,14 +4,17 @@
 
 package net.ladenthin.llama.server;
 
+import lombok.EqualsAndHashCode;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Immutable configuration for {@link OpenAiCompatServer}.
  *
  * <p>Sensible localhost defaults are provided; build instances with {@link #builder()}. The API key is
- * deliberately excluded from {@link #toString()} so it is never written to logs.
+ * deliberately excluded from {@link #toString()} so it is never written to logs (but it <em>is</em> part
+ * of {@link #equals(Object)}/{@link #hashCode()}, which are never logged).
  */
+@EqualsAndHashCode
 public final class OpenAiServerConfig {
 
     /** Default bind address: loopback only, so the endpoint is not exposed off-host. */

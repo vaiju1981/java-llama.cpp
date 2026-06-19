@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.util.Map;
 import java.util.TreeMap;
+import lombok.ToString;
 
 /**
  * Reconstructs whole tool calls from the incremental {@code delta.tool_calls} fragments of an OpenAI
@@ -21,6 +22,7 @@ import java.util.TreeMap;
  *
  * <p>Stateful but free of JNI / model dependencies; unit-testable by feeding chunk JSON literals.
  */
+@ToString
 final class ToolCallDeltaAccumulator {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();

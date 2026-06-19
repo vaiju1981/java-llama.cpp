@@ -7,6 +7,7 @@ package net.ladenthin.llama.server;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import lombok.ToString;
 
 /**
  * Stateful translator that turns the OpenAI streaming chat chunks into the Anthropic Messages SSE event
@@ -18,6 +19,7 @@ import java.io.IOException;
  * emitted as whole blocks at the end (Anthropic expects each tool_use block's input as one
  * {@code input_json_delta}). Free of JNI / model dependencies; unit-testable by feeding chunk JSON.
  */
+@ToString
 final class AnthropicStreamTranslator {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();

@@ -24,6 +24,7 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import lombok.ToString;
 import net.ladenthin.llama.LlamaModel;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -60,6 +61,7 @@ import org.slf4j.LoggerFactory;
  * }
  * }</pre>
  */
+@ToString
 public final class OpenAiCompatServer implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger(OpenAiCompatServer.class);
@@ -895,7 +897,7 @@ public final class OpenAiCompatServer implements AutoCloseable {
         System.out.println();
         System.out.println("OpenAI-compatible endpoint ready: " + url);
         System.out.println("Add this to VS Code's chatLanguageModels.json (Chat: Manage Language Models):");
-        System.out.println("[");
+        System.out.println('[');
         System.out.println("  {");
         System.out.println("    \"name\": \"Local llama.cpp (java-llama.cpp)\",");
         System.out.println("    \"vendor\": \"customendpoint\",");
@@ -914,6 +916,6 @@ public final class OpenAiCompatServer implements AutoCloseable {
         System.out.println("      }");
         System.out.println("    ]");
         System.out.println("  }");
-        System.out.println("]");
+        System.out.println(']');
     }
 }

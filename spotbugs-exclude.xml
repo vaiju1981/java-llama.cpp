@@ -393,4 +393,131 @@ SPDX-License-Identifier: MIT
         <Method name="parse"/>
     </Match>
 
+    <!--
+        findsecbugs IMPROPER_UNICODE on the OpenAI-compatible server (net.ladenthin.llama.server.*).
+        Every finding is a case-insensitive comparison of an HTTP method token against an ASCII literal
+        (e.g. "GET".equalsIgnoreCase(exchange.getRequestMethod()), the CORS "OPTIONS" preflight check).
+        HTTP method names are ASCII by specification (RFC 7230 / 7231), so there is no Unicode
+        case-folding collision to exploit here; the detector fires on any equalsIgnoreCase regardless of
+        the operand domain. Same server findsecbugs false-positive category as the PATH_TRAVERSAL_IN /
+        CRLF_INJECTION_LOGS block above.
+    -->
+    <Match>
+        <Class name="~net\.ladenthin\.llama\.server\..*"/>
+        <Bug pattern="IMPROPER_UNICODE"/>
+    </Match>
+
+    <!--
+        LlamaModelBackend.stream bridges the model's Consumer-based streaming API (which cannot throw a
+        checked exception) back to the IOException-throwing ChunkSink. A sink IOException is relayed out
+        of the consumer as an UncheckedIOException, caught here, and the ORIGINAL IOException is rethrown
+        (it was stashed before wrapping). fb-contrib LEST flags the catch block because the thrown object
+        differs from the caught one, but the rethrown IOException is exactly the underlying cause with
+        its stack trace intact, so no history is lost. This is the standard UncheckedIOException unwrap
+        idiom.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.server.LlamaModelBackend"/>
+        <Bug pattern="LEST_LOST_EXCEPTION_STACK_TRACE"/>
+        <Method name="stream"/>
+    </Match>
+
+    <!--
+        Input-validation precondition guards on the server's request parsers throw
+        IllegalArgumentException with a fixed, descriptive message naming the offending field
+        ("'query' must be a string", "'messages' must be a non-empty array", ...). There is no
+        additional state-dependent context worth adding at these guards: the value is malformed or
+        absent by definition at the throw point. Same rationale as the ChatMessage.requireNonNull WEM
+        suppression above.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.server.OaiRerankSupport"/>
+        <Bug pattern="WEM_WEAK_EXCEPTION_MESSAGING"/>
+        <Or>
+            <Method name="readQuery"/>
+            <Method name="readDocuments"/>
+        </Or>
+    </Match>
+    <Match>
+        <Class name="net.ladenthin.llama.server.OpenAiRequestMapper"/>
+        <Bug pattern="WEM_WEAK_EXCEPTION_MESSAGING"/>
+        <Method name="toInferenceParameters"/>
+    </Match>
+
+    <!--
+        OpenAiCompatServer.main blocks the launcher thread forever (Thread.join with no timeout) so the
+        JVM stays alive while the daemon HTTP worker threads serve requests; a shutdown hook performs the
+        orderly close. A bounded join would defeat the purpose (the process must run until killed), so
+        MDM_WAIT_WITHOUT_TIMEOUT is by design at this single entry point.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.server.OpenAiCompatServer"/>
+        <Bug pattern="MDM_WAIT_WITHOUT_TIMEOUT"/>
+        <Method name="main"/>
+    </Match>
+
+    <!--
+        The streaming write helpers (writeStrict / writeQuietly / closeQuietly) synchronize on a
+        per-request lock Object that the streaming handler creates and threads through as a parameter, so
+        the generation thread and the heartbeat-timer task never interleave writes on the same response
+        stream. fb-contrib NOS flags synchronizing on a method parameter ("non-owned"), but the lock is
+        owned by the in-flight request, not shared across requests; promoting it to an instance field
+        would incorrectly serialize independent concurrent streams. The dedicated per-request lock is the
+        intended design.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.server.OpenAiCompatServer"/>
+        <Bug pattern="NOS_NON_OWNED_SYNCHRONIZATION"/>
+        <Or>
+            <Method name="writeStrict"/>
+            <Method name="writeQuietly"/>
+            <Method name="closeQuietly"/>
+        </Or>
+    </Match>
+
+    <!--
+        OpenAiSseFormatter.sseDone() and heartbeat() are self-documenting accessors for the two fixed SSE
+        protocol tokens (the stream terminator and the comment-line keep-alive). They sit alongside
+        sseData(String) to form one cohesive SSE-framing vocabulary; the constant return value IS the
+        wire-format contract (with the Javadoc explaining each). fb-contrib MRC suggests folding a
+        constant-returning method into a field, but keeping the parallel method API is the deliberate
+        choice here.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.server.OpenAiSseFormatter"/>
+        <Bug pattern="MRC_METHOD_RETURNS_CONSTANT"/>
+        <Or>
+            <Method name="sseDone"/>
+            <Method name="heartbeat"/>
+        </Or>
+    </Match>
+
+    <!--
+        ResponsesStreamTranslator.end() builds the closing Responses SSE events. fb-contrib PRMC flags
+        the repeated calls to ResponsesApiSupport.dataObject() as "possibly redundant", but that factory
+        returns a FRESH ObjectNode on each call by design (each SSE event needs its own independent data
+        envelope); caching and reusing one node would corrupt the event stream by sharing mutable JSON
+        across events. The repeated calls are therefore intentional, not redundant.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.server.ResponsesStreamTranslator"/>
+        <Bug pattern="PRMC_POSSIBLY_REDUNDANT_METHOD_CALLS"/>
+        <Method name="end"/>
+    </Match>
+
+    <!--
+        ToolCallDeltaAccumulator is a transient, mutable state machine: it merges the incremental
+        delta.tool_calls fragments of ONE streaming chat completion by index, and is discarded when that
+        stream ends. It is managed by identity (one instance per in-flight stream) and is never compared
+        by value or used as a Map/Set key, so equals/hashCode would be meaningless here (its inner Partial
+        holder has no value semantics either). It carries a Lombok @ToString purely for debug output;
+        that toString satisfied IMC_IMMATURE_CLASS_NO_TOSTRING and advanced the fb-contrib IMC detector to
+        IMC_IMMATURE_CLASS_NO_EQUALS, which is suppressed here for the same identity-managed rationale as
+        the CancellationToken / ChatTranscript block above.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.server.ToolCallDeltaAccumulator"/>
+        <Bug pattern="IMC_IMMATURE_CLASS_NO_EQUALS"/>
+    </Match>
+
 </FindBugsFilter>
