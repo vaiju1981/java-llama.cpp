@@ -6,7 +6,6 @@ package net.ladenthin.llama.server;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import java.io.IOException;
-import lombok.ToString;
 import net.ladenthin.llama.LlamaModel;
 import net.ladenthin.llama.parameters.InferenceParameters;
 
@@ -25,7 +24,6 @@ import net.ladenthin.llama.parameters.InferenceParameters;
  * relayed across the boundary via {@link java.io.UncheckedIOException} and unwrapped here so the
  * in-flight native task is cancelled.
  */
-@ToString
 final class LlamaModelBackend implements OpenAiBackend {
 
     private final LlamaModel model;

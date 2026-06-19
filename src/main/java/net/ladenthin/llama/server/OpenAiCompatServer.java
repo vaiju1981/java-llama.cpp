@@ -24,7 +24,6 @@ import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import lombok.ToString;
 import net.ladenthin.llama.LlamaModel;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -61,7 +60,6 @@ import org.slf4j.LoggerFactory;
  * }
  * }</pre>
  */
-@ToString
 public final class OpenAiCompatServer implements AutoCloseable {
 
     private static final Logger LOG = LoggerFactory.getLogger(OpenAiCompatServer.class);
@@ -352,12 +350,13 @@ public final class OpenAiCompatServer implements AutoCloseable {
         exchange.sendResponseHeaders(HTTP_OK, 0);
         final OutputStream os = exchange.getResponseBody();
         final Object writeLock = new Object();
-        final ScheduledFuture<?> heartbeat = heartbeatExecutor.scheduleAtFixedRate(
-                () -> writeQuietly(os, writeLock, OpenAiSseFormatter.heartbeat()),
-                config.getHeartbeatMillis(),
-                config.getHeartbeatMillis(),
-                TimeUnit.MILLISECONDS);
+        ScheduledFuture<?> heartbeat = null;
         try {
+            heartbeat = heartbeatExecutor.scheduleAtFixedRate(
+                    () -> writeQuietly(os, writeLock, OpenAiSseFormatter.heartbeat()),
+                    config.getHeartbeatMillis(),
+                    config.getHeartbeatMillis(),
+                    TimeUnit.MILLISECONDS);
             backend.stream(
                     request,
                     chunkJson -> writeStrict(
@@ -379,8 +378,17 @@ public final class OpenAiCompatServer implements AutoCloseable {
                     writeLock,
                     OpenAiSseFormatter.sseData(OpenAiSseFormatter.errorJson(message(e), ERROR_TYPE_SERVER, null)));
         } finally {
-            heartbeat.cancel(false);
-            closeQuietly(os, writeLock);
+            if (heartbeat != null) {
+                heartbeat.cancel(false);
+            }
+            // Close under the write lock so the close never races a still-in-flight heartbeat write.
+            synchronized (writeLock) {
+                try {
+                    os.close();
+                } catch (IOException e) {
+                    LOG.trace("stream close failed", e);
+                }
+            }
         }
     }
 
@@ -481,7 +489,14 @@ public final class OpenAiCompatServer implements AutoCloseable {
             LOG.warn("ollama streaming chat failed", e);
             writeQuietly(os, writeLock, ollamaError(message(e)) + "\n");
         } finally {
-            closeQuietly(os, writeLock);
+            // Close under the write lock so the close never races a concurrent best-effort write.
+            synchronized (writeLock) {
+                try {
+                    os.close();
+                } catch (IOException e) {
+                    LOG.trace("stream close failed", e);
+                }
+            }
         }
     }
 
@@ -571,12 +586,13 @@ public final class OpenAiCompatServer implements AutoCloseable {
         final Object writeLock = new Object();
         final AnthropicStreamTranslator translator =
                 new AnthropicStreamTranslator("msg_" + Long.toHexString(System.nanoTime()), model);
-        final ScheduledFuture<?> heartbeat = heartbeatExecutor.scheduleAtFixedRate(
-                () -> writeQuietly(os, writeLock, OpenAiSseFormatter.heartbeat()),
-                config.getHeartbeatMillis(),
-                config.getHeartbeatMillis(),
-                TimeUnit.MILLISECONDS);
+        ScheduledFuture<?> heartbeat = null;
         try {
+            heartbeat = heartbeatExecutor.scheduleAtFixedRate(
+                    () -> writeQuietly(os, writeLock, OpenAiSseFormatter.heartbeat()),
+                    config.getHeartbeatMillis(),
+                    config.getHeartbeatMillis(),
+                    TimeUnit.MILLISECONDS);
             writeStrict(os, writeLock, translator.begin());
             backend.stream(openAiRequest, chunkJson -> {
                 String events = translator.onChunk(chunkJson);
@@ -593,8 +609,17 @@ public final class OpenAiCompatServer implements AutoCloseable {
             LOG.warn("anthropic streaming failed", e);
             writeQuietly(os, writeLock, AnthropicApiSupport.sseEvent("error", anthropicError(message(e))));
         } finally {
-            heartbeat.cancel(false);
-            closeQuietly(os, writeLock);
+            if (heartbeat != null) {
+                heartbeat.cancel(false);
+            }
+            // Close under the write lock so the close never races a still-in-flight heartbeat write.
+            synchronized (writeLock) {
+                try {
+                    os.close();
+                } catch (IOException e) {
+                    LOG.trace("stream close failed", e);
+                }
+            }
         }
     }
 
@@ -648,12 +673,13 @@ public final class OpenAiCompatServer implements AutoCloseable {
         final OutputStream os = exchange.getResponseBody();
         final Object writeLock = new Object();
         final ResponsesStreamTranslator translator = new ResponsesStreamTranslator(model, responseId);
-        final ScheduledFuture<?> heartbeat = heartbeatExecutor.scheduleAtFixedRate(
-                () -> writeQuietly(os, writeLock, OpenAiSseFormatter.heartbeat()),
-                config.getHeartbeatMillis(),
-                config.getHeartbeatMillis(),
-                TimeUnit.MILLISECONDS);
+        ScheduledFuture<?> heartbeat = null;
         try {
+            heartbeat = heartbeatExecutor.scheduleAtFixedRate(
+                    () -> writeQuietly(os, writeLock, OpenAiSseFormatter.heartbeat()),
+                    config.getHeartbeatMillis(),
+                    config.getHeartbeatMillis(),
+                    TimeUnit.MILLISECONDS);
             writeStrict(os, writeLock, translator.begin());
             backend.stream(openAiRequest, chunkJson -> {
                 String events = translator.onChunk(chunkJson);
@@ -678,8 +704,17 @@ public final class OpenAiCompatServer implements AutoCloseable {
                     "event: error\ndata: " + OpenAiSseFormatter.errorJson(message(e), ERROR_TYPE_SERVER, null)
                             + "\n\n");
         } finally {
-            heartbeat.cancel(false);
-            closeQuietly(os, writeLock);
+            if (heartbeat != null) {
+                heartbeat.cancel(false);
+            }
+            // Close under the write lock so the close never races a still-in-flight heartbeat write.
+            synchronized (writeLock) {
+                try {
+                    os.close();
+                } catch (IOException e) {
+                    LOG.trace("stream close failed", e);
+                }
+            }
         }
     }
 
@@ -812,16 +847,6 @@ public final class OpenAiCompatServer implements AutoCloseable {
                 os.flush();
             } catch (IOException e) {
                 LOG.trace("stream write failed (client likely disconnected)", e);
-            }
-        }
-    }
-
-    private void closeQuietly(OutputStream os, Object writeLock) {
-        synchronized (writeLock) {
-            try {
-                os.close();
-            } catch (IOException e) {
-                LOG.trace("stream close failed", e);
             }
         }
     }

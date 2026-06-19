@@ -457,13 +457,12 @@ SPDX-License-Identifier: MIT
     </Match>
 
     <!--
-        The streaming write helpers (writeStrict / writeQuietly / closeQuietly) synchronize on a
-        per-request lock Object that the streaming handler creates and threads through as a parameter, so
-        the generation thread and the heartbeat-timer task never interleave writes on the same response
-        stream. fb-contrib NOS flags synchronizing on a method parameter ("non-owned"), but the lock is
-        owned by the in-flight request, not shared across requests; promoting it to an instance field
-        would incorrectly serialize independent concurrent streams. The dedicated per-request lock is the
-        intended design.
+        The streaming write helpers writeStrict / writeQuietly receive a per-request lock Object (created
+        by the streaming handler) as a parameter and synchronize on it, so the generation thread and the
+        heartbeat-timer task never interleave writes on the same response stream. fb-contrib NOS flags
+        synchronizing on a method parameter ("non-owned"), but the lock is owned by the in-flight request,
+        not shared across requests; promoting it to an instance field would incorrectly serialize
+        independent concurrent streams. The dedicated per-request lock is the intended design.
     -->
     <Match>
         <Class name="net.ladenthin.llama.server.OpenAiCompatServer"/>
@@ -471,7 +470,6 @@ SPDX-License-Identifier: MIT
         <Or>
             <Method name="writeStrict"/>
             <Method name="writeQuietly"/>
-            <Method name="closeQuietly"/>
         </Or>
     </Match>
 
@@ -518,6 +516,24 @@ SPDX-License-Identifier: MIT
     <Match>
         <Class name="net.ladenthin.llama.server.ToolCallDeltaAccumulator"/>
         <Bug pattern="IMC_IMMATURE_CLASS_NO_EQUALS"/>
+    </Match>
+
+    <!--
+        LlamaModelBackend and OpenAiCompatServer are protocol-infrastructure / service classes whose
+        instance fields are opaque runtime resources with no meaningful toString: a native-backed
+        LlamaModel handle plus a stateless request mapper (LlamaModelBackend); the JDK HttpServer, an
+        anonymous CORS Filter, and two executor services (OpenAiCompatServer). A generated toString would
+        only emit identity hashes for those fields, which is exactly what CodeQL's java/default-tostring
+        query flags. A toString therefore adds no debugging value on these two classes and is
+        intentionally omitted, so IMC_IMMATURE_CLASS_NO_TOSTRING is suppressed here. (The
+        translator/accumulator classes keep their Lombok toString, whose fields render meaningful state.)
+    -->
+    <Match>
+        <Or>
+            <Class name="net.ladenthin.llama.server.LlamaModelBackend"/>
+            <Class name="net.ladenthin.llama.server.OpenAiCompatServer"/>
+        </Or>
+        <Bug pattern="IMC_IMMATURE_CLASS_NO_TOSTRING"/>
     </Match>
 
 </FindBugsFilter>
