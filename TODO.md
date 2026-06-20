@@ -226,6 +226,21 @@ there is no CFamily/C-C++ scan configured. Addressed:
 CI), so the exact remaining new-code Vulnerability must be read off the dashboard. Resolve the last
 finding, accept it on the dashboard, or merge on the green build/test checks.
 
+### License Compliance (FOSSA-style dependency-license gate) — PR #248 (open)
+
+Separate from the FSFE **REUSE** check (which is green — `reuse lint` reports 266/266 files compliant)
+and from SonarCloud: the PR's combined commit status shows a **"License Compliance" check failing with
+"17 issues found"** (an error-state commit status posted by a license-scanner GitHub App, not a
+workflow in `.github/workflows/`). It contributes to the `mergeable_state: blocked` on #248.
+
+- **Almost certainly pre-existing**, not introduced by this PR: #248 changes **no dependencies** (the
+  `pom.xml` edit only adds the `windows-ninja` build profile), so the 17 are dependency-license policy
+  findings already present on `main` (e.g. GPL-2.0 carried by the llama.cpp sources).
+- **Not yet inspected** — the scanner's dashboard/host is outside this sandbox's egress allowlist, same
+  as `sonarcloud.io`. To triage: open the check's details link from the PR (or allowlist the host), read
+  the 17 findings, then accept policy-OK licenses on the dashboard or adjust the policy. Confirm whether
+  it is a *required* status (if so it blocks merge; if advisory it does not).
+
 ### Upstream llama.cpp PR — drop the local Windows arg-parse patch (open)
 
 `patches/0001-win32-arg-parse-embed-guard.patch` is a **local** fix re-applied on every build. To drop
