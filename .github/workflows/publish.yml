@@ -527,6 +527,128 @@ jobs:
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
 
   # ---------------------------------------------------------------------------
+  # Windows Ninja Multi-Config + sccache — EVALUATION jobs (not yet released).
+  # The Visual Studio generator ignores CMAKE_{C,CXX}_COMPILER_LAUNCHER, so the two
+  # build-windows-* jobs above are the only uncached native builds. Upstream
+  # llama.cpp ships its windows-cuda artifact with "Ninja Multi-Config" + MSVC,
+  # which proves the combination works on the same tree. These two jobs run that
+  # combination in parallel with the trusted VS jobs and front cl.exe with sccache
+  # over Depot WebDAV (build.bat probe-guards it). Artifacts are named
+  # `Windows-*-ninja` (NOT `*-libraries`) so the package job's `pattern: "*-libraries"`
+  # does NOT pick them up — they are evaluation-only until cache hits are confirmed,
+  # at which point the release path is switched over (see TODO.md). The package job's
+  # `needs:` is intentionally left unchanged.
+  # ---------------------------------------------------------------------------
+
+  build-windows-x86_64-ninja:
+    name: Build and Test Windows 2025 x86_64 (Ninja Multi-Config + sccache, eval)
+    needs: [startgate, build-webui]
+    runs-on: windows-2025-vs2026
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/webui-generated/
+      - name: Set up MSVC developer environment (x64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Install sccache (shared compiler cache)
+        if: env.USE_CACHE == 'true'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ver = "0.16.0"
+          $rel = "sccache-v$ver-x86_64-pc-windows-msvc"
+          $url = "https://github.com/mozilla/sccache/releases/download/v$ver/$rel.zip"
+          Write-Host "Downloading $url"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\sccache.zip"
+          Expand-Archive -Path "$env:RUNNER_TEMP\sccache.zip" -DestinationPath "$env:RUNNER_TEMP\sccache" -Force
+          Add-Content -Path $env:GITHUB_PATH -Value "$env:RUNNER_TEMP\sccache\$rel"
+      - name: Display CPU Info
+        shell: pwsh
+        run: |
+          Write-Host "=== CPU Information (Get-CimInstance - All Properties) ==="
+          Get-CimInstance Win32_Processor | Select-Object * | Format-List
+          Write-Host ""
+          Write-Host "=== CPU Information (systeminfo) ==="
+          systeminfo | Select-String "Processor"
+          Write-Host ""
+          Write-Host "=== CPU Information (Get-ComputerInfo) ==="
+          Get-ComputerInfo -Property "CsProcessors*" 2>$null || Write-Host "Get-ComputerInfo not available"
+      - name: Build libraries
+        shell: cmd
+        run: |
+          .github\build.bat -G "Ninja Multi-Config" -DOS_NAME=Windows -DOS_ARCH=x86_64 -DBUILD_TESTING=ON
+      - name: Run C++ unit tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Windows-x86_64-ninja
+          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+
+  build-windows-x86-ninja:
+    name: Build and Test Windows 2025 x86 (Ninja Multi-Config + sccache, eval)
+    needs: [startgate, build-webui]
+    runs-on: windows-2025-vs2026
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/webui-generated/
+      - name: Set up MSVC developer environment (x86)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x86
+      - name: Install sccache (shared compiler cache)
+        if: env.USE_CACHE == 'true'
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ver = "0.16.0"
+          $rel = "sccache-v$ver-x86_64-pc-windows-msvc"
+          $url = "https://github.com/mozilla/sccache/releases/download/v$ver/$rel.zip"
+          Write-Host "Downloading $url"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\sccache.zip"
+          Expand-Archive -Path "$env:RUNNER_TEMP\sccache.zip" -DestinationPath "$env:RUNNER_TEMP\sccache" -Force
+          Add-Content -Path $env:GITHUB_PATH -Value "$env:RUNNER_TEMP\sccache\$rel"
+      - name: Display CPU Info
+        shell: pwsh
+        run: |
+          Write-Host "=== CPU Information (Get-CimInstance - All Properties) ==="
+          Get-CimInstance Win32_Processor | Select-Object * | Format-List
+          Write-Host ""
+          Write-Host "=== CPU Information (systeminfo) ==="
+          systeminfo | Select-String "Processor"
+          Write-Host ""
+          Write-Host "=== CPU Information (Get-ComputerInfo) ==="
+          Get-ComputerInfo -Property "CsProcessors*" 2>$null || Write-Host "Get-ComputerInfo not available"
+      - name: Build libraries
+        shell: cmd
+        run: |
+          .github\build.bat -G "Ninja Multi-Config" -DOS_NAME=Windows -DOS_ARCH=x86 -DBUILD_TESTING=ON
+      - name: Run C++ unit tests
+        run: ctest --test-dir build --output-on-failure
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Windows-x86-ninja
+          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+
+  # ---------------------------------------------------------------------------
   # CI-only jobs — no release artifact, purely for test coverage
   # ---------------------------------------------------------------------------
 
