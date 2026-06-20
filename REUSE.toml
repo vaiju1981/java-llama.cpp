@@ -74,6 +74,14 @@ SPDX-FileCopyrightText = [
 ]
 SPDX-License-Identifier = "MIT"
 
+# llama.cpp source patches (unified-diff format cannot carry inline SPDX without corrupting the
+# diff). Glob covers every current and future patch dropped into patches/ — see CLAUDE.md
+# "Local llama.cpp source patches".
+[[annotations]]
+path = "patches/**"
+SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
+SPDX-License-Identifier = "MIT"
+
 # Test image (binary, cannot carry inline SPDX)
 [[annotations]]
 path = "src/test/resources/images/test-image.jpg"

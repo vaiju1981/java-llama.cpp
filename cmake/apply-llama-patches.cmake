@@ -1,3 +1,5 @@
+# SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+#
 # SPDX-License-Identifier: MIT
 #
 # apply-llama-patches.cmake — applies every patch in the repo-root `patches/` directory to the
