@@ -226,7 +226,7 @@ build. The probe above now makes that a safe fallback.) Order, each adding the e
 Per-job recipe: add `env:` { `USE_CACHE`, `SCCACHE_WEBDAV_ENDPOINT`, `SCCACHE_WEBDAV_TOKEN` } and
 `DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"` — the
 dockcross wrapper only forwards host env it is explicitly told to via `-e`. The fetched sccache
-version is the `SCCACHE_DL_VERSION` knob in `build.sh` (default **0.15.0**; overridable per-job
+version is the `SCCACHE_DL_VERSION` knob in `build.sh` (default **0.16.0**; overridable per-job
 to try a different build against a container that crashed another). **Windows** (`build.bat` +
 MSVC) is separate and last: use `mozilla-actions/sccache-action` / sccache's MSVC support, not
 the `build.sh` musl fetch.
