@@ -171,11 +171,6 @@ jobs:
     name: Cross-Compile manylinux_2_28 x86_64 (CUDA)
     needs: [startgate, build-webui]
     runs-on: ubuntu-latest
-    env:
-      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
-      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
-      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
-      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"
     steps:
       - uses: actions/checkout@v6
       - name: Download shared WebUI assets
@@ -205,11 +200,6 @@ jobs:
     name: Cross-Compile manylinux2014 x86_64
     needs: [startgate, build-webui]
     runs-on: ubuntu-latest
-    env:
-      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
-      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
-      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
-      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"
     steps:
       - uses: actions/checkout@v6
       - name: Download shared WebUI assets
@@ -239,11 +229,6 @@ jobs:
     name: Cross-Compile Linux aarch64 (LTS)
     needs: [startgate, build-webui]
     runs-on: ubuntu-latest
-    env:
-      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
-      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
-      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
-      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"
     steps:
       - uses: actions/checkout@v6
       - name: Download shared WebUI assets
@@ -273,11 +258,6 @@ jobs:
     name: Cross-Compile Android aarch64
     needs: [startgate, build-webui]
     runs-on: ubuntu-latest
-    env:
-      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
-      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
-      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
-      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"
     steps:
       - uses: actions/checkout@v6
       - name: Download shared WebUI assets
@@ -494,10 +474,6 @@ jobs:
     name: C++ Tests Ubuntu Latest x86_64
     needs: startgate
     runs-on: ubuntu-latest
-    env:
-      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
-      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
-      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-java@v5
