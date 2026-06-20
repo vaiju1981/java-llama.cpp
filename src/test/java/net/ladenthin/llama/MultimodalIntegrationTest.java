@@ -59,13 +59,13 @@ import org.junit.jupiter.api.Timeout;
  * author. Any image the test machine can reach works at runtime &#x2014; the
  * URL is just an env var.</p>
  *
- * <p>Closes issues #103 and #34.</p>
+ * <p>Implements the upstream vision feature requests kherud/java-llama.cpp#103 and #34.</p>
  */
 @ClaudeGenerated(
         purpose = "End-to-end vision regression: real vision GGUF + mmproj + author-licensed (MIT) "
                 + "test image fed through the typed ChatMessage(role, List<ContentPart>) API; "
                 + "asserts non-empty reply to prove the OAI multipart content round-trips through "
-                + "the upstream mtmd pipeline. Closes #103 / #34.")
+                + "the upstream mtmd pipeline. Implements upstream kherud/java-llama.cpp#103 / #34.")
 public class MultimodalIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

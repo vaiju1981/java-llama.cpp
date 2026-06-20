@@ -33,7 +33,7 @@ env:
   TOOL_MODEL_NAME: "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
   NOMIC_EMBED_MODEL_URL: "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.f16.gguf"
   NOMIC_EMBED_MODEL_NAME: "nomic-embed-text-v1.5.f16.gguf"
-  # Vision model + mmproj for MultimodalIntegrationTest (issues #103 / #34).
+  # Vision model + mmproj for MultimodalIntegrationTest (upstream kherud/java-llama.cpp#103 / #34).
   # SmolVLM-500M is the smallest community vision GGUF that loads reliably
   # under the upstream mtmd pipeline. Total download ~600 MB across model
   # plus mmproj; matches the existing per-test-job download budget.
@@ -786,7 +786,7 @@ jobs:
         run: test -f models/${TOOL_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${TOOL_MODEL_URL} --create-dirs -o models/${TOOL_MODEL_NAME}
       - name: Download nomic embedding model (issue #98 regression)
         run: test -f models/${NOMIC_EMBED_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${NOMIC_EMBED_MODEL_URL} --create-dirs -o models/${NOMIC_EMBED_MODEL_NAME}
-      - name: Download vision model (issues #103 / #34)
+      - name: Download vision model (upstream kherud/java-llama.cpp#103 / #34)
         run: test -f models/${VISION_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
       - name: Download vision mmproj
         run: test -f models/${VISION_MMPROJ_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
@@ -921,7 +921,7 @@ jobs:
         run: test -f models/${REASONING_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
       - name: Download tool-calling model
         run: test -f models/${TOOL_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${TOOL_MODEL_URL} --create-dirs -o models/${TOOL_MODEL_NAME}
-      - name: Download vision model (issues #103 / #34)
+      - name: Download vision model (upstream kherud/java-llama.cpp#103 / #34)
         run: test -f models/${VISION_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
       - name: Download vision mmproj
         run: test -f models/${VISION_MMPROJ_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
@@ -1001,7 +1001,7 @@ jobs:
         run: test -f models/${REASONING_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
       - name: Download tool-calling model
         run: test -f models/${TOOL_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${TOOL_MODEL_URL} --create-dirs -o models/${TOOL_MODEL_NAME}
-      - name: Download vision model (issues #103 / #34)
+      - name: Download vision model (upstream kherud/java-llama.cpp#103 / #34)
         run: test -f models/${VISION_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
       - name: Download vision mmproj
         run: test -f models/${VISION_MMPROJ_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
@@ -1081,7 +1081,7 @@ jobs:
         run: test -f models/${REASONING_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
       - name: Download tool-calling model
         run: test -f models/${TOOL_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${TOOL_MODEL_URL} --create-dirs -o models/${TOOL_MODEL_NAME}
-      - name: Download vision model (issues #103 / #34)
+      - name: Download vision model (upstream kherud/java-llama.cpp#103 / #34)
         run: test -f models/${VISION_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
       - name: Download vision mmproj
         run: test -f models/${VISION_MMPROJ_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
@@ -1151,7 +1151,7 @@ jobs:
         run: curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors $env:REASONING_MODEL_URL --create-dirs -o models/$env:REASONING_MODEL_NAME
       - name: Download tool-calling model
         run: curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors $env:TOOL_MODEL_URL --create-dirs -o models/$env:TOOL_MODEL_NAME
-      - name: Download vision model (issues #103 / #34)
+      - name: Download vision model (upstream kherud/java-llama.cpp#103 / #34)
         run: curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors $env:VISION_MODEL_URL --create-dirs -o models/$env:VISION_MODEL_NAME
       - name: Download vision mmproj
         run: curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors $env:VISION_MMPROJ_URL --create-dirs -o models/$env:VISION_MMPROJ_NAME
@@ -1244,7 +1244,7 @@ jobs:
         run: curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors $env:REASONING_MODEL_URL --create-dirs -o models/$env:REASONING_MODEL_NAME
       - name: Download tool-calling model
         run: curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors $env:TOOL_MODEL_URL --create-dirs -o models/$env:TOOL_MODEL_NAME
-      - name: Download vision model (issues #103 / #34)
+      - name: Download vision model (upstream kherud/java-llama.cpp#103 / #34)
         run: curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors $env:VISION_MODEL_URL --create-dirs -o models/$env:VISION_MODEL_NAME
       - name: Download vision mmproj
         run: curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors $env:VISION_MMPROJ_URL --create-dirs -o models/$env:VISION_MMPROJ_NAME
