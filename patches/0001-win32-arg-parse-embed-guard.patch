@@ -1,0 +1,19 @@
+diff --git a/common/arg.cpp b/common/arg.cpp
+--- a/common/arg.cpp
++++ b/common/arg.cpp
+@@ -924,7 +924,14 @@ bool common_params_parse(int argc, char ** argv, common_params & params, llama_e
+ bool common_params_parse(int argc, char ** argv, common_params & params, llama_example ex, void(*print_usage)(int, char **)) {
+ #ifdef _WIN32
+     auto utf8 = make_utf8_argv();
+-    if (!utf8.ptrs.empty()) {
++    // java-llama.cpp patch (PR #248): only adopt the process command line (GetCommandLineW) when
++    // the caller actually passed THIS process's own argv -- i.e. the re-derived argument count
++    // matches argc. For the standalone llama-* tools that is always true, so their UTF-8 CLI fix
++    // (upstream llama.cpp #24779) is preserved. For an embedded JNI caller the process is java.exe
++    // (many more args), so the counts differ and our already-UTF-8 argv (from GetStringUTFChars)
++    // is kept instead of being silently discarded -- which otherwise makes common_params_parse_ex
++    // parse java.exe's command line and fail with "Failed to parse model parameters".
++    if (!utf8.ptrs.empty() && static_cast<int>(utf8.buf.size()) == argc) {
+         argc = static_cast<int>(utf8.buf.size());
+         argv = utf8.ptrs.data();
+     }

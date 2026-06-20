@@ -331,9 +331,35 @@ siblings; why (and why the `DEPOT_TOKEN` org secret and the README "Build cache 
 are kept jllama-only) is explained in the cross-repo status under "Deliberate non-parity":
 [`../workspace/crossrepostatus.md`](../workspace/crossrepostatus.md).
 
+## Local llama.cpp source patches (`patches/`)
+
+The fetched llama.cpp source is patched before it compiles, via a generic mechanism:
+
+- **`patches/`** (repo root) — drop any number of `*.patch` / `*.diff` files here. They are applied
+  in **filename order** (use a numeric prefix, e.g. `0001-`, `0002-`), so keep them independent or
+  ordered. Each must be a `git apply`-compatible unified diff with paths relative to the llama.cpp
+  source root (`a/common/arg.cpp` / `b/common/arg.cpp`, i.e. `-p1`).
+- **`cmake/apply-llama-patches.cmake`** — the applier. Cross-platform (`cmake -P`, so identical on
+  Linux/macOS/Windows), **idempotent** (`git apply --reverse --check` skips already-applied patches
+  so a reconfigure never double-applies) and **fail-loud** (a patch that no longer applies aborts
+  the configure — a stale patch can't be silently dropped from a release build).
+- **`CMakeLists.txt`** — wired as the llama.cpp `FetchContent_Declare(... PATCH_COMMAND ...)`, so it
+  runs for **every** C++ build (all CI jobs *and* local `cmake -B build`) from one place — no
+  per-build-step plumbing.
+
+**On a llama.cpp version bump, every patch must still apply** — if a bump shifts the patched code,
+the configure fails with an "does not apply cleanly" error; refresh the diff against the new source
+and recommit. Treat `patches/` as part of the upgrade checklist below.
+
+Current patches:
+
+| Patch | Fixes |
+|-------|-------|
+| `0001-win32-arg-parse-embed-guard.patch` | Windows JNI regression from llama.cpp **#24779** (b9739): `common_params_parse` unconditionally replaced the caller's argv with the process command line (`GetCommandLineW`), so an embedded/JNI caller (`java.exe`) lost its `--model …` args → "Failed to parse model parameters". The patch guards the override to fire **only when the re-derived arg count equals `argc`** — true for the standalone `llama-*` tools (their UTF-8 CLI fix is preserved), false for a JVM host (our already-UTF-8 argv is kept). This is also the shape to PR upstream. |
+
 ## Upgrading/Downgrading llama.cpp Version
 
-To change the llama.cpp version, update the following **three** files:
+To change the llama.cpp version, update the following **three** files (and re-verify `patches/`):
 
 1. **CMakeLists.txt** — the `GIT_TAG` line for llama.cpp: `GIT_TAG        b8831`
 2. **README.md** — the badge and link line with the version number

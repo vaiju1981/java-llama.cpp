@@ -137,8 +137,13 @@ proving Ninja Multi-Config + MSVC works on the same tree). The two builds produc
 
 ### Known regression (b9739) — Windows JNI: `common_params_parse` ignores caller argv
 
-**Status: root-caused, fix deferred.** Surfaced while bringing PR #248 green (the b9739 build fixes let
-the Windows Java jobs run to completion and exposed this).
+**Status: FIXED via local source patch (`patches/0001-win32-arg-parse-embed-guard.patch`).** Surfaced
+while bringing PR #248 green (the b9739 build fixes let the Windows Java jobs run to completion and
+exposed this). Resolved by **fix option 1 below** — the count-guard — applied through the generic
+`patches/` mechanism (see CLAUDE.md "Local llama.cpp source patches"), so it covers every C++ build
+and re-applies on each clean build. Still worth upstreaming (the guard, or a `common_params_parse_argv`
+companion) so the patch can eventually be dropped; until then it must be re-verified on each llama.cpp
+bump (the applier fails loud if it no longer applies).
 
 **Symptom.** On **Windows x86_64 only**, every Java test that loads a real model fails in
 `LlamaModel.loadModel` (native) with `LlamaException: "Failed to parse model parameters"`
