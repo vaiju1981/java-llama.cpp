@@ -19,18 +19,24 @@ fi
 # Fetch sccache when caching is requested but the runner/container doesn't ship it — the
 # dockcross cross-compile containers (manylinux/Android) and Linux hosts have no sccache,
 # while macOS installs it via brew in the workflow. Best-effort and inert-safe: any failure
-# leaves sccache absent, so the build just proceeds uncached. The static musl binary runs in
-# any x86_64 Linux container (the cross-compile host is always x86_64).
+# leaves sccache absent, so the build just proceeds uncached. A static musl release exists for
+# both Linux arches we build on: x86_64 (the dockcross cross-compile hosts) and aarch64 (the
+# native ubuntu-24.04-arm runner); any other arch leaves SCCACHE_DL_ARCH empty and is skipped.
 #
 # SCCACHE_DL_VERSION is overridable per-job, so a container that crashes one sccache build can
 # try another without editing this script (the in-container panic that stalled phase 2 was on
 # v0.8.2; v0.16.0 is the latest release and the default). A wrong/unavailable version just fails
 # the `curl -f` and falls back to an uncached build, so bumping it can never red a build.
 SCCACHE_DL_VERSION="${SCCACHE_DL_VERSION:-0.16.0}"
+case "$(uname -m)" in
+  x86_64)        SCCACHE_DL_ARCH="x86_64" ;;
+  aarch64|arm64) SCCACHE_DL_ARCH="aarch64" ;;
+  *)             SCCACHE_DL_ARCH="" ;;
+esac
 if [ "${USE_CACHE:-true}" = "true" ] && [ -n "${SCCACHE_WEBDAV_TOKEN:-}${SCCACHE_GHA_ENABLED:-}" ] \
    && ! command -v sccache >/dev/null 2>&1 \
-   && [ "$(uname -s)" = "Linux" ] && [ "$(uname -m)" = "x86_64" ]; then
-  SCCACHE_REL="sccache-v${SCCACHE_DL_VERSION}-x86_64-unknown-linux-musl"
+   && [ "$(uname -s)" = "Linux" ] && [ -n "$SCCACHE_DL_ARCH" ]; then
+  SCCACHE_REL="sccache-v${SCCACHE_DL_VERSION}-${SCCACHE_DL_ARCH}-unknown-linux-musl"
   echo "build.sh: fetching ${SCCACHE_REL} (no sccache on PATH)..."
   if curl -fsSL --proto =https --proto-redir =https \
         "https://github.com/mozilla/sccache/releases/download/v${SCCACHE_DL_VERSION}/${SCCACHE_REL}.tar.gz" \

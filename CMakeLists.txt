@@ -136,10 +136,18 @@ set(GGML_AVX512  OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_UI OFF CACHE BOOL "" FORCE)
 # b9284 flipped LLAMA_BUILD_APP default to ON; we don't build the unified binary
 set(LLAMA_BUILD_APP OFF CACHE BOOL "" FORCE)
+# Local source patches for the fetched llama.cpp tree. Every patches/*.patch|*.diff is applied
+# (sorted, idempotently, fail-loud) by cmake/apply-llama-patches.cmake — see that file's header.
+# This runs for every C++ build (all CI jobs + local) from one place. <SOURCE_DIR> is substituted
+# by FetchContent/ExternalProject to the fetched llama.cpp source root.
 FetchContent_Declare(
 	llama.cpp
 	GIT_REPOSITORY https://github.com/ggerganov/llama.cpp.git
 	GIT_TAG        b9739
+	PATCH_COMMAND  ${CMAKE_COMMAND}
+		-DPATCH_DIR=${CMAKE_CURRENT_SOURCE_DIR}/patches
+		-DLLAMA_SRC=<SOURCE_DIR>
+		-P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/apply-llama-patches.cmake
 )
 FetchContent_MakeAvailable(llama.cpp)
 

@@ -1,0 +1,25 @@
+diff --git a/common/arg.cpp b/common/arg.cpp
+--- a/common/arg.cpp
++++ b/common/arg.cpp
+@@ -924,10 +924,17 @@ bool common_params_parse(int argc, char ** argv, common_params & params, llama_e
+ bool common_params_parse(int argc, char ** argv, common_params & params, llama_example ex, void(*print_usage)(int, char **)) {
+ #ifdef _WIN32
+     auto utf8 = make_utf8_argv();
+-    if (!utf8.ptrs.empty()) {
+-        argc = static_cast<int>(utf8.buf.size());
+-        argv = utf8.ptrs.data();
+-    }
++    // java-llama.cpp patch (PR #248): upstream (llama.cpp #24779) replaced the caller's argv with
++    // the process command line (GetCommandLineW) here to recover UTF-8 args for the standalone
++    // llama-* tools. libjllama is a JNI library, never the process: it already passes correct
++    // UTF-8 argv (GetStringUTFChars), and adopting GetCommandLineW discarded it -> common_params_parse
++    // parsed java.exe's command line and failed with "Failed to parse model parameters". We keep the
++    // make_utf8_argv() call (so it stays referenced -> -Wunused-function-clean) but do NOT adopt its
++    // result, so the caller's already-UTF-8 argv is always used. This is deterministic: a count-guard
++    // (only override when the re-derived arg count equals argc) collided on the server-integration
++    // tests whose argv length happened to equal java.exe's, so they kept failing. The upstream PR
++    // can instead expose an opt-out / a common_params_parse_argv that preserves the standalone fix.
++    (void) utf8;
+ #endif
+
+     auto ctx_arg = common_params_parser_init(params, ex, print_usage);
