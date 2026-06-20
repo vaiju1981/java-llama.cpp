@@ -259,7 +259,8 @@ Every `net.ladenthin.llama.*` system property recognised by the library, deep-sc
 | `net.ladenthin.llama.lib.path` | unset (falls back to `java.library.path`) | runtime | `LlamaLoader` | Directory containing the native `jllama` shared library. Checked first, before `java.library.path`. Set with `-Dnet.ladenthin.llama.lib.path=/path/to/dir`. |
 | `net.ladenthin.llama.tmpdir` | unset (falls back to `java.io.tmpdir`) | runtime | `LlamaLoader` | Custom temporary directory used when extracting the native library from the JAR. |
 | `net.ladenthin.llama.osinfo.architecture` | unset (uses `os.arch`) | runtime | `OSInfo` | Override for the architecture string used to locate the bundled library inside the JAR. Useful when `os.arch` reports an unexpected value (e.g. inside dockcross / chrooted environments). |
-| `net.ladenthin.llama.test.ngl` | `43` | test | `LlamaModelTest`, `RerankingModelTest`, `ChatScenarioTest`, `ChatAdvancedTest`, `ErrorHandlingTest`, `SessionConcurrencyTest`, `ConfigureParallelInferenceTest`, `MultimodalIntegrationTest` (via `Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL)`) | Number of GPU layers used during testing. Pin to `0` on CPU-only hosts: `mvn test -Dnet.ladenthin.llama.test.ngl=0`. |
+| `net.ladenthin.llama.test.ngl` | `43` for the general suite; `0` for `ToolCallingIntegrationTest` | test | Model-backed integration tests | Number of GPU layers used during testing. Pin to `0` on CPU-only hosts: `mvn test -Dnet.ladenthin.llama.test.ngl=0`. The tool test also selects device `none` at zero layers so Metal/CUDA is not initialized. |
+| `net.ladenthin.llama.tool.model` | `models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf` (test self-skips if missing) | test | `ToolCallingIntegrationTest` | Path to a tool-capable GGUF used to verify required blocking and streaming tool calls. The default matches the Qwen2.5 model in upstream llama.cpp's tool-call test matrix. |
 | `net.ladenthin.llama.nomic.path` | unset (test self-skips) | test | `LlamaEmbeddingsTest#testNomicEmbedLoads` | Path to a Nomic embedding model (`nomic-embed-text-v1.5.f16.gguf` or a compatible BERT-family encoder). Regression test for upstream issue #98 (BERT-encoder `result_output` assertion). |
 | `net.ladenthin.llama.vision.model` | unset (test self-skips) | test | `MultimodalIntegrationTest` (closes #103 / #34) | Path to a vision-capable model GGUF. Any vision-capable GGUF works; CI default is `SmolVLM-500M-Instruct-Q8_0.gguf`. |
 | `net.ladenthin.llama.vision.mmproj` | unset (test self-skips) | test | `MultimodalIntegrationTest` | Matching mmproj GGUF for the vision model. |
@@ -367,6 +368,40 @@ try (LlamaModel model = new LlamaModel(modelParams)) {
 
 Reasoning/thinking models can receive custom Jinja template variables via
 `ModelParameters#setChatTemplateKwargs(Map)`.
+
+### Tool Calling
+
+Use a tool-aware instruct model and enable Jinja when loading it. A typed request can either return
+the model's tool calls through `chat`, or execute registered handlers until the model produces a
+normal assistant response through `chatWithTools`:
+
+```java
+ToolDefinition weather = new ToolDefinition(
+        "get_weather",
+        "Get the current weather for a city",
+        "{\"type\":\"object\",\"properties\":{\"city\":{\"type\":\"string\"}},"
+                + "\"required\":[\"city\"]}");
+
+ChatRequest request = ChatRequest.empty()
+        .appendMessage("user", "What is the weather in Paris?")
+        .appendTool(weather)
+        .withToolChoice("auto")
+        .withParallelToolCalls(Boolean.FALSE);
+
+Map<String, ToolHandler> handlers = Collections.singletonMap(
+        "get_weather", argumentsJson -> "{\"temperature_c\":21,\"condition\":\"sunny\"}");
+
+try (LlamaModel model = new LlamaModel(new ModelParameters()
+        .setModel("models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf")
+        .enableJinja())) {
+    ChatResponse response = model.chatWithTools(request, handlers);
+    System.out.println(response.getFirstContent());
+}
+```
+
+`tool_choice` is the OpenAI-compatible string form (`auto`, `none`, or `required`). Set
+`parallel_tool_calls` to `false` when handlers should be issued one at a time. Handler failures and
+unknown tool names are returned to the model as valid `{"error":"..."}` tool-result JSON.
 
 ### Infilling
 

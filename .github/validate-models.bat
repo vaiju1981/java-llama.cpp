@@ -9,7 +9,7 @@ REM GGUF files start with magic bytes: 0x47 0x47 0x55 0x46 ("GGUF")
 
 setlocal enabledelayedexpansion
 
-set "MODELS=models\codellama-7b.Q2_K.gguf" "models\jina-reranker-v1-tiny-en-Q4_0.gguf" "models\AMD-Llama-135m-code.Q2_K.gguf" "models\Qwen3-0.6B-Q4_K_M.gguf"
+set "MODELS=models\codellama-7b.Q2_K.gguf" "models\jina-reranker-v1-tiny-en-Q4_0.gguf" "models\AMD-Llama-135m-code.Q2_K.gguf" "models\Qwen3-0.6B-Q4_K_M.gguf" "models\Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
 
 REM Vision GGUFs are validated only when present (the Windows job downloads
 REM them too, but the validation step must not fail when a future job opts

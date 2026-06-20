@@ -29,7 +29,6 @@ import net.ladenthin.llama.loader.SkipDownloadFailureTranslator;
 import net.ladenthin.llama.parameters.ChatRequest;
 import net.ladenthin.llama.parameters.InferenceParameters;
 import net.ladenthin.llama.parameters.ModelParameters;
-import net.ladenthin.llama.value.ChatMessage;
 import net.ladenthin.llama.value.ChatResponse;
 import net.ladenthin.llama.value.CompletionResult;
 import net.ladenthin.llama.value.LlamaOutput;
@@ -38,7 +37,6 @@ import net.ladenthin.llama.value.ModelMeta;
 import net.ladenthin.llama.value.Pair;
 import net.ladenthin.llama.value.ServerMetrics;
 import net.ladenthin.llama.value.StopReason;
-import net.ladenthin.llama.value.ToolCall;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -551,6 +549,10 @@ public class LlamaModel implements AutoCloseable {
             if (toolChoice.isPresent()) {
                 params = params.withToolChoice(toolChoice.get());
             }
+            Optional<Boolean> parallelToolCalls = request.getParallelToolCalls();
+            if (parallelToolCalls.isPresent()) {
+                params = params.withParallelToolCalls(parallelToolCalls.get());
+            }
         }
         params = request.applyCustomizer(params);
         String raw = chatComplete(params);
@@ -575,42 +577,7 @@ public class LlamaModel implements AutoCloseable {
      *         (or the last response when the round cap is hit)
      */
     public ChatResponse chatWithTools(ChatRequest request, java.util.Map<String, ToolHandler> handlers) {
-        final int maxRounds = request.getMaxToolRounds();
-        if (maxRounds < 1) {
-            throw new IllegalArgumentException("ChatRequest.maxToolRounds must be >= 1 (got " + maxRounds + "); "
-                    + "chatWithTools always issues at least one chat call.");
-        }
-        ChatRequest current = request;
-        ChatResponse last = chat(current);
-        for (int round = 1; round < maxRounds; round++) {
-            Optional<ChatMessage> assistantOpt = last.getFirstMessage();
-            // NOTE: inline !isPresent() here (not compatibilityHelper.isEmpty) so NullAway's
-            //       CheckOptionalEmptiness recognises this as null-narrowing for the .get() below.
-            if (!assistantOpt.isPresent() || assistantOpt.get().getToolCalls().isEmpty()) {
-                return last;
-            }
-            ChatMessage assistant = assistantOpt.get();
-            current = current.appendMessage(assistant);
-            for (ToolCall call : assistant.getToolCalls()) {
-                ToolHandler handler = handlers.get(call.getName());
-                String result;
-                if (handler == null) {
-                    result = "{\"error\":\"unknown tool: " + call.getName() + "\"}";
-                } else {
-                    try {
-                        result = handler.invoke(call.getArgumentsJson());
-                    } catch (Exception e) {
-                        result = "{\"error\":"
-                                + net.ladenthin.llama.json.ChatResponseParser.OBJECT_MAPPER.valueToTree(
-                                        e.getClass().getSimpleName() + ": " + e.getMessage())
-                                + "}";
-                    }
-                }
-                current = current.appendMessage(ChatMessage.toolResult(call.getId(), result));
-            }
-            last = chat(current);
-        }
-        return last;
+        return ToolCallingAgent.run(request, handlers, this::chat);
     }
 
     /**

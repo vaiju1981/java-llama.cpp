@@ -58,6 +58,15 @@ class ChatRequestTest {
         }
 
         @Test
+        void withParallelToolCallsReturnsNewInstance() {
+            ChatRequest original = ChatRequest.empty();
+            ChatRequest derived = original.withParallelToolCalls(Boolean.FALSE);
+            assertThat(derived, is(not(sameInstance(original))));
+            assertThat("original hint unset", original.getParallelToolCalls().isPresent(), is(false));
+            assertThat(derived.getParallelToolCalls().orElseThrow(), is(false));
+        }
+
+        @Test
         void withMaxToolRoundsReturnsNewInstance() {
             ChatRequest original = ChatRequest.empty();
             ChatRequest derived = original.withMaxToolRounds(2);
@@ -134,6 +143,13 @@ class ChatRequestTest {
         void differentMaxToolRoundsNotEqual() {
             ChatRequest a = ChatRequest.empty().withMaxToolRounds(2);
             ChatRequest b = ChatRequest.empty().withMaxToolRounds(3);
+            assertThat(a, is(not(b)));
+        }
+
+        @Test
+        void differentParallelToolCallsNotEqual() {
+            ChatRequest a = ChatRequest.empty().withParallelToolCalls(Boolean.TRUE);
+            ChatRequest b = ChatRequest.empty().withParallelToolCalls(Boolean.FALSE);
             assertThat(a, is(not(b)));
         }
 

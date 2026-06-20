@@ -25,6 +25,8 @@ env:
   DRAFT_MODEL_NAME: "AMD-Llama-135m-code.Q2_K.gguf"
   REASONING_MODEL_URL: "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf"
   REASONING_MODEL_NAME: "Qwen3-0.6B-Q4_K_M.gguf"
+  TOOL_MODEL_URL: "https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
+  TOOL_MODEL_NAME: "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
   NOMIC_EMBED_MODEL_URL: "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.f16.gguf"
   NOMIC_EMBED_MODEL_NAME: "nomic-embed-text-v1.5.f16.gguf"
   # Vision model + mmproj for MultimodalIntegrationTest (issues #103 / #34).
@@ -405,6 +407,8 @@ jobs:
         run: curl -L --fail --retry 5 --retry-all-errors ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
       - name: Download reasoning model
         run: curl -L --fail --retry 5 --retry-all-errors ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
+      - name: Download tool-calling model
+        run: curl -L --fail --retry 5 --retry-all-errors ${TOOL_MODEL_URL} --create-dirs -o models/${TOOL_MODEL_NAME}
       - name: Download nomic embedding model (issue #98 regression)
         run: curl -L --fail --retry 5 --retry-all-errors ${NOMIC_EMBED_MODEL_URL} --create-dirs -o models/${NOMIC_EMBED_MODEL_NAME}
       - name: Download vision model (issues #103 / #34)
@@ -428,6 +432,7 @@ jobs:
       - name: Run tests
         run: |
           mvn -e --no-transfer-progress -P jcstress test \
+            -Dnet.ladenthin.llama.tool.model=models/${TOOL_MODEL_NAME} \
             -Dnet.ladenthin.llama.nomic.path=models/${NOMIC_EMBED_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
@@ -526,6 +531,8 @@ jobs:
         run: curl -L --fail --retry 5 --retry-all-errors ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
       - name: Download reasoning model
         run: curl -L --fail --retry 5 --retry-all-errors ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
+      - name: Download tool-calling model
+        run: curl -L --fail --retry 5 --retry-all-errors ${TOOL_MODEL_URL} --create-dirs -o models/${TOOL_MODEL_NAME}
       - name: Download vision model (issues #103 / #34)
         run: curl -L --fail --retry 5 --retry-all-errors ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
       - name: Download vision mmproj
@@ -545,6 +552,7 @@ jobs:
       - name: Run tests
         run: |
           mvn -e --no-transfer-progress -Dnet.ladenthin.llama.test.ngl=0 test \
+            -Dnet.ladenthin.llama.tool.model=models/${TOOL_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
             -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH}
@@ -590,6 +598,8 @@ jobs:
         run: curl -L --fail --retry 5 --retry-all-errors ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
       - name: Download reasoning model
         run: curl -L --fail --retry 5 --retry-all-errors ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
+      - name: Download tool-calling model
+        run: curl -L --fail --retry 5 --retry-all-errors ${TOOL_MODEL_URL} --create-dirs -o models/${TOOL_MODEL_NAME}
       - name: Download vision model (issues #103 / #34)
         run: curl -L --fail --retry 5 --retry-all-errors ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
       - name: Download vision mmproj
@@ -609,6 +619,7 @@ jobs:
       - name: Run tests
         run: |
           mvn -e --no-transfer-progress test \
+            -Dnet.ladenthin.llama.tool.model=models/${TOOL_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
             -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH}
@@ -654,6 +665,8 @@ jobs:
         run: curl -L --fail --retry 5 --retry-all-errors ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
       - name: Download reasoning model
         run: curl -L --fail --retry 5 --retry-all-errors ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
+      - name: Download tool-calling model
+        run: curl -L --fail --retry 5 --retry-all-errors ${TOOL_MODEL_URL} --create-dirs -o models/${TOOL_MODEL_NAME}
       - name: Download vision model (issues #103 / #34)
         run: curl -L --fail --retry 5 --retry-all-errors ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
       - name: Download vision mmproj
@@ -673,6 +686,7 @@ jobs:
       - name: Run tests
         run: |
           mvn -e --no-transfer-progress test \
+            -Dnet.ladenthin.llama.tool.model=models/${TOOL_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
             -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH}
@@ -721,6 +735,8 @@ jobs:
         run: curl -L --fail --retry 5 --retry-all-errors $env:DRAFT_MODEL_URL --create-dirs -o models/$env:DRAFT_MODEL_NAME
       - name: Download reasoning model
         run: curl -L --fail --retry 5 --retry-all-errors $env:REASONING_MODEL_URL --create-dirs -o models/$env:REASONING_MODEL_NAME
+      - name: Download tool-calling model
+        run: curl -L --fail --retry 5 --retry-all-errors $env:TOOL_MODEL_URL --create-dirs -o models/$env:TOOL_MODEL_NAME
       - name: Download vision model (issues #103 / #34)
         run: curl -L --fail --retry 5 --retry-all-errors $env:VISION_MODEL_URL --create-dirs -o models/$env:VISION_MODEL_NAME
       - name: Download vision mmproj
@@ -756,6 +772,7 @@ jobs:
       - name: Run tests
         run: |
           mvn -e --no-transfer-progress test `
+            "-Dnet.ladenthin.llama.tool.model=models/$env:TOOL_MODEL_NAME" `
             "-Dnet.ladenthin.llama.vision.model=models/$env:VISION_MODEL_NAME" `
             "-Dnet.ladenthin.llama.vision.mmproj=models/$env:VISION_MMPROJ_NAME" `
             "-Dnet.ladenthin.llama.vision.image=$env:VISION_IMAGE_PATH"

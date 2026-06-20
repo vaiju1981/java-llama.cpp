@@ -12,7 +12,8 @@ import net.ladenthin.llama.parameters.InferenceParameters;
 /**
  * Pure mapping from an OpenAI {@code /v1/chat/completions} request body to {@link InferenceParameters}.
  *
- * <p>The structural fields — {@code messages}, {@code tools}, {@code tool_choice} — are forwarded
+ * <p>The structural fields — {@code messages}, {@code tools}, {@code tool_choice}, and
+ * {@code parallel_tool_calls} — are forwarded
  * <em>verbatim</em> as raw JSON so the full OpenAI shape (assistant {@code tool_calls},
  * {@code role:"tool"} results with {@code tool_call_id}, and vision {@code image_url} content parts)
  * round-trips untouched into the native chat-template parser. Sampling fields are translated to the
@@ -48,6 +49,10 @@ final class OpenAiRequestMapper {
             JsonNode toolChoice = request.path("tool_choice");
             if (toolChoice.isTextual()) {
                 params = params.withToolChoice(toolChoice.asText());
+            }
+            JsonNode parallelToolCalls = request.path("parallel_tool_calls");
+            if (parallelToolCalls.isBoolean()) {
+                params = params.withParallelToolCalls(parallelToolCalls.asBoolean());
             }
         }
 

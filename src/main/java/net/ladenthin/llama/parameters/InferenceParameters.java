@@ -98,6 +98,7 @@ public final class InferenceParameters extends JsonParameters {
     private static final String PARAM_CONTINUE_FINAL_MESSAGE = "continue_final_message";
     private static final String PARAM_TOOLS = "tools";
     private static final String PARAM_TOOL_CHOICE = "tool_choice";
+    private static final String PARAM_PARALLEL_TOOL_CALLS = "parallel_tool_calls";
 
     private static final InferenceParameters EMPTY = new InferenceParameters();
 
@@ -651,6 +652,16 @@ public final class InferenceParameters extends JsonParameters {
      */
     public InferenceParameters withToolChoice(@Nullable String toolChoice) {
         return withOptionalJson(PARAM_TOOL_CHOICE, toolChoice);
+    }
+
+    /**
+     * Returns a new request with the OpenAI-compatible {@code parallel_tool_calls} flag replaced.
+     *
+     * @param parallelToolCalls whether the model may emit more than one tool call in a turn
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withParallelToolCalls(boolean parallelToolCalls) {
+        return withScalar(PARAM_PARALLEL_TOOL_CALLS, parallelToolCalls);
     }
 
     /**

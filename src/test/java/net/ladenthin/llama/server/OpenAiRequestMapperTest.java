@@ -99,6 +99,14 @@ public class OpenAiRequestMapperTest {
     }
 
     @Test
+    public void parallelToolCallsForwarded() throws IOException {
+        JsonNode out = mapAndSerialize("{\"messages\":[{\"role\":\"user\",\"content\":\"x\"}],"
+                + "\"tools\":[{\"type\":\"function\",\"function\":{\"name\":\"a\"}}],"
+                + "\"parallel_tool_calls\":false}");
+        assertThat(out.path("parallel_tool_calls").asBoolean(), is(false));
+    }
+
+    @Test
     public void stopAsSingleStringMapped() throws IOException {
         JsonNode out = mapAndSerialize("{\"messages\":[{\"role\":\"user\",\"content\":\"x\"}],\"stop\":\"END\"}");
         assertThat(out.path("stop").isArray(), is(true));

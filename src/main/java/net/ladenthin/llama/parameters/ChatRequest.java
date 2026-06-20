@@ -64,7 +64,7 @@ import org.jspecify.annotations.Nullable;
  * <h2>Equality</h2>
  *
  * <p>{@code @EqualsAndHashCode} compares messages, tools, {@code toolChoice},
- * and {@code maxToolRounds} by value. The {@code paramsCustomizer}
+ * {@code parallelToolCalls}, and {@code maxToolRounds} by value. The {@code paramsCustomizer}
  * {@link UnaryOperator} is <b>excluded</b> from equality: lambdas have
  * compiler-synthesised identity equality which is not value-shaped, so
  * including it would mean two structurally-identical requests with the same
@@ -88,12 +88,14 @@ public final class ChatRequest {
             Collections.<ChatMessage>emptyList(),
             Collections.<ToolDefinition>emptyList(),
             null,
+            null,
             DEFAULT_MAX_TOOL_ROUNDS,
             null);
 
     private final List<ChatMessage> messages;
     private final List<ToolDefinition> tools;
     private final @Nullable String toolChoice;
+    private final @Nullable Boolean parallelToolCalls;
     private final int maxToolRounds;
 
     // Lambda Consumer — toString is the implementation hash, not useful in logs;
@@ -111,11 +113,13 @@ public final class ChatRequest {
             List<ChatMessage> messages,
             List<ToolDefinition> tools,
             @Nullable String toolChoice,
+            @Nullable Boolean parallelToolCalls,
             int maxToolRounds,
             @Nullable UnaryOperator<InferenceParameters> paramsCustomizer) {
         this.messages = messages;
         this.tools = tools;
         this.toolChoice = toolChoice;
+        this.parallelToolCalls = parallelToolCalls;
         this.maxToolRounds = maxToolRounds;
         this.paramsCustomizer = paramsCustomizer;
     }
@@ -145,7 +149,13 @@ public final class ChatRequest {
         List<ChatMessage> next = new ArrayList<ChatMessage>(messages.size() + 1);
         next.addAll(messages);
         next.add(message);
-        return new ChatRequest(Collections.unmodifiableList(next), tools, toolChoice, maxToolRounds, paramsCustomizer);
+        return new ChatRequest(
+                Collections.unmodifiableList(next),
+                tools,
+                toolChoice,
+                parallelToolCalls,
+                maxToolRounds,
+                paramsCustomizer);
     }
 
     /**
@@ -171,7 +181,12 @@ public final class ChatRequest {
         next.addAll(tools);
         next.add(tool);
         return new ChatRequest(
-                messages, Collections.unmodifiableList(next), toolChoice, maxToolRounds, paramsCustomizer);
+                messages,
+                Collections.unmodifiableList(next),
+                toolChoice,
+                parallelToolCalls,
+                maxToolRounds,
+                paramsCustomizer);
     }
 
     // -----------------------------------------------------------------------
@@ -186,7 +201,18 @@ public final class ChatRequest {
      * @return a new request with the hint replaced; this request is unchanged
      */
     public ChatRequest withToolChoice(@Nullable String newToolChoice) {
-        return new ChatRequest(messages, tools, newToolChoice, maxToolRounds, paramsCustomizer);
+        return new ChatRequest(messages, tools, newToolChoice, parallelToolCalls, maxToolRounds, paramsCustomizer);
+    }
+
+    /**
+     * Returns a new request with the {@code parallel_tool_calls} hint replaced.
+     *
+     * @param newParallelToolCalls whether the model may emit multiple calls in one turn,
+     *     or {@code null} to use the model/template default
+     * @return a new request with the hint replaced; this request is unchanged
+     */
+    public ChatRequest withParallelToolCalls(@Nullable Boolean newParallelToolCalls) {
+        return new ChatRequest(messages, tools, toolChoice, newParallelToolCalls, maxToolRounds, paramsCustomizer);
     }
 
     /**
@@ -200,7 +226,7 @@ public final class ChatRequest {
         if (newMaxToolRounds <= 0) {
             throw new IllegalArgumentException("maxToolRounds must be > 0 but was " + newMaxToolRounds);
         }
-        return new ChatRequest(messages, tools, toolChoice, newMaxToolRounds, paramsCustomizer);
+        return new ChatRequest(messages, tools, toolChoice, parallelToolCalls, newMaxToolRounds, paramsCustomizer);
     }
 
     /**
@@ -210,7 +236,7 @@ public final class ChatRequest {
      * @return a new request with the customiser replaced; this request is unchanged
      */
     public ChatRequest withInferenceCustomizer(@Nullable UnaryOperator<InferenceParameters> newCustomizer) {
-        return new ChatRequest(messages, tools, toolChoice, maxToolRounds, newCustomizer);
+        return new ChatRequest(messages, tools, toolChoice, parallelToolCalls, maxToolRounds, newCustomizer);
     }
 
     // -----------------------------------------------------------------------
@@ -242,6 +268,15 @@ public final class ChatRequest {
      */
     public Optional<String> getToolChoice() {
         return Optional.ofNullable(toolChoice);
+    }
+
+    /**
+     * Parallel-tool-call hint accessor.
+     *
+     * @return the {@code parallel_tool_calls} hint, or {@link Optional#empty()} when unset
+     */
+    public Optional<Boolean> getParallelToolCalls() {
+        return Optional.ofNullable(parallelToolCalls);
     }
 
     /**

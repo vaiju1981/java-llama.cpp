@@ -74,6 +74,12 @@ public class InferenceParametersTest {
     }
 
     @Test
+    public void testSetParallelToolCalls() {
+        InferenceParameters params = new InferenceParameters("").withParallelToolCalls(false);
+        assertThat(params.parameters.get("parallel_tool_calls"), is("false"));
+    }
+
+    @Test
     public void testSetTemperature() {
         InferenceParameters params = new InferenceParameters("").withTemperature(0.5f);
         assertThat(params.parameters.get("temperature"), is("0.5"));
