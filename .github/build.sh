@@ -26,7 +26,8 @@ if [ "${USE_CACHE:-true}" = "true" ] && [ -n "${SCCACHE_WEBDAV_TOKEN:-}${SCCACHE
    && [ "$(uname -s)" = "Linux" ] && [ "$(uname -m)" = "x86_64" ]; then
   SCCACHE_REL="sccache-v0.8.2-x86_64-unknown-linux-musl"
   echo "build.sh: fetching ${SCCACHE_REL} (no sccache on PATH)..."
-  if curl -fsSL "https://github.com/mozilla/sccache/releases/download/v0.8.2/${SCCACHE_REL}.tar.gz" \
+  if curl -fsSL --proto =https --proto-redir =https \
+        "https://github.com/mozilla/sccache/releases/download/v0.8.2/${SCCACHE_REL}.tar.gz" \
         -o /tmp/sccache.tgz && tar -xzf /tmp/sccache.tgz -C /tmp; then
     export PATH="/tmp/${SCCACHE_REL}:$PATH"
     echo "build.sh: sccache -> $(command -v sccache || echo 'still missing')"
