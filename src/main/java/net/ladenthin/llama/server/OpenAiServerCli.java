@@ -395,11 +395,23 @@ public final class OpenAiServerCli {
          * @return the server configuration
          */
         public OpenAiServerConfig toServerConfig() {
+            return toServerConfig(mmproj != null);
+        }
+
+        /**
+         * Build the server configuration with a capability value obtained from the loaded model.
+         * This overload lets the standalone launcher avoid advertising vision merely because an
+         * {@code --mmproj} path was supplied.
+         *
+         * @param supportsVision whether the loaded model reports usable vision input
+         * @return the server configuration
+         */
+        public OpenAiServerConfig toServerConfig(boolean supportsVision) {
             final OpenAiServerConfig.Builder builder = OpenAiServerConfig.builder()
                     .host(host)
                     .port(port)
                     .modelId(getModelId())
-                    .supportsVision(mmproj != null);
+                    .supportsVision(supportsVision);
             if (apiKey != null) {
                 builder.apiKey(apiKey);
             }

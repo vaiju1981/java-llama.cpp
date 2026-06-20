@@ -885,8 +885,6 @@ public final class OpenAiCompatServer implements AutoCloseable {
             return;
         }
 
-        OpenAiServerConfig config = options.toServerConfig();
-
         // The server runs on daemon threads, so the main thread blocks until the JVM is asked to
         // shut down (Ctrl-C / SIGTERM); the try-with-resources then closes the server and model.
         // Two latches keep that shutdown graceful and race-free: the hook signals stopRequested and
@@ -906,14 +904,16 @@ public final class OpenAiCompatServer implements AutoCloseable {
                         },
                         "jllama-openai-shutdown"));
 
-        try (LlamaModel model = new LlamaModel(options.toModelParameters());
-                OpenAiCompatServer server = new OpenAiCompatServer(model, config)) {
-            server.start();
-            printReady(config, server.getPort());
-            try {
-                stopRequested.await();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+        try (LlamaModel model = new LlamaModel(options.toModelParameters())) {
+            OpenAiServerConfig config = options.toServerConfig(model.supportsVision());
+            try (OpenAiCompatServer server = new OpenAiCompatServer(model, config)) {
+                server.start();
+                printReady(config, server.getPort());
+                try {
+                    stopRequested.await();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
             }
         } finally {
             cleanedUp.countDown();

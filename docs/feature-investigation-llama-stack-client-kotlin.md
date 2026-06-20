@@ -62,13 +62,12 @@ branch unless noted.
 
 ### 2.1 Multimodal image input (mtmd) — **L**
 
-**Status: SHIPPED (typed Java surface).** The original L-effort scope assumed
-new JNI plumbing was required, but on inspection the upstream OAI chat path
-(`oaicompat_chat_params_parse` in `server-common.cpp`) already detects
-`{"type":"image_url","image_url":{"url":"data:..."}}` blocks and routes them
-through the compiled-in `mtmd` pipeline, and the project's
-`handleChatCompletions` JNI method forwards the request JSON intact. Only the
-Java-side convenience to emit the multipart-array `content` was missing.
+**Status: SHIPPED (end to end).** The upstream OAI parser detects
+`{"type":"image_url","image_url":{"url":"data:..."}}` blocks and decodes them,
+but the binding previously discarded those decoded buffers before creating the
+server task. The JNI bridge now preserves the media and submits it through the
+upstream CLI multimodal task path, which invokes `process_mtmd_prompt` with the
+loaded projector.
 
 This pass adds:
 - **`ContentPart`** value type (`TEXT` / `IMAGE_URL`) with static factories
@@ -79,13 +78,14 @@ This pass adds:
   `userMultimodal(ContentPart...)` factory, `getParts()`, and `hasParts()`.
   The legacy `ChatMessage(role, content)` ctor and existing serializer path
   are unchanged.
-- **`InferenceParameters.setMessages(List<ChatMessage>)`** overload that
+- **`InferenceParameters.withMessages(List<ChatMessage>)`** overload that
   routes through a new `ParameterJsonSerializer.buildMessages(List<ChatMessage>)`
   emitting array-form `content` only when a message has parts.
-- 25 unit tests in `ContentPartTest` and `MultimodalMessagesTest` cover the
+- Unit tests in `ContentPartTest`, `MultimodalMessagesTest`, `ChatRequestTest`,
+  and `OpenAiRequestMapperTest` cover the
   factory contracts, the parts/legacy split, and the OAI multipart JSON shape;
-  the 123 existing `ChatMessage` / `InferenceParameters` /
-  `ParameterJsonSerializer` tests still pass.
+- `MultimodalIntegrationTest` exercises blocking, typed, and streaming calls
+  with a real model and verifies semantic red/blue image discrimination.
 
 A multimodal call from Java now looks like:
 ```java
@@ -99,24 +99,8 @@ String reply = model.chatCompleteText(new InferenceParameters("")
             ContentPart.imageFile(java.nio.file.Paths.get("photo.jpg"))))));
 ```
 
-Zero new JNI symbols; zero risk to existing text-only chat callers.
-
-**Gap.** Upstream llama.cpp ships `mtmd` (vision + audio for some models) and
-the compiled-in server already pulls it in via `mtmd.h` / `mtmd-helper.h`. No
-Java method currently accepts image input. Kotlin examples show base64 image
-chat against vision models.
-
-**Proposal.**
-- `InferenceParameters.addImage(byte[] png)` / `addImage(Path)` / `addImageBase64(String)`.
-- `ModelParameters.setMmproj(Path)` to load the mmproj projector file.
-- JNI: feed images into the server task params (`mtmd_*` API).
-
-**Effort: L** — non-trivial JNI plumbing, lifecycle of `mtmd_context`,
-test fixtures for vision models, but most of the heavy lifting is already
-upstream.
-
-**Value.** Biggest user-visible capability missing today. Unlocks Qwen-VL,
-Gemma 3, MiniCPM-V, LLaVA, etc.
+No new exported JNI symbols are needed; existing text-only chat callers retain
+the ordinary tokenization path.
 
 ---
 

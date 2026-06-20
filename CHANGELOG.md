@@ -15,6 +15,8 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 - OpenSSF Best Practices badge (project 12862) on README.
 - OpenAI-compatible `parallel_tool_calls` support: `ChatRequest.withParallelToolCalls(Boolean)` / `getParallelToolCalls()`, `InferenceParameters.withParallelToolCalls(boolean)`, and pass-through in the `/v1/chat/completions` server mapper.
 - Real-model tool-calling integration tests for blocking and streaming required tool calls (`ToolCallingIntegrationTest`, Qwen2.5-1.5B-Instruct), wired into CI and `validate-models`.
+- End-to-end vision input across blocking, typed `ChatRequest`, streaming, and OpenAI-compatible request mapping; real-model tests verify that distinct red and blue images produce the correct semantic answers.
+- Explicit `setMmprojAuto(boolean)` and `setMmprojOffload(boolean)` controls, including the upstream `--no-mmproj-auto` and `--no-mmproj-offload` flags.
 
 ### Changed
 - Unified `CONTRIBUTING.md` and `SECURITY.md` structure with sibling repositories in the project family.
@@ -23,6 +25,11 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 - `pom.xml` SCM URL: `tree/master` → `tree/main` (default branch renamed).
 - Upgraded llama.cpp from b9151 to b9172.
 - Extracted the `chatWithTools` agent loop into `ToolCallingAgent`; tool-result errors (unknown tool / handler exception) are now JSON-serialized so tool names containing special characters remain valid JSON.
+
+### Fixed
+- Preserved decoded image buffers across the JNI chat boundary and submitted media requests through llama.cpp's upstream multimodal task path instead of silently tokenizing them as text-only prompts.
+- Preserved multipart image content when using the typed `ChatRequest` serializer.
+- The standalone OpenAI-compatible server now advertises vision only when the loaded model confirms usable vision support.
 
 ### Added
 - Reasoning-budget tests (Qwen3-0.6B).

@@ -40,6 +40,18 @@ public class OpenAiRequestMapperTest {
     }
 
     @Test
+    public void multimodalContentPartsForwardedVerbatim() throws IOException {
+        String request = "{\"messages\":[{\"role\":\"user\",\"content\":["
+                + "{\"type\":\"text\",\"text\":\"What color?\"},"
+                + "{\"type\":\"image_url\",\"image_url\":{\"url\":\"data:image/png;base64,AA==\"}}]}]}";
+        JsonNode expectedMessages = MAPPER.readTree(request).path("messages");
+
+        JsonNode out = mapAndSerialize(request);
+
+        assertThat(out.path("messages"), is(expectedMessages));
+    }
+
+    @Test
     public void toolMessageHistoryRoundTripsVerbatim() throws IOException {
         // A full agent-loop history: assistant tool_calls + a role:"tool" result with tool_call_id.
         String request = "{\"messages\":["

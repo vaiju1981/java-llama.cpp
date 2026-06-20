@@ -178,12 +178,12 @@ static void throw_invalid_request(JNIEnv *env, const std::exception &e) {
 
 /**
  * Parse the OAI chat-completion body through oaicompat_chat_params_parse and
- * write the result into `out`.  Returns true on success; on failure throws and
- * returns false.
+ * write the result into `out`, preserving decoded media in `files`. Returns
+ * true on success; on failure throws and returns false.
  */
-[[nodiscard]] static bool parse_oai_chat_params(JNIEnv *env, server_context *ctx_server, json &body, json &out) {
+[[nodiscard]] static bool parse_oai_chat_params(JNIEnv *env, server_context *ctx_server, json &body, json &out,
+                                                std::vector<raw_buffer> &files) {
     try {
-        std::vector<raw_buffer> files;
         auto meta = ctx_server->get_meta();
         out = oaicompat_chat_params_parse(body, meta.chat_params, files);
         return true;
@@ -196,16 +196,20 @@ static void throw_invalid_request(JNIEnv *env, const std::exception &e) {
 // Tokenise the prompt in `data` and fill task.tokens + task.params.
 // Callers must wrap this in try/catch (params_from_json_cmpl can throw).
 static void populate_completion_task(server_task &task, jllama_context *jctx, int n_ctx_slot,
-                                     const std::vector<llama_logit_bias> &logit_bias_eog, const json &data) {
-    auto tokenized_prompts = tokenize_input_prompts(jctx->vocab, nullptr, data.at("prompt"), true, true);
-    if (!tokenized_prompts.empty()) {
-        task.tokens = std::move(tokenized_prompts[0]);
+                                     const std::vector<llama_logit_bias> &logit_bias_eog, const json &data,
+                                     bool has_mtmd, std::vector<raw_buffer> files = {}) {
+    if (!configure_multimodal_task_impl(task, has_mtmd, data, std::move(files))) {
+        auto tokenized_prompts = tokenize_input_prompts(jctx->vocab, nullptr, data.at("prompt"), true, true);
+        if (!tokenized_prompts.empty()) {
+            task.tokens = std::move(tokenized_prompts[0]);
+        }
     }
     task.params = server_schema::eval_llama_cmpl_schema(jctx->vocab, jctx->params, n_ctx_slot, logit_bias_eog, data);
 }
 
 [[nodiscard]] static jint dispatch_streaming_completion(JNIEnv *env, jllama_context *jctx, const json &data,
-                                                        server_task_type task_type, task_response_type res_type) {
+                                                        server_task_type task_type, task_response_type res_type,
+                                                        std::vector<raw_buffer> files = {}) {
     server_context *ctx_server = &jctx->server;
     auto meta = ctx_server->get_meta();
     auto *rd = new server_response_reader(ctx_server->get_response_reader());
@@ -213,7 +217,8 @@ static void populate_completion_task(server_task &task, jllama_context *jctx, in
     try {
         server_task task(task_type);
         task.id = tid;
-        populate_completion_task(task, jctx, meta.slot_n_ctx, meta.logit_bias_eog, data);
+        populate_completion_task(task, jctx, meta.slot_n_ctx, meta.logit_bias_eog, data, meta.has_mtmd,
+                                 std::move(files));
         task.params.res_type = res_type;
         rd->post_task(std::move(task));
     } catch (const std::exception &e) {
@@ -234,14 +239,16 @@ static void populate_completion_task(server_task &task, jllama_context *jctx, in
  * On error: throws via JNI and returns nullptr.
  */
 [[nodiscard]] static jstring dispatch_blocking_completion(JNIEnv *env, jllama_context *jctx, const json &data,
-                                                          server_task_type task_type, task_response_type res_type) {
+                                                          server_task_type task_type, task_response_type res_type,
+                                                          std::vector<raw_buffer> files = {}) {
     server_context *ctx_server = &jctx->server;
     auto meta = ctx_server->get_meta();
     auto rd = ctx_server->get_response_reader();
     server_task task(task_type);
     task.id = rd.get_new_id();
     try {
-        populate_completion_task(task, jctx, meta.slot_n_ctx, meta.logit_bias_eog, data);
+        populate_completion_task(task, jctx, meta.slot_n_ctx, meta.logit_bias_eog, data, meta.has_mtmd,
+                                 std::move(files));
     } catch (const std::exception &e) {
         throw_invalid_request(env, e);
         return nullptr;
@@ -933,7 +940,8 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_applyTemplate(JNIE
     json data = parse_json_params(env, jparams);
 
     json templateData;
-    if (!parse_oai_chat_params(env, ctx_server, data, templateData))
+    std::vector<raw_buffer> files;
+    if (!parse_oai_chat_params(env, ctx_server, data, templateData, files))
         return nullptr;
 
     std::string tok_str = templateData.at("prompt");
@@ -946,10 +954,12 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleChatCompleti
 
     json body = parse_json_params(env, jparams);
     json data;
-    if (!parse_oai_chat_params(env, ctx_server, body, data))
+    std::vector<raw_buffer> files;
+    if (!parse_oai_chat_params(env, ctx_server, body, data, files))
         return nullptr;
 
-    return dispatch_blocking_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_OAI_CHAT);
+    return dispatch_blocking_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_OAI_CHAT,
+                                        std::move(files));
 }
 
 JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestChatCompletion(JNIEnv *env, jobject obj,
@@ -959,10 +969,12 @@ JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestChatCompletion
     json body = parse_json_params(env, jparams);
     // Chat template already applied by parse_oai_chat_params; no OAI wrapping on the streaming path.
     json data;
-    if (!parse_oai_chat_params(env, ctx_server, body, data))
+    std::vector<raw_buffer> files;
+    if (!parse_oai_chat_params(env, ctx_server, body, data, files))
         return 0;
 
-    return dispatch_streaming_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_NONE);
+    return dispatch_streaming_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_NONE,
+                                         std::move(files));
 }
 
 // Streaming OpenAI chat with OAI-formatted chunks. Mirrors requestChatCompletion
@@ -976,10 +988,12 @@ JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestChatCompletion
 
     json body = parse_json_params(env, jparams);
     json data;
-    if (!parse_oai_chat_params(env, ctx_server, body, data))
+    std::vector<raw_buffer> files;
+    if (!parse_oai_chat_params(env, ctx_server, body, data, files))
         return 0;
 
-    return dispatch_streaming_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_OAI_CHAT);
+    return dispatch_streaming_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_OAI_CHAT,
+                                         std::move(files));
 }
 
 JNIEXPORT jintArray JNICALL Java_net_ladenthin_llama_LlamaModel_encode(JNIEnv *env, jobject obj, jstring jprompt) {

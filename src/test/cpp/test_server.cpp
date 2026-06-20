@@ -1749,21 +1749,20 @@ TEST(ParamsFromJsonCmpl, DryBase_BelowOne_ResetToDefault) {
     EXPECT_FLOAT_EQ(p.sampling.dry_base, defaults.sampling.dry_base);
 }
 
-TEST(ParamsFromJsonCmpl, NDiscard_Negative_ClampedToZero) {
-    const auto p = parse_params({{"n_discard", -5}});
-    EXPECT_EQ(p.n_discard, 0);
+TEST(ParamsFromJsonCmpl, NDiscard_Negative_Throws) {
+    EXPECT_THROW(parse_params({{"n_discard", -5}}), std::invalid_argument);
 }
 
 TEST(ParamsFromJsonCmpl, EmptyDrySequenceBreakers_Throws) {
-    EXPECT_THROW(parse_params({{"dry_sequence_breakers", json::array()}}), std::runtime_error);
+    EXPECT_THROW(parse_params({{"dry_sequence_breakers", json::array()}}), std::invalid_argument);
 }
 
 TEST(ParamsFromJsonCmpl, LoraNotArray_Throws) {
-    EXPECT_THROW(parse_params({{"lora", "not-an-array"}}), std::runtime_error);
+    EXPECT_THROW(parse_params({{"lora", "not-an-array"}}), std::invalid_argument);
 }
 
 TEST(ParamsFromJsonCmpl, RepeatLastN_BelowMinusOne_Throws) {
-    EXPECT_THROW(parse_params({{"repeat_last_n", -2}}), std::runtime_error);
+    EXPECT_THROW(parse_params({{"repeat_last_n", -2}}), std::invalid_argument);
 }
 
 TEST(ParamsFromJsonCmpl, StreamOptions_IncludeUsage_Parsed) {

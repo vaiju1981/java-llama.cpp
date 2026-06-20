@@ -14,6 +14,7 @@
 //     require_json_field_impl, jint_array_to_tokens_impl
 //
 //   Layer B — JNI + server orchestration:
+//     configure_multimodal_task_impl,
 //     json_to_jstring_impl, results_to_jstring_impl,
 //     embedding_to_jfloat_array_impl, tokens_to_jint_array_impl
 //
@@ -145,6 +146,34 @@ inline void erase_reader(jllama_context *jctx, int id_task) {
 // json_helpers.hpp provides get_result_error_message, results_to_json, and
 // the other pure JSON transforms used by the functions below.
 #include "json_helpers.hpp"
+
+// ---------------------------------------------------------------------------
+// configure_multimodal_task_impl
+//
+// Upstream keeps mtmd_context private inside server_context. Its CLI task
+// path exists specifically for callers that have a formatted prompt plus raw
+// media but cannot access that context directly. Attach those inputs to the
+// task so server_context::tokenize_cli_input() invokes process_mtmd_prompt()
+// on the worker thread. Returns false for a text-only request so callers can
+// retain their normal eager-tokenization path.
+// ---------------------------------------------------------------------------
+[[nodiscard]] inline bool configure_multimodal_task_impl(server_task &task, bool has_mtmd, const json &data,
+                                                         std::vector<raw_buffer> files) {
+    if (files.empty()) {
+        return false;
+    }
+    if (!has_mtmd) {
+        throw std::invalid_argument("Image input requires a loaded multimodal projector (--mmproj)");
+    }
+    const auto &prompt = data.at("prompt");
+    if (!prompt.is_string()) {
+        throw std::invalid_argument("Multimodal chat prompt must be a string");
+    }
+    task.cli = true;
+    task.cli_prompt = prompt.get<std::string>();
+    task.cli_files = std::move(files);
+    return true;
+}
 
 // ---------------------------------------------------------------------------
 // json_to_jstring_impl

@@ -14,7 +14,7 @@
 //   get_jllama_context_impl, require_json_field_impl, jint_array_to_tokens_impl
 //
 // Layer B tests (need upstream server headers + mock JNIEnv):
-//   json_to_jstring_impl, results_to_jstring_impl,
+//   configure_multimodal_task_impl, json_to_jstring_impl, results_to_jstring_impl,
 //   embedding_to_jfloat_array_impl, tokens_to_jint_array_impl
 //
 // JNIEnv is mocked via a zero-filled JNINativeInterface_ table with only the
@@ -583,4 +583,37 @@ TEST_F(IntArrayFixture, TokensToJintArray_AllocFails_ThrowsOomAndReturnsNull) {
     EXPECT_EQ(result, nullptr);
     EXPECT_TRUE(g_throw_called);
     EXPECT_EQ(g_throw_message, "could not allocate token memory");
+}
+
+// ============================================================
+// configure_multimodal_task_impl
+// ============================================================
+
+TEST(ConfigureMultimodalTask, TextOnlyReturnsFalseAndLeavesCliDisabled) {
+    server_task task(SERVER_TASK_TYPE_COMPLETION);
+    EXPECT_FALSE(configure_multimodal_task_impl(task, true, {{"prompt", "hello"}}, {}));
+    EXPECT_FALSE(task.cli);
+    EXPECT_TRUE(task.cli_files.empty());
+}
+
+TEST(ConfigureMultimodalTask, MovesPromptAndMediaToCliTask) {
+    server_task task(SERVER_TASK_TYPE_COMPLETION);
+    std::vector<raw_buffer> files = {{0x01, 0x02, 0x03}};
+    EXPECT_TRUE(configure_multimodal_task_impl(task, true, {{"prompt", "before <__media__> after"}}, files));
+    EXPECT_TRUE(task.cli);
+    EXPECT_EQ(task.cli_prompt, "before <__media__> after");
+    ASSERT_EQ(task.cli_files.size(), 1u);
+    EXPECT_EQ(task.cli_files[0], files[0]);
+}
+
+TEST(ConfigureMultimodalTask, MediaWithoutProjectorThrows) {
+    server_task task(SERVER_TASK_TYPE_COMPLETION);
+    EXPECT_THROW((void) configure_multimodal_task_impl(task, false, {{"prompt", "<__media__>"}}, {{0x01}}),
+                 std::invalid_argument);
+}
+
+TEST(ConfigureMultimodalTask, NonStringPromptThrows) {
+    server_task task(SERVER_TASK_TYPE_COMPLETION);
+    EXPECT_THROW((void) configure_multimodal_task_impl(task, true, {{"prompt", json::array({1, 2})}}, {{0x01}}),
+                 std::invalid_argument);
 }

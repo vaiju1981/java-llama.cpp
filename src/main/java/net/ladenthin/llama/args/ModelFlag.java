@@ -106,8 +106,14 @@ public enum ModelFlag {
     /** Automatically detect and load the mmproj vision projection model. */
     MMPROJ_AUTO("--mmproj-auto"),
 
+    /** Disable automatic multimodal-projector detection. */
+    NO_MMPROJ_AUTO("--no-mmproj-auto"),
+
     /** Offload the mmproj vision projection model to the GPU. */
     MMPROJ_OFFLOAD("--mmproj-offload"),
+
+    /** Keep the multimodal projector on the CPU. */
+    NO_MMPROJ_OFFLOAD("--no-mmproj-offload"),
 
     /**
      * Skip any model file download — only validation is performed. Useful for air-gapped or

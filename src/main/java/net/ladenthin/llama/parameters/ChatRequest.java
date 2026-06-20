@@ -77,6 +77,7 @@ import org.jspecify.annotations.Nullable;
 public final class ChatRequest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ParameterJsonSerializer MESSAGE_SERIALIZER = new ParameterJsonSerializer();
 
     /**
      * Default {@code maxToolRounds} when the caller does not override it via
@@ -300,11 +301,10 @@ public final class ChatRequest {
      * @return the JSON array as a string
      */
     public String buildMessagesJson() {
-        ArrayNode arr = MAPPER.createArrayNode();
-        for (ChatMessage m : messages) {
-            ObjectNode obj = MAPPER.createObjectNode();
-            obj.put("role", m.getRole());
-            obj.put("content", m.getContent());
+        ArrayNode arr = MESSAGE_SERIALIZER.buildMessages(messages);
+        for (int i = 0; i < messages.size(); i++) {
+            ChatMessage m = messages.get(i);
+            ObjectNode obj = (ObjectNode) arr.get(i);
             m.getToolCallId().ifPresent(id -> obj.put("tool_call_id", id));
             if (!m.getToolCalls().isEmpty()) {
                 ArrayNode tc = MAPPER.createArrayNode();
@@ -320,7 +320,6 @@ public final class ChatRequest {
                 }
                 obj.set("tool_calls", tc);
             }
-            arr.add(obj);
         }
         return arr.toString();
     }

@@ -17,9 +17,10 @@ import org.jspecify.annotations.Nullable;
 /**
  * One piece of a {@link ChatMessage}'s multimodal content array: either a text
  * fragment or an image URL (typically a {@code data:image/...;base64,...} URI).
- * Mirrors the OpenAI-compatible {@code content} part shape that the upstream
- * {@code llama.cpp} server already understands, so no new JNI plumbing is
- * required &#x2014; an image-bearing message is serialized to
+ * Mirrors the OpenAI-compatible {@code content} part shape understood by the
+ * upstream {@code llama.cpp} server. The JNI bridge preserves decoded media
+ * buffers and submits them through the upstream multimodal task path. An
+ * image-bearing message is serialized to
  * <pre>
  * {"role":"user","content":[
  *   {"type":"text","text":"What is in this image?"},
@@ -127,7 +128,7 @@ public final class ContentPart {
             mimeType = "image/gif";
         } else {
             throw new IllegalArgumentException("Cannot infer MIME type from extension: " + imagePath
-                    + " &#x2014; use ContentPart.imageBytes(bytes, mimeType) instead");
+                    + " — use ContentPart.imageBytes(bytes, mimeType) instead");
         }
         return imageBytes(Files.readAllBytes(imagePath), mimeType);
     }

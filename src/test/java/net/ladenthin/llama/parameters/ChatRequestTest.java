@@ -13,6 +13,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import net.ladenthin.llama.value.ChatMessage;
+import net.ladenthin.llama.value.ContentPart;
 import net.ladenthin.llama.value.ToolDefinition;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -195,6 +197,17 @@ class ChatRequestTest {
             String json = req.buildMessagesJson();
             assertThat(json, json, containsString("\"user\""));
             assertThat("build did not mutate the messages list", req.getMessages(), hasSize(1));
+        }
+
+        @Test
+        void buildMessagesJsonPreservesMultimodalParts() {
+            ChatRequest req = ChatRequest.empty()
+                    .appendMessage(ChatMessage.userMultimodal(
+                            ContentPart.text("describe"), ContentPart.imageUrl("data:image/png;base64,AAAA")));
+            String json = req.buildMessagesJson();
+            assertThat(json, containsString("\"content\":["));
+            assertThat(json, containsString("\"type\":\"image_url\""));
+            assertThat(json, containsString("data:image/png;base64,AAAA"));
         }
 
         @Test

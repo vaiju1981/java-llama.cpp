@@ -1286,7 +1286,19 @@ public final class ModelParameters extends CliParameters {
      * @return this builder
      */
     public ModelParameters enableMmprojAuto() {
-        return setFlag(ModelFlag.MMPROJ_AUTO);
+        return setMmprojAuto(true);
+    }
+
+    /**
+     * Enable or disable automatic multimodal-projector detection.
+     *
+     * @param enabled {@code true} to auto-detect a projector, {@code false} to disable it
+     * @return this builder
+     */
+    public ModelParameters setMmprojAuto(boolean enabled) {
+        setFlag(enabled ? ModelFlag.MMPROJ_AUTO : ModelFlag.NO_MMPROJ_AUTO);
+        clearFlag(enabled ? ModelFlag.NO_MMPROJ_AUTO : ModelFlag.MMPROJ_AUTO);
+        return this;
     }
 
     /**
@@ -1295,7 +1307,20 @@ public final class ModelParameters extends CliParameters {
      * @return this builder
      */
     public ModelParameters enableMmprojOffload() {
-        return setFlag(ModelFlag.MMPROJ_OFFLOAD);
+        return setMmprojOffload(true);
+    }
+
+    /**
+     * Enable or disable GPU offload for the multimodal projector. This is independent of
+     * {@link #setGpuLayers(int)} because upstream enables projector offload by default.
+     *
+     * @param enabled {@code true} to offload the projector, {@code false} to keep it on CPU
+     * @return this builder
+     */
+    public ModelParameters setMmprojOffload(boolean enabled) {
+        setFlag(enabled ? ModelFlag.MMPROJ_OFFLOAD : ModelFlag.NO_MMPROJ_OFFLOAD);
+        clearFlag(enabled ? ModelFlag.NO_MMPROJ_OFFLOAD : ModelFlag.MMPROJ_OFFLOAD);
+        return this;
     }
 
     /**
