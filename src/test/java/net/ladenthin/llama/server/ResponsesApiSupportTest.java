@@ -121,4 +121,23 @@ public class ResponsesApiSupportTest {
         assertThat(functionCall.path("name").asText(), is("f"));
         assertThat(functionCall.path("arguments").asText(), is("{\"a\":1}"));
     }
+
+    @Test
+    public void requestForwardsToolChoiceAndParallelToolCalls() throws IOException {
+        // The Responses API uses the same tool_choice + parallel_tool_calls fields as chat.
+        JsonNode openAi = ResponsesApiSupport.toOpenAiChatRequest(read("{\"model\":\"m\",\"input\":\"hi\","
+                + "\"tools\":[{\"type\":\"function\",\"name\":\"f\",\"parameters\":{\"type\":\"object\"}}],"
+                + "\"tool_choice\":\"required\",\"parallel_tool_calls\":false}"));
+        assertThat(openAi.path("tool_choice").asText(), is("required"));
+        assertThat(openAi.path("parallel_tool_calls").isBoolean(), is(true));
+        assertThat(openAi.path("parallel_tool_calls").asBoolean(), is(false));
+    }
+
+    @Test
+    public void requestOmitsToolChoiceAndParallelToolCallsWhenAbsent() throws IOException {
+        JsonNode openAi = ResponsesApiSupport.toOpenAiChatRequest(read("{\"model\":\"m\",\"input\":\"hi\","
+                + "\"tools\":[{\"type\":\"function\",\"name\":\"f\",\"parameters\":{\"type\":\"object\"}}]}"));
+        assertThat(openAi.has("tool_choice"), is(false));
+        assertThat(openAi.has("parallel_tool_calls"), is(false));
+    }
 }

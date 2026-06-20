@@ -160,4 +160,25 @@ public class AnthropicApiSupportTest {
                 is("assistant"));
         assertThat(AnthropicApiSupport.messageStopEvent().startsWith("event: message_stop"), is(true));
     }
+
+    @Test
+    public void requestMapsDisableParallelToolUseToParallelToolCallsFalse() throws IOException {
+        // Anthropic tool_choice.disable_parallel_tool_use=true -> OpenAI parallel_tool_calls=false.
+        JsonNode openAi = AnthropicApiSupport.toOpenAiChatRequest(read("{\"model\":\"m\","
+                + "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],"
+                + "\"tools\":[{\"name\":\"get_weather\",\"input_schema\":{\"type\":\"object\"}}],"
+                + "\"tool_choice\":{\"type\":\"auto\",\"disable_parallel_tool_use\":true}}"));
+        assertThat(openAi.path("parallel_tool_calls").isBoolean(), is(true));
+        assertThat(openAi.path("parallel_tool_calls").asBoolean(), is(false));
+    }
+
+    @Test
+    public void requestOmitsParallelToolCallsWhenParallelToolUseAllowed() throws IOException {
+        // disable_parallel_tool_use absent -> default (parallel allowed) -> no override emitted.
+        JsonNode openAi = AnthropicApiSupport.toOpenAiChatRequest(read("{\"model\":\"m\","
+                + "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],"
+                + "\"tools\":[{\"name\":\"get_weather\",\"input_schema\":{\"type\":\"object\"}}],"
+                + "\"tool_choice\":{\"type\":\"auto\"}}"));
+        assertThat(openAi.has("parallel_tool_calls"), is(false));
+    }
 }

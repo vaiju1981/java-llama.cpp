@@ -85,6 +85,12 @@ final class AnthropicApiSupport {
             if (toolChoice != null) {
                 openAi.put("tool_choice", toolChoice);
             }
+            // Anthropic expresses "no parallel tool use" via tool_choice.disable_parallel_tool_use;
+            // OpenAI's equivalent is parallel_tool_calls=false. Map it so the shared chat core honors
+            // a client's request to serialize tool calls (default stays parallel when unset/false).
+            if (request.path("tool_choice").path("disable_parallel_tool_use").asBoolean(false)) {
+                openAi.put("parallel_tool_calls", false);
+            }
         }
 
         copyNumber(request, "max_tokens", openAi, "max_tokens");

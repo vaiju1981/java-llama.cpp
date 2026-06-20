@@ -79,6 +79,17 @@ final class ResponsesApiSupport {
                     function.set("parameters", tool.path("parameters").deepCopy());
                 }
             }
+            // The Responses API uses the same tool_choice + parallel_tool_calls fields as chat; forward
+            // them so the shared chat core honors them. The mapper consumes the string form of
+            // tool_choice ("auto"/"none"/"required"), which is what we forward here.
+            if (request.path("tool_choice").isTextual()) {
+                openAi.put("tool_choice", request.path("tool_choice").asText());
+            }
+            if (request.path("parallel_tool_calls").isBoolean()) {
+                openAi.put(
+                        "parallel_tool_calls",
+                        request.path("parallel_tool_calls").asBoolean());
+            }
         }
 
         copyNumber(request, "temperature", openAi, "temperature");
