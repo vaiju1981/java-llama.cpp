@@ -38,6 +38,45 @@ git add .github/build_cuda_linux.sh pom.xml CLAUDE.md
 git commit -m "Upgrade CUDA from 13.2 to 13.3"
 ```
 
+### Fast local CUDA builds (`CUDA_FAST_BUILD`) — single-arch speed knob
+
+The CUDA artifact must ship kernels for **every supported GPU generation**, so the default
+build — and every CI/release build — compiles the **full `CMAKE_CUDA_ARCHITECTURES` set** that
+ggml/llama.cpp selects. nvcc recompiles each `.cu` kernel once per architecture, which is the
+dominant cost of the ~70 min CUDA job. **`sccache` does not help here:** it caches the gcc
+C/C++ TUs but not the nvcc `.cu` kernels (sccache's nvcc support is limited/experimental), so
+the per-arch nvcc passes remain even with the cache on. The one reliable lever to cut that time
+is to build **fewer architectures**.
+
+`build_cuda_linux.sh` therefore honors an **opt-in** env knob — default **off** (full arch set,
+release-safe):
+
+```bash
+# Full release build (default): all archs — slow, runs on every GPU generation.
+.github/build_cuda_linux.sh "-DOS_NAME=Linux -DOS_ARCH=x86_64"
+
+# Fast local dev build: one arch only. Defaults to `native` (the build machine's own GPU;
+# needs a GPU present at configure time). Override with CUDA_ARCH=<cc>, e.g. CUDA_ARCH=90.
+CUDA_FAST_BUILD=1 .github/build_cuda_linux.sh "-DOS_NAME=Linux -DOS_ARCH=x86_64"
+CUDA_FAST_BUILD=1 CUDA_ARCH=90 .github/build_cuda_linux.sh "-DOS_NAME=Linux -DOS_ARCH=x86_64"
+# Direct-cmake equivalent: cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=native
+```
+
+**Default + CI policy (release-safety is the invariant).** An artifact built with `CUDA_FAST_BUILD`
+runs on only the single GPU generation it was compiled for, so the **distributed jar must always be
+the full arch set**. The script default is **off** (full) so any *local/manual* build is
+release-safe. In CI (`publish.yml`, the `crosscompile-linux-x86_64-cuda` job) the flag is **on for
+validation runs** (PR / push / non-publish dispatch) to cut nvcc time, and **off only when actually
+publishing to Central** — it is wired as `CUDA_FAST_BUILD: ${{ inputs.publish_to_central && '0' || '1' }}`
+(`'0'`=full, `'1'`=fast). Because the `publish-snapshot`/`publish-release` jobs require
+`publish_to_central`, **every artifact that reaches Central is built with the full arch set** while
+ordinary PR/push CI stays fast. CI has no GPU, so the fast path pins a fixed `CUDA_ARCH` (default
+`120` — the newest CUDA 13.2 arch, sm_120 / consumer Blackwell — in the job env) — `native`
+would fail at configure. Both `CUDA_FAST_BUILD` and `CUDA_ARCH` are
+forwarded into the dockcross container via `DOCKCROSS_ARGS` `-e`. To cache the nvcc kernels too you
+would add `-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache` (gated behind the same probe), but sccache's nvcc
+caching is unreliable — the arch knob is the better lever and is what this repo ships.
+
 ## Android minimum API level
 
 Current Android minimum API level: **28** (Android 9.0 Pie)
@@ -197,14 +236,50 @@ stays `-O3` and is **bit-identical** to a clean build (release-safe).
 
 **Safety / transparency.** It is **inert** until `DEPOT_TOKEN` is configured and on **fork
 PRs** (secrets are hidden there) — those simply compile normally; the `Install sccache` step
-is `continue-on-error`; and `use_cache=false` forces a pristine, from-scratch build.
+is `continue-on-error`; and `use_cache=false` forces a pristine, from-scratch build. Crucially,
+`build.sh` runs a **probe-compile health-check** (`sccache_can_wrap_compiler`) before trusting
+sccache as the launcher: it compiles a trivial TU *through* sccache, and only sets
+`-DCMAKE_{C,CXX}_COMPILER_LAUNCHER=sccache` if that succeeds. So a sccache that is present but
+**crashes** (the in-container panic that stalled phase 2) also falls back to an uncached, green
+`-O3` build — it logs the Rust panic backtrace (and the detached server's `SCCACHE_ERROR_LOG`,
+when a job sets one) for diagnosis but never reds the build. This closes the gap the original
+absent-only guard left.
 
-**Rollout.** **Phase 1 (current): the 3 macOS build jobs** (slowest + OOM-prone) —
-`brew install sccache` + the env above + `BUILD_JOBS: 2`. **Phase 2 (TODO):** the dockcross
-Linux/Android/CUDA jobs (the `sccache` binary **and** `DEPOT_TOKEN` must be passed *into* the
-container), the Windows jobs (sccache supports MSVC), and the Linux-host `test-cpp` job. To
-extend a job: install `sccache`, set the two `SCCACHE_WEBDAV_*` env vars, and (for
-RAM-limited runners) `BUILD_JOBS`.
+**Rollout.** **Phase 1 — DONE & proven: the 3 macOS build jobs** (slowest + OOM-prone) —
+`brew install sccache` + the env above + `BUILD_JOBS: 2`. macOS build dropped **~40 min → ~6 min**
+with a warm cache. **Phase 2 — DONE: all 5 dockcross cross-compile jobs** now have the same
+steady-state env (`USE_CACHE` + `SCCACHE_WEBDAV_*` + `DOCKCROSS_ARGS`). The probe makes it safe
+to enable them all at once — any container where sccache crashes falls back to an uncached green
+build automatically. (The first attempt enabled all four at once without the probe and was
+reverted: the static-musl sccache v0.8.2 panicked in-container and redded the build. With
+v0.16.0 + the probe this is no longer a risk.) Job-by-job status:
+1. `crosscompile-linux-x86_64` (manylinux2014) — ✅ **verified green** in PR #245: sccache
+   **v0.16.0** probe passed in-container (devtoolset-10 gcc), `sccache ON` over Depot WebDAV,
+   warm cache 277/278 hits (99.64%), 1m46s build time.
+2. `crosscompile-linux-x86_64-cuda` (via `build_cuda_linux.sh`, which execs `build.sh`) —
+   🚧 **first run in progress** (diagnostics on). Only the gcc C/C++ TUs cache (134 model files
+   + ggml + httplib); the nvcc `.cu` kernels won't (limited sccache nvcc support) — still a
+   large partial win on the ~70 min full-arch job; the fast single-arch (sm_120) validation path
+   cuts nvcc time independently of sccache.
+3. `crosscompile-linux-aarch64` — ✅ **enabled** (same steady-state env; probe guards it).
+4. `crosscompile-android-aarch64` — ✅ **enabled** (same steady-state env; probe guards it).
+5. `crosscompile-android-aarch64-opencl` — ✅ **enabled**. `build_opencl_android.sh` stages the
+   OpenCL headers/loader, then delegates the jllama cmake build to `build.sh` via `exec`
+   (same pattern as `build_cuda_linux.sh`), so it inherits the probe and launcher automatically.
+
+Per-job recipe: add `env:` { `USE_CACHE`, `SCCACHE_WEBDAV_ENDPOINT`, `SCCACHE_WEBDAV_TOKEN` } and
+`DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"` — the
+dockcross wrapper only forwards host env it is explicitly told to via `-e`. The fetched sccache
+version is the `SCCACHE_DL_VERSION` knob in `build.sh` (default **0.16.0**; overridable per-job
+to try a different build against a container that crashed another). **Windows** (`build.bat` +
+MSVC) is separate and last: use `mozilla-actions/sccache-action` / sccache's MSVC support, not
+the `build.sh` musl fetch.
+
+**Cross-repo scope.** This Depot/sccache compiler cache makes sense only for java-llama.cpp —
+it is the only sibling repo with a native (C++/JNI) build. It does not apply to the pure-Maven
+siblings; why (and why the `DEPOT_TOKEN` org secret and the README "Build cache by Depot" badge
+are kept jllama-only) is explained in the cross-repo status under "Deliberate non-parity":
+[`../workspace/crossrepostatus.md`](../workspace/crossrepostatus.md).
 
 ## Upgrading/Downgrading llama.cpp Version
 
@@ -700,6 +775,12 @@ ctest --test-dir build --output-on-failure -R "ResultsToJson"
 #### Upstream source location (in CMake build tree)
 
 llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9682`.
+
+**GoogleTest** is a separate `BUILD_TESTING`-only FetchContent (`GIT_TAG v1.17.0`), used solely
+by the `jllama_test` C++ unit-test binary — not by the shipped library, and not coupled to the
+llama.cpp pin or the bundled nlohmann/json. There is **no constraint behind the exact tag**; it
+is just the latest stable at the time it was last touched. Bump it from time to time (nothing
+auto-tracks it), pairing the bump with a green `C++ Tests` CI run.
 
 ```
 build/_deps/llama.cpp-src/tools/server/   ← server-task.h, server-common.h, etc.

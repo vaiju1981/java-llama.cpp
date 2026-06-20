@@ -42,11 +42,11 @@ if [ ! -f "$LOADER_BUILD/libOpenCL.so" ]; then
     cmake --build "$LOADER_BUILD" --config Release -j"$(nproc)"
 fi
 
-mkdir -p build
-# Match .github/build.sh: pass $@ unquoted so the CI's single-string
+# Delegate the jllama cmake configure + build to build.sh so it inherits the
+# sccache probe, Depot cache launcher, and --show-stats output automatically —
+# same as build_cuda_linux.sh. Pass $@ unquoted so the CI's single-string
 # argument is word-split into individual -D flags for cmake.
-cmake -Bbuild \
+exec .github/build.sh \
     -DOpenCL_INCLUDE_DIR="$HEADERS_DIR" \
     -DOpenCL_LIBRARY="$LOADER_BUILD/libOpenCL.so" \
-    $@ || exit 1
-cmake --build build --config Release -j"$(nproc)" || exit 1
+    $@

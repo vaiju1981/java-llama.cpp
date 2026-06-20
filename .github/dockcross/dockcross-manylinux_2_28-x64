@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-DEFAULT_DOCKCROSS_IMAGE=dockcross/manylinux_2_28-x64:20260312-9b3357c
+DEFAULT_DOCKCROSS_IMAGE=dockcross/manylinux_2_28-x64:20260515-5fd14ac
 
 #------------------------------------------------------------------------------
 # Helpers
