@@ -71,7 +71,8 @@ publishing to Central** — it is wired as `CUDA_FAST_BUILD: ${{ inputs.publish_
 (`'0'`=full, `'1'`=fast). Because the `publish-snapshot`/`publish-release` jobs require
 `publish_to_central`, **every artifact that reaches Central is built with the full arch set** while
 ordinary PR/push CI stays fast. CI has no GPU, so the fast path pins a fixed `CUDA_ARCH` (default
-`90` in the job env) — `native` would fail at configure. Both `CUDA_FAST_BUILD` and `CUDA_ARCH` are
+`120` — the newest CUDA 13.2 arch, sm_120 / consumer Blackwell — in the job env) — `native`
+would fail at configure. Both `CUDA_FAST_BUILD` and `CUDA_ARCH` are
 forwarded into the dockcross container via `DOCKCROSS_ARGS` `-e`. To cache the nvcc kernels too you
 would add `-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache` (gated behind the same probe), but sccache's nvcc
 caching is unreliable — the arch knob is the better lever and is what this repo ships.

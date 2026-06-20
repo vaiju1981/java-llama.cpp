@@ -191,7 +191,9 @@ jobs:
       # reaches Central is always built with the full set. CI has no GPU, so the fast path pins a
       # fixed CUDA_ARCH ('native' would fail at configure). '0' => full (release-safe), '1' => fast.
       CUDA_FAST_BUILD: ${{ inputs.publish_to_central && '0' || '1' }}
-      CUDA_ARCH: '90'
+      # Newest CUDA 13.2 architecture: sm_120 (consumer Blackwell / RTX 50xx). Only used on the
+      # fast validation path; bump as newer GPU generations ship. Releases ignore it (full set).
+      CUDA_ARCH: '120'
       DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE -e SCCACHE_LOG -e SCCACHE_ERROR_LOG -e RUST_BACKTRACE -e CUDA_FAST_BUILD -e CUDA_ARCH"
     steps:
       - uses: actions/checkout@v6
