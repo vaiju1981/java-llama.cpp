@@ -206,15 +206,10 @@ container), the Windows jobs (sccache supports MSVC), and the Linux-host `test-c
 extend a job: install `sccache`, set the two `SCCACHE_WEBDAV_*` env vars, and (for
 RAM-limited runners) `BUILD_JOBS`.
 
-**Cross-repo scope — this is java-llama.cpp-only by nature.** `sccache` caches *compiler*
-output (C/C++/Rust/CUDA), and jllama is the only sibling repo with a native (C++/JNI) build,
-so it is the only one that benefits. The pure-Maven siblings (BitcoinAddressFinder,
-streambuffer, llamacpp-ai-index-maven-plugin) have no C/C++ to cache, run on **GitHub-hosted**
-runners (Depot's *GitHub Actions* cache backend activates only on **Depot-hosted** runners),
-and already cache their Maven dependencies via `actions/setup-java`'s `cache: maven`. The
-`DEPOT_TOKEN` organization secret is present in every repo but is **inert** outside jllama, and
-the README "Build cache by Depot" badge is intentionally kept here only — advertising it on the
-Maven repos would claim a capability they do not have. Recorded as deliberate non-parity in
+**Cross-repo scope.** This Depot/sccache compiler cache makes sense only for java-llama.cpp —
+it is the only sibling repo with a native (C++/JNI) build. It does not apply to the pure-Maven
+siblings; why (and why the `DEPOT_TOKEN` org secret and the README "Build cache by Depot" badge
+are kept jllama-only) is explained in the cross-repo status under "Deliberate non-parity":
 [`../workspace/crossrepostatus.md`](../workspace/crossrepostatus.md).
 
 ## Upgrading/Downgrading llama.cpp Version
