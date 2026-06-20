@@ -94,17 +94,19 @@ public class PairTest {
     public void testHashCodeDifferentPairs() {
         Pair<String, Integer> pair1 = new Pair<>("key1", 123);
         Pair<String, Integer> pair2 = new Pair<>("key2", 456);
-        // Different pairs may have different hash codes (not guaranteed, but likely)
-        // We mostly check that hashCode() doesn't throw
-        assertNotNull(pair1.hashCode());
-        assertNotNull(pair2.hashCode());
+        // hashCode() must not throw and must be deterministic (consistent across calls).
+        int hash1 = pair1.hashCode();
+        int hash2 = pair2.hashCode();
+        assertEquals(hash1, pair1.hashCode());
+        assertEquals(hash2, pair2.hashCode());
     }
 
     @Test
     public void testHashCodeWithNull() {
         Pair<String, Integer> pair = new Pair<>(null, null);
-        // Should not throw when hashing null values
-        assertNotNull(pair.hashCode());
+        // hashCode() must not throw when hashing null fields, and stays deterministic.
+        int hash = pair.hashCode();
+        assertEquals(hash, pair.hashCode());
     }
 
     @Test
