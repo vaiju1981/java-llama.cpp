@@ -23,6 +23,12 @@ public class TestConstants {
     /** Path to the Qwen3 thinking model used for reasoning budget tests. */
     public static final String REASONING_MODEL_PATH = "models/Qwen3-0.6B-Q4_K_M.gguf";
 
+    /** System property overriding the GGUF used by the real tool-calling integration tests. */
+    public static final String PROP_TOOL_MODEL_PATH = LlamaSystemProperties.PREFIX + ".tool.model";
+
+    /** Qwen2.5 tool-capable model used by upstream llama.cpp's blocking and streaming tests. */
+    public static final String DEFAULT_TOOL_MODEL_PATH = "models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf";
+
     /**
      * System property holding a path to a Nomic embedding model
      * ({@code nomic-embed-text-v1.5.f16.gguf} or a compatible BERT-family encoder).

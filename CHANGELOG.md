@@ -13,6 +13,8 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 - `CODE_OF_CONDUCT.md` (Contributor Covenant 2.0).
 - `docs/RELEASE.md` capturing the maintainer-facing release procedure (moved out of CHANGELOG).
 - OpenSSF Best Practices badge (project 12862) on README.
+- OpenAI-compatible `parallel_tool_calls` support: `ChatRequest.withParallelToolCalls(Boolean)` / `getParallelToolCalls()`, `InferenceParameters.withParallelToolCalls(boolean)`, and pass-through in the `/v1/chat/completions` server mapper.
+- Real-model tool-calling integration tests for blocking and streaming required tool calls (`ToolCallingIntegrationTest`, Qwen2.5-1.5B-Instruct), wired into CI and `validate-models`.
 
 ### Changed
 - Unified `CONTRIBUTING.md` and `SECURITY.md` structure with sibling repositories in the project family.
@@ -20,6 +22,7 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 - README license badge corrected from "Apache 2.0" to "MIT" (matches `LICENSE` file and `pom.xml`).
 - `pom.xml` SCM URL: `tree/master` → `tree/main` (default branch renamed).
 - Upgraded llama.cpp from b9151 to b9172.
+- Extracted the `chatWithTools` agent loop into `ToolCallingAgent`; tool-result errors (unknown tool / handler exception) are now JSON-serialized so tool names containing special characters remain valid JSON.
 
 ### Added
 - Reasoning-budget tests (Qwen3-0.6B).
