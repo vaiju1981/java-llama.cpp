@@ -355,7 +355,7 @@ Current patches:
 
 | Patch | Fixes |
 |-------|-------|
-| `0001-win32-arg-parse-embed-guard.patch` | Windows JNI regression from llama.cpp **#24779** (b9739): `common_params_parse` unconditionally replaced the caller's argv with the process command line (`GetCommandLineW`), so an embedded/JNI caller (`java.exe`) lost its `--model …` args → "Failed to parse model parameters". The patch guards the override to fire **only when the re-derived arg count equals `argc`** — true for the standalone `llama-*` tools (their UTF-8 CLI fix is preserved), false for a JVM host (our already-UTF-8 argv is kept). This is also the shape to PR upstream. |
+| `0001-win32-arg-parse-embed-guard.patch` | Windows JNI regression from llama.cpp **#24779** (b9739): `common_params_parse` unconditionally replaced the caller's argv with the process command line (`GetCommandLineW`), so an embedded/JNI caller (`java.exe`) lost its `--model …` args → "Failed to parse model parameters". The patch **drops the override for our build** (keeps the `make_utf8_argv()` call referenced so there's no `-Wunused-function`, but never adopts its result), so the caller's already-UTF-8 argv is always used. This is **deterministic** — an earlier count-guard variant (only override when the re-derived arg count equals `argc`) collided on the server-integration tests whose argv length happened to equal `java.exe`'s and kept them failing. The upstream PR can instead expose an opt-out / `common_params_parse_argv` that preserves the standalone tools' UTF-8 fix. |
 
 ## Upgrading/Downgrading llama.cpp Version
 
