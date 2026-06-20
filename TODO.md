@@ -85,75 +85,55 @@ primary goal: agentic tool-calling with Qwen):
 - **Gemma 4 tool-calling validation.** Confirm the pinned llama.cpp (`b9682`) includes the Gemma 4
   tool-call parser fixes; if not, bump per the upgrade procedure.
 
-### Windows compiler cache (sccache) — evaluation in progress (Ninja eval jobs landed)
+### Windows compiler cache (sccache) — dual build shipped (MSVC default + Ninja classifier)
 
-The two **release** Windows native build jobs (`build-windows-x86_64`, `build-windows-x86`) are
-still the **only uncached** native builds — the 3 macOS jobs and all 5 dockcross jobs cache via
-sccache + Depot. Windows can't cache under the Visual Studio generator (hard CMake constraint,
-below), and the chosen path is to validate the Ninja alternative carefully in parallel rather
-than flip the working build in place.
+**Design decision (do not revisit without the owner): the MSVC / Visual Studio build is the
+default JAR and is kept permanently — never retired.** The Ninja Multi-Config build is shipped
+*alongside* it as the `ninja-windows` classifier JAR, never as a replacement. The loss of the
+sccache cache on the MSVC build is accepted; the Ninja build exists so a cache-accelerated,
+independently validated second Windows artifact is available for users to compare/adopt.
 
-**Status — evaluation jobs have landed (this is the in-progress step):**
-- `.github/build.bat` now has an sccache **probe guard** mirroring `build.sh`'s
-  `sccache_can_wrap_compiler()`: when `USE_CACHE=true` and `sccache` is on PATH, it compiles a
-  trivial TU through `sccache cl.exe`; only on success does it pass
-  `-DCMAKE_{C,CXX}_COMPILER_LAUNCHER=sccache` and print `sccache --show-stats`. A missing/crashing
-  sccache falls back to a green uncached build. Inert for the VS jobs (they don't set `USE_CACHE`).
-- `.github/workflows/publish.yml` now has two **evaluation-only** jobs,
-  `build-windows-x86_64-ninja` and `build-windows-x86-ninja`: `windows-2025-vs2026`,
-  `ilammy/msvc-dev-cmd@v1` (`arch: x64`/`x86`), sccache v0.16.0 from the GitHub release zip, the
-  Depot WebDAV env, and `build.bat -G "Ninja Multi-Config"`. Their artifacts are named
-  `Windows-{x86_64,x86}-ninja` (**not** `*-libraries`) so the `package` job's `pattern: "*-libraries"`
-  does **not** consume them; `package`'s `needs:` is unchanged. They run alongside the trusted VS
-  jobs and do not affect any release artifact.
+**Why two builds.** The cache mechanism is the CMake *compiler launcher*
+(`-DCMAKE_C_COMPILER_LAUNCHER=sccache`). **The Visual Studio generator ignores it entirely**
+(only Ninja/Makefile generators honor it), so the MSVC jobs can never cache. The Ninja
+Multi-Config generator *does* honor it (upstream llama.cpp `b9682` ships `windows-cuda` this way,
+proving Ninja Multi-Config + MSVC works on the same tree). The two builds produce **different
+`jllama.dll`s**, so they cannot coexist at the same resource path in one JAR — hence the classifier.
 
-**What remains (wire into the release path once CI confirms cache hits):** after the Ninja jobs
-run green **with confirmed `sccache --show-stats` hits in the job log**, rename their uploads from
-`Windows-*-ninja` to `Windows-{x86_64,x86}-libraries`, add `build-windows-x86_64-ninja` +
-`build-windows-x86-ninja` to the `package` job's `needs:`, point `test-java-windows-x86_64` at the
-Ninja artifact, and retire the two VS generator jobs. That closes the Windows cache gap. Publishing
-is gated behind `publish_to_central`, so no broken evaluation artifact can reach Central/Releases.
+**What shipped (this branch):**
+- **4 Windows build jobs, all permanent:** `build-windows-x86_64`, `build-windows-x86` (MSVC,
+  default JAR) and `build-windows-x86_64-ninja`, `build-windows-x86-ninja` (Ninja + sccache/Depot).
+- **Both tested end-to-end:** all four run the C++ unit tests (`ctest`); `test-java-windows-x86_64`
+  (MSVC) and the new `test-java-windows-x86_64-ninja` (Ninja) both load the DLL via JNI and run the
+  full model-backed Java suite.
+- **`.github/build.bat`** — sccache probe guard (mirrors `build.sh`'s `sccache_can_wrap_compiler()`):
+  `USE_CACHE=true` + `sccache` on PATH + a trivial TU compiling through `sccache cl.exe` ⇒
+  `-DCMAKE_{C,CXX}_COMPILER_LAUNCHER=sccache` + `sccache --show-stats`; else green uncached. Inert
+  for the MSVC jobs (they don't set `USE_CACHE`).
+- **`pom.xml`** — `windows-ninja` profile → `<classifier>ninja-windows</classifier>` JAR from
+  `${project.build.outputDirectory}_windows_ninja` (mirrors the `cuda` / `opencl-android` profiles).
+- **`publish.yml`** — the `package`, `publish-snapshot`, `publish-release` jobs download
+  `Windows-{x86_64,x86}-ninja` into `src/main/resources_windows_ninja/` and activate the
+  `windows-ninja` profile; the Ninja build + Java-test jobs are in the `package` `needs:` graph.
+- Docs: `README.md` classifier table + `CLAUDE.md` "Windows Ninja artifact" section.
 
-**Why the obvious fix doesn't work.** Our cache mechanism is the CMake *compiler launcher*
-(`-DCMAKE_C_COMPILER_LAUNCHER=sccache`, set by `build.sh`). ggml has its own equivalent
-(`GGML_CCACHE` → `RULE_LAUNCH_COMPILE`). **Both are honored only by the Ninja and Makefile
-generators — the Visual Studio generator ignores them entirely.** Our Windows jobs use
-`-G "Visual Studio 18 2026" -A x64|Win32`, so just adding `mozilla-actions/sccache-action`
-caches nothing. (The CLAUDE.md "use sccache-action / MSVC support" note predates hitting this.)
+**What remains (verification, not redesign):**
+- Confirm the first green CI run shows **`sccache --show-stats` cache hits** in the Ninja job logs
+  (cold first, warm thereafter). If sccache never warms on the Depot WebDAV backend from Windows
+  runners, the Ninja build still ships correctly — it just falls back to uncached (green) — so this
+  is a perf check, not a correctness gate.
+- Optionally smoke-test that the published `ninja-windows` classifier JAR loads its DLL on a clean
+  Windows host. Publishing is gated behind `publish_to_central`, so a broken Windows job blocks the
+  release before any artifact reaches Central/GitHub Releases.
 
-**Upstream evidence (llama.cpp `b9682`, `.github/workflows/release.yml`).** ggml-org ships its
-Windows artifacts with Ninja, not the VS generator:
-- `windows-cpu` (the main CPU artifact, our analogue) — **Ninja Multi-Config** + clang toolchain
-  (`cmake/x64-windows-llvm.cmake`) + ccache.
-- `windows-cuda` — **Ninja Multi-Config** + MSVC + ccache (proves Ninja Multi-Config + MSVC works
-  on the same llama.cpp + BoringSSL tree we build).
-- `windows-sycl` — Ninja; `windows-hip` — Unix Makefiles; legacy `windows` + `windows-openvino` —
-  Visual Studio 17 2022. All jobs cache via `ggml-org/ccache-action@v1.2.21`.
-- Important detail: it is **"Ninja Multi-Config"**, not plain Ninja — it keeps multi-config
-  semantics, so `cmake --build … --config Release` and our config-specific
-  `RUNTIME_OUTPUT_DIRECTORY_RELEASE` properties (`CMakeLists.txt:363-365`) behave exactly as they
-  do under the VS generator. The diff vs today is small: swap `-G`/`-A` for `-G "Ninja
-  Multi-Config"` + an MSVC env step (`vcvarsall` / `ilammy/msvc-dev-cmd`); `/MT` runtime and the
-  x64-vs-x86 arch gating are unchanged.
-
-**Chosen approach — do NOT switch the working build blindly.** Instead either (a) prove the Ninja
-Multi-Config build in a **separate/experimental job first**, or preferably (b) **ship two Windows
-artifacts in parallel — one Ninja-built, one MSVC(VS-generator)-built — so end users can test both**
-and we can compare them before committing to one. That means the Windows native build runs **twice**
-(once per generator) for a transition period; keep the MSVC/VS artifact as the trusted default and
-add the Ninja one alongside until it's proven equivalent. Only after the Ninja artifact is validated
-should we consider making it the sole Windows build (and retiring the second run).
-
-**Reference notes (rationale behind the landed evaluation jobs):**
-- Cache backend: prefer **sccache + Depot WebDAV** (consistent with the other 8 jobs — one token,
-  shared cross-branch) over upstream's ccache (GitHub per-branch cache, a second cache system).
-  sccache supports MSVC `cl.exe`; Release config emits no debug info, so the `/Zi`→`/Z7` PDB caveat
-  doesn't apply.
-- `build.bat` Ninja path: pass `-G "Ninja Multi-Config"` (no `-DCMAKE_BUILD_TYPE` — multi-config
-  keeps `--config Release`); the sccache presence/probe guard mirrors `build.sh` so a
-  missing/crashing sccache falls back to a green uncached build. (Done.)
-- Risk is bounded: a broken Ninja build shows up as a red **evaluation** Windows job, and publishing
-  is gated behind `publish_to_central`, so no broken artifact can reach Central/GitHub Releases.
+**Reference notes:**
+- Cache backend is **sccache + Depot WebDAV** (consistent with the other 8 jobs — one token, shared
+  cross-branch) rather than upstream's per-branch ccache. sccache supports MSVC `cl.exe`; the
+  Release config emits no debug info, so the `/Zi`→`/Z7` PDB caveat doesn't apply.
+- It is **"Ninja Multi-Config"**, not plain Ninja — it keeps multi-config semantics, so
+  `cmake --build … --config Release` and the config-specific `RUNTIME_OUTPUT_DIRECTORY_RELEASE`
+  properties behave exactly as under the VS generator; `/MT` runtime and x64-vs-x86 gating unchanged.
+- The arch (`x64`/`x86`) comes from `ilammy/msvc-dev-cmd@v1`, not a `-A` flag (Ninja takes no `-A`).
 
 ### llama.cpp upstream feature exposure (queued, deferred by policy)
 

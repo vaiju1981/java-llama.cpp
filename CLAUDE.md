@@ -160,6 +160,51 @@ At runtime the device must provide its own OpenCL ICD (`libOpenCL.so`);
 Qualcomm Adreno drivers do. Devices without an ICD should use the default
 CPU-only Android JAR.
 
+## Windows Ninja artifact (sccache-cached, parallel to the MSVC build)
+
+The Visual Studio generator ignores `CMAKE_{C,CXX}_COMPILER_LAUNCHER`, so the two MSVC Windows
+jobs (`build-windows-x86_64`, `build-windows-x86`) **cannot** use the sccache/Depot cache. Rather
+than switch the trusted MSVC build, the repo builds the **same CPU natives a second time** with the
+**`Ninja Multi-Config`** generator (which *does* honor the launcher) and ships them as a separate
+**`ninja-windows`** Maven classifier JAR. **The MSVC build is the default JAR and is kept
+permanently** — the Ninja artifact is an additional, cache-accelerated, independently
+end-to-end-tested option, not a replacement. (Upstream llama.cpp ships its `windows-cuda` artifact
+with Ninja Multi-Config + MSVC, proving the combination works on the same tree.)
+
+Unlike the CUDA / OpenCL classifiers — which differ by a **GGML backend flag** and route their
+output in `CMakeLists.txt` — the Ninja Windows build differs only by **generator/toolchain**, so
+there is **no `CMakeLists.txt` change**: both generators emit to the canonical
+`src/main/resources/.../Windows/{x86_64,x86}/`. Routing to the classifier tree happens purely at the
+CI-download + pom-profile level. Four places wire it together:
+
+1. **`.github/build.bat`** — sccache probe guard mirroring `build.sh`'s `sccache_can_wrap_compiler()`:
+   when `USE_CACHE=true` and `sccache` is on PATH, it compiles a trivial TU through `sccache cl.exe`;
+   only on success does it pass `-DCMAKE_{C,CXX}_COMPILER_LAUNCHER=sccache` and print
+   `sccache --show-stats`. A missing/crashing sccache falls back to a green uncached build. The MSVC
+   jobs do not set `USE_CACHE`, so the guard is inert for them.
+2. **`.github/workflows/publish.yml`** — build jobs `build-windows-x86_64-ninja` /
+   `build-windows-x86-ninja` (`windows-2025-vs2026`, `ilammy/msvc-dev-cmd@v1` for the arch env,
+   sccache v0.16.0 from the GitHub release **zip** + Depot WebDAV, `build.bat -G "Ninja Multi-Config"`),
+   uploading artifacts `Windows-{x86_64,x86}-ninja` (**not** `*-libraries`, so the `package` job's
+   `pattern: "*-libraries"` ignores them). `test-java-windows-x86_64-ninja` loads the Ninja DLL via
+   JNI and runs the full model-backed suite. The `package`, `publish-snapshot`, and `publish-release`
+   jobs download `Windows-*-ninja` into `src/main/resources_windows_ninja/` and activate the
+   `windows-ninja` Maven profile.
+3. **`pom.xml`** — the `windows-ninja` profile produces a second JAR with `<classifier>ninja-windows</classifier>`
+   from the `${project.build.outputDirectory}_windows_ninja` tree (separate compile pass + resource
+   copy + classified jar; mirrors the `cuda` / `opencl-android` profiles). Activated only in CI.
+4. **`README.md`** — the `ninja-windows` row + dependency snippet in "Choosing the right classifier".
+
+`src/main/resources_windows_ninja/` is git-ignored (staged by CI, never committed — same policy as
+the native libs and the CUDA/OpenCL trees).
+
+**Local sanity build** (needs MSVC + a Ninja on PATH; sccache optional):
+```bat
+mvn -q compile
+.github\build.bat -G "Ninja Multi-Config" -DOS_NAME=Windows -DOS_ARCH=x86_64 -DBUILD_TESTING=ON
+ctest --test-dir build --output-on-failure
+```
+
 ## WebUI (llama.cpp Svelte UI) embedding
 
 The llama.cpp WebUI is **built once in CI and shared to every native build**, then
@@ -271,9 +316,11 @@ Per-job recipe: add `env:` { `USE_CACHE`, `SCCACHE_WEBDAV_ENDPOINT`, `SCCACHE_WE
 `DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"` — the
 dockcross wrapper only forwards host env it is explicitly told to via `-e`. The fetched sccache
 version is the `SCCACHE_DL_VERSION` knob in `build.sh` (default **0.16.0**; overridable per-job
-to try a different build against a container that crashed another). **Windows** (`build.bat` +
-MSVC) is separate and last: use `mozilla-actions/sccache-action` / sccache's MSVC support, not
-the `build.sh` musl fetch.
+to try a different build against a container that crashed another). **Windows** is handled
+separately (the Visual Studio generator ignores `CMAKE_*_COMPILER_LAUNCHER`): see
+"Windows Ninja artifact" below — the cached path uses the **Ninja Multi-Config** generator with a
+`build.bat` sccache probe and a direct sccache zip download (not `mozilla-actions/sccache-action`),
+shipped as a parallel `ninja-windows` classifier JAR while the MSVC default stays the trusted build.
 
 **Cross-repo scope.** This Depot/sccache compiler cache makes sense only for java-llama.cpp —
 it is the only sibling repo with a native (C++/JNI) build. It does not apply to the pure-Maven

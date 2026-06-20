@@ -157,14 +157,16 @@ If any of these match your platform, you can include the Maven dependency and ge
 ### Choosing the right classifier
 
 The Maven coordinate `net.ladenthin:llama` publishes one default JAR (CPU-only)
-plus two optional GPU/accelerator JARs selected via a Maven `<classifier>`.
-Pick at most one — they are mutually exclusive.
+plus optional JARs selected via a Maven `<classifier>`: two GPU/accelerator
+builds and one alternate-toolchain Windows build. Pick at most one GPU/accelerator
+classifier — those are mutually exclusive — and optionally the Windows build.
 
 | Classifier | Backend | Target platform | Runtime requirement |
 |---|---|---|---|
-| _(none)_ | CPU | Linux x86-64 / aarch64, macOS x86-64 / aarch64, Windows x86-64, Android aarch64 (CPU) | None beyond a JDK 8+ JVM |
+| _(none)_ | CPU | Linux x86-64 / aarch64, macOS x86-64 / aarch64, Windows x86-64 (MSVC / Visual Studio generator), Android aarch64 (CPU) | None beyond a JDK 8+ JVM |
 | `cuda13-linux-x86-64` | CUDA 13 | Linux x86-64 with NVIDIA GPU | NVIDIA driver + CUDA 13 runtime libraries (`libcudart.so.13`, `libcublas.so.13`) installed on the host. The shared library is dynamically linked against them and will fail to `dlopen` if they are absent — there is no automatic fallback to CPU. |
 | `opencl-android-aarch64` | OpenCL (Adreno) | Android aarch64 with Qualcomm Adreno GPU | A device-supplied OpenCL ICD (`libOpenCL.so`). Devices without an ICD (e.g. most non-Snapdragon Android hardware) must use the default CPU JAR. |
+| `ninja-windows` | CPU (Ninja Multi-Config + MSVC) | Windows x86-64 and x86 | None beyond a JDK 8+ JVM. Same CPU backend as the default JAR's Windows natives, but compiled with the `Ninja Multi-Config` generator (sccache-cached in CI) instead of the Visual Studio generator. Provided so both Windows builds are available; functionally equivalent for normal use. |
 
 ```xml
 <!-- CPU (default) -->
@@ -188,6 +190,14 @@ Pick at most one — they are mutually exclusive.
     <artifactId>llama</artifactId>
     <version>5.0.2</version>
     <classifier>opencl-android-aarch64</classifier>
+</dependency>
+
+<!-- Windows natives built with the Ninja Multi-Config generator (CPU) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.2</version>
+    <classifier>ninja-windows</classifier>
 </dependency>
 ```
 

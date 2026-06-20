@@ -913,6 +913,95 @@ SPDX-License-Identifier: MIT
 			</build>
 		</profile>
 		<profile>
+			<!-- Windows Ninja Multi-Config + sccache build, shipped as a separate
+			     classifier JAR alongside the default (MSVC/Visual-Studio-generator)
+			     Windows natives. The default JAR keeps the trusted MSVC jllama.dll;
+			     consumers who want the Ninja-built natives add the
+			     `ninja-windows` classifier. Mirrors the cuda / opencl-android
+			     classifier pattern: a separate compile pass + resource copy +
+			     classified jar. The Ninja DLLs are staged into
+			     src/main/resources_windows_ninja/ by CI before this profile runs. -->
+			<id>windows-ninja</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-compiler-plugin</artifactId>
+						<executions>
+						<!-- Separate build pass for the windows-ninja classifier -->
+						<execution>
+							<id>windows-ninja</id>
+							<phase>compile</phase>
+							<goals>
+								<goal>compile</goal>
+							</goals>
+							<configuration>
+								<!-- Same rationale as default-compile: this pass targets release 8;
+								     module-info.java is Java 9+ and is handled by module-info-compile. -->
+								<excludes>
+									<exclude>module-info.java</exclude>
+								</excludes>
+								<compilerArgs>
+									<arg>-h</arg>
+									<arg>src/main/cpp</arg>
+								</compilerArgs>
+								<outputDirectory>
+									${project.build.outputDirectory}_windows_ninja</outputDirectory>
+							</configuration>
+						</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<artifactId>maven-resources-plugin</artifactId>
+						<executions>
+						<!-- Copy the Ninja-built Windows libs to the output directory -->
+						<execution>
+							<id>copy-resources-windows-ninja</id>
+							<phase>process-classes</phase>
+							<goals>
+								<goal>copy-resources</goal>
+							</goals>
+							<configuration>
+								<outputDirectory>
+									${project.build.outputDirectory}_windows_ninja</outputDirectory>
+								<resources>
+									<resource>
+										<directory>
+											${basedir}/src/main/resources_windows_ninja/</directory>
+										<includes>
+											<include>**/*.*</include>
+										</includes>
+									</resource>
+								</resources>
+							</configuration>
+						</execution>
+						</executions>
+					</plugin>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-jar-plugin</artifactId>
+						<executions>
+							<!-- Pick class files AND libs from custom output
+							directory -->
+							<execution>
+								<id>windows-ninja</id>
+								<phase>package</phase>
+								<goals>
+									<goal>jar</goal>
+								</goals>
+								<configuration>
+									<classifier>ninja-windows</classifier>
+									<classesDirectory>
+										${project.build.outputDirectory}_windows_ninja</classesDirectory>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+
+		<profile>
 			<id>vmlens</id>
 			<build>
 				<plugins>
