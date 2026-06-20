@@ -84,6 +84,14 @@ primary goal: agentic tool-calling with Qwen):
   round-trip confirms the wire shapes but not each client's own parser.
 - **Gemma 4 tool-calling validation.** Confirm the pinned llama.cpp (`b9739`) includes the Gemma 4
   tool-call parser fixes; if not, bump per the upgrade procedure.
+- **NativeServer — wire upstream `server.cpp` routes to JNI (in progress; scaffold landed `dd264b2`).**
+  The upstream HTTP transport (`tools/server/server-http.cpp` + the cpp-httplib backend) is already
+  compiled into `libjllama`, and a `server.NativeServer` Java scaffold + `NativeServerSmokeTest` landed
+  in `dd264b2`. **Remaining:** wire the upstream `server.cpp` route table (the one upstream TU still
+  excluded from the build — it carries `main()` + route wiring) to JNI so the native HTTP server (and the
+  embedded WebUI) can be started/stopped from Java. This is the **native-transport alternative** to the
+  JDK-based `OpenAiCompatServer` (which is complete and the primary surface); value is shipping the full
+  llama.cpp server + WebUI in-process without a separate `llama-server` binary. JNI + C++ work.
 
 ### Windows compiler cache (sccache) — dual build shipped (MSVC default + Ninja classifier)
 
