@@ -135,6 +135,56 @@ proving Ninja Multi-Config + MSVC works on the same tree). The two builds produc
   properties behave exactly as under the VS generator; `/MT` runtime and x64-vs-x86 gating unchanged.
 - The arch (`x64`/`x86`) comes from `ilammy/msvc-dev-cmd@v1`, not a `-A` flag (Ninja takes no `-A`).
 
+### Known regression (b9739) — Windows JNI: `common_params_parse` ignores caller argv
+
+**Status: root-caused, fix deferred.** Surfaced while bringing PR #248 green (the b9739 build fixes let
+the Windows Java jobs run to completion and exposed this).
+
+**Symptom.** On **Windows x86_64 only**, every Java test that loads a real model fails in
+`LlamaModel.loadModel` (native) with `LlamaException: "Failed to parse model parameters"`
+(25 errors in `Java Tests Windows 2025 x86_64`, both the VS *and* Ninja DLLs). macOS and Linux Java
+tests pass. The argv we build is platform-neutral (`--model models/<file>.gguf`, relative, forward
+slashes — `TestConstants.MODEL_PATH`), so it is **not** the Windows-Ninja build, **not** our argv,
+and **not** a path/escaping issue.
+
+**Root cause (upstream llama.cpp, new in b9739).** `jllama.cpp` (`load_model_impl`, ~line 606) builds
+a CLI argv from `ModelParameters` and calls upstream
+`common_params_parse(argc, argv, params, LLAMA_EXAMPLE_SERVER)`. In b9739, `common/arg.cpp`'s
+`common_params_parse` gained a **Windows-only** prologue (arg.cpp:924-931):
+
+```cpp
+bool common_params_parse(int argc, char ** argv, ...) {
+#ifdef _WIN32
+    auto utf8 = make_utf8_argv();          // = CommandLineToArgvW(GetCommandLineW())
+    if (!utf8.ptrs.empty()) {              // always non-empty under a JVM
+        argc = (int) utf8.buf.size();
+        argv = utf8.ptrs.data();           // DISCARDS the caller-supplied argv
+    }
+#endif
+    ... common_params_parse_ex(argc, argv, ctx_arg) ...
+}
+```
+
+It unconditionally replaces the caller's argv with the host **process** command line
+(`GetCommandLineW()`). For the standalone `llama-server.exe` this is correct (fixes UTF-8 CLI args).
+For an **embedded/JNI** caller the process is **`java.exe`**, whose command line has no `--model`, so
+`common_params_parse_ex` fails and `common_params_parse` returns `false` → our "Failed to parse model
+parameters". `common_params_parse_ex` is `static`, so we cannot bypass the block by calling the inner
+parser. Our JNI already passes correct UTF-8 argv (`GetStringUTFChars`), so the re-derivation is
+unnecessary for us. **This is an upstream bug affecting every embedded Windows consumer of
+`common_params_parse`.**
+
+**Fix options (decide later):**
+1. FetchContent `PATCH_COMMAND` that **guards** the block — only override when `make_utf8_argv()` arg
+   count equals the caller's `argc` (true for the standalone exe, false for JNI). Minimal + semantically
+   correct; also the shape to PR upstream.
+2. FetchContent patch that **removes** the `_WIN32` override for our build.
+3. File an upstream issue/PR and wait for a fixed llama.cpp build.
+
+Any patch re-applies on every llama.cpp bump — add it to the upgrade checklist. Pre-existing on `main`
+since #247 (b9682→b9739); independent of the Windows-Ninja classifier work. Windows **build + C++ ctest**
+jobs are green; only the Windows **Java/inference** jobs are affected.
+
 ### llama.cpp upstream feature exposure (queued, deferred by policy)
 
 These are JNI plumbing items for upstream API additions. Policy: add only after a real user request — they are mostly relevant to specific model families or specialized workflows.
