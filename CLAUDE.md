@@ -38,6 +38,37 @@ git add .github/build_cuda_linux.sh pom.xml CLAUDE.md
 git commit -m "Upgrade CUDA from 13.2 to 13.3"
 ```
 
+### Fast local CUDA builds (`CUDA_FAST_BUILD`) — single-arch speed knob
+
+The CUDA artifact must ship kernels for **every supported GPU generation**, so the default
+build — and every CI/release build — compiles the **full `CMAKE_CUDA_ARCHITECTURES` set** that
+ggml/llama.cpp selects. nvcc recompiles each `.cu` kernel once per architecture, which is the
+dominant cost of the ~70 min CUDA job. **`sccache` does not help here:** it caches the gcc
+C/C++ TUs but not the nvcc `.cu` kernels (sccache's nvcc support is limited/experimental), so
+the per-arch nvcc passes remain even with the cache on. The one reliable lever to cut that time
+is to build **fewer architectures**.
+
+`build_cuda_linux.sh` therefore honors an **opt-in** env knob — default **off** (full arch set,
+release-safe):
+
+```bash
+# Full release build (default): all archs — slow, runs on every GPU generation.
+.github/build_cuda_linux.sh "-DOS_NAME=Linux -DOS_ARCH=x86_64"
+
+# Fast local dev build: one arch only. Defaults to `native` (the build machine's own GPU;
+# needs a GPU present at configure time). Override with CUDA_ARCH=<cc>, e.g. CUDA_ARCH=90.
+CUDA_FAST_BUILD=1 .github/build_cuda_linux.sh "-DOS_NAME=Linux -DOS_ARCH=x86_64"
+CUDA_FAST_BUILD=1 CUDA_ARCH=90 .github/build_cuda_linux.sh "-DOS_NAME=Linux -DOS_ARCH=x86_64"
+# Direct-cmake equivalent: cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=native
+```
+
+**Why a separate, off-by-default flag (never enable it in CI/release):** an artifact built with
+`CUDA_FAST_BUILD` runs on only the single GPU generation it was compiled for. The flag exists
+purely to speed up **local iteration**; the CI CUDA job leaves it unset, so released jars keep
+full arch coverage. To cache the nvcc kernels too you would add
+`-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache` (gated behind the same probe), but sccache's nvcc
+caching is unreliable — the arch knob is the better lever and is what this repo ships.
+
 ## Android minimum API level
 
 Current Android minimum API level: **28** (Android 9.0 Pie)
@@ -734,6 +765,12 @@ ctest --test-dir build --output-on-failure -R "ResultsToJson"
 #### Upstream source location (in CMake build tree)
 
 llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9682`.
+
+**GoogleTest** is a separate `BUILD_TESTING`-only FetchContent (`GIT_TAG v1.17.0`), used solely
+by the `jllama_test` C++ unit-test binary — not by the shipped library, and not coupled to the
+llama.cpp pin or the bundled nlohmann/json. There is **no constraint behind the exact tag**; it
+is just the latest stable at the time it was last touched. Bump it from time to time (nothing
+auto-tracks it), pairing the bump with a green `C++ Tests` CI run.
 
 ```
 build/_deps/llama.cpp-src/tools/server/   ← server-task.h, server-common.h, etc.
