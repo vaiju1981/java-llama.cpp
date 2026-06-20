@@ -85,6 +85,56 @@ primary goal: agentic tool-calling with Qwen):
 - **Gemma 4 tool-calling validation.** Confirm the pinned llama.cpp (`b9682`) includes the Gemma 4
   tool-call parser fixes; if not, bump per the upgrade procedure.
 
+### Windows compiler cache (sccache) — deferred: needs Ninja; evaluate dual-artifact
+
+The two Windows native build jobs (`build-windows-x86_64`, `build-windows-x86`) are the **only
+remaining uncached** native builds — the 3 macOS jobs and all 5 dockcross jobs now cache via
+sccache + Depot. Windows is not yet wired up because of a hard CMake constraint, and the chosen
+path is to validate it carefully rather than flip the working build in place.
+
+**Why the obvious fix doesn't work.** Our cache mechanism is the CMake *compiler launcher*
+(`-DCMAKE_C_COMPILER_LAUNCHER=sccache`, set by `build.sh`). ggml has its own equivalent
+(`GGML_CCACHE` → `RULE_LAUNCH_COMPILE`). **Both are honored only by the Ninja and Makefile
+generators — the Visual Studio generator ignores them entirely.** Our Windows jobs use
+`-G "Visual Studio 18 2026" -A x64|Win32`, so just adding `mozilla-actions/sccache-action`
+caches nothing. (The CLAUDE.md "use sccache-action / MSVC support" note predates hitting this.)
+
+**Upstream evidence (llama.cpp `b9682`, `.github/workflows/release.yml`).** ggml-org ships its
+Windows artifacts with Ninja, not the VS generator:
+- `windows-cpu` (the main CPU artifact, our analogue) — **Ninja Multi-Config** + clang toolchain
+  (`cmake/x64-windows-llvm.cmake`) + ccache.
+- `windows-cuda` — **Ninja Multi-Config** + MSVC + ccache (proves Ninja Multi-Config + MSVC works
+  on the same llama.cpp + BoringSSL tree we build).
+- `windows-sycl` — Ninja; `windows-hip` — Unix Makefiles; legacy `windows` + `windows-openvino` —
+  Visual Studio 17 2022. All jobs cache via `ggml-org/ccache-action@v1.2.21`.
+- Important detail: it is **"Ninja Multi-Config"**, not plain Ninja — it keeps multi-config
+  semantics, so `cmake --build … --config Release` and our config-specific
+  `RUNTIME_OUTPUT_DIRECTORY_RELEASE` properties (`CMakeLists.txt:363-365`) behave exactly as they
+  do under the VS generator. The diff vs today is small: swap `-G`/`-A` for `-G "Ninja
+  Multi-Config"` + an MSVC env step (`vcvarsall` / `ilammy/msvc-dev-cmd`); `/MT` runtime and the
+  x64-vs-x86 arch gating are unchanged.
+
+**Chosen approach — do NOT switch the working build blindly.** Instead either (a) prove the Ninja
+Multi-Config build in a **separate/experimental job first**, or preferably (b) **ship two Windows
+artifacts in parallel — one Ninja-built, one MSVC(VS-generator)-built — so end users can test both**
+and we can compare them before committing to one. That means the Windows native build runs **twice**
+(once per generator) for a transition period; keep the MSVC/VS artifact as the trusted default and
+add the Ninja one alongside until it's proven equivalent. Only after the Ninja artifact is validated
+should we consider making it the sole Windows build (and retiring the second run).
+
+**Implementation notes for when this is picked up:**
+- Cache backend: prefer **sccache + Depot WebDAV** (consistent with the other 8 jobs — one token,
+  shared cross-branch) over upstream's ccache (GitHub per-branch cache, a second cache system).
+  sccache supports MSVC `cl.exe`; Release config emits no debug info, so the `/Zi`→`/Z7` PDB caveat
+  doesn't apply.
+- `build.bat` needs a Ninja path: pass `-G "Ninja Multi-Config"` + `-DCMAKE_BUILD_TYPE` is *not*
+  needed (multi-config keeps `--config Release`); add an sccache presence/probe guard mirroring
+  `build.sh` so a missing/crashing sccache falls back to a green uncached build.
+- Files to touch: `.github/workflows/publish.yml` (the two `build-windows-*` jobs — add the MSVC env
+  step, the cache action, and the second artifact), `.github/build.bat` (generator + launcher wiring).
+- Risk is bounded: a broken Ninja build shows up as a red Windows job, and publishing is gated behind
+  `publish_to_central`, so no broken artifact can reach Central/GitHub Releases.
+
 ### llama.cpp upstream feature exposure (queued, deferred by policy)
 
 These are JNI plumbing items for upstream API additions. Policy: add only after a real user request — they are mostly relevant to specific model families or specialized workflows.
