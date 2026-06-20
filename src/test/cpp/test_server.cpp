@@ -1710,10 +1710,10 @@ TEST(CmplFinalChatStream, IncludeUsageTrue_TrailingChunkHasEmptyChoicesAndUsage)
 //     - repeat_last_n=-1 is expanded to n_ctx_slot
 //     - dry_penalty_last_n=-1 is expanded to n_ctx_slot
 //     - dry_base < 1.0 is reset to default
-//     - n_discard negative is clamped to 0
-//     - empty dry_sequence_breakers throws std::runtime_error
-//     - lora field not an array throws std::runtime_error
-//     - repeat_last_n < -1 throws std::runtime_error
+//     - n_discard negative throws std::invalid_argument (b9739: range-checked, no longer clamped)
+//     - empty dry_sequence_breakers throws std::invalid_argument
+//     - lora field not an array throws std::invalid_argument
+//     - repeat_last_n < -1 throws std::invalid_argument
 // ============================================================
 
 namespace {
@@ -1749,21 +1749,23 @@ TEST(ParamsFromJsonCmpl, DryBase_BelowOne_ResetToDefault) {
     EXPECT_FLOAT_EQ(p.sampling.dry_base, defaults.sampling.dry_base);
 }
 
-TEST(ParamsFromJsonCmpl, NDiscard_Negative_ClampedToZero) {
-    const auto p = parse_params({{"n_discard", -5}});
-    EXPECT_EQ(p.n_discard, 0);
+// b9739: negative n_discard is range-checked (0 <= value <= INT32_MAX) and now throws
+// instead of being silently clamped to 0. The schema wraps every field-validation failure
+// in std::invalid_argument ("Field '<name>': ...", server-schema.cpp).
+TEST(ParamsFromJsonCmpl, NDiscard_Negative_Throws) {
+    EXPECT_THROW(parse_params({{"n_discard", -5}}), std::invalid_argument);
 }
 
 TEST(ParamsFromJsonCmpl, EmptyDrySequenceBreakers_Throws) {
-    EXPECT_THROW(parse_params({{"dry_sequence_breakers", json::array()}}), std::runtime_error);
+    EXPECT_THROW(parse_params({{"dry_sequence_breakers", json::array()}}), std::invalid_argument);
 }
 
 TEST(ParamsFromJsonCmpl, LoraNotArray_Throws) {
-    EXPECT_THROW(parse_params({{"lora", "not-an-array"}}), std::runtime_error);
+    EXPECT_THROW(parse_params({{"lora", "not-an-array"}}), std::invalid_argument);
 }
 
 TEST(ParamsFromJsonCmpl, RepeatLastN_BelowMinusOne_Throws) {
-    EXPECT_THROW(parse_params({{"repeat_last_n", -2}}), std::runtime_error);
+    EXPECT_THROW(parse_params({{"repeat_last_n", -2}}), std::invalid_argument);
 }
 
 TEST(ParamsFromJsonCmpl, StreamOptions_IncludeUsage_Parsed) {
