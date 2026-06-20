@@ -163,7 +163,7 @@ classifier — those are mutually exclusive — and optionally the Windows build
 
 | Classifier | Backend | Target platform | Runtime requirement |
 |---|---|---|---|
-| _(none)_ | CPU | Linux x86-64 / aarch64, macOS x86-64 / aarch64, Windows x86-64 (MSVC / Visual Studio generator), Android aarch64 (CPU) | None beyond a JDK 8+ JVM |
+| _(none)_ | CPU | Linux x86-64 / aarch64, macOS x86-64 / aarch64, Windows x86-64 (MSVC / Visual Studio generator), Android aarch64 (CPU) | A JDK 8+ JVM. **Linux `aarch64` additionally requires glibc ≥ 2.39** (e.g. Ubuntu 24.04+, Debian 13+) — it is built natively on `ubuntu-24.04-arm`, matching upstream llama.cpp's own ARM binaries; older-glibc ARM hosts (Ubuntu 22.04, Debian 12, RHEL 8/9, Amazon Linux 2023) are not supported. Linux x86-64 keeps a glibc 2.17 floor (manylinux2014). |
 | `cuda13-linux-x86-64` | CUDA 13 | Linux x86-64 with NVIDIA GPU | NVIDIA driver + CUDA 13 runtime libraries (`libcudart.so.13`, `libcublas.so.13`) installed on the host. The shared library is dynamically linked against them and will fail to `dlopen` if they are absent — there is no automatic fallback to CPU. |
 | `opencl-android-aarch64` | OpenCL (Adreno) | Android aarch64 with Qualcomm Adreno GPU | A device-supplied OpenCL ICD (`libOpenCL.so`). Devices without an ICD (e.g. most non-Snapdragon Android hardware) must use the default CPU JAR. |
 | `ninja-windows` | CPU (Ninja Multi-Config + MSVC) | Windows x86-64 and x86 | None beyond a JDK 8+ JVM. Same CPU backend as the default JAR's Windows natives, but compiled with the `Ninja Multi-Config` generator (sccache-cached in CI) instead of the Visual Studio generator. Provided so both Windows builds are available; functionally equivalent for normal use. |
