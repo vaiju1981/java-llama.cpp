@@ -306,7 +306,10 @@ v0.16.0 + the probe this is no longer a risk.) Job-by-job status:
    + ggml + httplib); the nvcc `.cu` kernels won't (limited sccache nvcc support) — still a
    large partial win on the ~70 min full-arch job; the fast single-arch (sm_120) validation path
    cuts nvcc time independently of sccache.
-3. `crosscompile-linux-aarch64` — ✅ **enabled** (same steady-state env; probe guards it).
+3. `crosscompile-linux-aarch64` — ✅ **enabled**, now a **native `ubuntu-24.04-arm` build** (not
+   dockcross): `build.sh` self-fetches the aarch64 static-musl sccache (the fetch block in
+   `build.sh` maps `uname -m` → `x86_64`/`aarch64`) and the probe guards it. See "Linux aarch64:
+   native ARM build" below for why it moved off the cross-compiler.
 4. `crosscompile-android-aarch64` — ✅ **enabled** (same steady-state env; probe guards it).
 5. `crosscompile-android-aarch64-opencl` — ✅ **enabled**. `build_opencl_android.sh` stages the
    OpenCL headers/loader, then delegates the jllama cmake build to `build.sh` via `exec`
@@ -770,7 +773,35 @@ Java parameters are serialized to JSON strings and passed to native code, which 
 3. Extracts from JAR resources at `net/ladenthin/llama/{os}/{arch}/`
 
 ### Cross-compilation
-Docker-based cross-compilation scripts are in `.github/dockcross/` for ARM/Android targets. CI workflows use these for non-x86 Linux builds.
+Docker-based cross-compilation scripts are in `.github/dockcross/` for **Android** targets (and the
+x86_64 manylinux jobs). **Linux `aarch64` is no longer cross-compiled** — it builds natively on a
+GitHub `ubuntu-24.04-arm` runner (see "Linux aarch64: native ARM build" below). The
+`.github/dockcross/dockcross-linux-arm64-lts` wrapper is now unused by CI (left in place; harmless).
+
+### Linux aarch64: native ARM build
+
+The `crosscompile-linux-aarch64` job (id kept for its downstream `needs:` reference; display name is
+now **"Build and Test Linux aarch64"**) builds **natively on `ubuntu-24.04-arm`**, mirroring upstream
+llama.cpp's own `ubuntu-cpu` aarch64 release job (`ubuntu-24.04-arm` + **GCC 14**).
+
+**Why it moved off dockcross.** The old `dockcross/linux-arm64-lts` image ships **GCC 8.5 / glibc
+2.17**; llama.cpp **b9739** uses C++17 CTAD-in-`new`, which needs **GCC ≥ 12**, so the cross build
+stopped compiling. Upstream solved the same problem by building natively on `ubuntu-24.04-arm` with
+GCC 14 and ships a **glibc ≈ 2.39** ARM binary with no old-glibc compatibility layer. This repo now
+does the same: the aarch64 artifact's **glibc floor rises 2.17 → ~2.39** — the same envelope
+upstream's own ARM binaries require (the x86_64 artifact stays at manylinux2014 / glibc 2.17).
+
+Wiring (mirrors the macOS native jobs, not the dockcross jobs):
+- `runs-on: ubuntu-24.04-arm`; `setup-java` → `mvn compile` (generates the JNI header) → `build.sh`.
+- Installs `gcc-14`/`g++-14` and exports `CC`/`CXX` (upstream parity).
+- `build.sh` flags: `-DGGML_NATIVE=OFF` (portable across ARMv8 CPU generations — no build-host
+  `-march` baked in) `-DBUILD_TESTING=ON`, then **`ctest` runs the C++ unit suite on real ARM
+  hardware** (the cross build ran no tests at all).
+- sccache: `build.sh`'s Linux auto-fetch now covers `aarch64` as well as `x86_64` (it maps
+  `uname -m` to the matching static-musl release); the probe still gates it, so a miss just builds
+  uncached.
+- Branch protection: if a required check pinned the old name "Cross-Compile Linux aarch64 (LTS)",
+  repoint it to "Build and Test Linux aarch64".
 
 ## Testing
 

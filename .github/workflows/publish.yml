@@ -261,17 +261,22 @@ jobs:
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
 
   crosscompile-linux-aarch64:
-    name: Cross-Compile Linux aarch64 (LTS)
+    name: Build and Test Linux aarch64
     needs: [startgate, build-webui]
-    runs-on: ubuntu-latest
-    # Phase 2 dockcross cache rollout — job 3. Same steady-state env as manylinux2014 (job 1);
-    # the build.sh probe makes it safe to enable without a separate verification run. Inert
-    # without DEPOT_TOKEN (fork PRs) or use_cache=false.
+    # Native ARM64 build on GitHub's free arm64 runner, mirroring upstream llama.cpp's
+    # `ubuntu-cpu` aarch64 release job (ubuntu-24.04-arm + GCC 14). Replaces the former dockcross
+    # `linux-arm64-lts` cross-compile (GCC 8.5, glibc 2.17), which can no longer compile llama.cpp
+    # b9739 — its C++17 CTAD-in-`new` needs GCC >= 12. Building natively also lets us run the C++
+    # unit suite (ctest) on real ARM hardware for the first time (the cross build ran no tests).
+    # Trade-off: the glibc floor rises 2.17 -> ~2.39, the same envelope upstream's own ARM binaries
+    # require. GGML_NATIVE=OFF keeps the artifact portable across ARMv8 CPU generations (no
+    # build-host -march baked in). The job id is kept (a `needs:` target downstream); only the
+    # display name changed, so update any branch-protection required-check that pinned the old name.
+    runs-on: ubuntu-24.04-arm
     env:
       USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
       SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
       SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
-      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"
     steps:
       - uses: actions/checkout@v7
       - name: Download shared WebUI assets
@@ -279,6 +284,16 @@ jobs:
         with:
           name: webui-generated
           path: ${{ github.workspace }}/webui-generated/
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Install toolchain (GCC 14, mirrors upstream llama.cpp ARM release)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-14 g++-14
+          echo "CC=gcc-14" >> "$GITHUB_ENV"
+          echo "CXX=g++-14" >> "$GITHUB_ENV"
       - name: Display CPU Info
         shell: bash
         run: |
@@ -290,7 +305,10 @@ jobs:
       - name: Build libraries
         shell: bash
         run: |
-          .github/dockcross/dockcross-linux-arm64-lts .github/build.sh "-DOS_NAME=Linux -DOS_ARCH=aarch64"
+          mvn --no-transfer-progress compile
+          .github/build.sh "-DOS_NAME=Linux -DOS_ARCH=aarch64 -DGGML_NATIVE=OFF -DBUILD_TESTING=ON"
+      - name: Run C++ unit tests
+        run: ctest --test-dir build --output-on-failure
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
