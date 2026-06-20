@@ -160,6 +160,51 @@ At runtime the device must provide its own OpenCL ICD (`libOpenCL.so`);
 Qualcomm Adreno drivers do. Devices without an ICD should use the default
 CPU-only Android JAR.
 
+## Windows Ninja artifact (sccache-cached, parallel to the MSVC build)
+
+The Visual Studio generator ignores `CMAKE_{C,CXX}_COMPILER_LAUNCHER`, so the two MSVC Windows
+jobs (`build-windows-x86_64`, `build-windows-x86`) **cannot** use the sccache/Depot cache. Rather
+than switch the trusted MSVC build, the repo builds the **same CPU natives a second time** with the
+**`Ninja Multi-Config`** generator (which *does* honor the launcher) and ships them as a separate
+**`ninja-windows`** Maven classifier JAR. **The MSVC build is the default JAR and is kept
+permanently** — the Ninja artifact is an additional, cache-accelerated, independently
+end-to-end-tested option, not a replacement. (Upstream llama.cpp ships its `windows-cuda` artifact
+with Ninja Multi-Config + MSVC, proving the combination works on the same tree.)
+
+Unlike the CUDA / OpenCL classifiers — which differ by a **GGML backend flag** and route their
+output in `CMakeLists.txt` — the Ninja Windows build differs only by **generator/toolchain**, so
+there is **no `CMakeLists.txt` change**: both generators emit to the canonical
+`src/main/resources/.../Windows/{x86_64,x86}/`. Routing to the classifier tree happens purely at the
+CI-download + pom-profile level. Four places wire it together:
+
+1. **`.github/build.bat`** — sccache probe guard mirroring `build.sh`'s `sccache_can_wrap_compiler()`:
+   when `USE_CACHE=true` and `sccache` is on PATH, it compiles a trivial TU through `sccache cl.exe`;
+   only on success does it pass `-DCMAKE_{C,CXX}_COMPILER_LAUNCHER=sccache` and print
+   `sccache --show-stats`. A missing/crashing sccache falls back to a green uncached build. The MSVC
+   jobs do not set `USE_CACHE`, so the guard is inert for them.
+2. **`.github/workflows/publish.yml`** — build jobs `build-windows-x86_64-ninja` /
+   `build-windows-x86-ninja` (`windows-2025-vs2026`, `ilammy/msvc-dev-cmd@v1` for the arch env,
+   sccache v0.16.0 from the GitHub release **zip** + Depot WebDAV, `build.bat -G "Ninja Multi-Config"`),
+   uploading artifacts `Windows-{x86_64,x86}-ninja` (**not** `*-libraries`, so the `package` job's
+   `pattern: "*-libraries"` ignores them). `test-java-windows-x86_64-ninja` loads the Ninja DLL via
+   JNI and runs the full model-backed suite. The `package`, `publish-snapshot`, and `publish-release`
+   jobs download `Windows-*-ninja` into `src/main/resources_windows_ninja/` and activate the
+   `windows-ninja` Maven profile.
+3. **`pom.xml`** — the `windows-ninja` profile produces a second JAR with `<classifier>ninja-windows</classifier>`
+   from the `${project.build.outputDirectory}_windows_ninja` tree (separate compile pass + resource
+   copy + classified jar; mirrors the `cuda` / `opencl-android` profiles). Activated only in CI.
+4. **`README.md`** — the `ninja-windows` row + dependency snippet in "Choosing the right classifier".
+
+`src/main/resources_windows_ninja/` is git-ignored (staged by CI, never committed — same policy as
+the native libs and the CUDA/OpenCL trees).
+
+**Local sanity build** (needs MSVC + a Ninja on PATH; sccache optional):
+```bat
+mvn -q compile
+.github\build.bat -G "Ninja Multi-Config" -DOS_NAME=Windows -DOS_ARCH=x86_64 -DBUILD_TESTING=ON
+ctest --test-dir build --output-on-failure
+```
+
 ## WebUI (llama.cpp Svelte UI) embedding
 
 The llama.cpp WebUI is **built once in CI and shared to every native build**, then
@@ -261,7 +306,10 @@ v0.16.0 + the probe this is no longer a risk.) Job-by-job status:
    + ggml + httplib); the nvcc `.cu` kernels won't (limited sccache nvcc support) — still a
    large partial win on the ~70 min full-arch job; the fast single-arch (sm_120) validation path
    cuts nvcc time independently of sccache.
-3. `crosscompile-linux-aarch64` — ✅ **enabled** (same steady-state env; probe guards it).
+3. `crosscompile-linux-aarch64` — ✅ **enabled**, now a **native `ubuntu-24.04-arm` build** (not
+   dockcross): `build.sh` self-fetches the aarch64 static-musl sccache (the fetch block in
+   `build.sh` maps `uname -m` → `x86_64`/`aarch64`) and the probe guards it. See "Linux aarch64:
+   native ARM build" below for why it moved off the cross-compiler.
 4. `crosscompile-android-aarch64` — ✅ **enabled** (same steady-state env; probe guards it).
 5. `crosscompile-android-aarch64-opencl` — ✅ **enabled**. `build_opencl_android.sh` stages the
    OpenCL headers/loader, then delegates the jllama cmake build to `build.sh` via `exec`
@@ -271,9 +319,11 @@ Per-job recipe: add `env:` { `USE_CACHE`, `SCCACHE_WEBDAV_ENDPOINT`, `SCCACHE_WE
 `DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"` — the
 dockcross wrapper only forwards host env it is explicitly told to via `-e`. The fetched sccache
 version is the `SCCACHE_DL_VERSION` knob in `build.sh` (default **0.16.0**; overridable per-job
-to try a different build against a container that crashed another). **Windows** (`build.bat` +
-MSVC) is separate and last: use `mozilla-actions/sccache-action` / sccache's MSVC support, not
-the `build.sh` musl fetch.
+to try a different build against a container that crashed another). **Windows** is handled
+separately (the Visual Studio generator ignores `CMAKE_*_COMPILER_LAUNCHER`): see
+"Windows Ninja artifact" below — the cached path uses the **Ninja Multi-Config** generator with a
+`build.bat` sccache probe and a direct sccache zip download (not `mozilla-actions/sccache-action`),
+shipped as a parallel `ninja-windows` classifier JAR while the MSVC default stays the trusted build.
 
 **Cross-repo scope.** This Depot/sccache compiler cache makes sense only for java-llama.cpp —
 it is the only sibling repo with a native (C++/JNI) build. It does not apply to the pure-Maven
@@ -281,9 +331,35 @@ siblings; why (and why the `DEPOT_TOKEN` org secret and the README "Build cache 
 are kept jllama-only) is explained in the cross-repo status under "Deliberate non-parity":
 [`../workspace/crossrepostatus.md`](../workspace/crossrepostatus.md).
 
+## Local llama.cpp source patches (`patches/`)
+
+The fetched llama.cpp source is patched before it compiles, via a generic mechanism:
+
+- **`patches/`** (repo root) — drop any number of `*.patch` / `*.diff` files here. They are applied
+  in **filename order** (use a numeric prefix, e.g. `0001-`, `0002-`), so keep them independent or
+  ordered. Each must be a `git apply`-compatible unified diff with paths relative to the llama.cpp
+  source root (`a/common/arg.cpp` / `b/common/arg.cpp`, i.e. `-p1`).
+- **`cmake/apply-llama-patches.cmake`** — the applier. Cross-platform (`cmake -P`, so identical on
+  Linux/macOS/Windows), **idempotent** (`git apply --reverse --check` skips already-applied patches
+  so a reconfigure never double-applies) and **fail-loud** (a patch that no longer applies aborts
+  the configure — a stale patch can't be silently dropped from a release build).
+- **`CMakeLists.txt`** — wired as the llama.cpp `FetchContent_Declare(... PATCH_COMMAND ...)`, so it
+  runs for **every** C++ build (all CI jobs *and* local `cmake -B build`) from one place — no
+  per-build-step plumbing.
+
+**On a llama.cpp version bump, every patch must still apply** — if a bump shifts the patched code,
+the configure fails with an "does not apply cleanly" error; refresh the diff against the new source
+and recommit. Treat `patches/` as part of the upgrade checklist below.
+
+Current patches:
+
+| Patch | Fixes |
+|-------|-------|
+| `0001-win32-arg-parse-embed-guard.patch` | Windows JNI regression from llama.cpp **#24779** (b9739): `common_params_parse` unconditionally replaced the caller's argv with the process command line (`GetCommandLineW`), so an embedded/JNI caller (`java.exe`) lost its `--model …` args → "Failed to parse model parameters". The patch **drops the override for our build** (keeps the `make_utf8_argv()` call referenced so there's no `-Wunused-function`, but never adopts its result), so the caller's already-UTF-8 argv is always used. This is **deterministic** — an earlier count-guard variant (only override when the re-derived arg count equals `argc`) collided on the server-integration tests whose argv length happened to equal `java.exe`'s and kept them failing. The upstream PR can instead expose an opt-out / `common_params_parse_argv` that preserves the standalone tools' UTF-8 fix. |
+
 ## Upgrading/Downgrading llama.cpp Version
 
-To change the llama.cpp version, update the following **three** files:
+To change the llama.cpp version, update the following **three** files (and re-verify `patches/`):
 
 1. **CMakeLists.txt** — the `GIT_TAG` line for llama.cpp: `GIT_TAG        b8831`
 2. **README.md** — the badge and link line with the version number
@@ -723,7 +799,35 @@ Java parameters are serialized to JSON strings and passed to native code, which 
 3. Extracts from JAR resources at `net/ladenthin/llama/{os}/{arch}/`
 
 ### Cross-compilation
-Docker-based cross-compilation scripts are in `.github/dockcross/` for ARM/Android targets. CI workflows use these for non-x86 Linux builds.
+Docker-based cross-compilation scripts are in `.github/dockcross/` for **Android** targets (and the
+x86_64 manylinux jobs). **Linux `aarch64` is no longer cross-compiled** — it builds natively on a
+GitHub `ubuntu-24.04-arm` runner (see "Linux aarch64: native ARM build" below). The
+`.github/dockcross/dockcross-linux-arm64-lts` wrapper is now unused by CI (left in place; harmless).
+
+### Linux aarch64: native ARM build
+
+The `crosscompile-linux-aarch64` job (id kept for its downstream `needs:` reference; display name is
+now **"Build and Test Linux aarch64"**) builds **natively on `ubuntu-24.04-arm`**, mirroring upstream
+llama.cpp's own `ubuntu-cpu` aarch64 release job (`ubuntu-24.04-arm` + **GCC 14**).
+
+**Why it moved off dockcross.** The old `dockcross/linux-arm64-lts` image ships **GCC 8.5 / glibc
+2.17**; llama.cpp **b9739** uses C++17 CTAD-in-`new`, which needs **GCC ≥ 12**, so the cross build
+stopped compiling. Upstream solved the same problem by building natively on `ubuntu-24.04-arm` with
+GCC 14 and ships a **glibc ≈ 2.39** ARM binary with no old-glibc compatibility layer. This repo now
+does the same: the aarch64 artifact's **glibc floor rises 2.17 → ~2.39** — the same envelope
+upstream's own ARM binaries require (the x86_64 artifact stays at manylinux2014 / glibc 2.17).
+
+Wiring (mirrors the macOS native jobs, not the dockcross jobs):
+- `runs-on: ubuntu-24.04-arm`; `setup-java` → `mvn compile` (generates the JNI header) → `build.sh`.
+- Installs `gcc-14`/`g++-14` and exports `CC`/`CXX` (upstream parity).
+- `build.sh` flags: `-DGGML_NATIVE=OFF` (portable across ARMv8 CPU generations — no build-host
+  `-march` baked in) `-DBUILD_TESTING=ON`, then **`ctest` runs the C++ unit suite on real ARM
+  hardware** (the cross build ran no tests at all).
+- sccache: `build.sh`'s Linux auto-fetch now covers `aarch64` as well as `x86_64` (it maps
+  `uname -m` to the matching static-musl release); the probe still gates it, so a miss just builds
+  uncached.
+- Branch protection: if a required check pinned the old name "Cross-Compile Linux aarch64 (LTS)",
+  repoint it to "Build and Test Linux aarch64".
 
 ## Testing
 
