@@ -8,13 +8,20 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import net.ladenthin.llama.parameters.ChatRequest;
 import net.ladenthin.llama.parameters.InferenceParameters;
 import net.ladenthin.llama.parameters.ModelParameters;
 import net.ladenthin.llama.value.ChatMessage;
+import net.ladenthin.llama.value.ChatResponse;
 import net.ladenthin.llama.value.ContentPart;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
@@ -31,7 +38,7 @@ import org.junit.jupiter.api.Timeout;
  * <p>The test exercises:</p>
  * <ul>
  *   <li>{@link ModelParameters#setMmproj(String)} wiring through to the native side;</li>
- *   <li>{@link InferenceParameters#setMessages(java.util.List)} serialising
+ *   <li>{@link InferenceParameters#withMessages(java.util.List)} serialising
  *       multipart {@code content} as the OAI array-form;</li>
  *   <li>the upstream {@code oaicompat_chat_params_parse} routing
  *       {@code image_url} blocks through the compiled-in {@code mtmd} pipeline.</li>
@@ -40,7 +47,9 @@ import org.junit.jupiter.api.Timeout;
  * <p>Self-skips when any of the three system properties is unset or its file
  * is missing, so it runs only in CI (or local dev where the user staged the
  * files explicitly). See {@code .github/workflows/publish.yml} env vars
- * {@code VISION_MODEL_URL} / {@code VISION_MMPROJ_URL} / {@code VISION_IMAGE_URL}.</p>
+ * {@code VISION_MODEL_URL} / {@code VISION_MMPROJ_URL}; the image defaults to
+ * the committed test resource and can be overridden with
+ * {@code net.ladenthin.llama.vision.image}.</p>
  *
  * <p><b>Image source:</b> the CI default is
  * <a href="https://commons.wikimedia.org/wiki/File:20200601_135745_Flowers_and_Bees.jpg">
@@ -59,6 +68,17 @@ import org.junit.jupiter.api.Timeout;
                 + "the upstream mtmd pipeline. Closes #103 / #34.")
 public class MultimodalIntegrationTest {
 
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final byte[] RED_PNG = Base64.getDecoder()
+            .decode("iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAl0lEQVR4nO2S"
+                    + "wQkAMBCD3H9pO0QfchDIACpBOD1yAidAXtFdiLsjJ3AC5BXdhbg7cgInQF7RXYi7IydwAuQV3YW4O3ICJ0Be0V2IuyM"
+                    + "ncALkFd2FuDtyAidAXtFdiLsjJ3AC5BXdhbg7cgInQF7RXYi7IydwAuQV3YW4O3ICJ0Be0V2IuyMncALkFd2FuDtyAid"
+                    + "AXvHnQg+p3PDiuUoi2QAAAABJRU5ErkJggg==");
+    private static final byte[] BLUE_PNG = Base64.getDecoder()
+            .decode("iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAIAAAAlC+aJAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAlklEQVR4nO2S"
+                    + "wQkAMBCD3H9pu0M/chBwACMBPA65gRtAXtFdiLuQG7gB5BXdhbgLuYEbQF7RXYi7kBu4AeQV3YW4C7mBG0Be0V2Iu5Ab"
+                    + "uAHkFd2FuAu5gRtAXtFdiLuQG7gB5BXdhbgLuYEbQF7RXYi7kBu4AeQV3YW4C7mBG0Be0V2Iu5AbuAHkFd2FuAu5gRtA"
+                    + "XvGfB8f88OJzBsmpAAAAAElFTkSuQmCC");
     private static String modelPath;
     private static String mmprojPath;
     private static String imagePath;
@@ -88,12 +108,17 @@ public class MultimodalIntegrationTest {
 
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
 
-        model = new LlamaModel(new ModelParameters()
+        ModelParameters parameters = new ModelParameters()
                 .setCtxSize(2048)
                 .setModel(modelPath)
                 .setMmproj(mmprojPath)
                 .setGpuLayers(gpuLayers)
-                .setFit(false));
+                .setFit(false);
+        if (gpuLayers == 0) {
+            parameters.setDevices("none").setMmprojOffload(false);
+        }
+        model = new LlamaModel(parameters);
+        assertTrue(model.getModelMeta().supportsVision(), "loaded model + mmproj must advertise vision input");
     }
 
     @AfterAll
@@ -128,6 +153,60 @@ public class MultimodalIntegrationTest {
         assertFalse(reply.trim().isEmpty(), "reply must be non-empty for a multimodal prompt; got: \"" + reply + "\"");
     }
 
+    /** The typed ChatRequest surface must preserve multipart image content too. */
+    @Timeout(value = 240_000, unit = TimeUnit.MILLISECONDS)
+    @Test
+    public void typedChatRequestProducesNonEmptyReply() throws Exception {
+        ChatRequest request = ChatRequest.empty()
+                .appendMessage(ChatMessage.userMultimodal(
+                        ContentPart.text("Describe this image in one short sentence."),
+                        ContentPart.imageFile(Paths.get(imagePath))))
+                .withInferenceCustomizer(params -> params.withNPredict(48).withTemperature(0.0f));
+
+        ChatResponse response = model.chat(request);
+        assertFalse(response.getFirstContent().trim().isEmpty(), "typed chat response must be non-empty");
+    }
+
+    /** Streaming uses the same decoded media buffers and must emit assistant content. */
+    @Timeout(value = 240_000, unit = TimeUnit.MILLISECONDS)
+    @Test
+    public void multimodalStreamingProducesContent() throws Exception {
+        ChatMessage userMsg = ChatMessage.userMultimodal(
+                ContentPart.text("Describe this image briefly."), ContentPart.imageFile(Paths.get(imagePath)));
+        InferenceParameters params = InferenceParameters.empty()
+                .withMessages(Collections.singletonList(userMsg))
+                .withNPredict(32)
+                .withTemperature(0.0f);
+        List<String> chunks = new ArrayList<String>();
+
+        model.streamChatCompletion(params, chunks::add);
+
+        StringBuilder content = new StringBuilder();
+        for (String chunk : chunks) {
+            JsonNode choices = MAPPER.readTree(chunk).path("choices");
+            if (choices.isArray() && choices.size() > 0) {
+                JsonNode fragment = choices.get(0).path("delta").path("content");
+                if (fragment.isTextual()) {
+                    content.append(fragment.asText());
+                }
+            }
+        }
+        assertFalse(content.toString().trim().isEmpty(), "streamed multimodal content must be non-empty");
+    }
+
+    /**
+     * Semantic guard against the old false-positive path where only the textual media marker was tokenized.
+     * Two synthetic images with the same prompt must be identified by their actual dominant colors.
+     */
+    @Timeout(value = 240_000, unit = TimeUnit.MILLISECONDS)
+    @Test
+    public void imageBytesAffectTheAnswer() throws Exception {
+        String red = identifyColor(RED_PNG);
+        String blue = identifyColor(BLUE_PNG);
+        assertTrue(red.contains("red"), "red image must be identified as red; got: " + red);
+        assertTrue(blue.contains("blue"), "blue image must be identified as blue; got: " + blue);
+    }
+
     /**
      * Sanity check that a multimodal call followed by a plain text-only call
      * on the same model instance both succeed &#x2014; verifies the parts /
@@ -154,5 +233,17 @@ public class MultimodalIntegrationTest {
         assertTrue(
                 secondReply.trim().length() > 0,
                 "text-only call after multimodal must still produce tokens; got: \"" + secondReply + "\"");
+    }
+
+    private static String identifyColor(byte[] png) {
+        ChatMessage message = ChatMessage.userMultimodal(
+                ContentPart.text("What is the dominant color? Reply with only red or blue."),
+                ContentPart.imageBytes(png, "image/png"));
+        return model.chatCompleteText(InferenceParameters.empty()
+                        .withMessages(Collections.singletonList(message))
+                        .withNPredict(8)
+                        .withTemperature(0.0f))
+                .trim()
+                .toLowerCase(java.util.Locale.ROOT);
     }
 }

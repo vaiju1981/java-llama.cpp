@@ -435,9 +435,23 @@ public class ModelParametersTest {
     }
 
     @Test
+    public void testDisableMmprojAuto() {
+        ModelParameters p = new ModelParameters().enableMmprojAuto().setMmprojAuto(false);
+        assertThat(p.parameters, hasKey("--no-mmproj-auto"));
+        assertThat(p.parameters, not(hasKey("--mmproj-auto")));
+    }
+
+    @Test
     public void testEnableMmprojOffload() {
         ModelParameters p = new ModelParameters().enableMmprojOffload();
         assertThat(p.parameters, hasKey("--mmproj-offload"));
+    }
+
+    @Test
+    public void testDisableMmprojOffload() {
+        ModelParameters p = new ModelParameters().enableMmprojOffload().setMmprojOffload(false);
+        assertThat(p.parameters, hasKey("--no-mmproj-offload"));
+        assertThat(p.parameters, not(hasKey("--mmproj-offload")));
     }
 
     // -------------------------------------------------------------------------

@@ -808,6 +808,15 @@ public class LlamaModel implements AutoCloseable {
         }
     }
 
+    /**
+     * Reports whether the loaded model has a usable multimodal projector.
+     *
+     * @return {@code true} when image input is available
+     */
+    public boolean supportsVision() {
+        return getModelMeta().supportsVision();
+    }
+
     native String getModelMetaJson();
 
     /**

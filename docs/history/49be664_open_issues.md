@@ -21,7 +21,7 @@ After a second-pass analysis of every `LIKELY FIXED` and `PARTIALLY FIXED` issue
 
 - **Confirmable from code inspection alone (no runtime needed):**
   - #103, #34 — image input API: now FIXED via PR #189 (typed `ContentPart`
-    + `ChatMessage(role, List<ContentPart>)` + `InferenceParameters.setMessages(List<ChatMessage>)`
+    + `ChatMessage(role, List<ContentPart>)` + `InferenceParameters.withMessages(List<ChatMessage>)`
     emitting OAI multipart content; the upstream chat path already routes
     `image_url` blocks through the compiled-in `mtmd` pipeline, so zero new
     JNI was needed).
@@ -305,13 +305,11 @@ Java API.
 Feature request: support visual-language models such as Qwen2.5-VL (image
 inputs) on Android.
 
-**Status in fork:** FIXED in the same PR that closes the typed Java surface gap. The build still links the upstream `mtmd` multimodal library into `jllama` (`CMakeLists.txt:125-145, 253-255`) and `ModelParameters` still exposes `setMmproj`, `setMmprojUrl`, `enableMmprojAuto`, `enableMmprojOffload` (`ModelParameters.java:1250-1281`). The previously-missing typed image API now exists: `ContentPart.text(...)`, `ContentPart.imageUrl(...)`, `ContentPart.imageBytes(byte[], mime)`, `ContentPart.imageFile(Path)` (auto-detects png/jpeg/webp/gif), and `ChatMessage(role, List<ContentPart>)` + `ChatMessage.userMultimodal(ContentPart...)`. `InferenceParameters.setMessages(List<ChatMessage>)` serializes parts-bearing messages to the OAI array-form `content` that the upstream `oaicompat_chat_params_parse` already routes through the compiled-in `mtmd` pipeline &#x2014; zero new JNI required. See PR #189 (§2.1 of `docs/feature-investigation-llama-stack-client-kotlin.md`).
+**Status in fork:** FIXED end to end. The build links the upstream `mtmd` multimodal library into `jllama`, `ModelParameters` exposes projector loading and explicit auto/offload controls, and `ContentPart` + `ChatMessage.userMultimodal(...)` provide the typed image API. The native parser now preserves decoded media buffers and submits them through the upstream multimodal task path; previously those buffers were discarded and requests silently became text-only. Blocking, typed `ChatRequest`, streaming, and OpenAI-compatible mapping are covered, including a real-model semantic red/blue regression.
 
-**Deep-dive analysis:** Definitively confirmable from code inspection — no runtime test changes this verdict. Two distinct surfaces exist for VLM:
+**Deep-dive analysis:** Two distinct surfaces exist for VLM:
 1. **Model loading:** fully wired (mmproj path, auto-detect, GPU offload) — these flags reach the upstream server-context unchanged.
-2. **Request payload:** the only path is `LlamaModel.handleChatCompletions(json, oaiCompat=true)` with manually-constructed `messages[].content = [{type:"text",...},{type:"image_url",image_url:{url:"data:image/png;base64,..."}}]` JSON. No typed helper.
-
-This is genuinely PARTIALLY FIXED and only a Java-side enhancement closes the gap; no runtime investigation is required to confirm.
+2. **Request payload:** typed and raw OpenAI multipart content is decoded by the OAI parser, retained across JNI dispatch, and processed by `mtmd` before generation.
 
 ---
 
@@ -696,9 +694,9 @@ prebuilt artifact for Android targets.
 Feature request: add multimodal input support (referencing
 [ggerganov/llama.cpp#3436](https://github.com/ggerganov/llama.cpp/pull/3436)).
 
-**Status in fork:** FIXED. The upstream `mtmd` library is built and linked into `jllama` (`CMakeLists.txt:125-145, 253-255`), `ModelParameters` exposes `setMmproj`, `setMmprojUrl`, `enableMmprojAuto`, `enableMmprojOffload` (`ModelParameters.java:1250-1281`), and the typed image API now exists via `ContentPart` + `ChatMessage(role, List<ContentPart>)` + `InferenceParameters.setMessages(List<ChatMessage>)`. The serializer emits OAI array-form `content`; the upstream chat path already understands `image_url` blocks. See #103 for the parallel write-up and PR #189 for the implementation.
+**Status in fork:** FIXED. The upstream `mtmd` library is built and linked into `jllama`; projector controls and the typed `ContentPart` API are exposed; and decoded media is retained by the native bridge and processed through the upstream multimodal task path for blocking and streaming requests. See #103 for the full write-up.
 
-**Deep-dive analysis:** Same conclusion as #103 — confirmable from code, no runtime needed. The original 2023 feature request asked for "multimodal input support"; in 2025 terms this splits into model loading (DONE) and request payload (DONE: typed `ChatMessage(role, List<ContentPart>)` + `InferenceParameters.setMessages(List<ChatMessage>)` emit the OAI multipart `content` the upstream chat path already consumes). Verdict is FIXED as of PR #189.
+**Deep-dive analysis:** Same conclusion as #103. Model loading and request execution are both verified; the real-model regression confirms image content affects the answer rather than merely producing a non-empty text-only response.
 
 ---
 
@@ -761,7 +759,7 @@ Feature request: add multimodal input support (referencing
 | 110 | FIXED | `handleEmbeddings` accepts batch JSON | `LlamaModel.java:316`, `json_helpers.hpp:137` |
 | 107 | FIXED | CMake matches both Mac and Darwin | `CMakeLists.txt:196` |
 | 104 | FIXED | `NO_KV_OFFLOAD` flag exposed | `args/ModelFlag.java:50` |
-| 103 | FIXED | mtmd linked; typed image API in PR #189 (`ContentPart`, `ChatMessage(role, List<ContentPart>)`, `InferenceParameters.setMessages(List<ChatMessage>)`) | `ContentPart.java`, `ChatMessage.java`, `InferenceParameters.java`, `ModelParameters.java:1250-1281` |
+| 103 | FIXED | mtmd linked; typed image API in PR #189 (`ContentPart`, `ChatMessage(role, List<ContentPart>)`, `InferenceParameters.withMessages(List<ChatMessage>)`) | `ContentPart.java`, `ChatMessage.java`, `InferenceParameters.java`, `ModelParameters.java:1250-1281` |
 | 102 | FIXED | Destructor drains workers and frees ctx; covered by `MemoryManagementTest#testOpenCloseLoopDoesNotLeak` (commit `cba693c`, PR #185) | `jllama.cpp:917-948` |
 | 101 | FIXED | Trampoline calls BiConsumer | `jllama.cpp:954-977` |
 | 98  | FIXED | `enableEmbedding` + `setPoolingType`; covered by `LlamaEmbeddingsTest#testNomicEmbedLoads` (commit `cba693c`, PR #185; CI downloads `nomic-embed-text-v1.5.f16.gguf`) | `ModelParameters.java:1040,606` |
@@ -804,7 +802,7 @@ or change the verdict.
 | 98 | Reporter's config was *literally* `new ModelParameters().setModel(...).setBatchSize(8192).setUbatchSize(8192)` — **no `enableEmbedding()` call**. The original "bug" was that the bindings did not forward `--embedding` at all; the upstream `result_output` assertion fired because the embedding pipeline was never initialised. | **DONE** — `LlamaEmbeddingsTest#testNomicEmbedLoads` (commit `713d426`) runs the reporter's exact config plus `enableEmbedding()`; gated on `net.ladenthin.llama.nomic.path`; CI downloads the model via `NOMIC_EMBED_MODEL_URL` in `publish.yml`. |
 | 95 | Reporter pastes the `next()` method and argues the design is wrong: when `output.stop=true`, the method returns that output and ends. No model, prompt or reproduction provided. | **DONE** — `LlamaModelTest#testIteratorTerminatesOnRepetitivePrompt` (commit `713d426`) drives the iterator with a repetitive prompt at `nPredict=30`, `temperature=0.0f` and asserts termination within `nPredict+1` outputs. |
 | 80 | Exact repro: Kotlin-style 3 lines (`val params...`, `val model = new LlamaModel(params)`, `model.close()`) with `qwen2-0_5b-instruct-q4_0.gguf`. JDK 17.0.12+7, java-llama.cpp 3.4.1. SIGSEGV in `std::_Rb_tree` during `delete`. Reporter said they intended to follow up with a `-DLLAMA_DEBUG` build but never did. | **DONE** — `MemoryManagementTest#testOpenCloseWithoutGeneration` (commit `713d426`) maps the 3-line repro to 20 iterations of try-with-resources open + immediate close; a JVM crash exits the runner non-zero. |
-| 103 | Specifically asks about **Qwen2.5-VL on Android**. No code attempted. | **DONE (typed API)** — PR #189 ships `ContentPart` + `ChatMessage(role, List<ContentPart>)` + `InferenceParameters.setMessages(List<ChatMessage>)`. Android-sample tail tracked separately. |
+| 103 | Specifically asks about **Qwen2.5-VL on Android**. No code attempted. | **DONE (typed API)** — PR #189 ships `ContentPart` + `ChatMessage(role, List<ContentPart>)` + `InferenceParameters.withMessages(List<ChatMessage>)`. Android-sample tail tracked separately. |
 | 86 | Just a question: "does the CUDA jar handle CPU fallback?". No code. | Not unit-testable. Documentation task. |
 | 34 | One-line feature request linking upstream PR #3436 (LLaVA). No specifics. | **DONE** — subsumed by #103 (PR #189). |
 | 121 | (Not refetched — Android `aarch64` vs `arm64-v8a` mismatch; already analysed in deep-dive.) | Verified by code; needs an Android boot test, not a unit test. |
@@ -930,7 +928,7 @@ the same pattern as the existing CodeLlama / Jina-Reranker model downloads.
 
 | # | Why not unit-testable | Action |
 |---|---|---|
-| 103, 34 | (Historic — typed image API was missing at the time of this audit.) | **DONE in PR #189**: `ContentPart` + `ChatMessage(role, List<ContentPart>)` + `InferenceParameters.setMessages(List<ChatMessage>)` emit the OAI multipart `content` the upstream chat path already routes through `mtmd`. `MultimodalIntegrationTest` is added under model-gated `Assume`. |
+| 103, 34 | (Historic — typed image API and native media dispatch were incomplete at the time of this audit.) | **DONE**: `ContentPart` + `ChatMessage(role, List<ContentPart>)` emit OAI multipart content, and the JNI bridge retains decoded media for upstream `mtmd` processing. The model-gated integration test covers blocking, typed, streaming, and semantic image handling. |
 | 86 | Question about jar packaging behaviour, not code defect. | Documentation: add a README section "Choosing the right classifier" stating that the CUDA jar requires the CUDA runtime libraries at load time and does not auto-fall-back. |
 | 121, 50 | Android runtime / cross-host build path — needs an emulator boot or a macOS-M2 cross-compile, not a JVM test. | CI matrix expansion: add an Android emulator job that boots a stock `arm64-v8a` AVD and runs the existing `LlamaModelTest` against the dockcross-built `libjllama.so`. |
 
@@ -954,7 +952,7 @@ the same pattern as the existing CodeLlama / Jina-Reranker model downloads.
    the residual gap on #121.
 3. **Third PR (feature): SHIPPED as PR #189.** Adds the typed multimodal
    surface (`ContentPart`, `ChatMessage(role, List<ContentPart>)`,
-   `InferenceParameters.setMessages(List<ChatMessage>)`) plus a
+   `InferenceParameters.withMessages(List<ChatMessage>)`) plus a
    `MultimodalIntegrationTest` gated on `net.ladenthin.llama.vision.model`,
    `.vision.mmproj`, and `.vision.image` system properties. CI in
    `publish.yml` downloads a small vision model + mmproj + an author-

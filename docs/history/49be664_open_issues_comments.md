@@ -36,7 +36,7 @@ llama.cpp is pinned to `b9284`, which natively supports Qwen3 and Qwen3-VL;
 the fork also fetches `tools/mtmd` and links it into `jllama`
 (`CMakeLists.txt:125-145,255`), and exposes a typed multimodal Java surface
 (`ContentPart`, `ChatMessage(role, List<ContentPart>)`,
-`InferenceParameters.setMessages(List<ChatMessage>)`) — see PR #189.
+`InferenceParameters.withMessages(List<ChatMessage>)`) — see PR #189.
 ```
 
 ---
@@ -196,9 +196,9 @@ in PR #189. The build links the upstream `mtmd` library into `jllama`
 `setMmprojUrl`, `enableMmprojAuto`, `enableMmprojOffload`
 (`ModelParameters.java:1250-1281`); and the new typed image API ships as
 `ContentPart.text/imageUrl/imageBytes/imageFile`, `ChatMessage(role, List<ContentPart>)`,
-`ChatMessage.userMultimodal(...)`, and `InferenceParameters.setMessages(List<ChatMessage>)`.
-The serializer emits the OAI array-form `content` that the upstream chat path
-already routes through `mtmd` — no new JNI was required.
+`ChatMessage.userMultimodal(...)`, and `InferenceParameters.withMessages(List<ChatMessage>)`.
+The serializer emits OAI array-form `content`; the native bridge retains the
+decoded media buffers and submits them through the upstream `mtmd` task path.
 ```
 
 ---
@@ -445,7 +445,7 @@ in PR #189. The upstream `mtmd` library is linked into `jllama`
 (`CMakeLists.txt:125-145,253-255`); `ModelParameters` exposes the mmproj
 flags (`ModelParameters.java:1250-1281`); and the typed image API ships as
 `ContentPart` + `ChatMessage(role, List<ContentPart>)` +
-`InferenceParameters.setMessages(List<ChatMessage>)`, which emit the OAI
-multipart `content` the upstream chat path already routes through `mtmd`.
+`InferenceParameters.withMessages(List<ChatMessage>)`, which emit OAI multipart
+content retained by the JNI bridge and processed by the upstream `mtmd` task path.
 See #103 for the parallel write-up.
 ```
