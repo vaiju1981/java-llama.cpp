@@ -213,11 +213,14 @@ a time and verified green in CI before the next**. (The first attempt enabled al
 and was reverted: the static-musl sccache panicked in-container and — pre-probe — redded the
 build. The probe above now makes that a safe fallback.) Order, each adding the env + a
 `DOCKCROSS_ARGS` passthrough:
-1. `crosscompile-linux-x86_64` (manylinux2014) — **enabled first**, with `SCCACHE_LOG=debug` +
-   `SCCACHE_ERROR_LOG` + `RUST_BACKTRACE=full` so the run captures the panic root cause if it
-   recurs. Once green with a cache hit in `sccache --show-stats`, drop the diagnostic vars.
-2. `crosscompile-linux-x86_64-cuda` (via `build_cuda_linux.sh`, which execs `build.sh`) — only
-   the gcc C/C++ TUs cache (134 model files + ggml + httplib); the nvcc `.cu` kernels won't
+1. `crosscompile-linux-x86_64` (manylinux2014) — ✅ **verified green** in PR #245: sccache
+   **v0.16.0** probe passed in-container (devtoolset-10 gcc), `sccache ON` over Depot WebDAV,
+   cold run stored 275 objects (3 hits). The **v0.8.2 in-container panic is gone on v0.16.0**;
+   first-run diagnostics dropped, steady-state env = `USE_CACHE` + the two `SCCACHE_WEBDAV_*`
+   + `DOCKCROSS_ARGS`.
+2. `crosscompile-linux-x86_64-cuda` (via `build_cuda_linux.sh`, which execs `build.sh`) —
+   🚧 **enabled next** (diagnostics on for its first run on the manylinux_2_28 image). Only the
+   gcc C/C++ TUs cache (134 model files + ggml + httplib); the nvcc `.cu` kernels won't
    (limited sccache nvcc support) — still a large partial win on the ~70 min job.
 3. `crosscompile-linux-aarch64`, then 4. `crosscompile-android-aarch64`.
 5. `crosscompile-android-aarch64-opencl` — **separate**, uses `build_opencl_android.sh` (not

@@ -171,6 +171,20 @@ jobs:
     name: Cross-Compile manylinux_2_28 x86_64 (CUDA)
     needs: [startgate, build-webui]
     runs-on: ubuntu-latest
+    # Phase 2 dockcross cache rollout — job 2, enabled after manylinux2014 (job 1) verified green
+    # in CI with sccache v0.16.0 caching to Depot. build_cuda_linux.sh execs build.sh, so the same
+    # probe guards this job: only the gcc C/C++ TUs cache (the nvcc .cu kernels are not wrapped),
+    # still a large partial win on this ~70 min build. Diagnostics are on for its first run on the
+    # manylinux_2_28 image; drop them (and their -e passthroughs) once it is confirmed green with a
+    # cache hit, then enable the next job. Inert without DEPOT_TOKEN (fork PRs) or use_cache=false.
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+      SCCACHE_LOG: debug
+      SCCACHE_ERROR_LOG: /tmp/sccache_server.log
+      RUST_BACKTRACE: full
+      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE -e SCCACHE_LOG -e SCCACHE_ERROR_LOG -e RUST_BACKTRACE"
     steps:
       - uses: actions/checkout@v6
       - name: Download shared WebUI assets
@@ -200,22 +214,17 @@ jobs:
     name: Cross-Compile manylinux2014 x86_64
     needs: [startgate, build-webui]
     runs-on: ubuntu-latest
-    # Phase 2 dockcross cache rollout — FIRST job (fastest plain-build.sh job, cleanest probe).
-    # build.sh now probe-compiles through sccache before trusting it as the launcher, so a
-    # present-but-crashing in-container sccache (the panic that stalled the first attempt) falls
-    # back to an uncached, green -O3 build instead of redding it. The diagnostic vars below are
-    # forwarded into the container so this run captures the root cause if the panic recurs; drop
-    # SCCACHE_LOG / SCCACHE_ERROR_LOG / RUST_BACKTRACE (and their -e passthroughs) once the cache
-    # is confirmed working here, then roll out to the next dockcross job. Inert without DEPOT_TOKEN
-    # (fork PRs) or with use_cache=false.
+    # Phase 2 dockcross cache rollout — job 1, VERIFIED green in CI (PR #245): sccache v0.16.0
+    # probe passed in-container (devtoolset-10 gcc), cache ON over Depot WebDAV (cold run: 275
+    # objects stored). Steady-state env below — the first-run diagnostics (SCCACHE_LOG /
+    # SCCACHE_ERROR_LOG / RUST_BACKTRACE) were dropped now that it is proven. Inert without
+    # DEPOT_TOKEN (fork PRs) or with use_cache=false; a crashing sccache still falls back to a
+    # green uncached build via the build.sh probe.
     env:
       USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
       SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
       SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
-      SCCACHE_LOG: debug
-      SCCACHE_ERROR_LOG: /tmp/sccache_server.log
-      RUST_BACKTRACE: full
-      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE -e SCCACHE_LOG -e SCCACHE_ERROR_LOG -e RUST_BACKTRACE"
+      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"
     steps:
       - uses: actions/checkout@v6
       - name: Download shared WebUI assets
