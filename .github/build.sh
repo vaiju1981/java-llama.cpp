@@ -16,6 +16,25 @@ if [ -z "$JOBS" ]; then
   JOBS="$( { command -v nproc >/dev/null 2>&1 && nproc; } || sysctl -n hw.ncpu 2>/dev/null || echo 4 )"
 fi
 
+# Fetch sccache when caching is requested but the runner/container doesn't ship it — the
+# dockcross cross-compile containers (manylinux/Android) and Linux hosts have no sccache,
+# while macOS installs it via brew in the workflow. Best-effort and inert-safe: any failure
+# leaves sccache absent, so the build just proceeds uncached. The static musl binary runs in
+# any x86_64 Linux container (the cross-compile host is always x86_64).
+if [ "${USE_CACHE:-true}" = "true" ] && [ -n "${SCCACHE_WEBDAV_TOKEN:-}${SCCACHE_GHA_ENABLED:-}" ] \
+   && ! command -v sccache >/dev/null 2>&1 \
+   && [ "$(uname -s)" = "Linux" ] && [ "$(uname -m)" = "x86_64" ]; then
+  SCCACHE_REL="sccache-v0.8.2-x86_64-unknown-linux-musl"
+  echo "build.sh: fetching ${SCCACHE_REL} (no sccache on PATH)..."
+  if curl -fsSL "https://github.com/mozilla/sccache/releases/download/v0.8.2/${SCCACHE_REL}.tar.gz" \
+        -o /tmp/sccache.tgz && tar -xzf /tmp/sccache.tgz -C /tmp; then
+    export PATH="/tmp/${SCCACHE_REL}:$PATH"
+    echo "build.sh: sccache -> $(command -v sccache || echo 'still missing')"
+  else
+    echo "build.sh: sccache fetch failed; continuing without cache"
+  fi
+fi
+
 # Optional shared compiler cache: sccache fronting Depot Cache (WebDAV). Enabled only when
 # USE_CACHE is true AND sccache + a cache token are present, so it stays inert before the
 # DEPOT_TOKEN secret is configured and on fork PRs (secrets hidden) — those just compile
