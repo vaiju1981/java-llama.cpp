@@ -200,6 +200,22 @@ jobs:
     name: Cross-Compile manylinux2014 x86_64
     needs: [startgate, build-webui]
     runs-on: ubuntu-latest
+    # Phase 2 dockcross cache rollout — FIRST job (fastest plain-build.sh job, cleanest probe).
+    # build.sh now probe-compiles through sccache before trusting it as the launcher, so a
+    # present-but-crashing in-container sccache (the panic that stalled the first attempt) falls
+    # back to an uncached, green -O3 build instead of redding it. The diagnostic vars below are
+    # forwarded into the container so this run captures the root cause if the panic recurs; drop
+    # SCCACHE_LOG / SCCACHE_ERROR_LOG / RUST_BACKTRACE (and their -e passthroughs) once the cache
+    # is confirmed working here, then roll out to the next dockcross job. Inert without DEPOT_TOKEN
+    # (fork PRs) or with use_cache=false.
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+      SCCACHE_LOG: debug
+      SCCACHE_ERROR_LOG: /tmp/sccache_server.log
+      RUST_BACKTRACE: full
+      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE -e SCCACHE_LOG -e SCCACHE_ERROR_LOG -e RUST_BACKTRACE"
     steps:
       - uses: actions/checkout@v6
       - name: Download shared WebUI assets

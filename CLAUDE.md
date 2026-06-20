@@ -197,14 +197,39 @@ stays `-O3` and is **bit-identical** to a clean build (release-safe).
 
 **Safety / transparency.** It is **inert** until `DEPOT_TOKEN` is configured and on **fork
 PRs** (secrets are hidden there) — those simply compile normally; the `Install sccache` step
-is `continue-on-error`; and `use_cache=false` forces a pristine, from-scratch build.
+is `continue-on-error`; and `use_cache=false` forces a pristine, from-scratch build. Crucially,
+`build.sh` runs a **probe-compile health-check** (`sccache_can_wrap_compiler`) before trusting
+sccache as the launcher: it compiles a trivial TU *through* sccache, and only sets
+`-DCMAKE_{C,CXX}_COMPILER_LAUNCHER=sccache` if that succeeds. So a sccache that is present but
+**crashes** (the in-container panic that stalled phase 2) also falls back to an uncached, green
+`-O3` build — it logs the Rust panic backtrace (and the detached server's `SCCACHE_ERROR_LOG`,
+when a job sets one) for diagnosis but never reds the build. This closes the gap the original
+absent-only guard left.
 
-**Rollout.** **Phase 1 (current): the 3 macOS build jobs** (slowest + OOM-prone) —
-`brew install sccache` + the env above + `BUILD_JOBS: 2`. **Phase 2 (TODO):** the dockcross
-Linux/Android/CUDA jobs (the `sccache` binary **and** `DEPOT_TOKEN` must be passed *into* the
-container), the Windows jobs (sccache supports MSVC), and the Linux-host `test-cpp` job. To
-extend a job: install `sccache`, set the two `SCCACHE_WEBDAV_*` env vars, and (for
-RAM-limited runners) `BUILD_JOBS`.
+**Rollout.** **Phase 1 — DONE & proven: the 3 macOS build jobs** (slowest + OOM-prone) —
+`brew install sccache` + the env above + `BUILD_JOBS: 2`. macOS build dropped **~40 min → ~6 min**
+with a warm cache. **Phase 2 — in progress: the dockcross cross-compiles**, enabled **one job at
+a time and verified green in CI before the next**. (The first attempt enabled all four at once
+and was reverted: the static-musl sccache panicked in-container and — pre-probe — redded the
+build. The probe above now makes that a safe fallback.) Order, each adding the env + a
+`DOCKCROSS_ARGS` passthrough:
+1. `crosscompile-linux-x86_64` (manylinux2014) — **enabled first**, with `SCCACHE_LOG=debug` +
+   `SCCACHE_ERROR_LOG` + `RUST_BACKTRACE=full` so the run captures the panic root cause if it
+   recurs. Once green with a cache hit in `sccache --show-stats`, drop the diagnostic vars.
+2. `crosscompile-linux-x86_64-cuda` (via `build_cuda_linux.sh`, which execs `build.sh`) — only
+   the gcc C/C++ TUs cache (134 model files + ggml + httplib); the nvcc `.cu` kernels won't
+   (limited sccache nvcc support) — still a large partial win on the ~70 min job.
+3. `crosscompile-linux-aarch64`, then 4. `crosscompile-android-aarch64`.
+5. `crosscompile-android-aarch64-opencl` — **separate**, uses `build_opencl_android.sh` (not
+   `build.sh`); needs its own probe/launcher wiring.
+
+Per-job recipe: add `env:` { `USE_CACHE`, `SCCACHE_WEBDAV_ENDPOINT`, `SCCACHE_WEBDAV_TOKEN` } and
+`DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"` — the
+dockcross wrapper only forwards host env it is explicitly told to via `-e`. The fetched sccache
+version is the `SCCACHE_DL_VERSION` knob in `build.sh` (default **0.15.0**; overridable per-job
+to try a different build against a container that crashed another). **Windows** (`build.bat` +
+MSVC) is separate and last: use `mozilla-actions/sccache-action` / sccache's MSVC support, not
+the `build.sh` musl fetch.
 
 **Cross-repo scope.** This Depot/sccache compiler cache makes sense only for java-llama.cpp —
 it is the only sibling repo with a native (C++/JNI) build. It does not apply to the pure-Maven
