@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9682**
+Current llama.cpp pinned version: **b9739**
 
 ## Upgrading CUDA Version
 
@@ -193,7 +193,7 @@ needs no extra step here, `build-webui` re-reads the tag and rebuilds the matchi
 ships no UI):
 ```bash
 # needs node/npm + network; embed.cpp is plain C++17 (no npm)
-git clone --depth 1 --branch b9682 https://github.com/ggml-org/llama.cpp /tmp/lc
+git clone --depth 1 --branch b9739 https://github.com/ggml-org/llama.cpp /tmp/lc
 ( cd /tmp/lc/tools/ui && npm ci && npm run build \
   && ( cd dist && find . -type f -not -path './_gzip/*' \
        | while read -r f; do mkdir -p "_gzip/$(dirname "$f")"; gzip -9 -c "$f" > "_gzip/$f"; done ) \
@@ -227,7 +227,7 @@ plus a cache token are present, `build.sh` adds
 - `SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}` — a Depot **organization** token, stored
   as the repo secret **`DEPOT_TOKEN`**.
 
-Because `sccache` is **content-addressed** and llama.cpp is pinned (`GIT_TAG b9682`), the
+Because `sccache` is **content-addressed** and llama.cpp is pinned (`GIT_TAG b9739`), the
 ~280 upstream object files are byte-identical every run, so a warm cache recompiles only the
 *changed* files. Depot's cache is **shared across all branches** (unlike GitHub's
 per-branch `actions/cache`), so every branch builds incrementally; a `b<nnnn>` version bump
@@ -765,7 +765,7 @@ ctest --test-dir build --output-on-failure -R "ResultsToJson"
 | File | Tests | Scope |
 |------|-------|-------|
 | `src/test/cpp/test_utils.cpp` | 156 | Upstream helpers: `server_tokens`, `server_grammar_trigger`, `gen_tool_call_id`, `json_value`, `json_get_nested_values`, UTF-8 helpers, `format_response_rerank`, `format_embeddings_response_oaicompat`, `oaicompat_completion_params_parse`, `oaicompat_chat_params_parse`, `are_lora_equal`, `strip_flag_from_argv`, `token_piece_value`, `json_is_array_and_contains_numbers`, `format_oai_sse`, `format_oai_resp_sse`, `format_anthropic_sse` |
-| `src/test/cpp/test_server.cpp` | 188 | Upstream result types: `result_timings`, `task_params::to_json()` (incl. `dry_sequence_breakers`, `preserved_tokens`, `timings_per_token`), `completion_token_output`, `server_task_result_cmpl_partial` (non-oaicompat + `to_json_oaicompat` + logprobs + `to_json_oaicompat_chat` + `to_json_anthropic` + dispatcher), `server_task_result_cmpl_final` (non-oaicompat + `to_json_oaicompat` + `to_json_oaicompat_chat` + `to_json_oaicompat_chat_stream` + `to_json_anthropic` + `to_json_anthropic_stream` + tool_calls + dispatcher), `server_task_result_embd`, `server_task_result_rerank`, `server_task_result_metrics`, `server_task_result_slot_save_load`, `server_task_result_slot_erase`, `server_task_result_apply_lora`, `server_task_result_error`, `format_error_response`, `server_task::need_sampling()`, `server_task::n_tokens()`, `server_task::params_from_json_cmpl()` (parsing pipeline + grammar routing + error paths), `response_fields` projection |
+| `src/test/cpp/test_server.cpp` | 188 | Upstream result types: `result_timings`, `task_params::to_json()` (incl. `dry_sequence_breakers`, `preserved_tokens`, `timings_per_token`), `completion_token_output`, `server_task_result_cmpl_partial` (non-oaicompat + `to_json_oaicompat` + logprobs + `to_json_oaicompat_chat` + `to_json_anthropic` + dispatcher), `server_task_result_cmpl_final` (non-oaicompat + `to_json_oaicompat` + `to_json_oaicompat_chat` + `to_json_oaicompat_chat_stream` + `to_json_anthropic` + `to_json_anthropic_stream` + tool_calls + dispatcher), `server_task_result_embd`, `server_task_result_rerank`, `server_task_result_metrics`, `server_task_result_slot_save_load`, `server_task_result_slot_erase`, `server_task_result_apply_lora`, `server_task_result_error`, `format_error_response`, `server_task::need_sampling()`, `server_task::n_tokens()`, `server_schema::eval_llama_cmpl_schema()` (parsing pipeline + grammar routing + error paths), `response_fields` projection |
 | `src/test/cpp/test_json_helpers.cpp` | 47 | All functions in `json_helpers.hpp`: `get_result_error_message`, `results_to_json`, `rerank_results_to_json`, `parse_encoding_format`, `extract_embedding_prompt`, `is_infill_request`, `parse_slot_prompt_similarity`, `parse_positive_int_config`, `wrap_stream_chunk` |
 | `src/test/cpp/test_log_helpers.cpp` | 13 | All functions in `log_helpers.hpp`: `log_level_name`, `format_log_as_json` |
 | `src/test/cpp/test_jni_helpers.cpp` | 41 | All functions in `jni_helpers.hpp` using a zero-filled `JNINativeInterface_` mock |
@@ -774,7 +774,7 @@ ctest --test-dir build --output-on-failure -R "ResultsToJson"
 
 #### Upstream source location (in CMake build tree)
 
-llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9682`.
+llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9739`.
 
 **GoogleTest** is a separate `BUILD_TESTING`-only FetchContent (`GIT_TAG v1.17.0`), used solely
 by the `jllama_test` C++ unit-test binary — not by the shipped library, and not coupled to the
@@ -877,9 +877,9 @@ f.timings.prompt_n = 5;
 EXPECT_TRUE(j.contains("timings"));
 ```
 
-**3. Parameter parsing (`params_from_json_cmpl`) without a model**
+**3. Parameter parsing (`eval_llama_cmpl_schema`) without a model**
 
-`server_task::params_from_json_cmpl(vocab, params_base, n_ctx_slot, logit_bias_eog, data)`
+`server_schema::eval_llama_cmpl_schema(vocab, params_base, n_ctx_slot, logit_bias_eog, data)`
 can be called with `nullptr` vocab **if the JSON does not trigger grammar/preserved_tokens
 tokenisation** (those are the only vocab-dependent paths).  This lets us test the full
 parsing pipeline including error throws:
@@ -891,12 +891,12 @@ const int n_ctx = 512;
 
 // test: repeat_last_n=-1 is expanded to n_ctx_slot
 json data = {{"repeat_last_n", -1}};
-auto p = server_task::params_from_json_cmpl(nullptr, params_base, n_ctx, no_bias, data);
+auto p = server_schema::eval_llama_cmpl_schema(nullptr, params_base, n_ctx, no_bias, data);
 EXPECT_EQ(p.sampling.penalty_last_n, n_ctx);
 
 // test: invalid value throws std::runtime_error
 json bad = {{"dry_sequence_breakers", json::array()}};  // empty → error
-EXPECT_THROW(server_task::params_from_json_cmpl(nullptr, params_base, n_ctx, no_bias, bad),
+EXPECT_THROW(server_schema::eval_llama_cmpl_schema(nullptr, params_base, n_ctx, no_bias, bad),
              std::runtime_error);
 ```
 

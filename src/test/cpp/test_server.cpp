@@ -23,6 +23,7 @@
 #include "server-context.h"
 #include "server-queue.h"
 #include "server-task.h"
+#include "server-schema.h"
 #include "server-common.h"
 #include "server-chat.h"
 #include "utils.hpp"
@@ -1719,7 +1720,7 @@ namespace {
 task_params parse_params(const json &data, int n_ctx = 512) {
     common_params params_base;
     std::vector<llama_logit_bias> no_bias;
-    return server_task::params_from_json_cmpl(nullptr, params_base, n_ctx, no_bias, data);
+    return server_schema::eval_llama_cmpl_schema(nullptr, params_base, n_ctx, no_bias, data);
 }
 } // namespace
 
