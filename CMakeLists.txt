@@ -408,6 +408,7 @@ if(BUILD_TESTING)
         ${llama.cpp_SOURCE_DIR}/tools/server/server-context.cpp
         ${llama.cpp_SOURCE_DIR}/tools/server/server-queue.cpp
         ${llama.cpp_SOURCE_DIR}/tools/server/server-task.cpp
+        ${llama.cpp_SOURCE_DIR}/tools/server/server-schema.cpp
         ${llama.cpp_SOURCE_DIR}/tools/server/server-models.cpp
     )
 
