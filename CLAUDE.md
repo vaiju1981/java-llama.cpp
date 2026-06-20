@@ -247,23 +247,25 @@ absent-only guard left.
 
 **Rollout.** **Phase 1 — DONE & proven: the 3 macOS build jobs** (slowest + OOM-prone) —
 `brew install sccache` + the env above + `BUILD_JOBS: 2`. macOS build dropped **~40 min → ~6 min**
-with a warm cache. **Phase 2 — in progress: the dockcross cross-compiles**, enabled **one job at
-a time and verified green in CI before the next**. (The first attempt enabled all four at once
-and was reverted: the static-musl sccache panicked in-container and — pre-probe — redded the
-build. The probe above now makes that a safe fallback.) Order, each adding the env + a
-`DOCKCROSS_ARGS` passthrough:
+with a warm cache. **Phase 2 — DONE: all 5 dockcross cross-compile jobs** now have the same
+steady-state env (`USE_CACHE` + `SCCACHE_WEBDAV_*` + `DOCKCROSS_ARGS`). The probe makes it safe
+to enable them all at once — any container where sccache crashes falls back to an uncached green
+build automatically. (The first attempt enabled all four at once without the probe and was
+reverted: the static-musl sccache v0.8.2 panicked in-container and redded the build. With
+v0.16.0 + the probe this is no longer a risk.) Job-by-job status:
 1. `crosscompile-linux-x86_64` (manylinux2014) — ✅ **verified green** in PR #245: sccache
    **v0.16.0** probe passed in-container (devtoolset-10 gcc), `sccache ON` over Depot WebDAV,
-   cold run stored 275 objects (3 hits). The **v0.8.2 in-container panic is gone on v0.16.0**;
-   first-run diagnostics dropped, steady-state env = `USE_CACHE` + the two `SCCACHE_WEBDAV_*`
-   + `DOCKCROSS_ARGS`.
+   warm cache 277/278 hits (99.64%), 1m46s build time.
 2. `crosscompile-linux-x86_64-cuda` (via `build_cuda_linux.sh`, which execs `build.sh`) —
-   🚧 **enabled next** (diagnostics on for its first run on the manylinux_2_28 image). Only the
-   gcc C/C++ TUs cache (134 model files + ggml + httplib); the nvcc `.cu` kernels won't
-   (limited sccache nvcc support) — still a large partial win on the ~70 min job.
-3. `crosscompile-linux-aarch64`, then 4. `crosscompile-android-aarch64`.
-5. `crosscompile-android-aarch64-opencl` — **separate**, uses `build_opencl_android.sh` (not
-   `build.sh`); needs its own probe/launcher wiring.
+   🚧 **first run in progress** (diagnostics on). Only the gcc C/C++ TUs cache (134 model files
+   + ggml + httplib); the nvcc `.cu` kernels won't (limited sccache nvcc support) — still a
+   large partial win on the ~70 min full-arch job; the fast single-arch (sm_120) validation path
+   cuts nvcc time independently of sccache.
+3. `crosscompile-linux-aarch64` — ✅ **enabled** (same steady-state env; probe guards it).
+4. `crosscompile-android-aarch64` — ✅ **enabled** (same steady-state env; probe guards it).
+5. `crosscompile-android-aarch64-opencl` — ✅ **enabled**. `build_opencl_android.sh` stages the
+   OpenCL headers/loader, then delegates the jllama cmake build to `build.sh` via `exec`
+   (same pattern as `build_cuda_linux.sh`), so it inherits the probe and launcher automatically.
 
 Per-job recipe: add `env:` { `USE_CACHE`, `SCCACHE_WEBDAV_ENDPOINT`, `SCCACHE_WEBDAV_TOKEN` } and
 `DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"` — the

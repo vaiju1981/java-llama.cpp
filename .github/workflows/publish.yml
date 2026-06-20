@@ -264,6 +264,14 @@ jobs:
     name: Cross-Compile Linux aarch64 (LTS)
     needs: [startgate, build-webui]
     runs-on: ubuntu-latest
+    # Phase 2 dockcross cache rollout — job 3. Same steady-state env as manylinux2014 (job 1);
+    # the build.sh probe makes it safe to enable without a separate verification run. Inert
+    # without DEPOT_TOKEN (fork PRs) or use_cache=false.
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"
     steps:
       - uses: actions/checkout@v6
       - name: Download shared WebUI assets
@@ -293,6 +301,14 @@ jobs:
     name: Cross-Compile Android aarch64
     needs: [startgate, build-webui]
     runs-on: ubuntu-latest
+    # Phase 2 dockcross cache rollout — job 4. Same steady-state env as manylinux2014 (job 1);
+    # the build.sh probe makes it safe to enable without a separate verification run. Inert
+    # without DEPOT_TOKEN (fork PRs) or use_cache=false.
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"
     steps:
       - uses: actions/checkout@v6
       - name: Download shared WebUI assets
@@ -322,6 +338,15 @@ jobs:
     name: Cross-Compile Android aarch64 (OpenCL/Adreno)
     needs: [startgate, build-webui]
     runs-on: ubuntu-latest
+    # Phase 2 dockcross cache rollout — job 5. build_opencl_android.sh stages the OpenCL
+    # headers/loader, then delegates the jllama cmake build to build.sh (which owns the
+    # sccache probe + launcher). Same steady-state env as the other dockcross jobs. Inert
+    # without DEPOT_TOKEN (fork PRs) or use_cache=false.
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"
     steps:
       - uses: actions/checkout@v6
       - name: Download shared WebUI assets
