@@ -184,7 +184,15 @@ jobs:
       SCCACHE_LOG: debug
       SCCACHE_ERROR_LOG: /tmp/sccache_server.log
       RUST_BACKTRACE: full
-      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE -e SCCACHE_LOG -e SCCACHE_ERROR_LOG -e RUST_BACKTRACE"
+      # CUDA arch policy: FAST single-arch build for validation runs (PR / push / non-publish
+      # dispatch) to cut nvcc time; FULL arch set only when actually publishing to Central
+      # (publish_to_central=true) so the distributed jar runs on every GPU generation. The
+      # publish-snapshot/publish-release jobs require publish_to_central, so any artifact that
+      # reaches Central is always built with the full set. CI has no GPU, so the fast path pins a
+      # fixed CUDA_ARCH ('native' would fail at configure). '0' => full (release-safe), '1' => fast.
+      CUDA_FAST_BUILD: ${{ inputs.publish_to_central && '0' || '1' }}
+      CUDA_ARCH: '90'
+      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE -e SCCACHE_LOG -e SCCACHE_ERROR_LOG -e RUST_BACKTRACE -e CUDA_FAST_BUILD -e CUDA_ARCH"
     steps:
       - uses: actions/checkout@v6
       - name: Download shared WebUI assets

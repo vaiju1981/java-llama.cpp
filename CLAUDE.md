@@ -62,11 +62,18 @@ CUDA_FAST_BUILD=1 CUDA_ARCH=90 .github/build_cuda_linux.sh "-DOS_NAME=Linux -DOS
 # Direct-cmake equivalent: cmake -B build -DGGML_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=native
 ```
 
-**Why a separate, off-by-default flag (never enable it in CI/release):** an artifact built with
-`CUDA_FAST_BUILD` runs on only the single GPU generation it was compiled for. The flag exists
-purely to speed up **local iteration**; the CI CUDA job leaves it unset, so released jars keep
-full arch coverage. To cache the nvcc kernels too you would add
-`-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache` (gated behind the same probe), but sccache's nvcc
+**Default + CI policy (release-safety is the invariant).** An artifact built with `CUDA_FAST_BUILD`
+runs on only the single GPU generation it was compiled for, so the **distributed jar must always be
+the full arch set**. The script default is **off** (full) so any *local/manual* build is
+release-safe. In CI (`publish.yml`, the `crosscompile-linux-x86_64-cuda` job) the flag is **on for
+validation runs** (PR / push / non-publish dispatch) to cut nvcc time, and **off only when actually
+publishing to Central** — it is wired as `CUDA_FAST_BUILD: ${{ inputs.publish_to_central && '0' || '1' }}`
+(`'0'`=full, `'1'`=fast). Because the `publish-snapshot`/`publish-release` jobs require
+`publish_to_central`, **every artifact that reaches Central is built with the full arch set** while
+ordinary PR/push CI stays fast. CI has no GPU, so the fast path pins a fixed `CUDA_ARCH` (default
+`90` in the job env) — `native` would fail at configure. Both `CUDA_FAST_BUILD` and `CUDA_ARCH` are
+forwarded into the dockcross container via `DOCKCROSS_ARGS` `-e`. To cache the nvcc kernels too you
+would add `-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache` (gated behind the same probe), but sccache's nvcc
 caching is unreliable — the arch knob is the better lever and is what this repo ships.
 
 ## Android minimum API level
