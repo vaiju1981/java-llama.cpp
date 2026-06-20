@@ -15,6 +15,10 @@ on:
         description: "Deploy to Maven Central (snapshot if -SNAPSHOT, release if a vX.Y.Z tag)"
         type: boolean
         default: false
+      use_cache:
+        description: "Use the shared sccache/Depot compiler cache (faster incremental builds)"
+        type: boolean
+        default: true
 env:
   JAVA_VERSION: '21'
   MODEL_URL: "https://huggingface.co/TheBloke/CodeLlama-7B-GGUF/resolve/main/codellama-7b.Q2_K.gguf"
@@ -308,6 +312,11 @@ jobs:
     name: Build and Test macOS 15 arm64 (no Metal)
     needs: [startgate, build-webui]
     runs-on: macos-15
+    env:
+      BUILD_JOBS: 2
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
     steps:
       - uses: actions/checkout@v6
       - name: Download shared WebUI assets
@@ -327,6 +336,10 @@ jobs:
           echo ""
           echo "=== Processor Details ==="
           system_profiler SPHardwareDataType
+      - name: Install sccache (shared compiler cache)
+        if: env.USE_CACHE == 'true'
+        continue-on-error: true
+        run: brew install sccache
       - name: Build libraries
         shell: bash
         run: |
@@ -344,6 +357,11 @@ jobs:
     name: Build and Test macOS 14 arm64 (Metal)
     needs: [startgate, build-webui]
     runs-on: macos-14
+    env:
+      BUILD_JOBS: 2
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
     steps:
       - uses: actions/checkout@v6
       - name: Download shared WebUI assets
@@ -363,6 +381,10 @@ jobs:
           echo ""
           echo "=== Processor Details ==="
           system_profiler SPHardwareDataType
+      - name: Install sccache (shared compiler cache)
+        if: env.USE_CACHE == 'true'
+        continue-on-error: true
+        run: brew install sccache
       - name: Build libraries
         shell: bash
         run: |
@@ -476,6 +498,11 @@ jobs:
     name: Build and Test macOS 15 arm64 (Metal)
     needs: [startgate, build-webui]
     runs-on: macos-15
+    env:
+      BUILD_JOBS: 2
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
     steps:
       - uses: actions/checkout@v6
       - name: Download shared WebUI assets
@@ -495,6 +522,10 @@ jobs:
           echo ""
           echo "=== Processor Details ==="
           system_profiler SPHardwareDataType
+      - name: Install sccache (shared compiler cache)
+        if: env.USE_CACHE == 'true'
+        continue-on-error: true
+        run: brew install sccache
       - name: Build libraries
         shell: bash
         run: |
