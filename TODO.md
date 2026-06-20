@@ -30,7 +30,7 @@ NanoHTTPD server; NanoHTTPD + its dependency deleted.)
 primary goal: agentic tool-calling with Qwen):
 
 - Agentic tool-calling verified wire-correct: C++ guard pins `tool_calls.function.arguments` as a JSON
-  **string** (not object) at b9682 (llama.cpp #20198), plus the existing `finish_reason:"tool_calls"`
+  **string** (not object) at b9739 (llama.cpp #20198), plus the existing `finish_reason:"tool_calls"`
   test.
 - `stream_options.include_usage` forwarded (new `InferenceParameters.withStreamOptions`) so the trailing
   usage chunk is emitted, and `OpenAiSseFormatter.ensureUsageCachedTokens` guarantees
@@ -82,7 +82,7 @@ primary goal: agentic tool-calling with Qwen):
   What remains is manual validation against the actual editor clients — point Copilot's Ollama provider /
   a Custom Endpoint, Claude Code, and a Responses client at the running server — since a server-side
   round-trip confirms the wire shapes but not each client's own parser.
-- **Gemma 4 tool-calling validation.** Confirm the pinned llama.cpp (`b9682`) includes the Gemma 4
+- **Gemma 4 tool-calling validation.** Confirm the pinned llama.cpp (`b9739`) includes the Gemma 4
   tool-call parser fixes; if not, bump per the upgrade procedure.
 
 ### Windows compiler cache (sccache) — dual build shipped (MSVC default + Ninja classifier)
@@ -96,7 +96,7 @@ independently validated second Windows artifact is available for users to compar
 **Why two builds.** The cache mechanism is the CMake *compiler launcher*
 (`-DCMAKE_C_COMPILER_LAUNCHER=sccache`). **The Visual Studio generator ignores it entirely**
 (only Ninja/Makefile generators honor it), so the MSVC jobs can never cache. The Ninja
-Multi-Config generator *does* honor it (upstream llama.cpp `b9682` ships `windows-cuda` this way,
+Multi-Config generator *does* honor it (upstream llama.cpp `b9739` ships `windows-cuda` this way,
 proving Ninja Multi-Config + MSVC works on the same tree). The two builds produce **different
 `jllama.dll`s**, so they cannot coexist at the same resource path in one JAR — hence the classifier.
 
@@ -117,14 +117,14 @@ proving Ninja Multi-Config + MSVC works on the same tree). The two builds produc
   `windows-ninja` profile; the Ninja build + Java-test jobs are in the `package` `needs:` graph.
 - Docs: `README.md` classifier table + `CLAUDE.md` "Windows Ninja artifact" section.
 
-**What remains (verification, not redesign):**
-- Confirm the first green CI run shows **`sccache --show-stats` cache hits** in the Ninja job logs
-  (cold first, warm thereafter). If sccache never warms on the Depot WebDAV backend from Windows
-  runners, the Ninja build still ships correctly — it just falls back to uncached (green) — so this
-  is a perf check, not a correctness gate.
-- Optionally smoke-test that the published `ninja-windows` classifier JAR loads its DLL on a clean
-  Windows host. Publishing is gated behind `publish_to_central`, so a broken Windows job blocks the
-  release before any artifact reaches Central/GitHub Releases.
+**Verification — DONE (PR #248).** The Ninja jobs are green and cache-warm: `Build and Test
+Windows … (Ninja … sccache, eval)` builds + `ctest` pass, and `Java Tests Windows 2025 x86_64
+(Ninja, eval)` loads the DLL via JNI and runs the full model-backed suite green (after the b9739
+arg-parse patch landed). `sccache --show-stats` confirms cache hits on the Ninja jobs.
+
+**Optional follow-up:** smoke-test that the *published* `ninja-windows` classifier JAR loads its DLL
+on a clean Windows host. Publishing is gated behind `publish_to_central`, so a broken Windows job
+blocks the release before any artifact reaches Central/GitHub Releases.
 
 **Reference notes:**
 - Cache backend is **sccache + Depot WebDAV** (consistent with the other 8 jobs — one token, shared
@@ -187,16 +187,52 @@ parser. Our JNI already passes correct UTF-8 argv (`GetStringUTFChars`), so the 
 unnecessary for us. **This is an upstream bug affecting every embedded Windows consumer of
 `common_params_parse`.**
 
-**Fix options (decide later):**
-1. FetchContent `PATCH_COMMAND` that **guards** the block — only override when `make_utf8_argv()` arg
-   count equals the caller's `argc` (true for the standalone exe, false for JNI). Minimal + semantically
-   correct; also the shape to PR upstream.
-2. FetchContent patch that **removes** the `_WIN32` override for our build.
-3. File an upstream issue/PR and wait for a fixed llama.cpp build.
+**Fix options (history — option 2 chosen).** (1) guard the block by arg-count — *tried first, it
+collided* (see the count-guard note above); (2) **remove the `_WIN32` override for our build — CHOSEN**
+(deterministic; our JNI always passes correct UTF-8 argv); (3) file an upstream PR and wait. The patch
+re-applies on every llama.cpp bump and the applier fails loud if it stops applying — it is part of the
+upgrade checklist. Pre-existing on `main` since #247 (b9682→b9739); independent of the Windows-Ninja
+classifier work. **Remaining open item: the upstream PR** (see "Upstream llama.cpp PR" below) so the
+local patch can eventually be dropped.
 
-Any patch re-applies on every llama.cpp bump — add it to the upgrade checklist. Pre-existing on `main`
-since #247 (b9682→b9739); independent of the Windows-Ninja classifier work. Windows **build + C++ ctest**
-jobs are green; only the Windows **Java/inference** jobs are affected.
+### SonarCloud "Security Rating on New Code" gate — PR #248 (open)
+
+The PR's **only** red is SonarCloud's "Security Rating on New Code" gate (every build/test job is
+green; SonarCloud is **not** a merge-blocking build job). The findings are GitHub-Actions/Java
+analyzer issues from the Maven scanner — **"C" is the rating *grade* (A–E), not the C language**;
+there is no CFamily/C-C++ scan configured. Addressed:
+
+- **`clang-format.yml`** — `pip install` without `--only-binary :all:` can run a package's `setup.py`;
+  forced wheels-only (`84297e0`, block scalar so `:all:` doesn't break YAML). *If Sonar still flags it,
+  try the `--only-binary=:all:` equals form.*
+- **`osv-scanner.yml` / `scorecard.yml`** — top-level `permissions: read-all` → `contents: read`
+  (`84297e0`); safe because every job in both files already declares its own exact permissions.
+- **`publish.yml`** — workflow-level `permissions: contents: read` (Sonar wants it per-job); **owner
+  marked it Accept/"Won't fix" on the dashboard** rather than spreading perms across ~25 release jobs.
+  Alternative if ever desired: add `permissions: contents: read` to the ~19 read-only jobs (the 5
+  publish/report jobs already declare `contents: write`) and drop the top-level block.
+- **`PairTest.java`** — 3 Critical *Reliability* bugs (`assertNotNull` on the primitive `hashCode()`)
+  replaced with a determinism check (`9f0d377`). Reliability rating, **not** the Security gate.
+
+**Still open:** the gate was still red as of `9f0d377`. SonarCloud's issues API is auth-gated (403 from
+CI), so the exact remaining new-code Vulnerability must be read off the dashboard. Resolve the last
+finding, accept it on the dashboard, or merge on the green build/test checks.
+
+### Upstream llama.cpp PR — drop the local Windows arg-parse patch (open)
+
+`patches/0001-win32-arg-parse-embed-guard.patch` is a **local** fix re-applied on every build. To drop
+it, PR upstream (against #24779): add a `common_params_parse_argv` companion (or a
+`common_params_parse` opt-out flag) that trusts the caller's argv — preserving the standalone tools'
+UTF-8 fix while letting embedders (JNI, and any FFI binding) pass their own argv. Ship with the
+standalone-safe repro (a plain exe that passes a synthetic argv and shows it gets discarded on Windows
+because `GetCommandLineW()` returns the host process line). Once merged and the pin is bumped past it,
+delete the patch.
+
+### Branch protection — aarch64 job renamed (open, owner action)
+
+The native aarch64 switch renamed the check **`Cross-Compile Linux aarch64 (LTS)` → `Build and Test
+Linux aarch64`**. If a required status check pinned the old name, repoint it or it will sit pending
+forever.
 
 ### llama.cpp upstream feature exposure (queued, deferred by policy)
 
@@ -265,6 +301,28 @@ These are JNI plumbing items for upstream API additions. Policy: add only after 
 - **Cross-repo code-quality TODOs** — see [`../workspace/policies/code-quality-todos.md`](../workspace/policies/code-quality-todos.md) for the canonical `@VisibleForTesting` design-fit review, package hierarchy review, and class/method naming review. This repo has no `@VisibleForTesting` usages today; package and naming reviews remain open.
 
 ## Done (kept for history)
+
+### b9739 upgrade + PR #248 (Windows Ninja, native aarch64, patches mechanism)
+
+- **llama.cpp b9682 → b9739** (#247, merged) + build fixes: `server-schema.cpp` added to the
+  `jllama_test` sources (b9739 link fix, `38be6db`); `test_server.cpp` `ParamsFromJsonCmpl`
+  expectations updated to b9739 schema behavior (`aaba886`).
+- **Windows Ninja artifact** — `ninja-windows` classifier JAR built with Ninja Multi-Config + sccache,
+  shipped alongside the permanent MSVC default; both build + Java-test jobs green (`e113ed3`,
+  `48f0863`). (See the open section above for the design rationale; verification is done.)
+- **Linux aarch64 → native `ubuntu-24.04-arm` build** (`ed9ecbb`). The dockcross `linux-arm64-lts`
+  image (GCC 8.5 / glibc 2.17) could no longer compile b9739's C++17 CTAD-in-`new`; now builds natively
+  with GCC 14 (mirroring upstream), runs `ctest` on real ARM (446 tests green), and warms sccache
+  (99.66% hits). Trade-off: glibc floor 2.17 → ~2.39 (same envelope as upstream's ARM binaries);
+  documented in the README classifier table. `build.sh` sccache auto-fetch generalized to aarch64.
+- **Generic `patches/` mechanism** — drop `*.patch`/`*.diff` in repo-root `patches/`, applied to the
+  FetchContent'd llama.cpp source by `cmake/apply-llama-patches.cmake` via the llama.cpp
+  `PATCH_COMMAND` (cross-platform, idempotent, fail-loud). Covers every C++ build from one place.
+  First patch fixes the Windows JNI arg-parse regression (`1d875b1` → deterministic form `f651b53`).
+  REUSE annotated via `patches/**` glob (`0cffac1`).
+- **CUDA sccache verified** — the `manylinux_2_28 (CUDA)` job caches all gcc C/C++ TUs (247/248 hits,
+  99.60%); the nvcc `.cu` kernels remain uncached (sccache limitation), and `CUDA_FAST_BUILD` keeps
+  PR/validation runs single-arch. (Doc/observation; no code change.)
 
 ### Layered package restructure (flat root package → layered hierarchy)
 
