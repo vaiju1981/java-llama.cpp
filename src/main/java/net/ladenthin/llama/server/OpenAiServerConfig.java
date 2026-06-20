@@ -4,14 +4,17 @@
 
 package net.ladenthin.llama.server;
 
+import lombok.EqualsAndHashCode;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Immutable configuration for {@link OpenAiCompatServer}.
  *
  * <p>Sensible localhost defaults are provided; build instances with {@link #builder()}. The API key is
- * deliberately excluded from {@link #toString()} so it is never written to logs.
+ * deliberately excluded from {@link #toString()} so it is never written to logs (but it <em>is</em> part
+ * of {@link #equals(Object)}/{@link #hashCode()}, which are never logged).
  */
+@EqualsAndHashCode
 public final class OpenAiServerConfig {
 
     /** Default bind address: loopback only, so the endpoint is not exposed off-host. */
@@ -32,6 +35,13 @@ public final class OpenAiServerConfig {
     /** Default Server-Sent-Events heartbeat interval, in milliseconds. */
     public static final long DEFAULT_HEARTBEAT_MILLIS = 15_000L;
 
+    /**
+     * Default {@code Access-Control-Allow-Origin} value: {@code "*"}. Browser- and webview-based clients
+     * send a CORS preflight and require this header; {@code "*"} is the pragmatic default for a server
+     * that binds loopback and authenticates with a bearer token (not cookies).
+     */
+    public static final String DEFAULT_CORS_ALLOW_ORIGIN = "*";
+
     private final String host;
     private final int port;
     private final @Nullable String apiKey;
@@ -39,6 +49,8 @@ public final class OpenAiServerConfig {
     private final int maxInputTokens;
     private final int maxOutputTokens;
     private final long heartbeatMillis;
+    private final String corsAllowOrigin;
+    private final boolean supportsVision;
 
     private OpenAiServerConfig(Builder builder) {
         this.host = builder.host;
@@ -48,6 +60,8 @@ public final class OpenAiServerConfig {
         this.maxInputTokens = builder.maxInputTokens;
         this.maxOutputTokens = builder.maxOutputTokens;
         this.heartbeatMillis = builder.heartbeatMillis;
+        this.corsAllowOrigin = builder.corsAllowOrigin;
+        this.supportsVision = builder.supportsVision;
     }
 
     /**
@@ -123,6 +137,25 @@ public final class OpenAiServerConfig {
     }
 
     /**
+     * The {@code Access-Control-Allow-Origin} value sent on every response and CORS preflight.
+     *
+     * @return the allowed CORS origin
+     */
+    public String getCorsAllowOrigin() {
+        return corsAllowOrigin;
+    }
+
+    /**
+     * Whether the served model supports image input (a multimodal projector was configured). Advertised
+     * to clients that gate on a vision capability (e.g. Copilot's Ollama provider via {@code /api/show}).
+     *
+     * @return {@code true} if vision/image input is available
+     */
+    public boolean isSupportsVision() {
+        return supportsVision;
+    }
+
+    /**
      * Whether bearer-token authentication is enabled (an API key is configured).
      *
      * @return {@code true} if requests must present a matching bearer token
@@ -152,6 +185,8 @@ public final class OpenAiServerConfig {
                 + maxOutputTokens
                 + ", heartbeatMillis="
                 + heartbeatMillis
+                + ", corsAllowOrigin="
+                + corsAllowOrigin
                 + '}';
     }
 
@@ -165,6 +200,8 @@ public final class OpenAiServerConfig {
         private int maxInputTokens = DEFAULT_MAX_INPUT_TOKENS;
         private int maxOutputTokens = DEFAULT_MAX_OUTPUT_TOKENS;
         private long heartbeatMillis = DEFAULT_HEARTBEAT_MILLIS;
+        private String corsAllowOrigin = DEFAULT_CORS_ALLOW_ORIGIN;
+        private boolean supportsVision;
 
         private Builder() {}
 
@@ -242,6 +279,28 @@ public final class OpenAiServerConfig {
          */
         public Builder heartbeatMillis(long heartbeatMillis) {
             this.heartbeatMillis = heartbeatMillis;
+            return this;
+        }
+
+        /**
+         * Sets the {@code Access-Control-Allow-Origin} value (CORS).
+         *
+         * @param corsAllowOrigin the allowed origin (e.g. {@code "*"} or a specific scheme/host/port)
+         * @return this builder
+         */
+        public Builder corsAllowOrigin(String corsAllowOrigin) {
+            this.corsAllowOrigin = corsAllowOrigin;
+            return this;
+        }
+
+        /**
+         * Sets whether the served model supports image input (a multimodal projector is configured).
+         *
+         * @param supportsVision {@code true} if vision/image input is available
+         * @return this builder
+         */
+        public Builder supportsVision(boolean supportsVision) {
+            this.supportsVision = supportsVision;
             return this;
         }
 

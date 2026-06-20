@@ -121,6 +121,91 @@ At runtime the device must provide its own OpenCL ICD (`libOpenCL.so`);
 Qualcomm Adreno drivers do. Devices without an ICD should use the default
 CPU-only Android JAR.
 
+## WebUI (llama.cpp Svelte UI) embedding
+
+The llama.cpp WebUI is **built once in CI and shared to every native build**, then
+compiled into `libjllama` so the embedded server (`server-http.cpp`) can serve it.
+This repo commits no build outputs, so the assets are produced per-pipeline, never
+checked in (same policy as the native libs).
+
+Pipeline (`.github/workflows/publish.yml`):
+
+1. **`build-webui` job** (ubuntu — the *only* job that runs `npm`): resolves the
+   pinned `b<nnnn>` tag from `CMakeLists.txt`'s `GIT_TAG`, sparse-checks-out
+   `ggml-org/llama.cpp@<tag>` `tools/ui`, runs the upstream Svelte build
+   (`npm ci && npm run build`), gzips `dist/` into `dist/_gzip/` (LLAMA_UI_GZIP
+   parity), builds the self-contained `llama-ui-embed` host tool (plain C++17, **no
+   npm**) and runs it to produce the platform-independent **`webui-generated/ui.cpp`
+   + `ui.h`**, uploaded as the `webui-generated` artifact.
+2. **Every native build job** (`needs: [startgate, build-webui]`) downloads that
+   artifact into `webui-generated/` before building. npm never runs in the dockcross
+   cross-compilers (which have no node) or per-platform.
+3. **CMake** (the "WebUI assets" block in `CMakeLists.txt`): if
+   `webui-generated/ui.cpp` + `ui.h` exist, compiles `ui.cpp` in and adds its dir to
+   the include path — the generated `ui.h` `#define`s `LLAMA_UI_HAS_ASSETS`, which
+   activates `server-http.cpp`'s static-asset routes. If absent, it falls back to the
+   empty-asset stub `src/main/cpp/webui_stub/ui.h` (no embedded UI) so local builds —
+   and any job without the artifact — still build and run.
+
+The WebUI version **auto-follows** the pinned `GIT_TAG`: a llama.cpp version bump
+needs no extra step here, `build-webui` re-reads the tag and rebuilds the matching UI.
+
+**Building the WebUI locally** (optional — a plain `cmake` build uses the stub and
+ships no UI):
+```bash
+# needs node/npm + network; embed.cpp is plain C++17 (no npm)
+git clone --depth 1 --branch b9682 https://github.com/ggml-org/llama.cpp /tmp/lc
+( cd /tmp/lc/tools/ui && npm ci && npm run build \
+  && ( cd dist && find . -type f -not -path './_gzip/*' \
+       | while read -r f; do mkdir -p "_gzip/$(dirname "$f")"; gzip -9 -c "$f" > "_gzip/$f"; done ) \
+  && g++ -O2 -std=c++17 -o /tmp/llama-ui-embed embed.cpp )
+mkdir -p webui-generated
+/tmp/llama-ui-embed webui-generated/ui.cpp webui-generated/ui.h /tmp/lc/tools/ui/dist
+cmake -B build && cmake --build build --target jllama   # now embeds the real UI
+```
+`webui-generated/` is git-ignored.
+
+## CI build cache & parallelism (sccache + Depot)
+
+The native build dominates CI time (134 llama.cpp model TUs + ggml + the 16.6k-line
+`httplib.cpp`, all at `-O3`). Two knobs in **`.github/build.sh`**, both behind the
+`use_cache` `workflow_dispatch` input (default **true**), keep it fast and stop the macOS
+runners OOM-ing.
+
+**`BUILD_JOBS` — compile parallelism.** `build.sh` builds with `cmake --build -j${BUILD_JOBS}`
+(default: all cores, via portable `nproc` → `sysctl -n hw.ncpu` → `4` detection). GitHub's
+~7 GB **macOS arm64** runners OOM under full `-j` when `httplib.cpp` co-schedules with the
+model TUs; the runner is then killed as **SIGTERM / exit 143** ("received a shutdown
+signal"), which *looks* like a timeout but is an out-of-memory kill. The three macOS build
+jobs therefore set `BUILD_JOBS: 2` to bound peak memory.
+
+**`sccache` → Depot Cache — shared compiler cache.** When `USE_CACHE=true` **and** `sccache`
+plus a cache token are present, `build.sh` adds
+`-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache` and prints
+`sccache --show-stats`. The cache lives in **Depot Cache** over sccache's **WebDAV** backend:
+
+- `SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev`
+- `SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}` — a Depot **organization** token, stored
+  as the repo secret **`DEPOT_TOKEN`**.
+
+Because `sccache` is **content-addressed** and llama.cpp is pinned (`GIT_TAG b9682`), the
+~280 upstream object files are byte-identical every run, so a warm cache recompiles only the
+*changed* files. Depot's cache is **shared across all branches** (unlike GitHub's
+per-branch `actions/cache`), so every branch builds incrementally; a `b<nnnn>` version bump
+naturally invalidates the upstream entries (their content changed) with no manual step. It
+stays `-O3` and is **bit-identical** to a clean build (release-safe).
+
+**Safety / transparency.** It is **inert** until `DEPOT_TOKEN` is configured and on **fork
+PRs** (secrets are hidden there) — those simply compile normally; the `Install sccache` step
+is `continue-on-error`; and `use_cache=false` forces a pristine, from-scratch build.
+
+**Rollout.** **Phase 1 (current): the 3 macOS build jobs** (slowest + OOM-prone) —
+`brew install sccache` + the env above + `BUILD_JOBS: 2`. **Phase 2 (TODO):** the dockcross
+Linux/Android/CUDA jobs (the `sccache` binary **and** `DEPOT_TOKEN` must be passed *into* the
+container), the Windows jobs (sccache supports MSVC), and the Linux-host `test-cpp` job. To
+extend a job: install `sccache`, set the two `SCCACHE_WEBDAV_*` env vars, and (for
+RAM-limited runners) `BUILD_JOBS`.
+
 ## Upgrading/Downgrading llama.cpp Version
 
 To change the llama.cpp version, update the following **three** files:
@@ -471,9 +556,11 @@ If the local check passes (`BUILD SUCCESS`), the `mvn package` job in
 - `LlamaIterator` / `LlamaIterable` — Streaming generation via Java `Iterator`/`Iterable`.
 - `LlamaLoader` — Extracts the platform-specific native library from the JAR to a temp directory, or finds it on `java.library.path`.
 - `OSInfo` — Detects OS and architecture for library resolution.
-- **`server` package — OpenAI-compatible HTTP endpoint. NOTE: two implementations coexist on this branch pending a "best of both" consolidation (see [`TODO.md`](TODO.md)).**
-  - `server.OpenAiCompatServer` — built on the JDK's `com.sun.net.httpserver` (no new dependency). Serves `POST /v1/chat/completions` (streaming via SSE + non-streaming) and `GET /v1/models` by delegating to `LlamaModel.chatComplete` / `LlamaModel.streamChatCompletion`, so editors that speak the OpenAI protocol (e.g. VS Code Copilot "Custom Endpoint") can drive a local model. Streaming uses the native OAI chunk path (`requestChatCompletionStream` / `receiveChatCompletionChunk`), preserving `delta.tool_calls`.
-  - `server.LlamaServer` — an OpenAI-compatible HTTP server and the fat-jar `Main-Class`. `LlamaServerArgs` parses the CLI; `OaiRouter` / `OaiHttpServer` (NanoHTTPD) map `POST /v1/chat/completions`, `/v1/completions`, `/v1/embeddings` and `GET /v1/models` to the `LlamaModel.handle*` methods. NanoHTTPD is an `<optional>` dependency (bundled only in the fat jar, not inherited by library consumers). The `server` package is a dedicated top layer in the ArchUnit `layeredArchitecture` rule (the only layer allowed to access the root `Api`). See README "OpenAI-compatible HTTP server".
+- **`server` package — OpenAI-compatible HTTP endpoint (a single implementation).**
+  - `server.OpenAiCompatServer` — built only on the JDK's `com.sun.net.httpserver` (no new dependency), both embeddable and the fat-jar `Main-Class`. Serves `POST /v1/chat/completions` (streaming via SSE + non-streaming), `POST /v1/completions`, `POST /v1/embeddings`, `POST /v1/rerank`, `POST /infill`, `GET /v1/models` and `GET /health` (every route is also reachable without the `/v1` prefix), so editors that speak the OpenAI protocol (e.g. VS Code Copilot "Custom Endpoint", Cline, Roo Code, Continue) can drive a local model. Streaming chat uses the native OAI chunk path (`LlamaModel.streamChatCompletion` → `requestChatCompletionStream` / `receiveChatCompletionChunk` + the C++ `wrap_stream_chunk` helper), preserving `delta.tool_calls`; completions/embeddings/infill forward verbatim to the matching `LlamaModel.handle*`; rerank reshapes `handleRerank` into the OAI `results`/`data` shape. The chat mapper forwards `stream_options` and `response_format` and defaults `cache_prompt=true`; a CORS `Filter` answers `OPTIONS` preflights; `OpenAiSseFormatter.ensureUsageCachedTokens` guarantees `usage.prompt_tokens_details.cached_tokens` on the streamed usage chunk (Copilot crash fix, microsoft/vscode #273482). **Agentic tool-calling is the primary target**; a C++ guard (`test_server.cpp`) pins `tool_calls.function.arguments` as a JSON string (llama.cpp #20198).
+  - **Alternative protocol surfaces** (pure translation over the OpenAI chat core — no second inference path; each reconstructs streamed tool calls via `ToolCallDeltaAccumulator`): **Ollama-native** (`GET /api/version`, `/api/tags`, `POST /api/show`, `/api/chat` with NDJSON streaming, `/api/generate` prompt-completion/FIM — `OllamaApiSupport`; `/api/show` advertises tools/insert/vision capabilities + context length for Copilot's Ollama provider), **Anthropic Messages** (`POST /v1/messages`, SSE event stream — `AnthropicApiSupport` + `AnthropicStreamTranslator`), and **OpenAI Responses** (`POST /v1/responses`, SSE event stream — `ResponsesApiSupport` + `ResponsesStreamTranslator`). The llama.cpp-native `GET /props` (context length + `modalities`) is served via `OpenAiSseFormatter.propsJson` for autocomplete clients that size their context from it.
+  - Supporting classes: `OpenAiServerConfig` (builder; optional bearer auth; binds `127.0.0.1`; `corsAllowOrigin`; `supportsVision`), `OpenAiServerCli` (testable CLI arg parser → `ModelParameters` + `OpenAiServerConfig`; flags incl. `--mmproj`/`--embedding`/`--reranking`), `OpenAiRequestMapper` (OAI chat request → `InferenceParameters`), `OpenAiSseFormatter` (SSE/models/error JSON + usage normalization), `OaiRerankSupport` (pure rerank request/response shaping), and the model-free test seam `OpenAiBackend`/`ChunkSink` + `LlamaModelBackend`. The streaming envelope is parsed by `json.ChatStreamChunkParser`.
+  - The `server` package is a dedicated top layer in the ArchUnit `layeredArchitecture` rule (the only layer allowed to access the root `Api`); `noInternalJdkImports` carries an explicit exception for the supported `com.sun.net.httpserver` (the exported `jdk.httpserver` module, which `module-info.java` `requires`). See README "OpenAI-compatible HTTP server".
 
 **Native layer** (`src/main/cpp/`):
 - `jllama.cpp` — JNI implementation bridging Java calls to llama.cpp. ~1,215 lines; 17 native methods.
@@ -481,7 +568,7 @@ If the local check passes (`BUILD SUCCESS`), the `mvn package` job in
 - `json_helpers.hpp` — Pure JSON transformation helpers (no JNI, no llama state). Independently unit-testable.
 - `jni_helpers.hpp` — JNI bridge helpers (handle management + server orchestration). Includes `json_helpers.hpp`.
 - Uses `nlohmann/json` for JSON deserialization of parameters.
-- The upstream server library (`server-context.cpp`, `server-queue.cpp`, `server-task.cpp`, `server-models.cpp`) is compiled directly into `jllama` via CMake — there is no hand-ported `server.hpp` fork.
+- The upstream server library (`server-context.cpp`, `server-queue.cpp`, `server-task.cpp`, `server-models.cpp`) is compiled directly into `jllama` via CMake — there is no hand-ported `server.hpp` fork. **Phase 2:** the upstream HTTP transport (`tools/server/server-http.cpp`) and its `cpp-httplib` backend (`vendor/cpp-httplib/httplib.cpp`) are now compiled into `jllama` too, so the OpenAI-compatible server can be driven natively from JNI *inside* `libjllama` — no separate `llama-server` executable (a JNI shared library loads anywhere a JVM runs, which a standalone binary does not). `server-http.cpp` does `#include "ui.h"` (the WebUI asset table that `tools/ui`/`llama-ui` normally generates); since the Svelte WebUI is not shipped, `src/main/cpp/webui_stub/ui.h` supplies the upstream **empty-asset** interface and leaves `LLAMA_UI_HAS_ASSETS` undefined (all static-asset-serving blocks compile out). `<cpp-httplib/httplib.h>` already resolves via `llama-common`'s `vendor/` include dir (same nlohmann/json 3.12.0 as the FetchContent copy). No SSL: `CPPHTTPLIB_OPENSSL_SUPPORT` is left undefined (plain-HTTP; bind localhost / front with a TLS proxy). Only `server.cpp` (the standalone `main()` + route wiring) remains excluded — wiring the routes to JNI is the next step.
 
 ### Native Helper Architecture
 

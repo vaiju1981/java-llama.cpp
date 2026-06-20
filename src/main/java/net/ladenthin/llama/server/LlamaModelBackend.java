@@ -10,19 +10,21 @@ import net.ladenthin.llama.LlamaModel;
 import net.ladenthin.llama.parameters.InferenceParameters;
 
 /**
- * Production {@link ChatBackend} that runs requests against a loaded {@link LlamaModel}.
+ * Production {@link OpenAiBackend} that runs requests against a loaded {@link LlamaModel}.
  *
- * <p>Non-streaming requests reuse {@link LlamaModel#chatComplete(InferenceParameters)}, whose return
- * value is already a verbatim OpenAI {@code chat.completion} body. Streaming requests use
- * {@link LlamaModel#streamChatCompletion(InferenceParameters, java.util.function.Consumer)}, which
- * emits OpenAI {@code chat.completion.chunk} objects (including {@code delta.tool_calls}).
+ * <p>Non-streaming chat reuses {@link LlamaModel#chatComplete(InferenceParameters)}, whose return value
+ * is already a verbatim OpenAI {@code chat.completion} body. Streaming chat uses
+ * {@link LlamaModel#streamChatCompletion(InferenceParameters, java.util.function.Consumer)}, which emits
+ * OpenAI {@code chat.completion.chunk} objects (including {@code delta.tool_calls}). Text completions and
+ * embeddings forward the request body verbatim to {@link LlamaModel#handleCompletionsOai(String)} /
+ * {@link LlamaModel#handleEmbeddings(String, boolean)}, which already return OpenAI-shaped JSON.
  *
  * <p>The streaming sink may fail with {@link IOException} (client disconnect); because the underlying
  * model API takes a {@link java.util.function.Consumer} (no checked exceptions), that failure is
  * relayed across the boundary via {@link java.io.UncheckedIOException} and unwrapped here so the
  * in-flight native task is cancelled.
  */
-final class LlamaModelChatBackend implements ChatBackend {
+final class LlamaModelBackend implements OpenAiBackend {
 
     private final LlamaModel model;
     private final OpenAiRequestMapper mapper;
@@ -33,7 +35,7 @@ final class LlamaModelChatBackend implements ChatBackend {
      * @param model the loaded model to run completions against
      * @param mapper the OpenAI-request to {@link InferenceParameters} mapper
      */
-    LlamaModelChatBackend(LlamaModel model, OpenAiRequestMapper mapper) {
+    LlamaModelBackend(LlamaModel model, OpenAiRequestMapper mapper) {
         this.model = model;
         this.mapper = mapper;
     }
@@ -65,5 +67,34 @@ final class LlamaModelChatBackend implements ChatBackend {
             }
             throw e;
         }
+    }
+
+    @Override
+    public String completions(JsonNode request) {
+        // The native /v1/completions handler parses the OpenAI body itself; forward it verbatim.
+        return model.handleCompletionsOai(request.toString());
+    }
+
+    @Override
+    public String embeddings(JsonNode request) {
+        // oaiCompat=true so the response uses the OpenAI {"object":"list","data":[{embedding}]} shape.
+        return model.handleEmbeddings(request.toString(), true);
+    }
+
+    @Override
+    public String infill(JsonNode request) {
+        // The native /infill handler parses the body itself (input_prefix/input_suffix/...) and applies
+        // the model's FIM tokens from GGUF metadata; forward verbatim.
+        return model.handleInfill(request.toString());
+    }
+
+    @Override
+    public String rerank(JsonNode request) {
+        final String query = OaiRerankSupport.readQuery(request);
+        final String[] documents = OaiRerankSupport.readDocuments(request);
+        final int topN = OaiRerankSupport.readTopN(request);
+        final String requestModel = request.path("model").asText("");
+        final String nativeJson = model.handleRerank(query, documents);
+        return OaiRerankSupport.toOaiResponse(nativeJson, requestModel, topN);
     }
 }

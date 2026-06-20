@@ -4,9 +4,11 @@
 
 package net.ladenthin.llama.server;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import java.io.IOException;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -74,6 +76,46 @@ final class OpenAiSseFormatter {
     }
 
     /**
+     * Guarantee a streamed chunk's usage object carries {@code usage.prompt_tokens_details.cached_tokens}.
+     *
+     * <p>When {@code stream_options.include_usage} is set, the OpenAI streaming protocol emits a trailing
+     * usage chunk. The VS&nbsp;Code Copilot custom endpoint throws
+     * {@code Cannot read properties of undefined (reading 'cached_tokens')} (microsoft/vscode #273482) if
+     * {@code usage.prompt_tokens_details.cached_tokens} is missing, and upstream llama.cpp does not always
+     * populate it. This fills a default of {@code 0} when absent. Token-delta chunks (which carry no
+     * non-null usage object) are returned unchanged and unparsed, so the streaming hot path is untouched.
+     *
+     * @param chunkJson one {@code chat.completion.chunk} serialized as JSON
+     * @return the chunk JSON with {@code cached_tokens} guaranteed present inside any non-null usage object
+     */
+    static String ensureUsageCachedTokens(String chunkJson) {
+        // Fast path: only the trailing usage chunk carries a non-null usage object — skip the rest unparsed.
+        if (!chunkJson.contains("\"usage\"") || chunkJson.contains("\"usage\":null")) {
+            return chunkJson;
+        }
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(chunkJson);
+            if (!root.isObject() || !root.path("usage").isObject()) {
+                return chunkJson;
+            }
+            ObjectNode usage = (ObjectNode) root.get("usage");
+            JsonNode details = usage.path("prompt_tokens_details");
+            if (details.isObject()) {
+                if (details.has("cached_tokens")) {
+                    return chunkJson; // already correct — emit verbatim
+                }
+                ((ObjectNode) details).put("cached_tokens", 0);
+            } else {
+                usage.putObject("prompt_tokens_details").put("cached_tokens", 0);
+            }
+            return root.toString();
+        } catch (IOException e) {
+            // Never break a live stream over a formatting nicety.
+            return chunkJson;
+        }
+    }
+
+    /**
      * Build the {@code GET /v1/models} body advertising a single model.
      *
      * @param modelId the model id to advertise
@@ -89,6 +131,30 @@ final class OpenAiSseFormatter {
         ObjectNode root = OBJECT_MAPPER.createObjectNode();
         root.put("object", "list");
         root.set("data", data);
+        return root.toString();
+    }
+
+    /**
+     * Build the llama.cpp-native {@code GET /props} body. Autocomplete clients (e.g. llama.vscode) read
+     * {@code default_generation_settings.n_ctx} from here to size their context window, and newer clients
+     * read the {@code modalities} block to gate image input.
+     *
+     * @param modelId the served model id
+     * @param nCtx the advertised context length
+     * @param vision whether image input is supported
+     * @return the props object serialized as JSON
+     */
+    static String propsJson(String modelId, int nCtx, boolean vision) {
+        ObjectNode root = OBJECT_MAPPER.createObjectNode();
+        ObjectNode defaults = root.putObject("default_generation_settings");
+        defaults.put("n_ctx", nCtx);
+        defaults.put("model", modelId);
+        root.put("total_slots", 1);
+        root.put("model_alias", modelId);
+        root.put("chat_template", "");
+        ObjectNode modalities = root.putObject("modalities");
+        modalities.put("vision", vision);
+        modalities.put("audio", false);
         return root.toString();
     }
 }

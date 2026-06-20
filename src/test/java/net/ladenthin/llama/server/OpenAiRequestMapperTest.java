@@ -120,6 +120,29 @@ public class OpenAiRequestMapperTest {
     }
 
     @Test
+    public void streamOptionsForwardedVerbatim() throws IOException {
+        // include_usage must reach the native layer so the trailing usage chunk is emitted.
+        JsonNode out = mapAndSerialize("{\"messages\":[{\"role\":\"user\",\"content\":\"x\"}],"
+                + "\"stream_options\":{\"include_usage\":true}}");
+        assertThat(out.path("stream_options").path("include_usage").asBoolean(), is(true));
+    }
+
+    @Test
+    public void responseFormatForwardedVerbatim() throws IOException {
+        // Structured outputs: json_object / json_schema must reach the native grammar constraint.
+        JsonNode out = mapAndSerialize("{\"messages\":[{\"role\":\"user\",\"content\":\"x\"}],"
+                + "\"response_format\":{\"type\":\"json_object\"}}");
+        assertThat(out.path("response_format").path("type").asText(), is("json_object"));
+    }
+
+    @Test
+    public void cachePromptDefaultedTrue() throws IOException {
+        // The mapper defaults cache_prompt=true so the slot KV prefix is reused across IDE turns.
+        JsonNode out = mapAndSerialize("{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}");
+        assertThat(out.path("cache_prompt").asBoolean(), is(true));
+    }
+
+    @Test
     public void unknownFieldsIgnored() throws IOException {
         JsonNode out = mapAndSerialize(
                 "{\"messages\":[{\"role\":\"user\",\"content\":\"x\"}]," + "\"some_future_field\":true,\"n\":3}");

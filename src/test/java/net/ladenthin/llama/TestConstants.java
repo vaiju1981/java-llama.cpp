@@ -23,6 +23,9 @@ public class TestConstants {
     /** Path to the Qwen3 thinking model used for reasoning budget tests. */
     public static final String REASONING_MODEL_PATH = "models/Qwen3-0.6B-Q4_K_M.gguf";
 
+    /** Path to the reranking model used in tests (loaded with {@code enableReranking()}). */
+    public static final String RERANKING_MODEL_PATH = "models/jina-reranker-v1-tiny-en-Q4_0.gguf";
+
     /** System property overriding the GGUF used by the real tool-calling integration tests. */
     public static final String PROP_TOOL_MODEL_PATH = LlamaSystemProperties.PREFIX + ".tool.model";
 

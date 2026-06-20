@@ -116,4 +116,86 @@ public class OpenAiCompatServerIntegrationTest extends OpenAiServerTestSupport {
         assertThat(response.code, is(200));
         assertThat(response.body, containsString(MODEL_ID));
     }
+
+    // ----- alternative protocol surfaces (same Qwen3 model, structural assertions only) -----
+
+    @Test
+    public void ollamaChatNonStreamingRoundTrip() throws IOException {
+        String body = "{\"model\":\"" + MODEL_ID + "\",\"stream\":false,"
+                + "\"messages\":[{\"role\":\"user\",\"content\":\"Say hello in one word.\"}],"
+                + "\"options\":{\"num_predict\":16}}";
+        Response response = post(port, "/api/chat", body, "");
+        assertThat(response.code, is(200));
+        JsonNode json = MAPPER.readTree(response.body);
+        assertThat(json.path("done").asBoolean(), is(true));
+        assertThat(json.path("message").path("role").asText(), is("assistant"));
+    }
+
+    @Test
+    public void ollamaChatStreamingRoundTrip() throws IOException {
+        String body = "{\"model\":\"" + MODEL_ID + "\","
+                + "\"messages\":[{\"role\":\"user\",\"content\":\"Say hello in one word.\"}],"
+                + "\"options\":{\"num_predict\":16}}";
+        Response response = post(port, "/api/chat", body, "");
+        assertThat(response.code, is(200));
+        // NDJSON terminates with a done line regardless of the model's wording.
+        assertThat(response.body, containsString("\"done\":true"));
+    }
+
+    @Test
+    public void ollamaDiscoveryEndpointsRespond() throws IOException {
+        assertThat(get(port, "/api/version", "").code, is(200));
+        assertThat(get(port, "/api/tags", "").body, containsString(MODEL_ID));
+        Response show = post(port, "/api/show", "{\"model\":\"" + MODEL_ID + "\"}", "");
+        assertThat(show.code, is(200));
+        assertThat(show.body, containsString("capabilities"));
+    }
+
+    @Test
+    public void anthropicMessagesNonStreamingRoundTrip() throws IOException {
+        String body = "{\"model\":\"" + MODEL_ID + "\",\"max_tokens\":16,"
+                + "\"messages\":[{\"role\":\"user\",\"content\":\"Say hello in one word.\"}]}";
+        Response response = post(port, "/v1/messages", body, "");
+        assertThat(response.code, is(200));
+        JsonNode json = MAPPER.readTree(response.body);
+        assertThat(json.path("type").asText(), is("message"));
+        assertThat(json.path("role").asText(), is("assistant"));
+    }
+
+    @Test
+    public void anthropicMessagesStreamingRoundTrip() throws IOException {
+        String body = "{\"model\":\"" + MODEL_ID + "\",\"stream\":true,\"max_tokens\":16,"
+                + "\"messages\":[{\"role\":\"user\",\"content\":\"Say hello in one word.\"}]}";
+        Response response = post(port, "/v1/messages", body, "");
+        assertThat(response.code, is(200));
+        assertThat(response.body, containsString("event: message_start"));
+        assertThat(response.body, containsString("event: message_stop"));
+    }
+
+    @Test
+    public void responsesNonStreamingRoundTrip() throws IOException {
+        String body = "{\"model\":\"" + MODEL_ID + "\",\"max_output_tokens\":16,\"input\":\"Say hello in one word.\"}";
+        Response response = post(port, "/v1/responses", body, "");
+        assertThat(response.code, is(200));
+        JsonNode json = MAPPER.readTree(response.body);
+        assertThat(json.path("object").asText(), is("response"));
+        assertThat(json.path("status").asText(), is("completed"));
+    }
+
+    @Test
+    public void responsesStreamingRoundTrip() throws IOException {
+        String body = "{\"model\":\"" + MODEL_ID + "\",\"stream\":true,\"max_output_tokens\":16,"
+                + "\"input\":\"Say hello in one word.\"}";
+        Response response = post(port, "/v1/responses", body, "");
+        assertThat(response.code, is(200));
+        assertThat(response.body, containsString("event: response.created"));
+        assertThat(response.body, containsString("event: response.completed"));
+    }
+
+    @Test
+    public void propsEndpointReportsContextLength() throws IOException {
+        Response response = get(port, "/props", "");
+        assertThat(response.code, is(200));
+        assertThat(response.body, containsString("n_ctx"));
+    }
 }

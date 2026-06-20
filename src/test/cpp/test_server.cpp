@@ -1294,6 +1294,25 @@ TEST(CmplFinalOaicompatChat, WithToolCalls_MessageHasToolCallsArray) {
     EXPECT_EQ(msg.at("tool_calls")[0].at("function").at("name").get<std::string>(), "search");
 }
 
+TEST(CmplFinalOaicompatChat, WithToolCalls_ArgumentsIsJsonStringNotObject) {
+    // Regression guard for ggml-org/llama.cpp #20198 (introduced by the Autoparser refactor in
+    // PR #18675): function.arguments MUST be a JSON-encoded *string*, never a parsed object. The
+    // official OpenAI SDK (Pydantic) and native-tool-calling agent clients (Roo Code >=3.37,
+    // Copilot agent) raise a TypeError when arguments is an object — breaking agentic mode. This
+    // pins the wire shape at the pinned llama.cpp build; if an upgrade reintroduces the regression
+    // this test fails in CI before it can ship.
+    auto f = make_oai_final("");
+    common_chat_tool_call tc;
+    tc.id = "call_1";
+    tc.name = "search";
+    tc.arguments = R"({"q":"test"})";
+    f.oaicompat_msg.tool_calls.push_back(tc);
+    const json j = f.to_json_oaicompat_chat();
+    const json &args = j.at("choices")[0].at("message").at("tool_calls")[0].at("function").at("arguments");
+    ASSERT_TRUE(args.is_string());
+    EXPECT_EQ(args.get<std::string>(), R"({"q":"test"})");
+}
+
 // ============================================================
 // server_task_result_cmpl_final::to_json_anthropic
 //   Anthropic Messages API response shape.

@@ -51,10 +51,66 @@ public class OpenAiSseFormatterTest {
     }
 
     @Test
+    public void ensureUsageCachedTokens_injectsWhenDetailsMissing() throws IOException {
+        String chunk = "{\"object\":\"chat.completion.chunk\",\"choices\":[],"
+                + "\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":3,\"total_tokens\":8}}";
+        JsonNode out = MAPPER.readTree(OpenAiSseFormatter.ensureUsageCachedTokens(chunk));
+        assertThat(
+                out.path("usage")
+                        .path("prompt_tokens_details")
+                        .path("cached_tokens")
+                        .asInt(),
+                is(0));
+    }
+
+    @Test
+    public void ensureUsageCachedTokens_injectsWhenDetailsPresentButNoCachedTokens() throws IOException {
+        String chunk = "{\"usage\":{\"prompt_tokens\":5,\"prompt_tokens_details\":{\"audio_tokens\":0}}}";
+        JsonNode out = MAPPER.readTree(OpenAiSseFormatter.ensureUsageCachedTokens(chunk));
+        JsonNode details = out.path("usage").path("prompt_tokens_details");
+        assertThat(details.path("cached_tokens").asInt(), is(0));
+        assertThat(details.path("audio_tokens").asInt(), is(0)); // pre-existing detail preserved
+    }
+
+    @Test
+    public void ensureUsageCachedTokens_leavesAlreadyCorrectChunkUnchanged() {
+        String chunk = "{\"usage\":{\"prompt_tokens_details\":{\"cached_tokens\":4}}}";
+        assertThat(OpenAiSseFormatter.ensureUsageCachedTokens(chunk), is(chunk));
+    }
+
+    @Test
+    public void ensureUsageCachedTokens_passesThroughDeltaChunkWithNullUsage() {
+        String chunk = "{\"choices\":[{\"delta\":{\"content\":\"hi\"}}],\"usage\":null}";
+        assertThat(OpenAiSseFormatter.ensureUsageCachedTokens(chunk), is(chunk));
+    }
+
+    @Test
+    public void ensureUsageCachedTokens_passesThroughChunkWithoutUsage() {
+        String chunk = "{\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}";
+        assertThat(OpenAiSseFormatter.ensureUsageCachedTokens(chunk), is(chunk));
+    }
+
+    @Test
+    public void ensureUsageCachedTokens_malformedUsageChunkReturnedUnchanged() {
+        // Contains a quoted "usage" (so it passes the fast path) but is not parseable — must not throw.
+        String chunk = "{\"usage\":{ broken";
+        assertThat(OpenAiSseFormatter.ensureUsageCachedTokens(chunk), is(chunk));
+    }
+
+    @Test
     public void modelsJsonAdvertisesTheConfiguredModel() throws IOException {
         JsonNode root = MAPPER.readTree(OpenAiSseFormatter.modelsJson("gemma-local"));
         assertThat(root.path("object").asText(), is("list"));
         assertThat(root.path("data").get(0).path("id").asText(), is("gemma-local"));
         assertThat(root.path("data").get(0).path("object").asText(), is("model"));
+    }
+
+    @Test
+    public void propsJsonReportsContextLengthAndModalities() throws IOException {
+        JsonNode root = MAPPER.readTree(OpenAiSseFormatter.propsJson("local", 8192, true));
+        assertThat(root.path("default_generation_settings").path("n_ctx").asInt(), is(8192));
+        assertThat(root.path("model_alias").asText(), is("local"));
+        assertThat(root.path("modalities").path("vision").asBoolean(), is(true));
+        assertThat(root.path("modalities").path("audio").asBoolean(), is(false));
     }
 }
