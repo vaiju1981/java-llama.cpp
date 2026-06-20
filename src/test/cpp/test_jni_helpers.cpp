@@ -608,12 +608,12 @@ TEST(ConfigureMultimodalTask, MovesPromptAndMediaToCliTask) {
 
 TEST(ConfigureMultimodalTask, MediaWithoutProjectorThrows) {
     server_task task(SERVER_TASK_TYPE_COMPLETION);
-    EXPECT_THROW((void) configure_multimodal_task_impl(task, false, {{"prompt", "<__media__>"}}, {{0x01}}),
+    EXPECT_THROW((void)configure_multimodal_task_impl(task, false, {{"prompt", "<__media__>"}}, {{0x01}}),
                  std::invalid_argument);
 }
 
 TEST(ConfigureMultimodalTask, NonStringPromptThrows) {
     server_task task(SERVER_TASK_TYPE_COMPLETION);
-    EXPECT_THROW((void) configure_multimodal_task_impl(task, true, {{"prompt", json::array({1, 2})}}, {{0x01}}),
+    EXPECT_THROW((void)configure_multimodal_task_impl(task, true, {{"prompt", json::array({1, 2})}}, {{0x01}}),
                  std::invalid_argument);
 }

@@ -555,7 +555,7 @@ the README. The summary below covers only the optional-model bindings:
 | Property | Default test that uses it | Model |
 |----------|---------------------------|-------|
 | `net.ladenthin.llama.nomic.path` | `LlamaEmbeddingsTest#testNomicEmbedLoads` | `nomic-embed-text-v1.5.f16.gguf` (issue #98 regression) |
-| `net.ladenthin.llama.vision.model` | `MultimodalIntegrationTest` (closes #103 / #34) | `SmolVLM-500M-Instruct-Q8_0.gguf` (any vision-capable GGUF works) |
+| `net.ladenthin.llama.vision.model` | `MultimodalIntegrationTest` (upstream kherud/java-llama.cpp#103 / #34) | `SmolVLM-500M-Instruct-Q8_0.gguf` (any vision-capable GGUF works) |
 | `net.ladenthin.llama.vision.mmproj` | `MultimodalIntegrationTest` | matching mmproj for the vision model, e.g. `mmproj-SmolVLM-500M-Instruct-Q8_0.gguf` |
 | `net.ladenthin.llama.vision.image` | `MultimodalIntegrationTest` | committed default `src/test/resources/images/test-image.jpg`; override to any png/jpeg/webp/gif on disk |
 
