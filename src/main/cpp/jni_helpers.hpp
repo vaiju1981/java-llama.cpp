@@ -61,7 +61,7 @@ struct jllama_context {
     llama_model *vocab_only_model = nullptr;
 
     // Saved copy of common_params used to load the model.
-    // Required by server_task::params_from_json_cmpl which takes common_params&.
+    // Required by server_schema::eval_llama_cmpl_schema which takes common_params&.
     common_params params;
 
     // Per-streaming-task response readers, keyed by task id.

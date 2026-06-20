@@ -139,7 +139,7 @@ set(LLAMA_BUILD_APP OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
 	llama.cpp
 	GIT_REPOSITORY https://github.com/ggerganov/llama.cpp.git
-	GIT_TAG        b9682
+	GIT_TAG        b9739
 )
 FetchContent_MakeAvailable(llama.cpp)
 
@@ -270,6 +270,7 @@ target_sources(jllama PRIVATE
     ${llama.cpp_SOURCE_DIR}/tools/server/server-context.cpp
     ${llama.cpp_SOURCE_DIR}/tools/server/server-queue.cpp
     ${llama.cpp_SOURCE_DIR}/tools/server/server-task.cpp
+    ${llama.cpp_SOURCE_DIR}/tools/server/server-schema.cpp
 )
 if(NOT ANDROID_ABI AND NOT OS_NAME MATCHES "Android")
     target_sources(jllama PRIVATE
