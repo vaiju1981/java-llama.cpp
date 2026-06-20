@@ -165,6 +165,47 @@ cmake -B build && cmake --build build --target jllama   # now embeds the real UI
 ```
 `webui-generated/` is git-ignored.
 
+## CI build cache & parallelism (sccache + Depot)
+
+The native build dominates CI time (134 llama.cpp model TUs + ggml + the 16.6k-line
+`httplib.cpp`, all at `-O3`). Two knobs in **`.github/build.sh`**, both behind the
+`use_cache` `workflow_dispatch` input (default **true**), keep it fast and stop the macOS
+runners OOM-ing.
+
+**`BUILD_JOBS` — compile parallelism.** `build.sh` builds with `cmake --build -j${BUILD_JOBS}`
+(default: all cores, via portable `nproc` → `sysctl -n hw.ncpu` → `4` detection). GitHub's
+~7 GB **macOS arm64** runners OOM under full `-j` when `httplib.cpp` co-schedules with the
+model TUs; the runner is then killed as **SIGTERM / exit 143** ("received a shutdown
+signal"), which *looks* like a timeout but is an out-of-memory kill. The three macOS build
+jobs therefore set `BUILD_JOBS: 2` to bound peak memory.
+
+**`sccache` → Depot Cache — shared compiler cache.** When `USE_CACHE=true` **and** `sccache`
+plus a cache token are present, `build.sh` adds
+`-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache` and prints
+`sccache --show-stats`. The cache lives in **Depot Cache** over sccache's **WebDAV** backend:
+
+- `SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev`
+- `SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}` — a Depot **organization** token, stored
+  as the repo secret **`DEPOT_TOKEN`**.
+
+Because `sccache` is **content-addressed** and llama.cpp is pinned (`GIT_TAG b9682`), the
+~280 upstream object files are byte-identical every run, so a warm cache recompiles only the
+*changed* files. Depot's cache is **shared across all branches** (unlike GitHub's
+per-branch `actions/cache`), so every branch builds incrementally; a `b<nnnn>` version bump
+naturally invalidates the upstream entries (their content changed) with no manual step. It
+stays `-O3` and is **bit-identical** to a clean build (release-safe).
+
+**Safety / transparency.** It is **inert** until `DEPOT_TOKEN` is configured and on **fork
+PRs** (secrets are hidden there) — those simply compile normally; the `Install sccache` step
+is `continue-on-error`; and `use_cache=false` forces a pristine, from-scratch build.
+
+**Rollout.** **Phase 1 (current): the 3 macOS build jobs** (slowest + OOM-prone) —
+`brew install sccache` + the env above + `BUILD_JOBS: 2`. **Phase 2 (TODO):** the dockcross
+Linux/Android/CUDA jobs (the `sccache` binary **and** `DEPOT_TOKEN` must be passed *into* the
+container), the Windows jobs (sccache supports MSVC), and the Linux-host `test-cpp` job. To
+extend a job: install `sccache`, set the two `SCCACHE_WEBDAV_*` env vars, and (for
+RAM-limited runners) `BUILD_JOBS`.
+
 ## Upgrading/Downgrading llama.cpp Version
 
 To change the llama.cpp version, update the following **three** files:
