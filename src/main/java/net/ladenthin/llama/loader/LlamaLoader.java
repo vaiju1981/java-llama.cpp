@@ -208,6 +208,8 @@ public class LlamaLoader {
         String nativeLibraryFilePath = sourceDirectory + "/" + fileName;
 
         Path extractedFilePath = Paths.get(targetDirectory, fileName);
+        // Resolve the File once and reuse it (avoids repeated Path.toFile() calls).
+        File extractedFile = extractedFilePath.toFile();
 
         try {
             // Fast path: a byte-identical copy already exists — extracted by a previous run or by a
@@ -215,8 +217,8 @@ public class LlamaLoader {
             // file another process has already loaded fails on Windows (the lib is locked), and an
             // in-place rewrite risks a partial file a concurrent loader could observe.
             if (Files.exists(extractedFilePath) && resourceMatchesFile(nativeLibraryFilePath, extractedFilePath)) {
-                permissionSetter.apply(extractedFilePath.toFile());
-                extractedFilePath.toFile().deleteOnExit();
+                permissionSetter.apply(extractedFile);
+                extractedFile.deleteOnExit();
                 return extractedFilePath;
             }
 
@@ -236,13 +238,20 @@ public class LlamaLoader {
                 }
                 moveIntoPlace(tempFile, extractedFilePath);
             } finally {
-                // No-op once moveIntoPlace consumed it; cleans up if any step above bailed out.
-                Files.deleteIfExists(tempFile);
+                // Best-effort cleanup: a no-op once moveIntoPlace consumed it, otherwise it removes the
+                // temp file left behind if any step above bailed out. The delete must never throw out of
+                // the finally block — that would mask the primary result/exception from the try — so the
+                // IOException is swallowed (a leftover .tmp in java.io.tmpdir is harmless).
+                try {
+                    Files.deleteIfExists(tempFile);
+                } catch (IOException ignored) {
+                    // ignore: best-effort temp-file cleanup
+                }
             }
 
             // Set executable (x) flag to enable Java to load the native library.
-            permissionSetter.apply(extractedFilePath.toFile());
-            extractedFilePath.toFile().deleteOnExit();
+            permissionSetter.apply(extractedFile);
+            extractedFile.deleteOnExit();
 
             System.out.println("Extracted '" + fileName + "' to '" + extractedFilePath + "'");
             return extractedFilePath;
