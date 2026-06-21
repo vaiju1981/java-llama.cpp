@@ -5,6 +5,7 @@
 package net.ladenthin.llama.value;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,9 +29,11 @@ public class ServerMetricsTest {
             + "\"n_prompt_tokens_processed\":10,\"t_prompt_processing\":5,"
             + "\"n_tokens_predicted\":20,\"t_tokens_generation\":8,"
             + "\"n_decode_total\":300,\"n_busy_slots_total\":4,\"n_tokens_max\":4096,"
+            // next_token is an ARRAY of one object — this mirrors llama.cpp's server_slot::to_json
+            // at b9739, not a bare object; SlotMetrics must unwrap next_token[0].
             + "\"slots\":[{\"id\":0,\"n_ctx\":4096,\"is_processing\":true,"
             + "\"n_prompt_tokens\":100,\"n_prompt_tokens_processed\":20,"
-            + "\"n_prompt_tokens_cache\":80,\"next_token\":{\"n_decoded\":7,\"n_remain\":9}},"
+            + "\"n_prompt_tokens_cache\":80,\"next_token\":[{\"n_decoded\":7,\"n_remain\":9}]},"
             + "{\"id\":1}]}";
 
     @Test
@@ -110,6 +113,16 @@ public class ServerMetricsTest {
         assertEquals(9L, slot.getRemainingTokens());
         assertEquals(0, slot.asJson().path("id").asInt());
         assertTrue(slot.toString().contains("n_prompt_tokens_cache"));
+
+        // Assert against the SECOND slot (id=1, no is_processing) so the id and is_processing
+        // accessors are pinned to non-default values a constant-return mutant cannot satisfy:
+        // slot 0's id==0 and is_processing==true coincide with the mutated constants.
+        SlotMetrics idle = m.getSlotMetrics().get(1);
+        assertEquals(1, idle.getId());
+        assertFalse(idle.isProcessing());
+        // next_token absent on the idle slot — accessors fall back to zero, not throw.
+        assertEquals(0L, idle.getDecodedTokens());
+        assertEquals(0L, idle.getRemainingTokens());
     }
 
     @Test
