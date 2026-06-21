@@ -100,6 +100,18 @@ public class LlamaLoaderTest {
     }
 
     @Test
+    public void resourceMatchesFileFalseWhenResourceAbsent() throws IOException {
+        java.nio.file.Path tmp = java.nio.file.Files.createTempFile("llama-loader-test", ".bin");
+        try {
+            java.nio.file.Files.write(tmp, new byte[] {1, 2, 3});
+            // A missing classpath resource must compare as "not matching", never throw.
+            assertFalse(LlamaLoader.resourceMatchesFile("/net/ladenthin/llama/does-not-exist.bin", tmp));
+        } finally {
+            java.nio.file.Files.deleteIfExists(tmp);
+        }
+    }
+
+    @Test
     public void testContentsEqualsBothEmpty() throws IOException {
         assertTrue(LlamaLoader.contentsEquals(
                 new ByteArrayInputStream(new byte[0]), new ByteArrayInputStream(new byte[0])));

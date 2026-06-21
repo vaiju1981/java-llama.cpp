@@ -210,38 +210,68 @@ public class LlamaLoader {
         Path extractedFilePath = Paths.get(targetDirectory, fileName);
 
         try {
-            // Extract a native library file into the target directory
-            try (InputStream reader = LlamaLoader.class.getResourceAsStream(nativeLibraryFilePath)) {
-                if (reader == null) {
-                    return null;
-                }
-                Files.copy(reader, extractedFilePath, StandardCopyOption.REPLACE_EXISTING);
-            } finally {
-                // Delete the extracted lib file on JVM exit.
+            // Fast path: a byte-identical copy already exists — extracted by a previous run or by a
+            // concurrent JVM sharing this tmpdir. Reuse it rather than rewriting in place: replacing a
+            // file another process has already loaded fails on Windows (the lib is locked), and an
+            // in-place rewrite risks a partial file a concurrent loader could observe.
+            if (Files.exists(extractedFilePath) && resourceMatchesFile(nativeLibraryFilePath, extractedFilePath)) {
+                permissionSetter.apply(extractedFilePath.toFile());
                 extractedFilePath.toFile().deleteOnExit();
+                return extractedFilePath;
             }
 
-            // Set executable (x) flag to enable Java to load the native library
-            permissionSetter.apply(extractedFilePath.toFile());
-
-            // Check whether the contents are properly copied from the resource folder
-            try (InputStream nativeIn = LlamaLoader.class.getResourceAsStream(nativeLibraryFilePath);
-                    InputStream extractedLibIn = Files.newInputStream(extractedFilePath)) {
-                if (nativeIn == null) {
-                    System.err.println(String.format("Native library resource missing at %s", nativeLibraryFilePath));
-                    return null;
+            // Otherwise extract into a per-attempt unique temp file, verify it, then atomically move it
+            // into place so a concurrent loader never observes a half-written library.
+            Path tempFile = Files.createTempFile(Paths.get(targetDirectory), fileName + ".", ".tmp");
+            try {
+                try (InputStream reader = LlamaLoader.class.getResourceAsStream(nativeLibraryFilePath)) {
+                    if (reader == null) {
+                        return null;
+                    }
+                    Files.copy(reader, tempFile, StandardCopyOption.REPLACE_EXISTING);
                 }
-                if (!contentsEquals(nativeIn, extractedLibIn)) {
+                if (!resourceMatchesFile(nativeLibraryFilePath, tempFile)) {
                     System.err.println(String.format("Failed to write a native library file at %s", extractedFilePath));
                     return null;
                 }
+                moveIntoPlace(tempFile, extractedFilePath);
+            } finally {
+                // No-op once moveIntoPlace consumed it; cleans up if any step above bailed out.
+                Files.deleteIfExists(tempFile);
             }
+
+            // Set executable (x) flag to enable Java to load the native library.
+            permissionSetter.apply(extractedFilePath.toFile());
+            extractedFilePath.toFile().deleteOnExit();
 
             System.out.println("Extracted '" + fileName + "' to '" + extractedFilePath + "'");
             return extractedFilePath;
         } catch (IOException e) {
             System.err.println(e.getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Atomically replace {@code target} with {@code source}, falling back to a plain move when the
+     * filesystem does not support atomic moves.
+     */
+    private static void moveIntoPlace(Path source, Path target) throws IOException {
+        try {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+        } catch (IOException atomicUnsupported) {
+            Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    /** Whether the classpath resource at {@code resourcePath} is byte-identical to {@code file}. */
+    static boolean resourceMatchesFile(String resourcePath, Path file) throws IOException {
+        try (InputStream resource = LlamaLoader.class.getResourceAsStream(resourcePath);
+                InputStream onDisk = Files.newInputStream(file)) {
+            if (resource == null) {
+                return false;
+            }
+            return contentsEquals(resource, onDisk);
         }
     }
 
