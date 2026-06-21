@@ -23,10 +23,15 @@ import org.junit.jupiter.api.Test;
                 + "cleanup; contentsEquals performs a correct byte-level stream comparison "
                 + "including BufferedInputStream wrapping and length mismatches; getTempDir "
                 + "honours the 'net.ladenthin.llama.tmpdir' system-property override; and "
-                + "getNativeResourcePath produces the expected classpath resource prefix.")
+                + "getNativeResourcePath produces the expected classpath resource prefix; and "
+                + "resourceMatchesFile compares a classpath resource to an on-disk file byte-for-byte.")
 public class LlamaLoaderTest {
 
     private static final String TMPDIR_PROP = LlamaSystemProperties.PREFIX + ".tmpdir";
+
+    /** A small file present on the test classpath, used as a byte-comparison fixture. */
+    private static final String EXISTING_TEST_RESOURCE = "/images/test-image.jpg";
+
     private String previousTmpDir;
 
     @BeforeEach
@@ -106,6 +111,38 @@ public class LlamaLoaderTest {
             java.nio.file.Files.write(tmp, new byte[] {1, 2, 3});
             // A missing classpath resource must compare as "not matching", never throw.
             assertFalse(LlamaLoader.resourceMatchesFile("/net/ladenthin/llama/does-not-exist.bin", tmp));
+        } finally {
+            java.nio.file.Files.deleteIfExists(tmp);
+        }
+    }
+
+    @Test
+    public void resourceMatchesFileTrueWhenBytesIdentical() throws IOException {
+        // The fast-path reuse predicate: a present resource and a byte-identical on-disk copy match.
+        java.nio.file.Path tmp = java.nio.file.Files.createTempFile("llama-loader-test", ".bin");
+        try {
+            try (java.io.InputStream in = LlamaLoader.class.getResourceAsStream(EXISTING_TEST_RESOURCE)) {
+                assertNotNull(in, "fixture must be on the test classpath: " + EXISTING_TEST_RESOURCE);
+                java.nio.file.Files.copy(in, tmp, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+            assertTrue(LlamaLoader.resourceMatchesFile(EXISTING_TEST_RESOURCE, tmp));
+        } finally {
+            java.nio.file.Files.deleteIfExists(tmp);
+        }
+    }
+
+    @Test
+    public void resourceMatchesFileFalseWhenContentDiffers() throws IOException {
+        // A present resource whose on-disk copy diverges (here: one extra trailing byte) must NOT match,
+        // so a stale/partial file is never mistaken for the shipped library on the reuse fast path.
+        java.nio.file.Path tmp = java.nio.file.Files.createTempFile("llama-loader-test", ".bin");
+        try {
+            try (java.io.InputStream in = LlamaLoader.class.getResourceAsStream(EXISTING_TEST_RESOURCE)) {
+                assertNotNull(in, "fixture must be on the test classpath: " + EXISTING_TEST_RESOURCE);
+                java.nio.file.Files.copy(in, tmp, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+            java.nio.file.Files.write(tmp, new byte[] {0}, java.nio.file.StandardOpenOption.APPEND);
+            assertFalse(LlamaLoader.resourceMatchesFile(EXISTING_TEST_RESOURCE, tmp));
         } finally {
             java.nio.file.Files.deleteIfExists(tmp);
         }
