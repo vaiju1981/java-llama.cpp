@@ -171,12 +171,17 @@ jobs:
     name: Cross-Compile manylinux_2_28 x86_64 (CUDA)
     needs: [startgate, build-webui]
     runs-on: ubuntu-latest
-    # Phase 2 dockcross cache rollout — job 2, enabled after manylinux2014 (job 1) verified green
-    # in CI with sccache v0.16.0 caching to Depot. build_cuda_linux.sh execs build.sh, so the same
-    # probe guards this job: only the gcc C/C++ TUs cache (the nvcc .cu kernels are not wrapped),
-    # still a large partial win on this ~70 min build. Diagnostics are on for its first run on the
-    # manylinux_2_28 image; drop them (and their -e passthroughs) once it is confirmed green with a
-    # cache hit, then enable the next job. Inert without DEPOT_TOKEN (fork PRs) or use_cache=false.
+    # CUDA cache rollout. build_cuda_linux.sh execs build.sh, so the same sccache probe guards
+    # this job. Unlike the other jobs, build.sh now also wraps nvcc (CMAKE_CUDA_COMPILER_LAUNCHER
+    # =sccache) for CUDA builds, so the per-arch .cu device passes — the dominant cost of this job
+    # — are cached too, not just the gcc host TUs. Because nvcc kernels now cache, this job always
+    # builds the FULL CMAKE_CUDA_ARCHITECTURES set (no single-arch validation shortcut): the warm
+    # cache, not a reduced arch set, is what keeps it fast, and every artifact stays release-safe
+    # (runs on every GPU generation) on PR/push as well as publish. The first (cold-cache) run still
+    # pays the full nvcc cost; the win shows on subsequent warm runs. CUDA_FAST_BUILD still exists in
+    # build_cuda_linux.sh as a LOCAL-dev knob, but CI no longer sets it. Diagnostics (SCCACHE_LOG /
+    # SCCACHE_ERROR_LOG / RUST_BACKTRACE) stay on until a warm run confirms nvcc cache hits; drop them
+    # (and their -e passthroughs) afterwards. Inert without DEPOT_TOKEN (fork PRs) or use_cache=false.
     env:
       USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
       SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
@@ -184,17 +189,7 @@ jobs:
       SCCACHE_LOG: debug
       SCCACHE_ERROR_LOG: /tmp/sccache_server.log
       RUST_BACKTRACE: full
-      # CUDA arch policy: FAST single-arch build for validation runs (PR / push / non-publish
-      # dispatch) to cut nvcc time; FULL arch set only when actually publishing to Central
-      # (publish_to_central=true) so the distributed jar runs on every GPU generation. The
-      # publish-snapshot/publish-release jobs require publish_to_central, so any artifact that
-      # reaches Central is always built with the full set. CI has no GPU, so the fast path pins a
-      # fixed CUDA_ARCH ('native' would fail at configure). '0' => full (release-safe), '1' => fast.
-      CUDA_FAST_BUILD: ${{ inputs.publish_to_central && '0' || '1' }}
-      # Newest CUDA 13.2 architecture: sm_120 (consumer Blackwell / RTX 50xx). Only used on the
-      # fast validation path; bump as newer GPU generations ship. Releases ignore it (full set).
-      CUDA_ARCH: '120'
-      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE -e SCCACHE_LOG -e SCCACHE_ERROR_LOG -e RUST_BACKTRACE -e CUDA_FAST_BUILD -e CUDA_ARCH"
+      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE -e SCCACHE_LOG -e SCCACHE_ERROR_LOG -e RUST_BACKTRACE"
     steps:
       - uses: actions/checkout@v7
       - name: Download shared WebUI assets

@@ -98,6 +98,19 @@ if [ "${USE_CACHE:-true}" = "true" ] && command -v sccache >/dev/null 2>&1 \
    && [ -n "${SCCACHE_WEBDAV_TOKEN:-}${SCCACHE_GHA_ENABLED:-}" ] \
    && sccache_can_wrap_compiler; then
   LAUNCH="-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache"
+  # CUDA builds: also wrap nvcc so the per-arch .cu device passes are cached too — not just
+  # the gcc host TUs. Those per-architecture device-pass objects are the dominant cost of the
+  # full-arch CUDA job, and sccache does support nvcc as a compiler. Scoped to CUDA builds
+  # (GGML_CUDA in the cmake args): CMAKE_CUDA_COMPILER_LAUNCHER is inert when CUDA is not an
+  # enabled language, but keeping it scoped leaves the CPU/Android jobs' configure output clean.
+  # If sccache cannot wrap nvcc it runs it directly (uncached); and the mid-build retry below
+  # also catches an sccache "Compiler not supported" failure and rebuilds without the launcher,
+  # so an nvcc-hostile sccache can never red the build.
+  case " $* " in
+    *" -DGGML_CUDA=1 "* | *" -DGGML_CUDA=ON "* | *" -DGGML_CUDA=on "*)
+      LAUNCH="$LAUNCH -DCMAKE_CUDA_COMPILER_LAUNCHER=sccache"
+      echo "build.sh: sccache will also wrap nvcc (CUDA build detected)" ;;
+  esac
   echo "build.sh: sccache ON (endpoint=${SCCACHE_WEBDAV_ENDPOINT:-default}), building with -j${JOBS}"
 else
   echo "build.sh: sccache OFF, building with -j${JOBS}"
@@ -113,12 +126,15 @@ cmake -Bbuild $LAUNCH $@ || exit 1
 # check, so recover by retrying the build once WITHOUT the launcher: a from-scratch uncached -O3
 # build is content-identical and release-safe, so the cache can never red the build. The retry is
 # gated on the failure output actually showing an sccache cache error, so a genuine compile error
-# still fails fast (and is reported) instead of triggering a wasteful uncached rebuild.
+# still fails fast (and is reported) instead of triggering a wasteful uncached rebuild. The
+# "Compiler not supported" signature additionally covers the CUDA case: if wrapping nvcc breaks
+# (sccache declining/erroring on the nvcc driver), the retry rebuilds the full-arch CUDA job
+# without any launcher rather than redding it.
 build_log="$(mktemp 2>/dev/null || echo "/tmp/jllama-build.$$.log")"
 cmake --build build --config Release -j"${JOBS}" 2>&1 | tee "$build_log"
 build_rc=${PIPESTATUS[0]}
 if [ "$build_rc" -ne 0 ]; then
-  if [ -n "$LAUNCH" ] && grep -qiE 'sccache: error|Server startup failed|cache storage failed' "$build_log"; then
+  if [ -n "$LAUNCH" ] && grep -qiE 'sccache: error|Server startup failed|cache storage failed|Compiler not supported' "$build_log"; then
     echo "build.sh: build failed via an sccache cache error — retrying WITHOUT cache (clean reconfigure)."
     rm -f "$build_log"
     rm -rf build && mkdir -p build
