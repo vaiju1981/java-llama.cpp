@@ -110,6 +110,44 @@ class ChatTranscriptTest {
         }
 
         @Test
+        @DisplayName("removePendingUserTurn drops a trailing user turn and reports true")
+        void removePendingUserTurnDropsTrailingUserTurn() {
+            ChatTranscript t = new ChatTranscript(null);
+            t.appendUserTurn("pending question");
+            assertThat("precondition: one dangling user turn", t.size(), is(1));
+
+            boolean removed = t.removePendingUserTurn();
+
+            assertThat("a dangling user turn must be reported as removed", removed, is(true));
+            assertThat("transcript is rolled back to its pre-stream (empty) shape", t.size(), is(0));
+        }
+
+        @Test
+        @DisplayName("removePendingUserTurn is a no-op when the last turn is an assistant turn")
+        void removePendingUserTurnKeepsCommittedRound() {
+            ChatTranscript t = new ChatTranscript(null);
+            t.appendRound("q", "a"); // last turn is "assistant", not a dangling user turn
+
+            boolean removed = t.removePendingUserTurn();
+
+            assertThat("a committed round has no dangling user turn to remove", removed, is(false));
+            assertThat("the committed round must be left intact", t.size(), is(2));
+            assertThat(t.snapshot().get(0).getRole(), is("user"));
+            assertThat(t.snapshot().get(1).getRole(), is("assistant"));
+        }
+
+        @Test
+        @DisplayName("removePendingUserTurn is a safe no-op on an empty transcript")
+        void removePendingUserTurnNoOpOnEmptyTranscript() {
+            ChatTranscript t = new ChatTranscript("system");
+
+            boolean removed = t.removePendingUserTurn();
+
+            assertThat("an empty transcript has nothing to remove", removed, is(false));
+            assertThat(t.size(), is(0));
+        }
+
+        @Test
         @DisplayName("messagesWithPendingUserTurn does NOT mutate the transcript")
         void messagesWithPendingUserTurnDoesNotMutate() {
             ChatTranscript t = new ChatTranscript("system");
