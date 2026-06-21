@@ -26,12 +26,19 @@ read-confirmed by the audit but warrant a quick re-check before the fix.
 doc) **DONE** — verified (452/452 C++ tests, affected Java tests + new regressions, Javadoc + Spotless +
 clang-format 22.1.5 clean).
 
-**Deferred — `LlamaLoader` native-lib extraction temp-path race (open).** Fixing it (per-process temp
-dir / atomic move) is the one audit item left undone: it sits on *the* native-library load path, so the
-change has a high blast radius and needs careful Windows / `deleteOnExit` / `cleanup()` co-design plus
-cross-platform load testing (a locked-DLL replace on Windows, leftover unique-dir accumulation) that the
-fix-batch could not safely exercise. The race only bites concurrent JVMs sharing one `java.io.tmpdir`
-(e.g. some CI matrices). Pick it up as its own change with a Windows test pass.
+**`LlamaLoader` native-lib extraction temp-path race — DONE (atomic write + content-reuse).**
+`extractFile` now (1) reuses a byte-identical existing copy instead of rewriting it — so it never
+replaces a file another JVM has already loaded (which fails on Windows) — and (2) otherwise extracts
+to a per-attempt unique temp file and **atomically moves** it into place, so a concurrent loader can
+never observe a half-written library. `jllama` is statically linked (`BUILD_SHARED_LIBS OFF`), so the
+extracted file is self-contained — no multi-DLL co-location to coordinate. Verified by the
+`NativeLibraryLoadSmokeTest` (real extract+load on macOS) + a `resourceMatchesFile` unit test; the
+Windows locked-replace path is exercised by CI's Windows jobs.
+
+*Optional follow-up (lower priority):* full per-process extraction **directory** isolation + a
+`cleanup()` that recursively removes dead-process dirs. Now that writes are atomic and content-checked,
+this is a tidiness improvement (stops the shared-tmpdir `cleanup()` from racing a live peer's flat
+file), not a correctness fix — and it still needs the Windows locked-file co-design noted before.
 
 **Tier 1 — high impact, fix first**
 
