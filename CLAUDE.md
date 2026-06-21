@@ -75,9 +75,10 @@ sccache-over-Depot cache, which now wraps nvcc (`-DCMAKE_CUDA_COMPILER_LAUNCHER=
 `build.sh` for CUDA builds, gated behind the same probe). The launcher is safe to enable
 unconditionally: if sccache cannot wrap nvcc it runs it directly (uncached), and `build.sh`'s
 mid-build retry treats an sccache `Compiler not supported` failure like any other cache error and
-rebuilds the job without the launcher rather than redding it. **Verify it works:** the premise
-(sccache producing nvcc cache hits inside the manylinux_2_28 container) is proven only by a **warm**
-run — check `sccache --show-stats` shows CUDA hits on the second build before trusting the speedup.
+rebuilds the job without the launcher rather than redding it. **Verified:** a warm run in the
+manylinux_2_28 container hit **100%** on CUDA / CUBIN / device-code (139 CUDA hits, 99.86% overall,
+3 misses) and cut the job from **~51 min cold to ~15 min warm** — nvcc caching works here. `build.sh`
+prints `sccache --show-stats` at the end of every run so the hit table stays visible.
 
 ## Android minimum API level
 
@@ -323,14 +324,15 @@ v0.16.0 + the probe this is no longer a risk.) Job-by-job status:
    **v0.16.0** probe passed in-container (devtoolset-10 gcc), `sccache ON` over Depot WebDAV,
    warm cache 277/278 hits (99.64%), 1m46s build time.
 2. `crosscompile-linux-x86_64-cuda` (via `build_cuda_linux.sh`, which execs `build.sh`) —
-   🚧 **nvcc caching enabled, full-arch always** (diagnostics on). `build.sh` now also wraps nvcc
+   ✅ **verified green with nvcc caching, full-arch always.** `build.sh` also wraps nvcc
    (`-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache`, scoped to CUDA builds), so both the gcc C/C++ TUs
    (134 model files + ggml + httplib) **and** the per-arch `.cu` device passes cache over Depot.
    CI dropped the single-arch validation shortcut (`CUDA_FAST_BUILD`/`CUDA_ARCH` removed from the
-   job) — every run builds the full arch set and leans on the warm cache for speed. **Unverified
-   until a warm run:** confirm `sccache --show-stats` reports CUDA hits on the second build; if
-   nvcc caching proves weak in this container, the cold-vs-warm delta will be small and the job
-   stays ~70 min (the mid-build retry guards against an nvcc-hostile sccache redding the build).
+   job) — every run builds the full arch set and leans on the warm cache for speed. A warm run hit
+   **100%** on CUDA / CUBIN / device-code (139 CUDA hits, 99.86% overall, 3 misses), cutting the job
+   from **~51 min cold to ~15 min warm**. The first-run debug diagnostics (`SCCACHE_LOG` /
+   `SCCACHE_ERROR_LOG` / `RUST_BACKTRACE`) were dropped once confirmed; `sccache --show-stats` still
+   prints the hit table every run.
 3. `crosscompile-linux-aarch64` — ✅ **enabled**, now a **native `ubuntu-24.04-arm` build** (not
    dockcross): `build.sh` self-fetches the aarch64 static-musl sccache (the fetch block in
    `build.sh` maps `uname -m` → `x86_64`/`aarch64`) and the probe guards it. See "Linux aarch64:

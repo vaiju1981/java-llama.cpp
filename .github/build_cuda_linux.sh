@@ -15,18 +15,19 @@ sudo dnf config-manager --add-repo https://developer.download.nvidia.com/compute
 
 sudo dnf install -y cuda-toolkit-13-2
 
-# CUDA target architectures — build-speed knob.
+# CUDA target architectures — LOCAL-dev build-speed knob.
 #
 # Default (CUDA_FAST_BUILD unset): we do NOT pass CMAKE_CUDA_ARCHITECTURES, so ggml/llama.cpp
-# compiles its full default arch set. That is exactly what release artifacts must ship (every
-# supported GPU generation) and is the slow part of this ~70 min job: nvcc recompiles each .cu
-# kernel once per architecture. sccache caches the gcc C/C++ TUs but NOT the nvcc .cu kernels
-# (sccache's nvcc support is limited/experimental), so the per-arch nvcc passes dominate even
-# with the cache on — which is why this knob exists as the real CUDA build-time lever.
+# compiles its full default arch set — exactly what release artifacts must ship (every supported
+# GPU generation). On a cold cache this is the slow part (nvcc recompiles each .cu kernel once per
+# architecture), but build.sh now wraps nvcc with sccache (-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache),
+# so on a warm Depot cache the per-arch .cu device passes are served from cache (verified: 100%
+# CUDA hit rate, ~51 min cold -> ~15 min warm). CI therefore always builds the full set and relies
+# on the warm cache for speed — it no longer sets CUDA_FAST_BUILD.
 #
-# Dev fast build (CUDA_FAST_BUILD=1): compile for a SINGLE architecture instead of the full
-# set, removing most of the nvcc time. Defaults to `native` (the build machine's own GPU —
-# needs a GPU present at configure time); override with CUDA_ARCH, e.g. CUDA_ARCH=90. This is
+# Dev fast build (CUDA_FAST_BUILD=1): compile for a SINGLE architecture instead of the full set,
+# removing most of the nvcc time on a COLD cache. Defaults to `native` (the build machine's own
+# GPU — needs a GPU present at configure time); override with CUDA_ARCH, e.g. CUDA_ARCH=90. This is
 # a MANUAL local-dev knob only: CI and release never set it, because an artifact built this
 # way runs on a single GPU generation. (Direct-cmake equivalent: -DCMAKE_CUDA_ARCHITECTURES=native.)
 CUDA_ARCH_ARGS=""
