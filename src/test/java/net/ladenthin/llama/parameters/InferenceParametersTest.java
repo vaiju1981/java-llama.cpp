@@ -74,6 +74,20 @@ public class InferenceParametersTest {
     }
 
     @Test
+    public void testSetCacheReuse() {
+        InferenceParameters params = InferenceParameters.empty().withCacheReuse(256);
+        assertThat(params.parameters.get("n_cache_reuse"), is("256"));
+        assertThrows(IllegalArgumentException.class, () -> params.withCacheReuse(-1));
+    }
+
+    @Test
+    public void testSetSlotId() {
+        InferenceParameters params = InferenceParameters.empty().withSlotId(2);
+        assertThat(params.parameters.get("id_slot"), is("2"));
+        assertThrows(IllegalArgumentException.class, () -> params.withSlotId(-1));
+    }
+
+    @Test
     public void testSetParallelToolCalls() {
         InferenceParameters params = new InferenceParameters("").withParallelToolCalls(false);
         assertThat(params.parameters.get("parallel_tool_calls"), is("false"));

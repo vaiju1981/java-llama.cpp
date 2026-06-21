@@ -44,6 +44,8 @@ import org.slf4j.LoggerFactory;
  *   <li>{@code POST /v1/embeddings} — embeddings (requires the model to be loaded in embedding
  *       mode).</li>
  *   <li>{@code GET /v1/models} — advertises the single configured model.</li>
+ *   <li>{@code GET /metrics} — server and per-slot token/cache counters as JSON.</li>
+ *   <li>{@code GET /slots} — the per-slot metrics array as JSON.</li>
  *   <li>{@code GET /health} — liveness probe returning {@code {"status":"ok"}} (no authentication).</li>
  * </ul>
  *
@@ -98,6 +100,12 @@ public final class OpenAiCompatServer implements AutoCloseable {
 
     /** The llama.cpp-native server-properties route (context length + modalities). */
     public static final String PATH_PROPS = "/props";
+
+    /** llama.cpp server metrics as JSON, including per-slot token/cache counters. */
+    public static final String PATH_METRICS = "/metrics";
+
+    /** llama.cpp slot state array as JSON. */
+    public static final String PATH_SLOTS = "/slots";
 
     /** Ollama-native discovery route (version). */
     public static final String PATH_OLLAMA_VERSION = "/api/version";
@@ -166,6 +174,8 @@ public final class OpenAiCompatServer implements AutoCloseable {
         register("/", this::handleNotFound);
         register(PATH_HEALTH, this::handleHealth);
         register(PATH_PROPS, this::handleProps);
+        register(PATH_METRICS, this::handleMetrics);
+        register(PATH_SLOTS, this::handleSlots);
         // Each route is registered under its canonical path and a bare alias (clients disagree on
         // whether to include the /v1 prefix), so both forms resolve to the same handler.
         register(PATH_MODELS, this::handleModels);
@@ -573,7 +583,7 @@ public final class OpenAiCompatServer implements AutoCloseable {
                         config.getHeartbeatMillis(),
                         TimeUnit.MILLISECONDS);
                 out.writeStrict(translator.begin());
-                backend.stream(openAiRequest, chunkJson -> {
+                backend.stream(withUsageChunk(openAiRequest), chunkJson -> {
                     String events = translator.onChunk(chunkJson);
                     if (!events.isEmpty()) {
                         out.writeStrict(events);
@@ -593,6 +603,15 @@ public final class OpenAiCompatServer implements AutoCloseable {
                 }
             }
         }
+    }
+
+    /** Ensure protocol translators receive the native stream's trailing usage chunk. */
+    private static JsonNode withUsageChunk(JsonNode request) {
+        ObjectNode copy = request.deepCopy();
+        JsonNode existing = copy.path("stream_options");
+        ObjectNode streamOptions = existing.isObject() ? (ObjectNode) existing : copy.putObject("stream_options");
+        streamOptions.put("include_usage", true);
+        return copy;
     }
 
     private static String anthropicError(String message) {
@@ -652,7 +671,7 @@ public final class OpenAiCompatServer implements AutoCloseable {
                         config.getHeartbeatMillis(),
                         TimeUnit.MILLISECONDS);
                 out.writeStrict(translator.begin());
-                backend.stream(openAiRequest, chunkJson -> {
+                backend.stream(withUsageChunk(openAiRequest), chunkJson -> {
                     String events = translator.onChunk(chunkJson);
                     if (!events.isEmpty()) {
                         out.writeStrict(events);
@@ -700,6 +719,37 @@ public final class OpenAiCompatServer implements AutoCloseable {
                 return;
             }
             sendJson(exchange, HTTP_OK, HEALTH_BODY);
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void handleMetrics(HttpExchange exchange) throws IOException {
+        handleMetricsView(exchange, false);
+    }
+
+    private void handleSlots(HttpExchange exchange) throws IOException {
+        handleMetricsView(exchange, true);
+    }
+
+    private void handleMetricsView(HttpExchange exchange, boolean slotsOnly) throws IOException {
+        try {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only GET is supported");
+                return;
+            }
+            if (!authorized(exchange)) {
+                sendError(exchange, HTTP_UNAUTHORIZED, ERROR_TYPE_REQUEST, "Missing or invalid API key");
+                return;
+            }
+            String metrics = backend.metrics();
+            if (slotsOnly) {
+                metrics = OBJECT_MAPPER.readTree(metrics).path("slots").toString();
+            }
+            sendJson(exchange, HTTP_OK, metrics);
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("metrics request failed", e);
+            sendError(exchange, HTTP_SERVER_ERROR, ERROR_TYPE_SERVER, message(e));
         } finally {
             exchange.close();
         }

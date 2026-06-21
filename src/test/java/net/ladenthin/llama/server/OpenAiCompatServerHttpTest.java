@@ -89,6 +89,18 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
     }
 
     @Test
+    public void metricsAndSlotsExposeCacheCounters() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            Response metrics = get(server.getPort(), "/metrics", "");
+            assertThat(metrics.code, is(200));
+            assertThat(metrics.body, containsString("n_prompt_tokens_cache"));
+            Response slots = get(server.getPort(), "/slots", "");
+            assertThat(slots.code, is(200));
+            assertThat(slots.body, containsString("\"id\":0"));
+        }
+    }
+
+    @Test
     public void infillRouteReturnsContent() throws IOException {
         try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
             String body = "{\"input_prefix\":\"def add(a,b):\\n    return \",\"input_suffix\":\"\"}";
@@ -177,6 +189,7 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
             assertThat(response.code, is(200));
             assertThat(response.body, containsString("\"type\":\"message\""));
             assertThat(response.body, containsString("hello")); // FakeBackend.complete text
+            assertThat(response.body, containsString("\"cache_read_input_tokens\":8"));
         }
     }
 
@@ -190,6 +203,7 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
             assertThat(response.body, containsString("event: message_start"));
             assertThat(response.body, containsString("event: content_block_delta"));
             assertThat(response.body, containsString("event: message_stop"));
+            assertThat(response.body, containsString("\"cache_read_input_tokens\":8"));
         }
     }
 
@@ -202,6 +216,7 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
             assertThat(response.body, containsString("\"object\":\"response\""));
             assertThat(response.body, containsString("output_text"));
             assertThat(response.body, containsString("hello"));
+            assertThat(response.body, containsString("\"cached_tokens\":8"));
         }
     }
 
@@ -214,6 +229,7 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
             assertThat(response.body, containsString("event: response.created"));
             assertThat(response.body, containsString("event: response.output_text.delta"));
             assertThat(response.body, containsString("event: response.completed"));
+            assertThat(response.body, containsString("\"cached_tokens\":8"));
         }
     }
 
@@ -376,12 +392,38 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
         }
     }
 
+    @Test
+    public void metricsAndSlotsRequireApiKeyWhenConfigured() throws IOException {
+        OpenAiServerConfig cfg = OpenAiServerConfig.builder()
+                .host("127.0.0.1")
+                .port(0)
+                .apiKey("secret")
+                .build();
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), cfg).start()) {
+            int port = server.getPort();
+            // /metrics and /slots expose slot state and token counters, so they must be gated.
+            assertThat(get(port, "/metrics", "").code, is(401));
+            assertThat(get(port, "/metrics", "Bearer wrong").code, is(401));
+            assertThat(get(port, "/metrics", "Bearer secret").code, is(200));
+            assertThat(get(port, "/slots", "").code, is(401));
+            assertThat(get(port, "/slots", "Bearer wrong").code, is(401));
+            assertThat(get(port, "/slots", "Bearer secret").code, is(200));
+        }
+    }
+
     /** Deterministic backend that returns canned OpenAI shapes for every operation. */
     static final class FakeBackend implements OpenAiBackend {
         @Override
+        public String metrics() {
+            return "{\"idle\":1,\"slots\":[{\"id\":0,\"n_prompt_tokens_cache\":8}]}";
+        }
+
+        @Override
         public String complete(JsonNode request) {
             return "{\"object\":\"chat.completion\",\"choices\":[{\"index\":0,"
-                    + "\"message\":{\"role\":\"assistant\",\"content\":\"hello\"}}]}";
+                    + "\"message\":{\"role\":\"assistant\",\"content\":\"hello\"}}],"
+                    + "\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":3,"
+                    + "\"prompt_tokens_details\":{\"cached_tokens\":8}}}";
         }
 
         @Override
@@ -389,6 +431,11 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
             sink.accept("{\"object\":\"chat.completion.chunk\",\"choices\":[{\"delta\":{\"content\":\"he\"}}]}");
             sink.accept("{\"object\":\"chat.completion.chunk\","
                     + "\"choices\":[{\"delta\":{\"content\":\"llo\"},\"finish_reason\":\"stop\"}]}");
+            if (request.path("stream_options").path("include_usage").asBoolean(false)) {
+                sink.accept("{\"object\":\"chat.completion.chunk\",\"choices\":[],"
+                        + "\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":3,"
+                        + "\"prompt_tokens_details\":{\"cached_tokens\":8}}}");
+            }
         }
 
         @Override

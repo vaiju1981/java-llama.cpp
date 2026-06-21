@@ -39,6 +39,9 @@ final class ResponsesStreamTranslator {
     private boolean messageOpen;
     private int nextOutputIndex;
     private int messageOutputIndex = -1;
+    private int inputTokens;
+    private int outputTokens;
+    private int cachedTokens;
 
     ResponsesStreamTranslator(String model, String responseId) {
         this.model = model;
@@ -70,6 +73,7 @@ final class ResponsesStreamTranslator {
         try {
             JsonNode chunk = OBJECT_MAPPER.readTree(openAiChunkJson);
             accumulator.accept(chunk);
+            captureUsage(chunk.path("usage"));
             JsonNode content = chunk.path("choices").path(0).path("delta").path("content");
             if (content.isTextual() && !content.asText().isEmpty()) {
                 if (!messageOpen) {
@@ -142,9 +146,23 @@ final class ResponsesStreamTranslator {
         ObjectNode completed = ResponsesApiSupport.dataObject();
         ObjectNode response = ResponsesApiSupport.newResponseShell(model, responseId, "completed");
         response.set("output", output);
+        ObjectNode usage = response.putObject("usage");
+        usage.put("input_tokens", inputTokens);
+        usage.put("output_tokens", outputTokens);
+        usage.put("total_tokens", inputTokens + outputTokens);
+        usage.putObject("input_tokens_details").put("cached_tokens", cachedTokens);
         completed.set("response", response);
         out.append(ResponsesApiSupport.sseEvent("response.completed", sequence++, completed));
         return out.toString();
+    }
+
+    private void captureUsage(JsonNode usage) {
+        if (!usage.isObject()) {
+            return;
+        }
+        inputTokens = usage.path("prompt_tokens").asInt(0);
+        outputTokens = usage.path("completion_tokens").asInt(0);
+        cachedTokens = usage.path("prompt_tokens_details").path("cached_tokens").asInt(0);
     }
 
     private ObjectNode messageItemShell() {

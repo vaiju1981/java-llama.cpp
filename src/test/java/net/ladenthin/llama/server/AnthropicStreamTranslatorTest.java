@@ -39,11 +39,16 @@ public class AnthropicStreamTranslatorTest {
     public void endClosesTextBlockAndEmitsStopReasonAndMessageStop() {
         AnthropicStreamTranslator translator = new AnthropicStreamTranslator("msg_1", "m");
         translator.onChunk("{\"choices\":[{\"delta\":{\"content\":\"hi\"},\"finish_reason\":\"stop\"}]}");
+        translator.onChunk("{\"choices\":[],\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":3,"
+                + "\"prompt_tokens_details\":{\"cached_tokens\":8}}}");
         String end = translator.end();
         assertThat(end, containsString("event: content_block_stop"));
         assertThat(end, containsString("event: message_delta"));
         assertThat(end, containsString("\"stop_reason\":\"end_turn\""));
         assertThat(end, containsString("event: message_stop"));
+        assertThat(end, containsString("\"input_tokens\":4"));
+        assertThat(end, containsString("\"output_tokens\":3"));
+        assertThat(end, containsString("\"cache_read_input_tokens\":8"));
     }
 
     @Test

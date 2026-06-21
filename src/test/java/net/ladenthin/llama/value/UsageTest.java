@@ -28,6 +28,14 @@ public class UsageTest {
     }
 
     @Test
+    public void cachedTokensExposeProcessedSubset() {
+        Usage u = new Usage(10, 7, 6);
+        assertEquals(6, u.getCachedTokens());
+        assertEquals(4, u.getProcessedPromptTokens());
+        assertEquals(17, u.getTotalTokens());
+    }
+
+    @Test
     public void equalsAndHashCode() {
         assertEquals(new Usage(3, 4), new Usage(3, 4));
         assertEquals(new Usage(3, 4).hashCode(), new Usage(3, 4).hashCode());

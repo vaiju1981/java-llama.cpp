@@ -205,6 +205,7 @@ static void populate_completion_task(server_task &task, jllama_context *jctx, in
         }
     }
     task.params = server_schema::eval_llama_cmpl_schema(jctx->vocab, jctx->params, n_ctx_slot, logit_bias_eog, data);
+    configure_task_slot_impl(task, data);
 }
 
 [[nodiscard]] static jint dispatch_streaming_completion(JNIEnv *env, jllama_context *jctx, const json &data,

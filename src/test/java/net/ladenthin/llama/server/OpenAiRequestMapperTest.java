@@ -155,6 +155,15 @@ public class OpenAiRequestMapperTest {
     }
 
     @Test
+    public void cacheAndSlotExtensionsForwarded() throws IOException {
+        JsonNode out = mapAndSerialize("{\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}],"
+                + "\"cache_prompt\":false,\"n_cache_reuse\":128,\"id_slot\":2}");
+        assertThat(out.path("cache_prompt").asBoolean(), is(false));
+        assertThat(out.path("n_cache_reuse").asInt(), is(128));
+        assertThat(out.path("id_slot").asInt(), is(2));
+    }
+
+    @Test
     public void unknownFieldsIgnored() throws IOException {
         JsonNode out = mapAndSerialize(
                 "{\"messages\":[{\"role\":\"user\",\"content\":\"x\"}]," + "\"some_future_field\":true,\"n\":3}");

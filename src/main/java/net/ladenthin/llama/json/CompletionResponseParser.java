@@ -187,10 +187,11 @@ public class CompletionResponseParser {
         try {
             JsonNode node = OBJECT_MAPPER.readTree(json);
             String text = extractContent(node);
+            Timings timings = Timings.fromJson(node.path("timings"));
             Usage usage = new Usage(
                     node.path("tokens_evaluated").asLong(0L),
-                    node.path("tokens_predicted").asLong(0L));
-            Timings timings = Timings.fromJson(node.path("timings"));
+                    node.path("tokens_predicted").asLong(0L),
+                    Math.max(0, timings.getCacheN()));
             TimingsLogger.log(timings);
             List<TokenLogprob> logprobs = parseLogprobs(node);
             StopReason stopReason =

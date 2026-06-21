@@ -1398,10 +1398,10 @@ public final class ModelParameters extends CliParameters {
     /**
      * Set the maximum RAM cache size in MiB used to store saved slot KV state.
      * <p>
-     * Requires {@link #setKvUnified(boolean) unified KV} to be enabled.
      * Set to {@code -1} for no limit, {@code 0} to disable (default: 8192 MiB).
-     * Together with {@link #setClearIdle} this allows idle slots to be evicted
-     * from GPU/CPU memory and restored quickly on the next matching request.
+     * Together with {@link #setClearIdle}, idle slot states are copied into this
+     * RAM cache and restored on a matching request. Unified KV is required only
+     * when those idle slots should also be cleared from the active KV buffer.
      *
      * @param cacheRamMib maximum cache size in MiB, or {@code -1} for unlimited
      * @return this builder
@@ -1414,14 +1414,13 @@ public final class ModelParameters extends CliParameters {
      * Enable or disable saving and clearing idle slots when a new task starts.
      * <p>
      * When enabled (the default), idle slots have their KV state saved to the
-     * RAM cache ({@link #setCacheRamMib}) and are then cleared, freeing GPU/CPU
-     * memory for the active request.  The saved state is transparently restored
-     * on the next request that shares the same prompt prefix, so cache-hit
-     * latency is preserved.
+     * RAM cache ({@link #setCacheRamMib}). With unified KV enabled, the active
+     * slot state is also cleared, freeing KV-buffer capacity for other requests.
+     * Without unified KV the RAM-cache copy is still created, but the active
+     * slot remains allocated.
      * <p>
-     * Requires {@link #setKvUnified(boolean) unified KV} and a non-zero
-     * {@link #setCacheRamMib RAM cache}.  If either dependency is absent the
-     * server logs a warning and silently disables the feature.
+     * Requires a non-zero {@link #setCacheRamMib RAM cache}. Unified KV is
+     * required only for active-buffer eviction.
      *
      * @param clearIdle {@code true} to enable idle-slot eviction (default), {@code false} to disable
      * @return this builder

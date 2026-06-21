@@ -178,6 +178,8 @@ final class ResponsesApiSupport {
         usage.put("input_tokens", 0);
         usage.put("output_tokens", 0);
         usage.put("total_tokens", 0);
+        ObjectNode inputTokenDetails = usage.putObject("input_tokens_details");
+        inputTokenDetails.put("cached_tokens", 0);
         try {
             JsonNode completion = OBJECT_MAPPER.readTree(openAiCompletionJson);
             JsonNode message = completion.path("choices").path(0).path("message");
@@ -205,6 +207,12 @@ final class ResponsesApiSupport {
                 usage.put("input_tokens", in);
                 usage.put("output_tokens", out);
                 usage.put("total_tokens", in + out);
+                inputTokenDetails.put(
+                        "cached_tokens",
+                        openAiUsage
+                                .path("prompt_tokens_details")
+                                .path("cached_tokens")
+                                .asInt(0));
             }
         } catch (IOException e) {
             // Defensive: an unexpected body still yields a valid, empty completed response.

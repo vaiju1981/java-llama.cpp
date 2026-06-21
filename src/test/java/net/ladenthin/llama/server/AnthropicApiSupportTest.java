@@ -125,7 +125,8 @@ public class AnthropicApiSupportTest {
         String openAi = "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"hi\","
                 + "\"tool_calls\":[{\"id\":\"c1\",\"type\":\"function\",\"function\":{\"name\":\"f\","
                 + "\"arguments\":\"{\\\"a\\\":1}\"}}]},\"finish_reason\":\"tool_calls\"}],"
-                + "\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":2}}";
+                + "\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":2,"
+                + "\"prompt_tokens_details\":{\"cached_tokens\":3}}}";
         JsonNode out = read(AnthropicApiSupport.toAnthropicResponse(openAi, "m"));
         assertThat(out.path("type").asText(), is("message"));
         assertThat(out.path("role").asText(), is("assistant"));
@@ -137,7 +138,8 @@ public class AnthropicApiSupportTest {
         assertThat(toolUse.path("input").path("a").asInt(), is(1));
         // finish_reason "tool_calls" -> stop_reason "tool_use".
         assertThat(out.path("stop_reason").asText(), is("tool_use"));
-        assertThat(out.path("usage").path("input_tokens").asInt(), is(5));
+        assertThat(out.path("usage").path("input_tokens").asInt(), is(2));
+        assertThat(out.path("usage").path("cache_read_input_tokens").asInt(), is(3));
         assertThat(out.path("usage").path("output_tokens").asInt(), is(2));
     }
 

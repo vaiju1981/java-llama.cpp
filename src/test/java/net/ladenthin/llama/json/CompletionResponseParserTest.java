@@ -295,6 +295,7 @@ public class CompletionResponseParserTest {
     public void testParseCompletionResult_fullResult() {
         String json = "{\"content\":\"final answer\","
                 + "\"tokens_evaluated\":11,\"tokens_predicted\":4,"
+                + "\"timings\":{\"cache_n\":8},"
                 + "\"stop_type\":\"eos\","
                 + "\"completion_probabilities\":[{\"token\":\"final\",\"id\":1,\"prob\":0.7}]}";
         CompletionResult r = parser.parseCompletionResult(json);
@@ -302,6 +303,8 @@ public class CompletionResponseParserTest {
         assertEquals("final answer", r.getText());
         assertEquals(11L, r.getUsage().getPromptTokens());
         assertEquals(4L, r.getUsage().getCompletionTokens());
+        assertEquals(8L, r.getUsage().getCachedTokens());
+        assertEquals(3L, r.getUsage().getProcessedPromptTokens());
         assertEquals(StopReason.EOS, r.getStopReason());
         assertEquals(1, r.getLogprobs().size());
         assertEquals("final", r.getLogprobs().get(0).getToken());

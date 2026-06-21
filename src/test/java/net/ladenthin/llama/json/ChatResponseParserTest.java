@@ -227,7 +227,8 @@ public class ChatResponseParserTest {
         String json = "{\"id\":\"chatcmpl-abc\",\"choices\":[{\"index\":0,"
                 + "\"message\":{\"role\":\"assistant\",\"content\":\"Hi there\"},"
                 + "\"finish_reason\":\"stop\"}],"
-                + "\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3}}";
+                + "\"usage\":{\"prompt_tokens\":7,\"completion_tokens\":3,"
+                + "\"prompt_tokens_details\":{\"cached_tokens\":5}}}";
         ChatResponse r = parser.parseResponse(json);
 
         assertEquals("chatcmpl-abc", r.getId());
@@ -239,6 +240,8 @@ public class ChatResponseParserTest {
         assertEquals("stop", c.getFinishReason());
         assertEquals(7L, r.getUsage().getPromptTokens());
         assertEquals(3L, r.getUsage().getCompletionTokens());
+        assertEquals(5L, r.getUsage().getCachedTokens());
+        assertEquals(2L, r.getUsage().getProcessedPromptTokens());
         assertEquals(json, r.getRawJson());
     }
 
