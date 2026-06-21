@@ -24,10 +24,10 @@ import org.jspecify.annotations.Nullable;
 public final class Timings {
 
     private final int cacheN;
-    private final int promptN;
+    private final long promptN;
     private final double promptMs;
     private final double promptPerSecond;
-    private final int predictedN;
+    private final long predictedN;
     private final double predictedMs;
     private final double predictedPerSecond;
     private final int draftN;
@@ -49,10 +49,10 @@ public final class Timings {
      */
     public Timings(
             int cacheN,
-            int promptN,
+            long promptN,
             double promptMs,
             double promptPerSecond,
-            int predictedN,
+            long predictedN,
             double predictedMs,
             double predictedPerSecond,
             int draftN,
@@ -81,10 +81,10 @@ public final class Timings {
         }
         return new Timings(
                 node.path("cache_n").asInt(0),
-                node.path("prompt_n").asInt(0),
+                node.path("prompt_n").asLong(0L),
                 node.path("prompt_ms").asDouble(0.0),
                 node.path("prompt_per_second").asDouble(0.0),
-                node.path("predicted_n").asInt(0),
+                node.path("predicted_n").asLong(0L),
                 node.path("predicted_ms").asDouble(0.0),
                 node.path("predicted_per_second").asDouble(0.0),
                 node.path("draft_n").asInt(0),
@@ -103,7 +103,7 @@ public final class Timings {
      * Prompt token count for this completion.
      * @return number of prompt tokens processed
      */
-    public int getPromptN() {
+    public long getPromptN() {
         return promptN;
     }
 
@@ -127,7 +127,7 @@ public final class Timings {
      * Generated token count for this completion.
      * @return number of tokens generated
      */
-    public int getPredictedN() {
+    public long getPredictedN() {
         return predictedN;
     }
 

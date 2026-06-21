@@ -86,6 +86,17 @@ public class ServerMetricsTest {
     }
 
     @Test
+    public void cumulativeTimingsDoNotOverflowIntOnBusyServer() throws Exception {
+        // A long-running server easily exceeds Integer.MAX_VALUE tokens; an int cast would wrap
+        // these cumulative counters to negative values.
+        ServerMetrics m =
+                parse("{\"n_prompt_tokens_processed_total\":3000000000," + "\"n_tokens_predicted_total\":4000000000}");
+        Timings t = m.getCumulativeTimings();
+        assertEquals(3_000_000_000L, t.getPromptN());
+        assertEquals(4_000_000_000L, t.getPredictedN());
+    }
+
+    @Test
     public void cumulativeTimingsZeroMsYieldsZeroRate() throws Exception {
         ServerMetrics m = parse("{\"n_prompt_tokens_processed_total\":5,\"t_prompt_processing_total\":0}");
         assertEquals(0.0, m.getCumulativeTimings().getPromptPerSecond(), 1e-9);

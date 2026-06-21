@@ -88,6 +88,18 @@ public class InferenceParametersTest {
     }
 
     @Test
+    public void testNaNFloatRejected() {
+        // NaN/Infinity would serialize to "NaN"/"Infinity" — invalid JSON the native parser rejects.
+        assertThrows(IllegalArgumentException.class, () -> new InferenceParameters("").withTemperature(Float.NaN));
+    }
+
+    @Test
+    public void testInfiniteFloatRejected() {
+        assertThrows(
+                IllegalArgumentException.class, () -> new InferenceParameters("").withTopP(Float.POSITIVE_INFINITY));
+    }
+
+    @Test
     public void testSetParallelToolCalls() {
         InferenceParameters params = new InferenceParameters("").withParallelToolCalls(false);
         assertThat(params.parameters.get("parallel_tool_calls"), is("false"));

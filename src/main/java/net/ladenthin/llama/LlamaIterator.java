@@ -38,7 +38,9 @@ public final class LlamaIterator implements Iterator<LlamaOutput>, AutoCloseable
     private final int taskId;
     private final CompletionResponseParser completionParser = new CompletionResponseParser();
 
-    private boolean hasNext = true;
+    // volatile: cancel() may be called from another thread, so the consuming thread
+    // running next()/hasNext() must observe the flip without a data race.
+    private volatile boolean hasNext = true;
 
     LlamaIterator(LlamaModel model, InferenceParameters parameters) {
         this(model, parameters, false);

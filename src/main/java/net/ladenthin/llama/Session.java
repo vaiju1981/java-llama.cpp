@@ -149,6 +149,17 @@ public final class Session implements AutoCloseable {
     }
 
     /**
+     * Abandon an in-progress {@link #stream(String)} round without recording an assistant reply,
+     * returning the session to its pre-stream state (the pending user turn is rolled back). Call this
+     * — e.g. in a {@code finally} — when a stream is broken off early or its consumer throws, so the
+     * session is never left wedged (every later {@code send}/{@code stream}/{@code save}/{@code restore}
+     * would otherwise keep throwing). Safe to call when no stream is active.
+     */
+    public void cancelStream() {
+        state.cancelStream();
+    }
+
+    /**
      * Save this session's slot KV cache to {@code filepath}.
      *
      * @param filepath destination file path passed to {@link LlamaModel#saveSlot(int, String)}

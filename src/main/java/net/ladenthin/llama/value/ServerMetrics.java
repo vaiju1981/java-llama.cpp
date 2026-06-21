@@ -170,8 +170,7 @@ public final class ServerMetrics {
         double predictedMs = node.path("t_tokens_generation_total").asDouble(0.0);
         double promptPerSec = promptMs > 0.0 ? promptN * 1000.0 / promptMs : 0.0;
         double predictedPerSec = predictedMs > 0.0 ? predictedN * 1000.0 / predictedMs : 0.0;
-        return new Timings(
-                0, (int) promptN, promptMs, promptPerSec, (int) predictedN, predictedMs, predictedPerSec, 0, 0);
+        return new Timings(0, promptN, promptMs, promptPerSec, predictedN, predictedMs, predictedPerSec, 0, 0);
     }
 
     /**

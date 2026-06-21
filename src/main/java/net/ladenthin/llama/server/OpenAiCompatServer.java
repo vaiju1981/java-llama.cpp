@@ -12,11 +12,13 @@ import com.sun.net.httpserver.Filter;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -130,6 +132,7 @@ public final class OpenAiCompatServer implements AutoCloseable {
     private static final int HTTP_NOT_FOUND = 404;
     private static final int HTTP_METHOD_NOT_ALLOWED = 405;
     private static final int HTTP_SERVER_ERROR = 500;
+    private static final int HTTP_PAYLOAD_TOO_LARGE = 413;
 
     private static final String CONTENT_TYPE_JSON = "application/json; charset=utf-8";
     private static final String CONTENT_TYPE_SSE = "text/event-stream; charset=utf-8";
@@ -168,7 +171,11 @@ public final class OpenAiCompatServer implements AutoCloseable {
         this.config = config;
         this.backend = backend;
         this.requestExecutor = Executors.newCachedThreadPool(namedFactory("jllama-openai-http"));
-        this.heartbeatExecutor = Executors.newScheduledThreadPool(1, namedFactory("jllama-openai-hb"));
+        // Sized for concurrency: a heartbeat write blocks on a slow/stalled client, so a single
+        // shared thread would let one such client starve every other stream's keep-alives. Bound
+        // the impact to roughly one stalled client per thread.
+        this.heartbeatExecutor = Executors.newScheduledThreadPool(
+                Math.max(2, Runtime.getRuntime().availableProcessors()), namedFactory("jllama-openai-hb"));
         this.http = HttpServer.create(new InetSocketAddress(config.getHost(), config.getPort()), 0);
         this.corsFilter = buildCorsFilter(config.getCorsAllowOrigin());
         register("/", this::handleNotFound);
@@ -756,6 +763,10 @@ public final class OpenAiCompatServer implements AutoCloseable {
     }
 
     private void handleProps(HttpExchange exchange) throws IOException {
+        // Deliberately unauthenticated, like the Ollama discovery routes (/api/version, /api/tags,
+        // /api/show): autocomplete/agent clients read context length + capabilities here before they
+        // have (or to discover whether they need) a key. It exposes only public model metadata —
+        // no inference, no secrets — so it intentionally bypasses authorized().
         try {
             if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
                 sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only GET is supported");
@@ -794,7 +805,24 @@ public final class OpenAiCompatServer implements AutoCloseable {
             sendError(exchange, HTTP_UNAUTHORIZED, ERROR_TYPE_REQUEST, "Missing or invalid API key");
             return null;
         }
-        JsonNode request = readBody(exchange);
+        String contentLength = exchange.getRequestHeaders().getFirst("Content-Length");
+        if (contentLength != null) {
+            try {
+                if (Long.parseLong(contentLength.trim()) > config.getMaxRequestBodyBytes()) {
+                    sendError(exchange, HTTP_PAYLOAD_TOO_LARGE, ERROR_TYPE_REQUEST, "Request body too large");
+                    return null;
+                }
+            } catch (NumberFormatException ignored) {
+                // Unparseable header — the bounded read below still caps the body.
+            }
+        }
+        JsonNode request;
+        try {
+            request = readBody(exchange);
+        } catch (RequestBodyTooLargeException e) {
+            sendError(exchange, HTTP_PAYLOAD_TOO_LARGE, ERROR_TYPE_REQUEST, "Request body too large");
+            return null;
+        }
         if (request == null || !request.isObject()) {
             sendError(exchange, HTTP_BAD_REQUEST, ERROR_TYPE_REQUEST, "Request body must be a JSON object");
             return null;
@@ -814,15 +842,60 @@ public final class OpenAiCompatServer implements AutoCloseable {
         if (header == null || !header.startsWith(BEARER_PREFIX)) {
             return false;
         }
-        return expected.equals(header.substring(BEARER_PREFIX.length()));
+        // Constant-time comparison so response timing does not leak how many leading bytes
+        // of the bearer token matched.
+        byte[] expectedBytes = expected.getBytes(StandardCharsets.UTF_8);
+        byte[] presentedBytes = header.substring(BEARER_PREFIX.length()).getBytes(StandardCharsets.UTF_8);
+        return MessageDigest.isEqual(expectedBytes, presentedBytes);
     }
 
     private @Nullable JsonNode readBody(HttpExchange exchange) throws IOException {
-        try (InputStream is = exchange.getRequestBody()) {
+        try (InputStream is = new BoundedInputStream(exchange.getRequestBody(), config.getMaxRequestBodyBytes())) {
             return OBJECT_MAPPER.readTree(is);
         } catch (JsonProcessingException e) {
             LOG.debug("malformed request body", e);
             return null;
+        }
+    }
+
+    /** Signals that the request body exceeded the configured cap. */
+    private static final class RequestBodyTooLargeException extends IOException {
+        private static final long serialVersionUID = 1L;
+
+        RequestBodyTooLargeException(long limit) {
+            super("Request body exceeds " + limit + " bytes");
+        }
+    }
+
+    /** Wraps a stream so reading past {@code limit} bytes throws instead of buffering unboundedly. */
+    private static final class BoundedInputStream extends FilterInputStream {
+        private final long limit;
+        private long count;
+
+        BoundedInputStream(InputStream in, long limit) {
+            super(in);
+            this.limit = limit;
+        }
+
+        @Override
+        public int read() throws IOException {
+            int b = super.read();
+            if (b != -1 && ++count > limit) {
+                throw new RequestBodyTooLargeException(limit);
+            }
+            return b;
+        }
+
+        @Override
+        public int read(byte[] buffer, int off, int len) throws IOException {
+            int n = super.read(buffer, off, len);
+            if (n > 0) {
+                count += n;
+                if (count > limit) {
+                    throw new RequestBodyTooLargeException(limit);
+                }
+            }
+            return n;
         }
     }
 

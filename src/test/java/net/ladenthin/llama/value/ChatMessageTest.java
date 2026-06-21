@@ -64,6 +64,20 @@ public class ChatMessageTest {
     }
 
     @Test
+    public void toolCallsListIsDefensivelyCopiedAndUnmodifiable() {
+        java.util.List<ToolCall> source = new java.util.ArrayList<ToolCall>();
+        source.add(new ToolCall("c1", "f", "{}"));
+        ChatMessage m = ChatMessage.assistantToolCalls("", source);
+
+        // Mutating the caller's list must not change the (documented-immutable) message.
+        source.clear();
+        assertThat(m.getToolCalls(), hasSize(1));
+
+        // And the returned list is read-only.
+        assertThrows(UnsupportedOperationException.class, () -> m.getToolCalls().add(new ToolCall("c2", "g", "{}")));
+    }
+
+    @Test
     public void assistantToolCallsKeepsNonNullContent() {
         ChatMessage m =
                 ChatMessage.assistantToolCalls("reason", Collections.singletonList(new ToolCall("c1", "f", "{}")));

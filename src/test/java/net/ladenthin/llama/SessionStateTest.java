@@ -69,6 +69,30 @@ public class SessionStateTest {
     }
 
     @Test
+    public void cancelStream_rollsBackPendingUserTurn_andUnwedges() {
+        SessionState state = new SessionState(0, null);
+
+        state.beginStream("q", (systemMessage, wireMessages) -> "HANDLE");
+        assertThat(roles(state.snapshot()), contains("user"));
+
+        // Abandon the stream: the pending user turn is rolled back and the guard cleared.
+        state.cancelStream();
+        assertThat(state.snapshot().size(), is(0));
+
+        // No longer wedged: a follow-up send and a save both succeed.
+        state.send("again", (systemMessage, wireMessages) -> "b");
+        assertThat(roles(state.snapshot()), contains("user", "assistant"));
+        assertThat(state.runWhenNotStreaming("save", () -> "saved"), is("saved"));
+    }
+
+    @Test
+    public void cancelStream_withoutActiveStream_isNoOp() {
+        SessionState state = new SessionState(0, null);
+        state.cancelStream(); // must not throw, transcript untouched
+        assertThat(state.snapshot().size(), is(0));
+    }
+
+    @Test
     public void send_whileStreaming_throwsWithDiagnosticMessage() {
         SessionState state = new SessionState(7, null);
         state.beginStream("q", (systemMessage, wireMessages) -> "HANDLE");

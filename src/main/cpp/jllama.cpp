@@ -284,7 +284,18 @@ std::string parse_jstring(JNIEnv *env, jstring java_string) {
  * Combines parse_jstring + json::parse, which every parameter-taking JNI
  * function needs before it can read its arguments.
  */
-static json parse_json_params(JNIEnv *env, jstring jparams) { return json::parse(parse_jstring(env, jparams)); }
+// Parse the JSON request body. On malformed input, converts the C++ parse error into a Java
+// LlamaException (so it never crosses the JNI boundary — which is undefined behavior) and returns
+// false; callers must return their sentinel when this returns false.
+[[nodiscard]] static bool parse_json_params(JNIEnv *env, jstring jparams, json &out) {
+    try {
+        out = json::parse(parse_jstring(env, jparams));
+        return true;
+    } catch (const std::exception &e) {
+        env->ThrowNew(c_llama_error, e.what());
+        return false;
+    }
+}
 
 /**
  * Convenience wrapper around require_json_field_impl (jni_helpers.hpp).
@@ -345,9 +356,20 @@ char **parse_string_array(JNIEnv *env, const jobjectArray string_array, const js
 
     for (jsize i = 0; i < length; i++) {
         auto *const javaString = static_cast<jstring>(env->GetObjectArrayElement(string_array, i));
+        // A null array element (legal from a Java String[]) must not reach GetStringUTFChars.
+        if (javaString == nullptr) {
+            result[i] = strdup("");
+            continue;
+        }
+        // GetStringUTFChars returns nullptr on allocation failure; never strdup(nullptr).
         const char *cString = env->GetStringUTFChars(javaString, nullptr);
-        result[i] = strdup(cString);
-        env->ReleaseStringUTFChars(javaString, cString);
+        result[i] = strdup(cString != nullptr ? cString : "");
+        if (cString != nullptr) {
+            env->ReleaseStringUTFChars(javaString, cString);
+        }
+        // Each GetObjectArrayElement returns a fresh local ref; release it so a large
+        // array (e.g. a rerank with many documents) cannot overflow the local-ref table.
+        env->DeleteLocalRef(javaString);
     }
 
     return result;
@@ -398,6 +420,20 @@ JNIEnv *get_jni_env() {
     JNIEnv *env = nullptr;
     if (g_vm == nullptr || g_vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) != JNI_OK) {
         throw std::runtime_error("Thread is not attached to the JVM");
+    }
+    return env;
+}
+
+/**
+ * Like get_jni_env() but returns nullptr instead of throwing when the calling
+ * thread is not attached to the JVM. Used from the log callback, which can fire
+ * on internal ggml/llama worker threads that were never AttachCurrentThread-ed —
+ * throwing there would unwind through C call frames (undefined behavior).
+ */
+JNIEnv *get_jni_env_or_null() noexcept {
+    JNIEnv *env = nullptr;
+    if (g_vm == nullptr || g_vm->GetEnv(reinterpret_cast<void **>(&env), JNI_VERSION_1_6) != JNI_OK) {
+        return nullptr;
     }
     return env;
 }
@@ -764,7 +800,10 @@ JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestCompletion(JNI
                                                                              jstring jparams) {
     REQUIRE_SERVER_CONTEXT(0);
 
-    json data = parse_json_params(env, jparams);
+    json data;
+    if (!parse_json_params(env, jparams, data)) {
+        return 0;
+    }
 
     const server_task_type type = is_infill_request(data) ? SERVER_TASK_TYPE_INFILL : SERVER_TASK_TYPE_COMPLETION;
 
@@ -780,7 +819,9 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveCompletionJ
                                                                                     jint id_task) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
-    server_response_reader *rd;
+    // Copy the shared_ptr out under the lock so the reader stays alive across next() below,
+    // which runs without the lock and may race a concurrent erase_reader()/close().
+    std::shared_ptr<server_response_reader> rd;
     {
         std::lock_guard<std::mutex> lk(jctx->readers_mutex);
         auto it = jctx->readers.find(id_task);
@@ -788,7 +829,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveCompletionJ
             env->ThrowNew(c_llama_error, "Task not found");
             return nullptr;
         }
-        rd = it->second.get();
+        rd = it->second;
     }
 
     // Upstream b9437 added is_begin partial results whose to_json() returns
@@ -828,7 +869,9 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveChatComplet
                                                                                          jint id_task) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
-    server_response_reader *rd;
+    // Copy the shared_ptr out under the lock so the reader stays alive across next() below,
+    // which runs without the lock and may race a concurrent erase_reader()/close().
+    std::shared_ptr<server_response_reader> rd;
     {
         std::lock_guard<std::mutex> lk(jctx->readers_mutex);
         auto it = jctx->readers.find(id_task);
@@ -836,7 +879,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveChatComplet
             env->ThrowNew(c_llama_error, "Task not found");
             return nullptr;
         }
-        rd = it->second.get();
+        rd = it->second;
     }
 
     json payload;
@@ -874,7 +917,13 @@ JNIEXPORT jfloatArray JNICALL Java_net_ladenthin_llama_LlamaModel_embed(JNIEnv *
     const std::string prompt = parse_jstring(env, jprompt);
     SRV_INF("Calling embedding '%s'\n", prompt.c_str());
 
-    auto tokens = tokenize_mixed(jctx->vocab, prompt, true, true);
+    llama_tokens tokens;
+    try {
+        tokens = tokenize_mixed(jctx->vocab, prompt, true, true);
+    } catch (const std::exception &e) {
+        env->ThrowNew(c_llama_error, e.what());
+        return nullptr;
+    }
     auto rd = ctx_server->get_response_reader();
     server_task task(SERVER_TASK_TYPE_EMBEDDING);
     task.id = rd.get_new_id();
@@ -938,13 +987,20 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleRerank(JNIEn
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_applyTemplate(JNIEnv *env, jobject obj, jstring jparams) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
-    json data = parse_json_params(env, jparams);
+    json data;
+    if (!parse_json_params(env, jparams, data)) {
+        return nullptr;
+    }
 
     json templateData;
     std::vector<raw_buffer> files;
     if (!parse_oai_chat_params(env, ctx_server, data, templateData, files))
         return nullptr;
 
+    if (!templateData.contains("prompt") || !templateData.at("prompt").is_string()) {
+        env->ThrowNew(c_llama_error, "applyTemplate did not produce a string prompt");
+        return nullptr;
+    }
     std::string tok_str = templateData.at("prompt");
     return env->NewStringUTF(tok_str.c_str());
 }
@@ -953,7 +1009,10 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleChatCompleti
                                                                                     jstring jparams) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
-    json body = parse_json_params(env, jparams);
+    json body;
+    if (!parse_json_params(env, jparams, body)) {
+        return nullptr;
+    }
     json data;
     std::vector<raw_buffer> files;
     if (!parse_oai_chat_params(env, ctx_server, body, data, files))
@@ -967,7 +1026,10 @@ JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestChatCompletion
                                                                                  jstring jparams) {
     REQUIRE_SERVER_CONTEXT(0);
 
-    json body = parse_json_params(env, jparams);
+    json body;
+    if (!parse_json_params(env, jparams, body)) {
+        return 0;
+    }
     // Chat template already applied by parse_oai_chat_params; no OAI wrapping on the streaming path.
     json data;
     std::vector<raw_buffer> files;
@@ -987,7 +1049,10 @@ JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestChatCompletion
                                                                                        jstring jparams) {
     REQUIRE_SERVER_CONTEXT(0);
 
-    json body = parse_json_params(env, jparams);
+    json body;
+    if (!parse_json_params(env, jparams, body)) {
+        return 0;
+    }
     json data;
     std::vector<raw_buffer> files;
     if (!parse_oai_chat_params(env, ctx_server, body, data, files))
@@ -1001,8 +1066,13 @@ JNIEXPORT jintArray JNICALL Java_net_ladenthin_llama_LlamaModel_encode(JNIEnv *e
     REQUIRE_SERVER_CONTEXT(nullptr);
 
     const std::string c_prompt = parse_jstring(env, jprompt);
-    llama_tokens tokens = tokenize_mixed(jctx->vocab, c_prompt, false, true);
-    return tokens_to_jint_array_impl(env, tokens, c_error_oom);
+    try {
+        llama_tokens tokens = tokenize_mixed(jctx->vocab, c_prompt, false, true);
+        return tokens_to_jint_array_impl(env, tokens, c_error_oom);
+    } catch (const std::exception &e) {
+        env->ThrowNew(c_llama_error, e.what());
+        return nullptr;
+    }
 }
 
 // Detokenise a token sequence to UTF-8, dispatching on vocab-only vs full context.
@@ -1072,8 +1142,13 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_setLogger(JNIEnv *env
         llama_log_set(nullptr, nullptr);
     } else {
         o_log_callback = env->NewGlobalRef(jcallback);
-        log_callback = [](enum ggml_log_level level, const char *text, void *user_data) {
-            JNIEnv *env = get_jni_env();
+        log_callback = [](enum ggml_log_level level, const char *text, void *user_data) noexcept {
+            // Logging can fire from internal native threads with no JNIEnv; skip rather than
+            // throw (an exception here would unwind through llama.cpp's C frames).
+            JNIEnv *env = get_jni_env_or_null();
+            if (env == nullptr || text == nullptr) {
+                return;
+            }
             jstring message = env->NewStringUTF(text);
             jobject log_level = log_level_to_jobject(level);
             env->CallVoidMethod(o_log_callback, m_biconsumer_accept, log_level, message);
@@ -1086,17 +1161,25 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_setLogger(JNIEnv *env
 
 JNIEXPORT jbyteArray JNICALL Java_net_ladenthin_llama_LlamaModel_jsonSchemaToGrammarBytes(JNIEnv *env, jclass clazz,
                                                                                           jstring j_schema) {
-    const std::string c_schema = parse_jstring(env, j_schema);
-    nlohmann::ordered_json c_schema_json = nlohmann::ordered_json::parse(c_schema);
-    const std::string c_grammar = json_schema_to_grammar(c_schema_json);
-    return parse_jbytes(env, c_grammar);
+    try {
+        const std::string c_schema = parse_jstring(env, j_schema);
+        nlohmann::ordered_json c_schema_json = nlohmann::ordered_json::parse(c_schema);
+        const std::string c_grammar = json_schema_to_grammar(c_schema_json);
+        return parse_jbytes(env, c_grammar);
+    } catch (const std::exception &e) {
+        env->ThrowNew(c_llama_error, e.what());
+        return nullptr;
+    }
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleCompletions(JNIEnv *env, jobject obj,
                                                                                 jstring jparams) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
-    json data = parse_json_params(env, jparams);
+    json data;
+    if (!parse_json_params(env, jparams, data)) {
+        return nullptr;
+    }
     return dispatch_blocking_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_NONE);
 }
 
@@ -1104,7 +1187,10 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleCompletionsO
                                                                                    jstring jparams) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
-    json body = parse_json_params(env, jparams);
+    json body;
+    if (!parse_json_params(env, jparams, body)) {
+        return nullptr;
+    }
     json data;
     try {
         data = oaicompat_completion_params_parse(body);
@@ -1128,7 +1214,10 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleInfill(JNIEn
         return nullptr;
     }
 
-    json data = parse_json_params(env, jparams);
+    json data;
+    if (!parse_json_params(env, jparams, data)) {
+        return nullptr;
+    }
 
     if (!require_json_field(env, data, "input_prefix"))
         return nullptr;
@@ -1139,12 +1228,18 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleInfill(JNIEn
     data["input_extra"] = input_extra;
 
     std::string prompt = json_value(data, "prompt", std::string());
-    std::vector<server_tokens> tokenized_prompts = tokenize_input_prompts(jctx->vocab, nullptr, prompt, false, true);
+    try {
+        std::vector<server_tokens> tokenized_prompts =
+            tokenize_input_prompts(jctx->vocab, nullptr, prompt, false, true);
 
-    data["prompt"] =
-        format_prompt_infill(jctx->vocab, data.at("input_prefix"), data.at("input_suffix"), data.at("input_extra"),
-                             jctx->params.n_batch, jctx->params.n_predict, meta.slot_n_ctx, jctx->params.spm_infill,
-                             tokenized_prompts.empty() ? llama_tokens() : tokenized_prompts[0].get_tokens());
+        data["prompt"] =
+            format_prompt_infill(jctx->vocab, data.at("input_prefix"), data.at("input_suffix"), data.at("input_extra"),
+                                 jctx->params.n_batch, jctx->params.n_predict, meta.slot_n_ctx, jctx->params.spm_infill,
+                                 tokenized_prompts.empty() ? llama_tokens() : tokenized_prompts[0].get_tokens());
+    } catch (const std::exception &e) {
+        env->ThrowNew(c_llama_error, e.what());
+        return nullptr;
+    }
 
     return dispatch_blocking_completion(env, jctx, data, SERVER_TASK_TYPE_INFILL, TASK_RESPONSE_TYPE_NONE);
 }
@@ -1168,7 +1263,10 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleEmbeddings(J
         }
     }
 
-    json body = parse_json_params(env, jparams);
+    json body;
+    if (!parse_json_params(env, jparams, body)) {
+        return nullptr;
+    }
 
     bool force_no_oaicompat = false;
     json prompt;
@@ -1183,7 +1281,13 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleEmbeddings(J
     if (force_no_oaicompat)
         res_type = TASK_RESPONSE_TYPE_NONE;
 
-    std::vector<server_tokens> tokenized_prompts = tokenize_input_prompts(jctx->vocab, nullptr, prompt, true, true);
+    std::vector<server_tokens> tokenized_prompts;
+    try {
+        tokenized_prompts = tokenize_input_prompts(jctx->vocab, nullptr, prompt, true, true);
+    } catch (const std::exception &e) {
+        env->ThrowNew(c_llama_error, e.what());
+        return nullptr;
+    }
 
     for (const auto &toks : tokenized_prompts) {
         if (toks.get_tokens().empty()) {
@@ -1226,7 +1330,13 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleTokenize(JNI
     const bool add_special = jaddSpecial;
     const bool with_pieces = jwithPieces;
 
-    llama_tokens tokens = tokenize_mixed(jctx->vocab, content, add_special, true);
+    llama_tokens tokens;
+    try {
+        tokens = tokenize_mixed(jctx->vocab, content, add_special, true);
+    } catch (const std::exception &e) {
+        env->ThrowNew(c_llama_error, e.what());
+        return nullptr;
+    }
 
     json tokens_response = json::array();
 
@@ -1287,7 +1397,10 @@ JNIEXPORT jboolean JNICALL Java_net_ladenthin_llama_LlamaModel_configureParallel
     REQUIRE_SERVER_CONTEXT(JNI_FALSE);
     (void)obj;
 
-    json config = parse_json_params(env, jconfig);
+    json config;
+    if (!parse_json_params(env, jconfig, config)) {
+        return JNI_FALSE;
+    }
 
     std::optional<float> slot_sim_opt;
     std::optional<int> n_threads_opt;

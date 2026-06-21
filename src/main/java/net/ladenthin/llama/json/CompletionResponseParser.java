@@ -120,6 +120,11 @@ public class CompletionResponseParser {
      * <p>Returns an empty map when the field is absent or the array is empty.
      * Requires {@code InferenceParameters#withNProbs(int)} to be configured before inference.
      *
+     * <p><b>Lossy on duplicate token text:</b> this flat map is keyed by token string, so when the
+     * same token text occurs more than once in a generation (common for repeated words/punctuation)
+     * only the <em>last</em> occurrence's probability survives. Use {@link #parseLogprobs(JsonNode)}
+     * (an order-preserving list) when every per-token value matters.
+     *
      * @param root the top-level completion response node
      * @return map from token string to probability; empty when no probability data is present
      */

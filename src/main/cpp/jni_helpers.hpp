@@ -68,7 +68,11 @@ struct jllama_context {
     // Per-streaming-task response readers, keyed by task id.
     // Guarded by readers_mutex.
     std::mutex readers_mutex;
-    std::map<int, std::unique_ptr<server_response_reader>> readers;
+    // shared_ptr (not unique_ptr): the streaming receive paths copy the reader out under
+    // readers_mutex and then call next() *without* the lock, so a concurrent close()/erase
+    // that removes the map entry must not free a reader still in use — the receiver's copy
+    // keeps it alive until next() returns.
+    std::map<int, std::shared_ptr<server_response_reader>> readers;
 };
 
 // Removes the streaming reader entry for `id_task` under the readers_mutex.

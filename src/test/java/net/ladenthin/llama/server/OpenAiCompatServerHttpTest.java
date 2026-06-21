@@ -101,6 +101,20 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
     }
 
     @Test
+    public void oversizedRequestBodyRejectedWith413() throws IOException {
+        OpenAiServerConfig cfg = OpenAiServerConfig.builder()
+                .host("127.0.0.1")
+                .port(0)
+                .maxRequestBodyBytes(32)
+                .build();
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), cfg).start()) {
+            String body =
+                    "{\"messages\":[{\"role\":\"user\",\"content\":\"this body is well over thirty-two bytes\"}]}";
+            assertThat(post(server.getPort(), "/v1/chat/completions", body, "").code, is(413));
+        }
+    }
+
+    @Test
     public void infillRouteReturnsContent() throws IOException {
         try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
             String body = "{\"input_prefix\":\"def add(a,b):\\n    return \",\"input_suffix\":\"\"}";
