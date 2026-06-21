@@ -41,15 +41,18 @@ git commit -m "Upgrade CUDA from 13.2 to 13.3"
 ### Fast local CUDA builds (`CUDA_FAST_BUILD`) — single-arch speed knob
 
 The CUDA artifact must ship kernels for **every supported GPU generation**, so the default
-build — and every CI/release build — compiles the **full `CMAKE_CUDA_ARCHITECTURES` set** that
+build — and every CI build — compiles the **full `CMAKE_CUDA_ARCHITECTURES` set** that
 ggml/llama.cpp selects. nvcc recompiles each `.cu` kernel once per architecture, which is the
-dominant cost of the ~70 min CUDA job. **`sccache` does not help here:** it caches the gcc
-C/C++ TUs but not the nvcc `.cu` kernels (sccache's nvcc support is limited/experimental), so
-the per-arch nvcc passes remain even with the cache on. The one reliable lever to cut that time
-is to build **fewer architectures**.
+dominant cost of the ~70 min CUDA job. **`sccache` now wraps nvcc too:** `build.sh` adds
+`-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache` for CUDA builds (it detects `GGML_CUDA` in the cmake
+args), so the per-arch `.cu` device passes are cached over Depot alongside the gcc C/C++ TUs.
+Because the kernels are content-addressed and llama.cpp is pinned, a **warm** cache recompiles
+only what changed — so CI keeps the **full arch set on every run** (release-safe everywhere)
+and relies on the cache, not a reduced arch set, for speed. The first (cold-cache) run still
+pays the full nvcc cost; the win shows on subsequent warm runs.
 
-`build_cuda_linux.sh` therefore honors an **opt-in** env knob — default **off** (full arch set,
-release-safe):
+`CUDA_FAST_BUILD` remains as a **local-dev** single-arch knob (CI no longer sets it).
+`build_cuda_linux.sh` honors it — default **off** (full arch set, release-safe):
 
 ```bash
 # Full release build (default): all archs — slow, runs on every GPU generation.
@@ -65,17 +68,16 @@ CUDA_FAST_BUILD=1 CUDA_ARCH=90 .github/build_cuda_linux.sh "-DOS_NAME=Linux -DOS
 **Default + CI policy (release-safety is the invariant).** An artifact built with `CUDA_FAST_BUILD`
 runs on only the single GPU generation it was compiled for, so the **distributed jar must always be
 the full arch set**. The script default is **off** (full) so any *local/manual* build is
-release-safe. In CI (`publish.yml`, the `crosscompile-linux-x86_64-cuda` job) the flag is **on for
-validation runs** (PR / push / non-publish dispatch) to cut nvcc time, and **off only when actually
-publishing to Central** — it is wired as `CUDA_FAST_BUILD: ${{ inputs.publish_to_central && '0' || '1' }}`
-(`'0'`=full, `'1'`=fast). Because the `publish-snapshot`/`publish-release` jobs require
-`publish_to_central`, **every artifact that reaches Central is built with the full arch set** while
-ordinary PR/push CI stays fast. CI has no GPU, so the fast path pins a fixed `CUDA_ARCH` (default
-`120` — the newest CUDA 13.2 arch, sm_120 / consumer Blackwell — in the job env) — `native`
-would fail at configure. Both `CUDA_FAST_BUILD` and `CUDA_ARCH` are
-forwarded into the dockcross container via `DOCKCROSS_ARGS` `-e`. To cache the nvcc kernels too you
-would add `-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache` (gated behind the same probe), but sccache's nvcc
-caching is unreliable — the arch knob is the better lever and is what this repo ships.
+release-safe, and **CI no longer sets `CUDA_FAST_BUILD` at all** — the `crosscompile-linux-x86_64-cuda`
+job always builds the full set on PR / push / dispatch / publish, so every artifact (not just the ones
+that reach Central) runs on every GPU generation. The full-arch CI cost is absorbed by the
+sccache-over-Depot cache, which now wraps nvcc (`-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache`, added by
+`build.sh` for CUDA builds, gated behind the same probe). The launcher is safe to enable
+unconditionally: if sccache cannot wrap nvcc it runs it directly (uncached), and `build.sh`'s
+mid-build retry treats an sccache `Compiler not supported` failure like any other cache error and
+rebuilds the job without the launcher rather than redding it. **Verify it works:** the premise
+(sccache producing nvcc cache hits inside the manylinux_2_28 container) is proven only by a **warm**
+run — check `sccache --show-stats` shows CUDA hits on the second build before trusting the speedup.
 
 ## Android minimum API level
 
@@ -321,10 +323,14 @@ v0.16.0 + the probe this is no longer a risk.) Job-by-job status:
    **v0.16.0** probe passed in-container (devtoolset-10 gcc), `sccache ON` over Depot WebDAV,
    warm cache 277/278 hits (99.64%), 1m46s build time.
 2. `crosscompile-linux-x86_64-cuda` (via `build_cuda_linux.sh`, which execs `build.sh`) —
-   🚧 **first run in progress** (diagnostics on). Only the gcc C/C++ TUs cache (134 model files
-   + ggml + httplib); the nvcc `.cu` kernels won't (limited sccache nvcc support) — still a
-   large partial win on the ~70 min full-arch job; the fast single-arch (sm_120) validation path
-   cuts nvcc time independently of sccache.
+   🚧 **nvcc caching enabled, full-arch always** (diagnostics on). `build.sh` now also wraps nvcc
+   (`-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache`, scoped to CUDA builds), so both the gcc C/C++ TUs
+   (134 model files + ggml + httplib) **and** the per-arch `.cu` device passes cache over Depot.
+   CI dropped the single-arch validation shortcut (`CUDA_FAST_BUILD`/`CUDA_ARCH` removed from the
+   job) — every run builds the full arch set and leans on the warm cache for speed. **Unverified
+   until a warm run:** confirm `sccache --show-stats` reports CUDA hits on the second build; if
+   nvcc caching proves weak in this container, the cold-vs-warm delta will be small and the job
+   stays ~70 min (the mid-build retry guards against an nvcc-hostile sccache redding the build).
 3. `crosscompile-linux-aarch64` — ✅ **enabled**, now a **native `ubuntu-24.04-arm` build** (not
    dockcross): `build.sh` self-fetches the aarch64 static-musl sccache (the fetch block in
    `build.sh` maps `uname -m` → `x86_64`/`aarch64`) and the probe guards it. See "Linux aarch64:

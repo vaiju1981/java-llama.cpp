@@ -216,7 +216,7 @@ public final class InferenceParameters extends JsonParameters {
      */
     public InferenceParameters withCacheReuse(int cacheReuse) {
         if (cacheReuse < 0) {
-            throw new IllegalArgumentException("cacheReuse must be non-negative");
+            throw new IllegalArgumentException("cacheReuse must be non-negative but was " + cacheReuse);
         }
         return withScalar(PARAM_CACHE_REUSE, cacheReuse);
     }
@@ -231,7 +231,7 @@ public final class InferenceParameters extends JsonParameters {
      */
     public InferenceParameters withSlotId(int slotId) {
         if (slotId < 0) {
-            throw new IllegalArgumentException("slotId must be non-negative");
+            throw new IllegalArgumentException("slotId must be non-negative but was " + slotId);
         }
         return withScalar(PARAM_SLOT_ID, slotId);
     }
