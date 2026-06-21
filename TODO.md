@@ -119,13 +119,25 @@ primary goal: agentic tool-calling with Qwen):
 
 **Open follow-ups (deferred):**
 
-- **Streaming raw-completion path (the shared blocker).** A new native streaming method
-  (`requestCompletionStream` alongside the existing chat one) is needed before these can be done
-  token-incrementally: (a) **streaming `/v1/completions`**, (b) **token-streaming `/api/generate`**
-  (today it computes the full text then emits one NDJSON content line), and (c) **Continue's native
-  `llama.cpp` provider** which streams `POST /completion` in the native (non-OAI) shape. Until then these
-  either run non-streaming or emit a single content chunk. JNI + C++ work; the agentic-chat goal does
-  not need it.
+- **Streaming raw-completion path — IN PROGRESS (no new native method needed).** The earlier premise was
+  wrong: a streaming raw-completion JNI path **already exists** (`requestCompletion`/`receiveCompletionJson`,
+  exposed as `LlamaModel.generate(InferenceParameters) → LlamaIterable`), so this is **Java-only server
+  wiring**, not JNI/C++. Progress: **(a) streaming `POST /v1/completions` — DONE** (`OpenAiRequestMapper`
+  `toCompletionParameters` + `OpenAiBackend.streamCompletions` driving `generate()` + an
+  `OpenAiSseFormatter.completionChunk` `text_completion` chunk + the `streamCompletions` SSE handler;
+  HTTP test green). **Remaining:** (b) **token-streaming Ollama `/api/generate`** (translate the
+  `text_completion` chunks to NDJSON, mirroring the chat→Ollama translator) and (c) **Continue's native
+  `POST /completion`** route in the llama.cpp-native streaming shape (`{"content":…,"stop":…}` per chunk).
+- **Future *output* modalities (audio / image) — design note, not yet actionable.** llama.cpp's server
+  produces **text** (plus embeddings/rerank); it does **not** generate images or audio output, so there is
+  no engine behind a TTS/image-gen response today and building that API surface now would be dead code.
+  When/if it becomes real, the integration points are already isolated: a new `OpenAiBackend.stream*`
+  primitive + an `OpenAiSseFormatter.*Chunk` formatter per modality, wired into a per-route handler — the
+  exact shape the text `streamCompletions` path now establishes. Two concrete future hooks: (1) llama.cpp's
+  **OuteTTS** audio path (if it lands in the embedded server) → an `/v1/audio/speech`-style route emitting
+  audio chunks; (2) routing image/audio generation to an **external** model behind the same server (the
+  binding would proxy, not generate). Keep `LlamaOutput`/chunk formatters modality-neutral so neither
+  requires reworking the streaming core.
 - **Incremental tool-call streaming on the alternative surfaces.** Ollama/Anthropic/Responses emit each
   tool call *whole* at end-of-stream (reconstructed by `ToolCallDeltaAccumulator`) rather than streaming
   argument fragments. Fine for clients that apply tool calls after generation; revisit if a client needs

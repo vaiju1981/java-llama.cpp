@@ -63,6 +63,20 @@ interface OpenAiBackend {
     String completions(JsonNode request) throws IOException;
 
     /**
+     * Run a <em>streaming</em> text completion ({@code POST /v1/completions} with {@code stream:true}),
+     * delivering each OpenAI {@code text_completion} chunk to {@code sink} in order. Implementations must
+     * not emit the terminating {@code [DONE]} marker; the caller adds it. The default throws
+     * {@link UnsupportedOperationException}; backends that support streaming completions override it.
+     *
+     * @param request the parsed OpenAI {@code /v1/completions} request (must contain {@code "prompt"})
+     * @param sink receiver for each streamed chunk's JSON
+     * @throws IOException if a chunk cannot be delivered or generation fails
+     */
+    default void streamCompletions(JsonNode request, ChunkSink sink) throws IOException {
+        throw new UnsupportedOperationException("streaming /v1/completions is not supported by this backend");
+    }
+
+    /**
      * Generate embeddings ({@code POST /v1/embeddings}). Requires the model to have been loaded in
      * embedding mode; otherwise the native call fails and the caller surfaces a server error.
      *

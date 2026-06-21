@@ -55,6 +55,18 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
     }
 
     @Test
+    public void streamingCompletionsReturnsTextCompletionChunksThenDone() throws IOException {
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeBackend(), config()).start()) {
+            String body = "{\"stream\":true,\"prompt\":\"hi\"}";
+            Response response = post(server.getPort(), "/v1/completions", body, "");
+            assertThat(response.code, is(200));
+            assertThat(response.body, containsString("data: "));
+            assertThat(response.body, containsString("text_completion"));
+            assertThat(response.body, containsString("data: [DONE]"));
+        }
+    }
+
+    @Test
     public void streamingEmitsHeartbeatsDuringAGap() throws IOException {
         OpenAiServerConfig cfg = OpenAiServerConfig.builder()
                 .host("127.0.0.1")
@@ -455,6 +467,12 @@ public class OpenAiCompatServerHttpTest extends OpenAiServerTestSupport {
         @Override
         public String completions(JsonNode request) {
             return "{\"object\":\"text_completion\",\"choices\":[{\"text\":\"hello\"}]}";
+        }
+
+        @Override
+        public void streamCompletions(JsonNode request, ChunkSink sink) throws IOException {
+            sink.accept("{\"object\":\"text_completion\",\"choices\":[{\"text\":\"he\",\"finish_reason\":null}]}");
+            sink.accept("{\"object\":\"text_completion\",\"choices\":[{\"text\":\"llo\",\"finish_reason\":\"stop\"}]}");
         }
 
         @Override
