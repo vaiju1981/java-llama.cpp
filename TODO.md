@@ -21,9 +21,9 @@ session PRs) surfaced the items below. None are regressions from recent work. Th
 Items marked **✓ verified** were re-confirmed by reading the cited code directly; the rest were
 read-confirmed by the audit but warrant a quick re-check before the fix.
 
-**Progress (`feature/todo_fixes`):** Tier 1 (N1, N2, J1, P1) **DONE**, plus Tier 2 quick wins
-N4 and J3 **DONE** — verified (452/452 C++ tests, affected Java tests + a new metrics-overflow
-regression, Spotless + clang-format 22.1.5 clean). Remaining: Tier 2 (S1, N3, J5) and all of Tier 3.
+**Progress (`feature/todo_fixes`):** Tier 1 (N1, N2, J1, P1) **DONE** and Tier 2 (N3, N4, S1, J3, J5)
+**DONE** — verified (452/452 C++ tests, affected Java tests + new regressions, Javadoc + Spotless +
+clang-format 22.1.5 clean). Remaining: all of Tier 3.
 
 **Tier 1 — high impact, fix first**
 

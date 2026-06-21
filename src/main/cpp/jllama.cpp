@@ -819,7 +819,9 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveCompletionJ
                                                                                     jint id_task) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
-    server_response_reader *rd;
+    // Copy the shared_ptr out under the lock so the reader stays alive across next() below,
+    // which runs without the lock and may race a concurrent erase_reader()/close().
+    std::shared_ptr<server_response_reader> rd;
     {
         std::lock_guard<std::mutex> lk(jctx->readers_mutex);
         auto it = jctx->readers.find(id_task);
@@ -827,7 +829,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveCompletionJ
             env->ThrowNew(c_llama_error, "Task not found");
             return nullptr;
         }
-        rd = it->second.get();
+        rd = it->second;
     }
 
     // Upstream b9437 added is_begin partial results whose to_json() returns
@@ -867,7 +869,9 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveChatComplet
                                                                                          jint id_task) {
     REQUIRE_SERVER_CONTEXT(nullptr);
 
-    server_response_reader *rd;
+    // Copy the shared_ptr out under the lock so the reader stays alive across next() below,
+    // which runs without the lock and may race a concurrent erase_reader()/close().
+    std::shared_ptr<server_response_reader> rd;
     {
         std::lock_guard<std::mutex> lk(jctx->readers_mutex);
         auto it = jctx->readers.find(id_task);
@@ -875,7 +879,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveChatComplet
             env->ThrowNew(c_llama_error, "Task not found");
             return nullptr;
         }
-        rd = it->second.get();
+        rd = it->second;
     }
 
     json payload;

@@ -42,6 +42,9 @@ public final class OpenAiServerConfig {
      */
     public static final String DEFAULT_CORS_ALLOW_ORIGIN = "*";
 
+    /** Default maximum accepted request-body size, in bytes (16 MiB). */
+    public static final int DEFAULT_MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024;
+
     private final String host;
     private final int port;
     private final @Nullable String apiKey;
@@ -51,6 +54,7 @@ public final class OpenAiServerConfig {
     private final long heartbeatMillis;
     private final String corsAllowOrigin;
     private final boolean supportsVision;
+    private final int maxRequestBodyBytes;
 
     private OpenAiServerConfig(Builder builder) {
         this.host = builder.host;
@@ -62,6 +66,7 @@ public final class OpenAiServerConfig {
         this.heartbeatMillis = builder.heartbeatMillis;
         this.corsAllowOrigin = builder.corsAllowOrigin;
         this.supportsVision = builder.supportsVision;
+        this.maxRequestBodyBytes = builder.maxRequestBodyBytes;
     }
 
     /**
@@ -146,6 +151,15 @@ public final class OpenAiServerConfig {
     }
 
     /**
+     * Maximum accepted request-body size, in bytes. Bodies larger than this are rejected with HTTP 413.
+     *
+     * @return the request-body cap in bytes
+     */
+    public int getMaxRequestBodyBytes() {
+        return maxRequestBodyBytes;
+    }
+
+    /**
      * Whether the served model supports image input (a multimodal projector was configured). Advertised
      * to clients that gate on a vision capability (e.g. Copilot's Ollama provider via {@code /api/show}).
      *
@@ -202,6 +216,7 @@ public final class OpenAiServerConfig {
         private long heartbeatMillis = DEFAULT_HEARTBEAT_MILLIS;
         private String corsAllowOrigin = DEFAULT_CORS_ALLOW_ORIGIN;
         private boolean supportsVision;
+        private int maxRequestBodyBytes = DEFAULT_MAX_REQUEST_BODY_BYTES;
 
         private Builder() {}
 
@@ -301,6 +316,18 @@ public final class OpenAiServerConfig {
          */
         public Builder supportsVision(boolean supportsVision) {
             this.supportsVision = supportsVision;
+            return this;
+        }
+
+        /**
+         * Sets the maximum accepted request-body size in bytes. Bodies larger than this are rejected
+         * with HTTP 413 before being buffered.
+         *
+         * @param maxRequestBodyBytes the request-body cap in bytes
+         * @return this builder
+         */
+        public Builder maxRequestBodyBytes(int maxRequestBodyBytes) {
+            this.maxRequestBodyBytes = maxRequestBodyBytes;
             return this;
         }
 

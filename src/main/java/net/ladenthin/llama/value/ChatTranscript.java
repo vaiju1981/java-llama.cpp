@@ -107,6 +107,21 @@ public final class ChatTranscript {
     }
 
     /**
+     * Remove a trailing dangling user turn (one not yet completed by an assistant
+     * reply), undoing an {@link #appendUserTurn(String)}. Used to roll back an
+     * abandoned streaming round so the transcript returns to its pre-stream state.
+     *
+     * @return {@code true} if a dangling user turn was removed, {@code false} if there was none
+     */
+    public boolean removePendingUserTurn() {
+        if (!turns.isEmpty() && "user".equals(turns.get(turns.size() - 1).getKey())) {
+            turns.remove(turns.size() - 1);
+            return true;
+        }
+        return false;
+    }
+
+    /**
      * Build the wire-format messages list with a pending user turn appended,
      * <b>without mutating</b> this transcript. This is the snapshot a model
      * call receives before the user turn is committed; if the model call

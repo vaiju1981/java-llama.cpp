@@ -134,6 +134,21 @@ public final class SessionState {
     }
 
     /**
+     * Abandon an in-progress streaming round without recording an assistant reply: clears the
+     * streaming flag and rolls back the pending user turn, returning the state to its pre-stream
+     * shape. Safe to call when no stream is active (no-op), so it can run in a {@code finally}
+     * block to guarantee the session never stays wedged after an abandoned or failed stream.
+     */
+    public void cancelStream() {
+        synchronized (lock) {
+            if (streamingActive) {
+                transcript.removePendingUserTurn();
+                streamingActive = false;
+            }
+        }
+    }
+
+    /**
      * Run an action under the lock, but only when no stream is in progress
      * (used for slot save/restore, which must not race a streaming round).
      *
