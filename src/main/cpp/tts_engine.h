@@ -2,10 +2,9 @@
 //
 // SPDX-License-Identifier: MIT
 //
-// Native text-to-speech engine: a self-contained orchestration of llama.cpp's two-model OuteTTS
-// pipeline (TTC OuteTTS LLM -> audio codec tokens; CTS WavTokenizer vocoder -> embeddings ->
-// embd_to_audio -> 16-bit WAV). Adapted from the standalone tools/tts/tts.cpp `main()`, restricted
-// to a single stream (n_parallel = 1). Kept out of jllama.cpp so the JNI layer stays thin.
+// Native text-to-speech engine: a self-contained orchestration of the two-model OuteTTS pipeline
+// (TTC OuteTTS LLM -> audio codec tokens; CTS WavTokenizer vocoder -> embeddings -> embd_to_audio ->
+// 16-bit WAV), single-stream (n_parallel = 1). Kept out of jllama.cpp so the JNI layer stays thin.
 
 #ifndef JLLAMA_TTS_ENGINE_H
 #define JLLAMA_TTS_ENGINE_H

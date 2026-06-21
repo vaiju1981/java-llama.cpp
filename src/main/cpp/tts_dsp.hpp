@@ -1,14 +1,10 @@
 // SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
-// SPDX-FileCopyrightText: 2023-2025 The llama.cpp authors
 //
 // SPDX-License-Identifier: MIT
 //
-// Text-to-speech output DSP, vendored from llama.cpp tools/tts/tts.cpp (the standalone
-// `llama-tts` CLI, which is not built as a library). These functions are pure signal
-// processing — no llama / ggml / JNI state — so they live in a header-only helper that the
-// JNI bridge and the C++ unit tests can both include. Kept byte-faithful to upstream so a
-// llama.cpp version bump is a mechanical re-sync; only `save_wav16` (file write) is replaced
-// by `pcm_to_wav16_bytes` (in-memory), since the JNI layer returns WAV bytes to Java.
+// Text-to-speech output DSP for the OuteTTS pipeline: pure signal processing (no llama / ggml /
+// JNI state), so it lives in a header-only helper that the JNI bridge and the C++ unit tests can
+// both include. `pcm_to_wav16_bytes` returns WAV bytes in-memory (the JNI layer hands them to Java).
 
 #ifndef JLLAMA_TTS_DSP_HPP
 #define JLLAMA_TTS_DSP_HPP
@@ -24,7 +20,7 @@
 
 namespace jllama_tts {
 
-// --- vendored verbatim from tts.cpp (fill_hann_window/twiddle/irfft/fold/embd_to_audio) ---
+// --- spectral synthesis: fill_hann_window / twiddle / irfft / fold / embd_to_audio ---
 
 inline void fill_hann_window(int length, bool periodic, float *output) {
     int offset = -1;
@@ -179,10 +175,10 @@ inline std::vector<float> embd_to_audio(const float *embd, const int n_codes, co
     return audio;
 }
 
-// --- in-memory replacement for tts.cpp's file-writing save_wav16 ---
+// --- in-memory 16-bit WAV writer ---
 
-// Encode float PCM samples (range ~[-1, 1]) as a 16-bit mono WAV byte stream. Mirrors the
-// header layout and clamping of tts.cpp's save_wav16, but returns bytes instead of writing a file.
+// Encode float PCM samples (range ~[-1, 1]) as a 16-bit mono WAV byte stream (returned, not
+// written to a file).
 inline std::vector<uint8_t> pcm_to_wav16_bytes(const std::vector<float> &data, int sample_rate) {
     const uint16_t num_channels = 1;
     const uint16_t bits_per_sample = 16;

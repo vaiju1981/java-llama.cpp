@@ -1,17 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
-// SPDX-FileCopyrightText: 2023-2025 The llama.cpp authors
 //
 // SPDX-License-Identifier: MIT
 //
-// Native OuteTTS pipeline, adapted from llama.cpp tools/tts/tts.cpp main() and restricted to a
-// single stream (n_parallel = 1) with the built-in default speaker. The OuteTTS prompt helpers
-// (process_text / prompt_* / prepare_guide_tokens / get_tts_version) and the default speaker
-// strings are vendored byte-faithfully so a llama.cpp bump is a mechanical re-sync. The audio
-// synthesis DSP lives in tts_dsp.hpp.
+// Native OuteTTS text-to-speech pipeline, single-stream (n_parallel = 1) with the built-in default
+// speaker. Loads the TTC (OuteTTS) and CTS (WavTokenizer vocoder) models, builds the OuteTTS prompt,
+// generates audio codes, runs the vocoder, and turns the result into a 16-bit WAV (DSP in tts_dsp.hpp).
 //
-// Known simplification vs upstream: replace_numbers_with_words is a pass-through, so numeric digits
-// in the input are dropped by the alpha-only filter (the same place upstream notes it skips text
-// romanization). Spell numbers out in the caller for now.
+// Known simplification: replace_numbers_with_words is a pass-through, so numeric digits in the input
+// are dropped by the alpha-only filter. Spell numbers out in the caller for now.
 
 #include "tts_engine.h"
 
@@ -32,7 +28,7 @@ namespace {
 
 enum outetts_version { OUTETTS_V0_2, OUTETTS_V0_3 };
 
-// --- OuteTTS prompt helpers, vendored from tts.cpp ---
+// --- OuteTTS prompt helpers ---
 
 std::string process_text(const std::string &text, const outetts_version tts_version) {
     // NOTE: number-to-words and non-English romanization are not ported (see file header).
@@ -100,7 +96,7 @@ outetts_version get_tts_version(llama_model *model) {
     return OUTETTS_V0_2;
 }
 
-// Default speaker profile (OuteTTS en_male_1), vendored from tts.cpp.
+// Default OuteTTS speaker profile (en_male_1).
 const char *default_audio_text() {
     return "<|text_start|>the<|text_sep|>overall<|text_sep|>package<|text_sep|>from<|text_sep|>just<|text_sep|>two<|"
            "text_sep|>people<|text_sep|>is<|text_sep|>pretty<|text_sep|>remarkable<|text_sep|>sure<|text_sep|>i<|"
@@ -311,7 +307,7 @@ bool engine_synthesize(tts_engine *engine, const std::string &text, int n_predic
     std::vector<float> audio = embd_to_audio(embd, n_codes, n_embd, engine->n_threads);
     llama_batch_free(cts_batch);
 
-    // Zero the first 0.25 s (matches upstream; suppresses a leading click).
+    // Zero the first 0.25 s (suppresses a leading click).
     const int n_sr = 24000;
     for (int i = 0; i < n_sr / 4 && i < (int)audio.size(); ++i) {
         audio[i] = 0.0f;
