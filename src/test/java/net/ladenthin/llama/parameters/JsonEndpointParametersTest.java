@@ -8,6 +8,7 @@ package net.ladenthin.llama.parameters;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -15,6 +16,7 @@ import java.io.File;
 import net.ladenthin.llama.ClaudeGenerated;
 import net.ladenthin.llama.LlamaModel;
 import net.ladenthin.llama.TestConstants;
+import net.ladenthin.llama.value.CompletionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
@@ -60,6 +62,7 @@ public class JsonEndpointParametersTest {
         model = new LlamaModel(new ModelParameters()
                 .setCtxSize(256)
                 .setModel(TestConstants.MODEL_PATH)
+                .setParallel(2)
                 .setGpuLayers(gpuLayers)
                 .setFit(false));
     }
@@ -245,11 +248,24 @@ public class JsonEndpointParametersTest {
 
     @Test
     public void testIdSlotSelection() {
-        String json = "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT + DETERMINISTIC + ",\"id_slot\":0}";
+        String json = "{\"prompt\":\"" + PROMPT + "\",\"n_predict\":" + N_PREDICT + DETERMINISTIC + ",\"id_slot\":1}";
         String result = model.handleCompletions(json);
         assertThat(result, is(notNullValue()));
         assertThat(result, containsString("\"content\""));
-        assertThat("Response should contain 'id_slot' field", result, containsString("\"id_slot\""));
+        assertThat("Response must identify the requested slot", result, containsString("\"id_slot\":1"));
+    }
+
+    @Test
+    public void testTypedSlotSelection() {
+        InferenceParameters params = InferenceParameters.of(PROMPT)
+                .withSlotId(1)
+                .withNPredict(N_PREDICT)
+                .withTemperature(0.0f)
+                .withSeed(42);
+        model.completeWithStats(params); // warm the selected slot's prompt cache
+        CompletionResult result = model.completeWithStats(params);
+        assertThat(result.getRawJson(), containsString("\"id_slot\":1"));
+        assertThat("repeated prompt must expose a cache hit", result.getUsage().getCachedTokens(), greaterThan(0L));
     }
 
     // -------------------------------------------------------------------------

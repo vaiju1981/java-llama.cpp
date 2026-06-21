@@ -150,9 +150,14 @@ public class ChatResponseParser {
             JsonNode node = OBJECT_MAPPER.readTree(json);
             String id = node.path("id").asText("");
             List<ChatChoice> choices = parseChoices(node.path("choices"));
+            JsonNode usageNode = node.path("usage");
             Usage usage = new Usage(
-                    node.path("usage").path("prompt_tokens").asLong(0L),
-                    node.path("usage").path("completion_tokens").asLong(0L));
+                    usageNode.path("prompt_tokens").asLong(0L),
+                    usageNode.path("completion_tokens").asLong(0L),
+                    usageNode
+                            .path("prompt_tokens_details")
+                            .path("cached_tokens")
+                            .asLong(0L));
             Timings timings = Timings.fromJson(node.path("timings"));
             TimingsLogger.log(timings);
             return new ChatResponse(id, choices, usage, timings, json);

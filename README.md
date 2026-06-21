@@ -473,6 +473,23 @@ a JSON response, matching the HTTP server's contract:
 Server state is exposed via `getMetrics()`, `eraseSlot(int)`, `saveSlot(int, String)`,
 `restoreSlot(int, String)`, and `getModelMeta()`.
 
+### Prompt and KV Cache Reuse
+
+Prompt-prefix reuse is enabled by default in llama.cpp and can be controlled per request with
+`InferenceParameters.withCachePrompt(boolean)`. `withCacheReuse(int)` enables non-prefix chunk reuse,
+while `withSlotId(int)` pins a request to a specific server slot. `Session` applies its slot id to every
+request, so generation and `save`/`restore` operate on the same KV state.
+
+Typed results expose logical prompt, generated, cached prompt, and evaluated prompt counts through
+`Usage`. Per-request timing also remains available through `Timings.getCacheN()`.
+`LlamaModel.getMetricsTyped().getSlotMetrics()` reports each slot's logical, processed, cached,
+decoded, and remaining token counts.
+
+The embedded HTTP server exposes the same native JSON at authenticated `GET /metrics`, with the slot
+array alone at `GET /slots`. OpenAI responses preserve
+`usage.prompt_tokens_details.cached_tokens`; Responses API output uses
+`usage.input_tokens_details.cached_tokens`; Anthropic output uses `cache_read_input_tokens`.
+
 ### OpenAI-compatible HTTP server
 
 `net.ladenthin.llama.server.OpenAiCompatServer` turns a loaded model into a local
@@ -488,6 +505,8 @@ serves:
 | `POST /v1/rerank` (requires `--reranking`) | `LlamaModel.handleRerank` (reshaped to `results`/`data`) |
 | `POST /infill` | `LlamaModel.handleInfill` (fill-in-the-middle autocomplete) |
 | `GET /v1/models` | the configured model id |
+| `GET /metrics` | native server and per-slot token/cache counters (JSON) |
+| `GET /slots` | native per-slot token/cache counters (JSON array) |
 | `GET /health` | static `{"status":"ok"}` (unauthenticated) |
 
 Chat completions support **streaming via Server-Sent Events** and non-streaming, forwarding

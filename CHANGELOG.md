@@ -17,6 +17,9 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 - Real-model tool-calling integration tests for blocking and streaming required tool calls (`ToolCallingIntegrationTest`, Qwen2.5-1.5B-Instruct), wired into CI and `validate-models`.
 - End-to-end vision input across blocking, typed `ChatRequest`, streaming, and OpenAI-compatible request mapping; real-model tests verify that distinct red and blue images produce the correct semantic answers.
 - Explicit `setMmprojAuto(boolean)` and `setMmprojOffload(boolean)` controls, including the upstream `--no-mmproj-auto` and `--no-mmproj-offload` flags.
+- Per-request KV controls: `InferenceParameters.withSlotId(int)` and `withCacheReuse(int)`.
+- Typed cache observability through `Usage.getCachedTokens()`, `Usage.getProcessedPromptTokens()`, `SlotMetrics`, and `ServerMetrics.getSlotMetrics()`.
+- Authenticated JSON `GET /metrics` and `GET /slots` endpoints on the embedded server.
 
 ### Changed
 - Unified `CONTRIBUTING.md` and `SECURITY.md` structure with sibling repositories in the project family.
@@ -30,6 +33,8 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 - Preserved decoded image buffers across the JNI chat boundary and submitted media requests through llama.cpp's upstream multimodal task path instead of silently tokenizing them as text-only prompts.
 - Preserved multipart image content when using the typed `ChatRequest` serializer.
 - The standalone OpenAI-compatible server now advertises vision only when the loaded model confirms usable vision support.
+- `Session` now pins every inference request to its configured slot, so generation and slot save/restore/erase target the same KV state.
+- Cached-token usage is preserved through typed Java responses and OpenAI Responses/Anthropic blocking and streaming adapters.
 
 ### Added
 - Reasoning-budget tests (Qwen3-0.6B).

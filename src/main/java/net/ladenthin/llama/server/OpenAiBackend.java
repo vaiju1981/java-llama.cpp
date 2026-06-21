@@ -23,6 +23,17 @@ import java.io.IOException;
 interface OpenAiBackend {
 
     /**
+     * Return llama.cpp server metrics, including per-slot cache counters.
+     * Test backends may rely on the empty default.
+     *
+     * @return metrics JSON
+     * @throws IOException if metrics cannot be read
+     */
+    default String metrics() throws IOException {
+        return "{\"slots\":[]}";
+    }
+
+    /**
      * Run a non-streaming chat completion ({@code POST /v1/chat/completions}).
      *
      * @param request the parsed OpenAI {@code /v1/chat/completions} request

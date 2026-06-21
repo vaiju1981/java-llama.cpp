@@ -48,6 +48,20 @@ final class OpenAiRequestMapper {
                 .withMessagesJson(messages.toString())
                 .withCachePrompt(true);
 
+        // Preserve llama.cpp extensions when advanced clients opt into them.
+        JsonNode cachePrompt = request.path("cache_prompt");
+        if (cachePrompt.isBoolean()) {
+            params = params.withCachePrompt(cachePrompt.asBoolean());
+        }
+        JsonNode cacheReuse = request.path("n_cache_reuse");
+        if (cacheReuse.isIntegralNumber()) {
+            params = params.withCacheReuse(cacheReuse.asInt());
+        }
+        JsonNode slotId = request.path("id_slot");
+        if (slotId.isIntegralNumber()) {
+            params = params.withSlotId(slotId.asInt());
+        }
+
         JsonNode tools = request.path("tools");
         if (tools.isArray() && tools.size() > 0) {
             params = params.withToolsJson(tools.toString()).withUseChatTemplate(true);

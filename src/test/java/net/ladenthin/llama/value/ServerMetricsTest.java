@@ -28,7 +28,10 @@ public class ServerMetricsTest {
             + "\"n_prompt_tokens_processed\":10,\"t_prompt_processing\":5,"
             + "\"n_tokens_predicted\":20,\"t_tokens_generation\":8,"
             + "\"n_decode_total\":300,\"n_busy_slots_total\":4,\"n_tokens_max\":4096,"
-            + "\"slots\":[{\"id\":0},{\"id\":1}]}";
+            + "\"slots\":[{\"id\":0,\"n_ctx\":4096,\"is_processing\":true,"
+            + "\"n_prompt_tokens\":100,\"n_prompt_tokens_processed\":20,"
+            + "\"n_prompt_tokens_cache\":80,\"next_token\":{\"n_decoded\":7,\"n_remain\":9}},"
+            + "{\"id\":1}]}";
 
     @Test
     public void slotCountsAndTimestamp() throws Exception {
@@ -54,6 +57,8 @@ public class ServerMetricsTest {
         assertEquals(100L, u.getPromptTokens());
         assertEquals(200L, u.getCompletionTokens());
         assertEquals(300L, u.getTotalTokens());
+        assertEquals(100L, m.getCumulativeProcessedPromptTokens());
+        assertEquals(200L, m.getCumulativeGeneratedTokens());
     }
 
     @Test
@@ -62,6 +67,7 @@ public class ServerMetricsTest {
         Usage u = m.getWindowUsage();
         assertEquals(10L, u.getPromptTokens());
         assertEquals(20L, u.getCompletionTokens());
+        assertEquals(10L, m.getWindowProcessedPromptTokens());
     }
 
     @Test
@@ -87,6 +93,23 @@ public class ServerMetricsTest {
         ServerMetrics m = parse(SAMPLE);
         assertTrue(m.getSlots().isArray());
         assertEquals(2, m.getSlots().size());
+    }
+
+    @Test
+    public void typedSlotMetricsExposeCacheCounts() throws Exception {
+        ServerMetrics m = parse(SAMPLE);
+        assertEquals(2, m.getSlotMetrics().size());
+        SlotMetrics slot = m.getSlotMetrics().get(0);
+        assertEquals(0, slot.getId());
+        assertEquals(4096, slot.getContextSize());
+        assertTrue(slot.isProcessing());
+        assertEquals(100L, slot.getPromptTokens());
+        assertEquals(20L, slot.getProcessedPromptTokens());
+        assertEquals(80L, slot.getCachedPromptTokens());
+        assertEquals(7L, slot.getDecodedTokens());
+        assertEquals(9L, slot.getRemainingTokens());
+        assertEquals(0, slot.asJson().path("id").asInt());
+        assertTrue(slot.toString().contains("n_prompt_tokens_cache"));
     }
 
     @Test

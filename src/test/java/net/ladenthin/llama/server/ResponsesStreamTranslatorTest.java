@@ -42,12 +42,17 @@ public class ResponsesStreamTranslatorTest {
     public void endEmitsDoneEventsAndCompleted() {
         ResponsesStreamTranslator translator = new ResponsesStreamTranslator("m", "resp_1");
         translator.onChunk("{\"choices\":[{\"delta\":{\"content\":\"hi\"},\"finish_reason\":\"stop\"}]}");
+        translator.onChunk("{\"choices\":[],\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":3,"
+                + "\"prompt_tokens_details\":{\"cached_tokens\":8}}}");
         String end = translator.end();
         assertThat(end, containsString("event: response.output_text.done"));
         assertThat(end, containsString("event: response.content_part.done"));
         assertThat(end, containsString("event: response.output_item.done"));
         assertThat(end, containsString("event: response.completed"));
         assertThat(end, containsString("\"text\":\"hi\""));
+        assertThat(end, containsString("\"input_tokens\":12"));
+        assertThat(end, containsString("\"output_tokens\":3"));
+        assertThat(end, containsString("\"cached_tokens\":8"));
     }
 
     @Test

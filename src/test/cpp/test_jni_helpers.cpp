@@ -14,7 +14,8 @@
 //   get_jllama_context_impl, require_json_field_impl, jint_array_to_tokens_impl
 //
 // Layer B tests (need upstream server headers + mock JNIEnv):
-//   configure_multimodal_task_impl, json_to_jstring_impl, results_to_jstring_impl,
+//   configure_multimodal_task_impl, configure_task_slot_impl,
+//   json_to_jstring_impl, results_to_jstring_impl,
 //   embedding_to_jfloat_array_impl, tokens_to_jint_array_impl
 //
 // JNIEnv is mocked via a zero-filled JNINativeInterface_ table with only the
@@ -616,4 +617,16 @@ TEST(ConfigureMultimodalTask, NonStringPromptThrows) {
     server_task task(SERVER_TASK_TYPE_COMPLETION);
     EXPECT_THROW((void)configure_multimodal_task_impl(task, true, {{"prompt", json::array({1, 2})}}, {{0x01}}),
                  std::invalid_argument);
+}
+
+TEST(ConfigureTaskSlot, MissingIdUsesAutomaticSelection) {
+    server_task task(SERVER_TASK_TYPE_COMPLETION);
+    configure_task_slot_impl(task, json::object());
+    EXPECT_EQ(task.id_slot, -1);
+}
+
+TEST(ConfigureTaskSlot, ExplicitIdPinsTask) {
+    server_task task(SERVER_TASK_TYPE_COMPLETION);
+    configure_task_slot_impl(task, {{"id_slot", 3}});
+    EXPECT_EQ(task.id_slot, 3);
 }

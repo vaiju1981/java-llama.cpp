@@ -185,7 +185,14 @@ public final class Session implements AutoCloseable {
      * @return inference parameters carrying the system message + wire messages
      */
     private InferenceParameters buildParams(@Nullable String systemMessage, List<Pair<String, String>> wireMessages) {
-        InferenceParameters params = InferenceParameters.empty().withMessages(systemMessage, wireMessages);
-        return paramsCustomizer == null ? params : paramsCustomizer.apply(params);
+        InferenceParameters params = InferenceParameters.empty()
+                .withMessages(systemMessage, wireMessages)
+                .withCachePrompt(true);
+        if (paramsCustomizer != null) {
+            params = paramsCustomizer.apply(params);
+        }
+        // Apply last: a Session must never drift away from the slot used by
+        // save(), restore(), and close(), even if a customizer supplies another id.
+        return params.withSlotId(slotId);
     }
 }

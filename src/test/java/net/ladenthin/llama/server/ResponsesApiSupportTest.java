@@ -96,7 +96,8 @@ public class ResponsesApiSupportTest {
     @Test
     public void responseWrapsOutputMessageWithOutputTextAndUsage() throws IOException {
         String openAi = "{\"choices\":[{\"message\":{\"role\":\"assistant\",\"content\":\"hello\"},"
-                + "\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":1}}";
+                + "\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":1,"
+                + "\"prompt_tokens_details\":{\"cached_tokens\":3}}}";
         JsonNode out = read(ResponsesApiSupport.toResponsesResponse(openAi, "m", "resp_1"));
         assertThat(out.path("object").asText(), is("response"));
         assertThat(out.path("status").asText(), is("completed"));
@@ -106,6 +107,12 @@ public class ResponsesApiSupportTest {
         assertThat(messageItem.path("content").get(0).path("text").asText(), is("hello"));
         assertThat(out.path("usage").path("input_tokens").asInt(), is(4));
         assertThat(out.path("usage").path("total_tokens").asInt(), is(5));
+        assertThat(
+                out.path("usage")
+                        .path("input_tokens_details")
+                        .path("cached_tokens")
+                        .asInt(),
+                is(3));
     }
 
     @Test

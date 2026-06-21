@@ -5,6 +5,9 @@
 package net.ladenthin.llama.value;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import lombok.EqualsAndHashCode;
 
 /**
@@ -103,9 +106,9 @@ public final class ServerMetrics {
     }
 
     /**
-     * Cumulative server-wide token usage since startup. Prompt tokens come from
-     * {@code n_prompt_tokens_processed_total} and completion tokens from
-     * {@code n_tokens_predicted_total}.
+     * Cumulative server-wide compute counters since startup. The prompt value is
+     * the number actually evaluated by the model, excluding cache hits; upstream
+     * does not currently expose a cumulative logical or cached prompt total.
      *
      * @return cumulative {@link Usage} across all completions since server start
      */
@@ -113,6 +116,24 @@ public final class ServerMetrics {
         return new Usage(
                 node.path("n_prompt_tokens_processed_total").asLong(0L),
                 node.path("n_tokens_predicted_total").asLong(0L));
+    }
+
+    /**
+     * Returns the cumulative number of prompt tokens actually evaluated since startup.
+     *
+     * @return processed prompt-token total, excluding cache hits
+     */
+    public long getCumulativeProcessedPromptTokens() {
+        return node.path("n_prompt_tokens_processed_total").asLong(0L);
+    }
+
+    /**
+     * Returns the cumulative number of generated tokens since startup.
+     *
+     * @return generated-token total
+     */
+    public long getCumulativeGeneratedTokens() {
+        return node.path("n_tokens_predicted_total").asLong(0L);
     }
 
     /**
@@ -125,6 +146,15 @@ public final class ServerMetrics {
         return new Usage(
                 node.path("n_prompt_tokens_processed").asLong(0L),
                 node.path("n_tokens_predicted").asLong(0L));
+    }
+
+    /**
+     * Returns prompt tokens actually evaluated in the current metrics window.
+     *
+     * @return processed prompt-token count, excluding cache hits
+     */
+    public long getWindowProcessedPromptTokens() {
+        return node.path("n_prompt_tokens_processed").asLong(0L);
     }
 
     /**
@@ -150,6 +180,23 @@ public final class ServerMetrics {
      */
     public JsonNode getSlots() {
         return node.path("slots");
+    }
+
+    /**
+     * Typed slot metrics, including per-slot processed and cached prompt counts.
+     *
+     * @return immutable slot list, empty when the native response has no slots array
+     */
+    public List<SlotMetrics> getSlotMetrics() {
+        JsonNode slots = node.path("slots");
+        if (!slots.isArray()) {
+            return Collections.emptyList();
+        }
+        List<SlotMetrics> result = new ArrayList<>();
+        for (JsonNode slot : slots) {
+            result.add(new SlotMetrics(slot));
+        }
+        return Collections.unmodifiableList(result);
     }
 
     /**

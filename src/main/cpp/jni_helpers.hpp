@@ -14,7 +14,7 @@
 //     require_json_field_impl, jint_array_to_tokens_impl
 //
 //   Layer B — JNI + server orchestration:
-//     configure_multimodal_task_impl,
+//     configure_multimodal_task_impl, configure_task_slot_impl,
 //     json_to_jstring_impl, results_to_jstring_impl,
 //     embedding_to_jfloat_array_impl, tokens_to_jint_array_impl
 //
@@ -173,6 +173,12 @@ inline void erase_reader(jllama_context *jctx, int id_task) {
     task.cli_prompt = prompt.get<std::string>();
     task.cli_files = std::move(files);
     return true;
+}
+
+// Match server_routes::handle_completions_impl(): slot selection is task
+// metadata, not part of task_params, so eval_llama_cmpl_schema() does not set it.
+inline void configure_task_slot_impl(server_task &task, const json &data) {
+    task.id_slot = json_value(data, "id_slot", -1);
 }
 
 // ---------------------------------------------------------------------------

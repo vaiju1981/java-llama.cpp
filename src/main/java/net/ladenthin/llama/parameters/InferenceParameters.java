@@ -58,6 +58,8 @@ public final class InferenceParameters extends JsonParameters {
     private static final String PARAM_INPUT_PREFIX = "input_prefix";
     private static final String PARAM_INPUT_SUFFIX = "input_suffix";
     private static final String PARAM_CACHE_PROMPT = "cache_prompt";
+    private static final String PARAM_CACHE_REUSE = "n_cache_reuse";
+    private static final String PARAM_SLOT_ID = "id_slot";
     private static final String PARAM_STREAM_OPTIONS = "stream_options";
     private static final String PARAM_RESPONSE_FORMAT = "response_format";
     private static final String PARAM_N_PREDICT = "n_predict";
@@ -202,6 +204,36 @@ public final class InferenceParameters extends JsonParameters {
      */
     public InferenceParameters withCachePrompt(boolean cachePrompt) {
         return withScalar(PARAM_CACHE_PROMPT, cachePrompt);
+    }
+
+    /**
+     * Returns a new request with the minimum reusable KV-cache chunk size replaced.
+     * A value of {@code 0} disables non-prefix chunk reuse. Ordinary common-prefix
+     * reuse remains controlled by {@link #withCachePrompt(boolean)}.
+     *
+     * @param cacheReuse minimum reusable chunk size, or {@code 0} to disable
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withCacheReuse(int cacheReuse) {
+        if (cacheReuse < 0) {
+            throw new IllegalArgumentException("cacheReuse must be non-negative");
+        }
+        return withScalar(PARAM_CACHE_REUSE, cacheReuse);
+    }
+
+    /**
+     * Returns a new request pinned to a llama.cpp server slot. Pinning is useful
+     * for deterministic multi-turn KV reuse and for matching inference with
+     * {@code saveSlot}/{@code restoreSlot} operations.
+     *
+     * @param slotId non-negative slot identifier
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withSlotId(int slotId) {
+        if (slotId < 0) {
+            throw new IllegalArgumentException("slotId must be non-negative");
+        }
+        return withScalar(PARAM_SLOT_ID, slotId);
     }
 
     /**

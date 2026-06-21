@@ -41,6 +41,11 @@ final class LlamaModelBackend implements OpenAiBackend {
     }
 
     @Override
+    public String metrics() {
+        return model.getMetrics();
+    }
+
+    @Override
     public String complete(JsonNode request) {
         return model.chatComplete(mapper.toInferenceParameters(request));
     }

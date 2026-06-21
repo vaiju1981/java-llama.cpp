@@ -32,6 +32,9 @@ final class AnthropicStreamTranslator {
     private int textBlockIndex = -1;
     private int nextIndex;
     private String finishReason = "stop";
+    private int inputTokens;
+    private int outputTokens;
+    private int cachedTokens;
 
     AnthropicStreamTranslator(String id, String model) {
         this.id = id;
@@ -60,6 +63,15 @@ final class AnthropicStreamTranslator {
         try {
             JsonNode chunk = OBJECT_MAPPER.readTree(openAiChunkJson);
             accumulator.accept(chunk);
+            JsonNode usage = chunk.path("usage");
+            if (usage.isObject()) {
+                int promptTokens = usage.path("prompt_tokens").asInt(0);
+                cachedTokens = usage.path("prompt_tokens_details")
+                        .path("cached_tokens")
+                        .asInt(0);
+                inputTokens = Math.max(0, promptTokens - cachedTokens);
+                outputTokens = usage.path("completion_tokens").asInt(0);
+            }
             JsonNode choice = chunk.path("choices").path(0);
             JsonNode content = choice.path("delta").path("content");
             if (content.isTextual() && !content.asText().isEmpty()) {
@@ -102,7 +114,8 @@ final class AnthropicStreamTranslator {
                 out.append(AnthropicApiSupport.blockStopEvent(index));
             }
         }
-        out.append(AnthropicApiSupport.messageDeltaEvent(AnthropicApiSupport.anthropicStopReason(finishReason)));
+        out.append(AnthropicApiSupport.messageDeltaEvent(
+                AnthropicApiSupport.anthropicStopReason(finishReason), inputTokens, outputTokens, cachedTokens));
         out.append(AnthropicApiSupport.messageStopEvent());
         return out.toString();
     }
