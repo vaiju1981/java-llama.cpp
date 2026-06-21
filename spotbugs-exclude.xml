@@ -348,6 +348,36 @@ SPDX-License-Identifier: MIT
     </Match>
 
     <!--
+        LlamaModel.completeBatch / completeBatchWithStats / chatBatch dispatch N async requests, then
+        deliberately join EVERY future before re-throwing the first captured failure (a
+        CompletionException) — so a partial failure never abandons sibling requests running unobserved.
+        Re-throwing the captured RuntimeException is the intended behaviour; fb-contrib flags any
+        `throw <RuntimeException>` as THROWS_METHOD_THROWS_RUNTIMEEXCEPTION.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.LlamaModel"/>
+        <Bug pattern="THROWS_METHOD_THROWS_RUNTIMEEXCEPTION"/>
+        <Or>
+            <Method name="completeBatch"/>
+            <Method name="completeBatchWithStats"/>
+            <Method name="chatBatch"/>
+        </Or>
+    </Match>
+
+    <!--
+        ChatMessage's public constructor intentionally accepts List<ToolCall> (the natural,
+        ergonomic public-API type, matching the parts constructor). fb-contrib notes the parameter
+        is only consumed as a Collection (defensively copied into an ArrayList) and suggests widening
+        it; doing so on a public constructor would be a binary-incompatible API change for no caller
+        benefit, so the concrete List type is kept deliberately.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.value.ChatMessage"/>
+        <Bug pattern="OCP_OVERLY_CONCRETE_COLLECTION_PARAMETER"/>
+        <Method name="&lt;init&gt;"/>
+    </Match>
+
+    <!--
         ChatMessage.requireNonNull is a precondition guard whose only
         meaningful state to report is the parameter name itself (the value
         is null by definition at the throw point). fb-contrib's WEM detector

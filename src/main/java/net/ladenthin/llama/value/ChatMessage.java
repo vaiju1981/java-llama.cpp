@@ -186,7 +186,9 @@ public final class ChatMessage {
      * @return the calls list, never {@code null}; empty when the message is not a tool-call turn
      */
     public List<ToolCall> getToolCalls() {
-        return toolCalls;
+        // Return a fresh unmodifiable view (mirrors getParts) so the stored list is never
+        // exposed directly — the caller cannot mutate this value type's internal state.
+        return Collections.unmodifiableList(toolCalls);
     }
 
     /**
