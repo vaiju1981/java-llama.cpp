@@ -104,10 +104,37 @@ else
 fi
 
 cmake -Bbuild $LAUNCH $@ || exit 1
-cmake --build build --config Release -j"${JOBS}" || exit 1
+
+# Build. The pre-build probe only proves the cache was reachable at one instant; it cannot
+# foresee a cache outage that strikes *during* the build. When sccache is the launcher and its
+# backend fails mid-build — e.g. an intermittent Depot 403 on the server-startup .sccache_check,
+# or the tokenless 403 a fork PR hits because secrets are withheld — sccache makes every TU fatal
+# and reds the whole build. sccache exposes no "ignore backend errors" switch for that startup
+# check, so recover by retrying the build once WITHOUT the launcher: a from-scratch uncached -O3
+# build is content-identical and release-safe, so the cache can never red the build. The retry is
+# gated on the failure output actually showing an sccache cache error, so a genuine compile error
+# still fails fast (and is reported) instead of triggering a wasteful uncached rebuild.
+build_log="$(mktemp 2>/dev/null || echo "/tmp/jllama-build.$$.log")"
+cmake --build build --config Release -j"${JOBS}" 2>&1 | tee "$build_log"
+build_rc=${PIPESTATUS[0]}
+if [ "$build_rc" -ne 0 ]; then
+  if [ -n "$LAUNCH" ] && grep -qiE 'sccache: error|Server startup failed|cache storage failed' "$build_log"; then
+    echo "build.sh: build failed via an sccache cache error — retrying WITHOUT cache (clean reconfigure)."
+    rm -f "$build_log"
+    rm -rf build && mkdir -p build
+    cmake -Bbuild $@ || exit 1
+    cmake --build build --config Release -j"${JOBS}" || exit 1
+    LAUNCH=""  # cache disabled for this run; skip the stats query below
+  else
+    rm -f "$build_log"
+    exit 1
+  fi
+fi
+rm -f "$build_log"
 
 # Only query stats when sccache was actually used as the launcher; if the probe rejected a
-# crashing sccache, re-invoking it here would just repeat the crash output (harmless but noisy).
+# crashing sccache (or the mid-build retry disabled it), re-invoking it here would just repeat
+# the crash output (harmless but noisy).
 if [ -n "$LAUNCH" ] && command -v sccache >/dev/null 2>&1; then
   sccache --show-stats || true
 fi

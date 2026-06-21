@@ -290,6 +290,25 @@ sccache as the launcher: it compiles a trivial TU *through* sccache, and only se
 when a job sets one) for diagnosis but never reds the build. This closes the gap the original
 absent-only guard left.
 
+**The fork-PR `.sccache_check` 403 (mac-only symptom) and its two guards.** A fork PR (e.g.
+`vaiju1981/java-llama.cpp` → upstream) runs with secrets withheld, so `SCCACHE_WEBDAV_TOKEN`
+(`= secrets.DEPOT_TOKEN`) is **empty**. Depot rejects the unauthenticated server-startup
+`.sccache_check` with **403 Forbidden** (`PermissionDenied (temporary) … Forbidden`), and
+because sccache treats a failed startup check as fatal, *every* TU dies. The symptom looked
+**mac-only** purely because of an asymmetry in how sccache reaches `PATH`: the macOS jobs ran
+`brew install sccache` **unconditionally** (`if: USE_CACHE == 'true'`), whereas the
+Linux/dockcross/aarch64 jobs only **fetch** sccache when a token is present (the `[ -n
+"$SCCACHE_WEBDAV_TOKEN…" ]` guard in `build.sh`'s fetch block) — so on a tokenless fork PR
+mac was the only platform with sccache on `PATH` to misfire. Two independent guards now prevent
+it: **(1)** every `Install sccache` step is gated `if: env.USE_CACHE == 'true' && env.SCCACHE_WEBDAV_TOKEN
+!= ''`, so a tokenless fork PR never even installs sccache (mac now matches Linux); and **(2)**
+`build.sh`'s build step **retries once without the launcher** when the build fails *and* the
+output shows an sccache cache error (`sccache: error` / `Server startup failed` / `cache storage
+failed`) — a clean uncached `-O3` rebuild that is content-identical and release-safe. The retry
+is gated on that error signature so a genuine compile error still fails fast and is reported
+(no wasteful uncached rebuild). Guard (2) also covers an *intermittent* 403 that strikes a
+valid-token job mid-build, which the one-shot probe cannot foresee.
+
 **Rollout.** **Phase 1 — DONE & proven: the 3 macOS build jobs** (slowest + OOM-prone) —
 `brew install sccache` + the env above + `BUILD_JOBS: 2`. macOS build dropped **~40 min → ~6 min**
 with a warm cache. **Phase 2 — DONE: all 5 dockcross cross-compile jobs** now have the same

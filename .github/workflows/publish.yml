@@ -415,7 +415,7 @@ jobs:
           echo "=== Processor Details ==="
           system_profiler SPHardwareDataType
       - name: Install sccache (shared compiler cache)
-        if: env.USE_CACHE == 'true'
+        if: env.USE_CACHE == 'true' && env.SCCACHE_WEBDAV_TOKEN != ''
         continue-on-error: true
         run: brew install sccache
       - name: Build libraries
@@ -460,7 +460,7 @@ jobs:
           echo "=== Processor Details ==="
           system_profiler SPHardwareDataType
       - name: Install sccache (shared compiler cache)
-        if: env.USE_CACHE == 'true'
+        if: env.USE_CACHE == 'true' && env.SCCACHE_WEBDAV_TOKEN != ''
         continue-on-error: true
         run: brew install sccache
       - name: Build libraries
@@ -578,7 +578,7 @@ jobs:
         with:
           arch: x64
       - name: Install sccache (shared compiler cache)
-        if: env.USE_CACHE == 'true'
+        if: env.USE_CACHE == 'true' && env.SCCACHE_WEBDAV_TOKEN != ''
         continue-on-error: true
         shell: pwsh
         run: |
@@ -632,7 +632,7 @@ jobs:
         with:
           arch: x86
       - name: Install sccache (shared compiler cache)
-        if: env.USE_CACHE == 'true'
+        if: env.USE_CACHE == 'true' && env.SCCACHE_WEBDAV_TOKEN != ''
         continue-on-error: true
         shell: pwsh
         run: |
@@ -723,7 +723,7 @@ jobs:
           echo "=== Processor Details ==="
           system_profiler SPHardwareDataType
       - name: Install sccache (shared compiler cache)
-        if: env.USE_CACHE == 'true'
+        if: env.USE_CACHE == 'true' && env.SCCACHE_WEBDAV_TOKEN != ''
         continue-on-error: true
         run: brew install sccache
       - name: Build libraries
