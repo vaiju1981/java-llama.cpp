@@ -42,7 +42,8 @@ import org.slf4j.LoggerFactory;
  *   <li>{@code POST /v1/chat/completions} — streaming (Server-Sent Events) and non-streaming chat
  *       completions, forwarded faithfully (messages/tools verbatim; streamed {@code delta.tool_calls}
  *       preserved).</li>
- *   <li>{@code POST /v1/completions} — non-streaming text completion.</li>
+ *   <li>{@code POST /v1/completions} — text completion, streaming (Server-Sent Events, token by token
+ *       via {@code generate(...)}) when {@code stream:true} and non-streaming otherwise.</li>
  *   <li>{@code POST /v1/embeddings} — embeddings (requires the model to be loaded in embedding
  *       mode).</li>
  *   <li>{@code GET /v1/models} — advertises the single configured model.</li>
@@ -302,10 +303,45 @@ public final class OpenAiCompatServer implements AutoCloseable {
         try {
             JsonNode request = requirePostJson(exchange);
             if (request != null) {
-                completeNonStreaming(exchange, request, backend::completions);
+                if (request.path("stream").asBoolean(false)) {
+                    streamCompletions(exchange, request);
+                } else {
+                    completeNonStreaming(exchange, request, backend::completions);
+                }
             }
         } finally {
             exchange.close();
+        }
+    }
+
+    private void streamCompletions(HttpExchange exchange, JsonNode request) throws IOException {
+        exchange.getResponseHeaders().set("Content-Type", CONTENT_TYPE_SSE);
+        exchange.getResponseHeaders().set("Cache-Control", "no-cache");
+        exchange.sendResponseHeaders(HTTP_OK, 0);
+        try (ResponseStream out = new ResponseStream(exchange.getResponseBody())) {
+            ScheduledFuture<?> heartbeat = null;
+            try {
+                heartbeat = heartbeatExecutor.scheduleAtFixedRate(
+                        () -> out.writeQuietly(OpenAiSseFormatter.heartbeat()),
+                        config.getHeartbeatMillis(),
+                        config.getHeartbeatMillis(),
+                        TimeUnit.MILLISECONDS);
+                backend.streamCompletions(request, chunkJson -> out.writeStrict(OpenAiSseFormatter.sseData(chunkJson)));
+                out.writeStrict(OpenAiSseFormatter.sseDone());
+            } catch (IllegalArgumentException e) {
+                out.writeQuietly(
+                        OpenAiSseFormatter.sseData(OpenAiSseFormatter.errorJson(message(e), ERROR_TYPE_REQUEST, null)));
+            } catch (IOException e) {
+                LOG.debug("client disconnected during stream", e);
+            } catch (RuntimeException e) {
+                LOG.warn("streaming completion failed", e);
+                out.writeQuietly(
+                        OpenAiSseFormatter.sseData(OpenAiSseFormatter.errorJson(message(e), ERROR_TYPE_SERVER, null)));
+            } finally {
+                if (heartbeat != null) {
+                    heartbeat.cancel(false);
+                }
+            }
         }
     }
 

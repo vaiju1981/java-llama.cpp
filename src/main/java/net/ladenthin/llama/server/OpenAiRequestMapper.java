@@ -48,6 +48,53 @@ final class OpenAiRequestMapper {
                 .withMessagesJson(messages.toString())
                 .withCachePrompt(true);
 
+        params = applyCommonFields(params, request);
+
+        // Tools are chat-only.
+        JsonNode tools = request.path("tools");
+        if (tools.isArray() && tools.size() > 0) {
+            params = params.withToolsJson(tools.toString()).withUseChatTemplate(true);
+            JsonNode toolChoice = request.path("tool_choice");
+            if (toolChoice.isTextual()) {
+                params = params.withToolChoice(toolChoice.asText());
+            }
+            JsonNode parallelToolCalls = request.path("parallel_tool_calls");
+            if (parallelToolCalls.isBoolean()) {
+                params = params.withParallelToolCalls(parallelToolCalls.asBoolean());
+            }
+        }
+
+        return params;
+    }
+
+    /**
+     * Translate an OpenAI {@code /v1/completions} request (a raw {@code prompt} string) into
+     * {@link InferenceParameters} for the streaming {@code generate} path.
+     *
+     * @param request the parsed OpenAI completion request object
+     * @return inference parameters carrying the prompt and mapped sampling options
+     * @throws IllegalArgumentException if {@code prompt} is missing or not a string
+     */
+    InferenceParameters toCompletionParameters(JsonNode request) {
+        JsonNode prompt = request.path("prompt");
+        if (!prompt.isTextual()) {
+            throw new IllegalArgumentException("'prompt' must be a string");
+        }
+        InferenceParameters params =
+                InferenceParameters.empty().withPrompt(prompt.asText()).withCachePrompt(true);
+        return applyCommonFields(params, request);
+    }
+
+    /**
+     * Apply the sampling / KV-cache / output-shaping fields shared by chat and completion requests
+     * (temperature, top_p/top_k, seed, penalties, max tokens, stop, stream_options, response_format,
+     * plus the llama.cpp cache extensions). Tools and messages/prompt are handled by the callers.
+     *
+     * @param params the parameters to extend
+     * @param request the parsed OpenAI request object
+     * @return a new instance with the recognised fields applied
+     */
+    private InferenceParameters applyCommonFields(InferenceParameters params, JsonNode request) {
         // Preserve llama.cpp extensions when advanced clients opt into them.
         JsonNode cachePrompt = request.path("cache_prompt");
         if (cachePrompt.isBoolean()) {
@@ -60,19 +107,6 @@ final class OpenAiRequestMapper {
         JsonNode slotId = request.path("id_slot");
         if (slotId.isIntegralNumber()) {
             params = params.withSlotId(slotId.asInt());
-        }
-
-        JsonNode tools = request.path("tools");
-        if (tools.isArray() && tools.size() > 0) {
-            params = params.withToolsJson(tools.toString()).withUseChatTemplate(true);
-            JsonNode toolChoice = request.path("tool_choice");
-            if (toolChoice.isTextual()) {
-                params = params.withToolChoice(toolChoice.asText());
-            }
-            JsonNode parallelToolCalls = request.path("parallel_tool_calls");
-            if (parallelToolCalls.isBoolean()) {
-                params = params.withParallelToolCalls(parallelToolCalls.asBoolean());
-            }
         }
 
         JsonNode temperature = request.path("temperature");
