@@ -51,6 +51,27 @@ public class ContentPartTest {
     }
 
     @Test
+    public void inputAudioBase64EncodesAndNormalisesFormat() {
+        byte[] bytes = {1, 2, 3, 4, 5};
+        ContentPart p = ContentPart.inputAudio(bytes, "WAV");
+        assertThat(p.getType(), is(ContentPart.Type.INPUT_AUDIO));
+        assertThat(p.getAudioData(), is(Base64.getEncoder().encodeToString(bytes)));
+        assertThat(p.getAudioFormat(), is("wav"));
+        assertThat(p.getImageUrl(), is(nullValue()));
+        assertThat(p.getText(), is(nullValue()));
+    }
+
+    @Test
+    public void inputAudioRejectsUnsupportedFormat() {
+        assertThrows(IllegalArgumentException.class, () -> ContentPart.inputAudio(new byte[] {1}, "ogg"));
+    }
+
+    @Test
+    public void inputAudioRejectsNullBytes() {
+        assertThrows(NullPointerException.class, () -> ContentPart.inputAudio(null, "wav"));
+    }
+
+    @Test
     public void textRejectsNull() {
         assertThrows(NullPointerException.class, () -> ContentPart.text(null));
     }

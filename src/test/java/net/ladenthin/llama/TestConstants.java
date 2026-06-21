@@ -71,4 +71,21 @@ public class TestConstants {
      * resource so the test needs no network access for the visual prompt.
      */
     public static final String DEFAULT_VISION_IMAGE_PATH = "src/test/resources/images/test-image.jpg";
+
+    /**
+     * System property holding a path to an audio-input model GGUF (e.g. Ultravox / Qwen2.5-Omni).
+     * Consumed by {@code AudioInputIntegrationTest} (llama.cpp discussion #13759). The test self-skips
+     * when this, the mmproj, or the audio clip is unset/missing.
+     */
+    public static final String PROP_AUDIO_MODEL_PATH = LlamaSystemProperties.PREFIX + ".audio.model";
+
+    /** System property holding a path to the matching audio mmproj (encoder) GGUF. */
+    public static final String PROP_AUDIO_MMPROJ_PATH = LlamaSystemProperties.PREFIX + ".audio.mmproj";
+
+    /**
+     * System property holding a path to a {@code .wav} or {@code .mp3} clip used as the audio prompt in
+     * {@code AudioInputIntegrationTest}. The matching extension drives format detection in
+     * {@code ContentPart.audioFile(Path)}.
+     */
+    public static final String PROP_AUDIO_PATH = LlamaSystemProperties.PREFIX + ".audio.input";
 }

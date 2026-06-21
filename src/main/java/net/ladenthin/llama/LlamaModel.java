@@ -851,6 +851,17 @@ public class LlamaModel implements AutoCloseable {
         return getModelMeta().supportsVision();
     }
 
+    /**
+     * Reports whether the loaded model accepts audio input (an audio-capable {@code --mmproj},
+     * e.g. Ultravox / Qwen2.5-Omni). Audio clips are supplied as
+     * {@link net.ladenthin.llama.value.ContentPart#inputAudio(byte[], String)} parts.
+     *
+     * @return {@code true} when audio input is available
+     */
+    public boolean supportsAudio() {
+        return getModelMeta().supportsAudio();
+    }
+
     native String getModelMetaJson();
 
     /**

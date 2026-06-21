@@ -278,8 +278,11 @@ Every `net.ladenthin.llama.*` system property recognised by the library, deep-sc
 | `net.ladenthin.llama.vision.model` | unset (test self-skips) | test | `MultimodalIntegrationTest` (upstream kherud/java-llama.cpp#103 / #34) | Path to a vision-capable model GGUF. Any vision-capable GGUF works; CI default is `SmolVLM-500M-Instruct-Q8_0.gguf`. |
 | `net.ladenthin.llama.vision.mmproj` | unset (test self-skips) | test | `MultimodalIntegrationTest` | Matching mmproj GGUF for the vision model. |
 | `net.ladenthin.llama.vision.image` | `src/test/resources/images/test-image.jpg` (a CC-BY-4.0 / MIT-granted photo committed to the repo) | test | `MultimodalIntegrationTest` | Visual prompt image. Any png/jpeg/webp/gif works; the extension drives MIME detection. |
+| `net.ladenthin.llama.audio.model` | unset (test self-skips) | test | `AudioInputIntegrationTest` (llama.cpp discussion #13759) | Path to an audio-input model GGUF (e.g. Ultravox, Qwen2.5-Omni). |
+| `net.ladenthin.llama.audio.mmproj` | unset (test self-skips) | test | `AudioInputIntegrationTest` | Matching audio mmproj (encoder) GGUF. |
+| `net.ladenthin.llama.audio.input` | unset (test self-skips) | test | `AudioInputIntegrationTest` | `.wav`/`.mp3` audio prompt clip; the extension drives format detection. |
 
-`MultimodalIntegrationTest` self-skips when any of the three `vision.*` properties points at a missing path, so a partial setup (just the vision model + the committed image, no mmproj) lets the test class load without erroring.
+`MultimodalIntegrationTest` self-skips when any of the three `vision.*` properties points at a missing path, so a partial setup (just the vision model + the committed image, no mmproj) lets the test class load without erroring. `AudioInputIntegrationTest` self-skips the same way over the three `audio.*` properties.
 
 ## Documentation
 
@@ -408,6 +411,30 @@ The same multipart `messages[].content` shape works through `ChatRequest` and th
 OpenAI-compatible `/v1/chat/completions` server. For a strictly CPU-only run, use
 `setDevices("none").setMmprojOffload(false)` in addition to `setGpuLayers(0)`; projector offload
 has its own upstream default.
+
+**Audio input** works identically — load an audio-capable model (Ultravox, Qwen2.5-Omni, …) with its
+audio `--mmproj` and add a `ContentPart.audioFile(...)` (or `inputAudio(bytes, "wav"|"mp3")`) part. It
+serializes to the OpenAI `input_audio` content part and routes through the same `mtmd` pipeline:
+
+```java
+ModelParameters modelParams = new ModelParameters()
+        .setModel("models/ultravox-v0_5-llama-3_2-1b.gguf")
+        .setMmproj("models/mmproj-ultravox-v0_5-llama-3_2-1b-f16.gguf");
+
+ChatMessage message = ChatMessage.userMultimodal(
+        ContentPart.text("Transcribe the audio."),
+        ContentPart.audioFile(Paths.get("speech.wav")));
+
+try (LlamaModel model = new LlamaModel(modelParams)) {
+    System.out.println(model.supportsAudio()); // true
+    String answer = model.chatCompleteText(InferenceParameters.empty()
+            .withMessages(Collections.singletonList(message))
+            .withNPredict(64));
+    System.out.println(answer);
+}
+```
+
+`LlamaModel.supportsVision()` / `supportsAudio()` report which modalities the loaded projector enables.
 
 ### Tool Calling
 
