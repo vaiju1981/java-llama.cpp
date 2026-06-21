@@ -126,6 +126,14 @@ public class ParameterJsonSerializer {
                         part.put("type", "text");
                         final String text = p.getText();
                         part.put("text", text != null ? text : "");
+                    } else if (p.getType() == ContentPart.Type.INPUT_AUDIO) {
+                        part.put("type", "input_audio");
+                        ObjectNode inputAudio = OBJECT_MAPPER.createObjectNode();
+                        final String data = p.getAudioData();
+                        final String format = p.getAudioFormat();
+                        inputAudio.put("data", data != null ? data : "");
+                        inputAudio.put("format", format != null ? format : "wav");
+                        part.set("input_audio", inputAudio);
                     } else {
                         part.put("type", "image_url");
                         ObjectNode imageUrl = OBJECT_MAPPER.createObjectNode();

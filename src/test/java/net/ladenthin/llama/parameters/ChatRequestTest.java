@@ -211,6 +211,19 @@ class ChatRequestTest {
         }
 
         @Test
+        void buildMessagesJsonEmitsInputAudioParts() {
+            ChatRequest req = ChatRequest.empty()
+                    .appendMessage(ChatMessage.userMultimodal(
+                            ContentPart.text("transcribe"), ContentPart.inputAudio(new byte[] {1, 2, 3}, "wav")));
+            String json = req.buildMessagesJson();
+            assertThat(json, containsString("\"type\":\"input_audio\""));
+            assertThat(json, containsString("\"format\":\"wav\""));
+            assertThat(
+                    json,
+                    containsString("\"data\":\"" + java.util.Base64.getEncoder().encodeToString(new byte[] {1, 2, 3})));
+        }
+
+        @Test
         void buildToolsJsonEmptyWhenNoTools() {
             assertThat(ChatRequest.empty().buildToolsJson().isPresent(), is(false));
         }

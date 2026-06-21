@@ -585,6 +585,9 @@ the README. The summary below covers only the optional-model bindings:
 | `net.ladenthin.llama.vision.model` | `MultimodalIntegrationTest` (upstream kherud/java-llama.cpp#103 / #34) | `SmolVLM-500M-Instruct-Q8_0.gguf` (any vision-capable GGUF works) |
 | `net.ladenthin.llama.vision.mmproj` | `MultimodalIntegrationTest` | matching mmproj for the vision model, e.g. `mmproj-SmolVLM-500M-Instruct-Q8_0.gguf` |
 | `net.ladenthin.llama.vision.image` | `MultimodalIntegrationTest` | committed default `src/test/resources/images/test-image.jpg`; override to any png/jpeg/webp/gif on disk |
+| `net.ladenthin.llama.audio.model` | `AudioInputIntegrationTest` (llama.cpp discussion #13759) | audio-input model GGUF, e.g. `ultravox-v0_5-llama-3_2-1b.gguf` |
+| `net.ladenthin.llama.audio.mmproj` | `AudioInputIntegrationTest` | matching audio mmproj/encoder, e.g. `mmproj-ultravox-v0_5-llama-3_2-1b-f16.gguf` |
+| `net.ladenthin.llama.audio.input` | `AudioInputIntegrationTest` | a `.wav`/`.mp3` clip on disk (no committed default — audio is not committed) |
 
 Run those tests by setting the property:
 ```bash
@@ -596,6 +599,12 @@ mvn test -Dtest=MultimodalIntegrationTest \
 # The vision.image property defaults to src/test/resources/images/test-image.jpg
 # (a CC-BY-4.0 / MIT-granted photo of flowers and bees by the project author);
 # override only if you want to test a different image.
+
+# Audio input (Ultravox / Qwen2.5-Omni; the audio clip has no committed default):
+mvn test -Dtest=AudioInputIntegrationTest \
+         -Dnet.ladenthin.llama.audio.model=models/ultravox-v0_5-llama-3_2-1b.gguf \
+         -Dnet.ladenthin.llama.audio.mmproj=models/mmproj-ultravox-v0_5-llama-3_2-1b-f16.gguf \
+         -Dnet.ladenthin.llama.audio.input=/path/to/speech.wav
 ```
 
 `MultimodalIntegrationTest` self-skips when any of the three vision properties

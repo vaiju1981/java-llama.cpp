@@ -44,17 +44,28 @@ public final class ContentPart {
         /** A plain-text fragment. */
         TEXT,
         /** An image reference (data URI or remote URL). */
-        IMAGE_URL
+        IMAGE_URL,
+        /** An audio clip (base64 {@code data} + {@code format}), for audio-input models. */
+        INPUT_AUDIO
     }
 
     private final Type type;
     private final @Nullable String text;
     private final @Nullable String imageUrl;
+    private final @Nullable String audioData;
+    private final @Nullable String audioFormat;
 
-    private ContentPart(Type type, @Nullable String text, @Nullable String imageUrl) {
+    private ContentPart(
+            Type type,
+            @Nullable String text,
+            @Nullable String imageUrl,
+            @Nullable String audioData,
+            @Nullable String audioFormat) {
         this.type = type;
         this.text = text;
         this.imageUrl = imageUrl;
+        this.audioData = audioData;
+        this.audioFormat = audioFormat;
     }
 
     /**
@@ -65,7 +76,7 @@ public final class ContentPart {
      */
     public static ContentPart text(String text) {
         Objects.requireNonNull(text, "text");
-        return new ContentPart(Type.TEXT, text, null);
+        return new ContentPart(Type.TEXT, text, null, null, null);
     }
 
     /**
@@ -78,7 +89,7 @@ public final class ContentPart {
      */
     public static ContentPart imageUrl(String url) {
         Objects.requireNonNull(url, "url");
-        return new ContentPart(Type.IMAGE_URL, null, url);
+        return new ContentPart(Type.IMAGE_URL, null, url, null, null);
     }
 
     /**
@@ -96,7 +107,7 @@ public final class ContentPart {
             throw new IllegalArgumentException("mimeType must not be empty (bytes.length=" + bytes.length + ")");
         }
         String encoded = Base64.getEncoder().encodeToString(bytes);
-        return new ContentPart(Type.IMAGE_URL, null, "data:" + mimeType + ";base64," + encoded);
+        return new ContentPart(Type.IMAGE_URL, null, "data:" + mimeType + ";base64," + encoded, null, null);
     }
 
     /**
@@ -134,6 +145,56 @@ public final class ContentPart {
     }
 
     /**
+     * Build an audio part from raw bytes plus an explicit container format. Mirrors the OpenAI
+     * {@code input_audio} content part the upstream {@code llama.cpp} server understands, routed
+     * through the {@code mtmd} audio pipeline (requires an audio-capable {@code --mmproj}). The bytes
+     * are base64-encoded.
+     *
+     * @param audioBytes raw audio bytes (must not be {@code null})
+     * @param format container format, {@code "wav"} or {@code "mp3"} (case-insensitive)
+     * @return an INPUT_AUDIO part carrying the base64 data and normalised format
+     * @throws IllegalArgumentException if {@code format} is not {@code "wav"} or {@code "mp3"}
+     */
+    public static ContentPart inputAudio(byte[] audioBytes, String format) {
+        Objects.requireNonNull(audioBytes, "audioBytes");
+        Objects.requireNonNull(format, "format");
+        String normalized = format.toLowerCase(Locale.ROOT);
+        if (!normalized.equals("wav") && !normalized.equals("mp3")) {
+            throw new IllegalArgumentException("audio format must be 'wav' or 'mp3', was: " + format);
+        }
+        String encoded = Base64.getEncoder().encodeToString(audioBytes);
+        return new ContentPart(Type.INPUT_AUDIO, null, null, encoded, normalized);
+    }
+
+    /**
+     * Build an audio part by reading a file from disk and detecting its format from the file
+     * extension. Recognised extensions: {@code .wav}, {@code .mp3}. Anything else throws
+     * {@link IllegalArgumentException}; use {@link #inputAudio(byte[], String)} to force a format.
+     *
+     * @param audioPath path to the audio file (must not be {@code null})
+     * @return an INPUT_AUDIO part carrying the data
+     * @throws IOException if the file cannot be read
+     */
+    public static ContentPart audioFile(Path audioPath) throws IOException {
+        Objects.requireNonNull(audioPath, "audioPath");
+        Path fileNamePath = audioPath.getFileName();
+        if (fileNamePath == null) {
+            throw new IllegalArgumentException("audioPath has no file name component: " + audioPath);
+        }
+        String name = fileNamePath.toString().toLowerCase(Locale.ROOT);
+        String format;
+        if (name.endsWith(".wav")) {
+            format = "wav";
+        } else if (name.endsWith(".mp3")) {
+            format = "mp3";
+        } else {
+            throw new IllegalArgumentException("Cannot infer audio format from extension: " + audioPath
+                    + " — use ContentPart.inputAudio(bytes, format) instead");
+        }
+        return inputAudio(Files.readAllBytes(audioPath), format);
+    }
+
+    /**
      * Part-kind accessor.
      * @return the discriminator selecting {@link #getText()} or {@link #getImageUrl()}
      */
@@ -155,5 +216,21 @@ public final class ContentPart {
      */
     public @Nullable String getImageUrl() {
         return imageUrl;
+    }
+
+    /**
+     * Base64 audio-data accessor (only set for {@link Type#INPUT_AUDIO}).
+     * @return the base64-encoded audio bytes, or {@code null} for non-audio parts
+     */
+    public @Nullable String getAudioData() {
+        return audioData;
+    }
+
+    /**
+     * Audio container-format accessor (only set for {@link Type#INPUT_AUDIO}).
+     * @return {@code "wav"} or {@code "mp3"}, or {@code null} for non-audio parts
+     */
+    public @Nullable String getAudioFormat() {
+        return audioFormat;
     }
 }
