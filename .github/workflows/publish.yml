@@ -171,25 +171,23 @@ jobs:
     name: Cross-Compile manylinux_2_28 x86_64 (CUDA)
     needs: [startgate, build-webui]
     runs-on: ubuntu-latest
-    # CUDA cache rollout. build_cuda_linux.sh execs build.sh, so the same sccache probe guards
-    # this job. Unlike the other jobs, build.sh now also wraps nvcc (CMAKE_CUDA_COMPILER_LAUNCHER
-    # =sccache) for CUDA builds, so the per-arch .cu device passes — the dominant cost of this job
-    # — are cached too, not just the gcc host TUs. Because nvcc kernels now cache, this job always
-    # builds the FULL CMAKE_CUDA_ARCHITECTURES set (no single-arch validation shortcut): the warm
-    # cache, not a reduced arch set, is what keeps it fast, and every artifact stays release-safe
-    # (runs on every GPU generation) on PR/push as well as publish. The first (cold-cache) run still
-    # pays the full nvcc cost; the win shows on subsequent warm runs. CUDA_FAST_BUILD still exists in
-    # build_cuda_linux.sh as a LOCAL-dev knob, but CI no longer sets it. Diagnostics (SCCACHE_LOG /
-    # SCCACHE_ERROR_LOG / RUST_BACKTRACE) stay on until a warm run confirms nvcc cache hits; drop them
-    # (and their -e passthroughs) afterwards. Inert without DEPOT_TOKEN (fork PRs) or use_cache=false.
+    # CUDA cache. build_cuda_linux.sh execs build.sh, so the same sccache probe guards this job.
+    # build.sh also wraps nvcc (CMAKE_CUDA_COMPILER_LAUNCHER=sccache) for CUDA builds, so the
+    # per-arch .cu device passes — the dominant cost of this job — cache over Depot alongside the
+    # gcc host TUs. Verified on a warm run: 100% hit on CUDA / CUBIN / device-code (139 CUDA hits,
+    # 99.86% overall), cutting the job from ~51 min cold to ~15 min warm. The job therefore always
+    # builds the FULL CMAKE_CUDA_ARCHITECTURES set (no single-arch shortcut) and leans on the warm
+    # cache for speed, so every artifact stays release-safe (runs on every GPU generation) on PR /
+    # push as well as publish. CUDA_FAST_BUILD still exists in build_cuda_linux.sh as a LOCAL-dev
+    # knob, but CI no longer sets it. The first-run sccache debug diagnostics (SCCACHE_LOG /
+    # SCCACHE_ERROR_LOG / RUST_BACKTRACE) were dropped now that caching is confirmed; build.sh still
+    # prints the `sccache --show-stats` hit table at the end of every run. Inert without DEPOT_TOKEN
+    # (fork PRs) or use_cache=false.
     env:
       USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
       SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
       SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
-      SCCACHE_LOG: debug
-      SCCACHE_ERROR_LOG: /tmp/sccache_server.log
-      RUST_BACKTRACE: full
-      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE -e SCCACHE_LOG -e SCCACHE_ERROR_LOG -e RUST_BACKTRACE"
+      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"
     steps:
       - uses: actions/checkout@v7
       - name: Download shared WebUI assets

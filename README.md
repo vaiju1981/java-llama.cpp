@@ -22,7 +22,6 @@
 
 **Build cache:**  
 [![Build cache by Depot](https://img.shields.io/badge/build%20cache-Depot-FF5C35)](https://depot.dev)  
-_Shared, incremental CI compiler caching (sccache) powered by [Depot](https://depot.dev)._  
 
 **Coverage:**  
 [![Coverage Status](https://coveralls.io/repos/github/bernardladenthin/java-llama.cpp/badge.svg?branch=main)](https://coveralls.io/github/bernardladenthin/java-llama.cpp?branch=main)  
