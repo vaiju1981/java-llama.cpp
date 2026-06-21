@@ -20,6 +20,7 @@
 #include "utils.hpp"
 #include "jni_helpers.hpp"
 #include "log_helpers.hpp"
+#include "tts_engine.h"
 
 #include <atomic>
 #include <chrono>
@@ -1448,3 +1449,68 @@ JNIEXPORT jboolean JNICALL Java_net_ladenthin_llama_LlamaModel_configureParallel
 
     return JNI_TRUE;
 }
+
+// ---------------------------------------------------------------------------
+// TextToSpeech (OuteTTS) — native methods for the two-model TTS pipeline.
+// Separate Java type (net.ladenthin.llama.TextToSpeech); implemented here so it
+// can reuse parse_jstring / c_llama_error / c_error_oom from this TU.
+// ---------------------------------------------------------------------------
+extern "C" {
+
+JNIEXPORT jlong JNICALL Java_net_ladenthin_llama_TextToSpeech_loadNative(JNIEnv *env, jclass clazz, jstring jttc,
+                                                                         jstring jcts, jint gpu_layers, jint threads) {
+    (void)clazz;
+    try {
+        const std::string ttc = parse_jstring(env, jttc);
+        const std::string cts = parse_jstring(env, jcts);
+        std::string err;
+        jllama_tts::tts_engine *engine =
+            jllama_tts::engine_init(ttc, cts, static_cast<int>(gpu_layers), static_cast<int>(threads), err);
+        if (engine == nullptr) {
+            env->ThrowNew(c_llama_error, err.c_str());
+            return 0;
+        }
+        return reinterpret_cast<jlong>(engine);
+    } catch (const std::exception &e) {
+        env->ThrowNew(c_llama_error, e.what());
+        return 0;
+    }
+}
+
+JNIEXPORT jbyteArray JNICALL Java_net_ladenthin_llama_TextToSpeech_synthesizeNative(
+    JNIEnv *env, jclass clazz, jlong handle, jstring jtext, jint max_codes, jint top_k, jint seed) {
+    (void)clazz;
+    try {
+        auto *engine = reinterpret_cast<jllama_tts::tts_engine *>(handle);
+        if (engine == nullptr) {
+            env->ThrowNew(c_llama_error, "TextToSpeech handle is null");
+            return nullptr;
+        }
+        const std::string text = parse_jstring(env, jtext);
+        std::vector<uint8_t> wav;
+        std::string err;
+        if (!jllama_tts::engine_synthesize(engine, text, static_cast<int>(max_codes), static_cast<int>(top_k),
+                                           static_cast<uint32_t>(seed), wav, err)) {
+            env->ThrowNew(c_llama_error, err.c_str());
+            return nullptr;
+        }
+        jbyteArray out = env->NewByteArray(static_cast<jsize>(wav.size()));
+        if (out == nullptr) {
+            env->ThrowNew(c_error_oom, "could not allocate WAV byte array");
+            return nullptr;
+        }
+        env->SetByteArrayRegion(out, 0, static_cast<jsize>(wav.size()), reinterpret_cast<const jbyte *>(wav.data()));
+        return out;
+    } catch (const std::exception &e) {
+        env->ThrowNew(c_llama_error, e.what());
+        return nullptr;
+    }
+}
+
+JNIEXPORT void JNICALL Java_net_ladenthin_llama_TextToSpeech_deleteNative(JNIEnv *env, jclass clazz, jlong handle) {
+    (void)env;
+    (void)clazz;
+    jllama_tts::engine_free(reinterpret_cast<jllama_tts::tts_engine *>(handle));
+}
+
+} // extern "C"

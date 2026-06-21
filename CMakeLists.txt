@@ -263,6 +263,7 @@ endif()
 
 add_library(jllama SHARED
     src/main/cpp/jllama.cpp
+    src/main/cpp/tts_engine.cpp
     src/main/cpp/utils.hpp
     ${llama.cpp_SOURCE_DIR}/tools/server/server-common.cpp
     ${llama.cpp_SOURCE_DIR}/tools/server/server-chat.cpp)
