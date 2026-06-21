@@ -97,11 +97,17 @@ public class ReasoningBudgetTest {
      * Qwen3 enters thinking mode by default. With {@code reasoning_format=deepseek} set
      * at model level, the thinking tokens must appear in {@code reasoning_content} and
      * the final answer must appear in {@code content}.
+     *
+     * <p>{@code temperature=0} (greedy sampling) is used so the model deterministically
+     * enters the {@code <think>} block on every platform, including Metal (macOS arm64)
+     * where GPU floating-point arithmetic can produce slightly different logit
+     * distributions and occasionally sample a non-thinking first token.
      */
     @Test
     public void testThinkingDefault_reasoningContentAndAnswerPresent() {
         InferenceParameters params = new InferenceParameters("")
                 .withMessages(null, Collections.singletonList(new Pair<>("user", "What is 2+2?")))
+                .withTemperature(0.0f)
                 .withNPredict(N_PREDICT);
 
         String json = model.chatComplete(params);
@@ -132,11 +138,17 @@ public class ReasoningBudgetTest {
      * that is the signal to remove this test and enable
      * {@link #testReasoningBudgetZero_expectedBehavior_suppressesThinking}.
      * Tracked in <a href="https://github.com/ggml-org/llama.cpp/pull/23116">llama.cpp PR #23116</a>.
+     *
+     * <p>{@code temperature=0} (greedy sampling) is used so the model deterministically
+     * enters the {@code <think>} block on every platform. Without it, Metal (macOS arm64)
+     * occasionally samples a non-thinking first token even when the budget is unlimited
+     * (due to the bug), causing a spurious test failure.
      */
     @Test
     public void testReasoningBudgetZero_parameterAccepted_thinkingNotSuppressed() {
         InferenceParameters params = new InferenceParameters("")
                 .withMessages(null, Collections.singletonList(new Pair<>("user", "What is 2+2?")))
+                .withTemperature(0.0f)
                 .withReasoningBudgetTokens(0)
                 .withNPredict(N_PREDICT);
 
