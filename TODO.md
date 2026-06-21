@@ -442,7 +442,15 @@ Feel free to contribute fixes — PRs welcome.
 
 - **Null-safety refinement.** JSpecify + NullAway are now enforced at compile time in **strict JSpecify mode** with the extra options `CheckOptionalEmptiness`, `AcknowledgeRestrictiveAnnotations`, `AcknowledgeAndroidRecent`, `AssertsEnabled` (see `pom.xml`); `@NullMarked` on the three packages via `package-info.java`; JDK module exports in `.mvn/jvm.config`. The legacy `org.jetbrains.annotations` dep has been removed; all nullability annotations are JSpecify. Public-API methods that may legitimately have no value use `Optional<T>` rather than `@Nullable T` (`ChatResponse.getFirstMessage`, `ChatMessage.getParts`, `ChatRequest.buildToolsJson`). Open follow-up: review remaining unannotated public API surfaces for places where `@Nullable` would be more precise than the implicit non-null default.
 
-- **SpotBugs `effort=Max` + `threshold=Low`** — currently default effort/threshold. Raising both surfaces ~65 remaining findings (was 90; the cross-repo `OPM_OVERLY_PERMISSIVE_METHOD` suppression in `07109cc` silenced 25 of them pending the package refactor — see below). Top remaining patterns: `DRE_DECLARED_RUNTIME_EXCEPTION` 20, `WEM_WEAK_EXCEPTION_MESSAGING` 14. The BAF/sb/plugin playbook applies: flip pom, run `spotbugs:check`, fix at source where reasonable + narrow `<Match>` with rationale for structural false positives. Cross-cutting (tracked in [`../workspace/crossrepostatus.md`](../workspace/crossrepostatus.md)).
+- **SpotBugs `effort=Max` + `threshold=Low`** — **DONE (already enabled in `pom.xml`)**, with fb-contrib +
+  findsecbugs, bound to `verify`. The legacy "flip the pom / ~65 findings" note is stale: only a handful
+  of unexcluded findings remain at any time, and `spotbugs:check` is kept green. Most recent pass fixed the
+  6 introduced by the audit Tier-1–3 fixes — `withScalar` uses a single `instanceof Number` (no
+  `ITC_INHERITANCE_TYPE_CHECKING`); `ChatMessage.getToolCalls` returns a fresh unmodifiable view (no
+  `EI_EXPOSE_REP`); the `LlamaModel` batch methods' deliberate re-throw and the `ChatMessage` public
+  constructor's `List` param carry narrow `<Match>` rationale suppressions.
+  **Note:** `spotbugs:check` is bound to the `verify` phase, which the model-backed CI test jobs
+  (`mvn test` / `mvn package`) do not reach — run `mvn verify` (or a dedicated job) to gate it in CI.
 
 - **Drop the project-wide `OPM_OVERLY_PERMISSIVE_METHOD` suppression in
   `spotbugs-exclude.xml`** once the package-architecture refactor lands
