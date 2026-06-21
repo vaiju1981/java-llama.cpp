@@ -18,6 +18,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -170,7 +171,11 @@ public final class OpenAiCompatServer implements AutoCloseable {
         this.config = config;
         this.backend = backend;
         this.requestExecutor = Executors.newCachedThreadPool(namedFactory("jllama-openai-http"));
-        this.heartbeatExecutor = Executors.newScheduledThreadPool(1, namedFactory("jllama-openai-hb"));
+        // Sized for concurrency: a heartbeat write blocks on a slow/stalled client, so a single
+        // shared thread would let one such client starve every other stream's keep-alives. Bound
+        // the impact to roughly one stalled client per thread.
+        this.heartbeatExecutor = Executors.newScheduledThreadPool(
+                Math.max(2, Runtime.getRuntime().availableProcessors()), namedFactory("jllama-openai-hb"));
         this.http = HttpServer.create(new InetSocketAddress(config.getHost(), config.getPort()), 0);
         this.corsFilter = buildCorsFilter(config.getCorsAllowOrigin());
         register("/", this::handleNotFound);
@@ -758,6 +763,10 @@ public final class OpenAiCompatServer implements AutoCloseable {
     }
 
     private void handleProps(HttpExchange exchange) throws IOException {
+        // Deliberately unauthenticated, like the Ollama discovery routes (/api/version, /api/tags,
+        // /api/show): autocomplete/agent clients read context length + capabilities here before they
+        // have (or to discover whether they need) a key. It exposes only public model metadata —
+        // no inference, no secrets — so it intentionally bypasses authorized().
         try {
             if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
                 sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only GET is supported");
@@ -833,7 +842,11 @@ public final class OpenAiCompatServer implements AutoCloseable {
         if (header == null || !header.startsWith(BEARER_PREFIX)) {
             return false;
         }
-        return expected.equals(header.substring(BEARER_PREFIX.length()));
+        // Constant-time comparison so response timing does not leak how many leading bytes
+        // of the bearer token matched.
+        byte[] expectedBytes = expected.getBytes(StandardCharsets.UTF_8);
+        byte[] presentedBytes = header.substring(BEARER_PREFIX.length()).getBytes(StandardCharsets.UTF_8);
+        return MessageDigest.isEqual(expectedBytes, presentedBytes);
     }
 
     private @Nullable JsonNode readBody(HttpExchange exchange) throws IOException {

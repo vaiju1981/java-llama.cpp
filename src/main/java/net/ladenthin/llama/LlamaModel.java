@@ -176,8 +176,20 @@ public class LlamaModel implements AutoCloseable {
             futures.add(completeAsync(req));
         }
         java.util.List<String> out = new java.util.ArrayList<String>(futures.size());
+        RuntimeException failure = null;
         for (CompletableFuture<String> f : futures) {
-            out.add(f.join());
+            try {
+                out.add(f.join());
+            } catch (RuntimeException e) {
+                // Keep joining the rest so no sibling request is left running unobserved (a native
+                // slot/reader leak) before propagating the first failure.
+                if (failure == null) {
+                    failure = e;
+                }
+            }
+        }
+        if (failure != null) {
+            throw failure;
         }
         return out;
     }
@@ -196,8 +208,18 @@ public class LlamaModel implements AutoCloseable {
             futures.add(CompletableFuture.supplyAsync(() -> completeWithStats(req)));
         }
         java.util.List<CompletionResult> out = new java.util.ArrayList<CompletionResult>(futures.size());
+        RuntimeException failure = null;
         for (CompletableFuture<CompletionResult> f : futures) {
-            out.add(f.join());
+            try {
+                out.add(f.join());
+            } catch (RuntimeException e) {
+                if (failure == null) {
+                    failure = e;
+                }
+            }
+        }
+        if (failure != null) {
+            throw failure;
         }
         return out;
     }
@@ -217,8 +239,18 @@ public class LlamaModel implements AutoCloseable {
             futures.add(CompletableFuture.supplyAsync(() -> chat(req)));
         }
         java.util.List<ChatResponse> out = new java.util.ArrayList<ChatResponse>(futures.size());
+        RuntimeException failure = null;
         for (CompletableFuture<ChatResponse> f : futures) {
-            out.add(f.join());
+            try {
+                out.add(f.join());
+            } catch (RuntimeException e) {
+                if (failure == null) {
+                    failure = e;
+                }
+            }
+        }
+        if (failure != null) {
+            throw failure;
         }
         return out;
     }

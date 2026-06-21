@@ -99,7 +99,9 @@ public final class ChatMessage {
         this.role = role;
         this.content = content;
         this.toolCallId = toolCallId;
-        this.toolCalls = toolCalls == null ? Collections.<ToolCall>emptyList() : toolCalls;
+        this.toolCalls = toolCalls == null
+                ? Collections.<ToolCall>emptyList()
+                : Collections.unmodifiableList(new java.util.ArrayList<ToolCall>(toolCalls));
         this.parts = parts;
     }
 

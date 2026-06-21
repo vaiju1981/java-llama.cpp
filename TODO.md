@@ -21,9 +21,17 @@ session PRs) surfaced the items below. None are regressions from recent work. Th
 Items marked **✓ verified** were re-confirmed by reading the cited code directly; the rest were
 read-confirmed by the audit but warrant a quick re-check before the fix.
 
-**Progress (`feature/todo_fixes`):** Tier 1 (N1, N2, J1, P1) **DONE** and Tier 2 (N3, N4, S1, J3, J5)
-**DONE** — verified (452/452 C++ tests, affected Java tests + new regressions, Javadoc + Spotless +
-clang-format 22.1.5 clean). Remaining: all of Tier 3.
+**Progress (`feature/todo_fixes`):** Tier 1 (N1, N2, J1, P1), Tier 2 (N3, N4, S1, J3, J5) and Tier 3
+(S2, S3, P3, NaN/Inf JSON, OSInfo `exec`, discovery-route auth doc, `completeBatch` leak, probabilities
+doc) **DONE** — verified (452/452 C++ tests, affected Java tests + new regressions, Javadoc + Spotless +
+clang-format 22.1.5 clean).
+
+**Deferred — `LlamaLoader` native-lib extraction temp-path race (open).** Fixing it (per-process temp
+dir / atomic move) is the one audit item left undone: it sits on *the* native-library load path, so the
+change has a high blast radius and needs careful Windows / `deleteOnExit` / `cleanup()` co-design plus
+cross-platform load testing (a locked-DLL replace on Windows, leftover unique-dir accumulation) that the
+fix-batch could not safely exercise. The race only bites concurrent JVMs sharing one `java.io.tmpdir`
+(e.g. some CI matrices). Pick it up as its own change with a Windows test pass.
 
 **Tier 1 — high impact, fix first**
 

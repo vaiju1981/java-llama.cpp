@@ -139,6 +139,15 @@ abstract class JsonParameters {
      */
     @SuppressWarnings("TypeParameterUnusedInFormals")
     protected final <T extends JsonParameters> T withScalar(String key, Object value) {
+        // String.valueOf(Float.NaN)/Infinity produce "NaN"/"Infinity", which are NOT valid JSON
+        // tokens and would make the whole request body unparseable by the native nlohmann parser.
+        // Reject at the source so the caller gets a clear error instead of an opaque downstream failure.
+        if (value instanceof Float && !Float.isFinite((Float) value)) {
+            throw new IllegalArgumentException(key + " must be a finite number but was " + value);
+        }
+        if (value instanceof Double && !Double.isFinite((Double) value)) {
+            throw new IllegalArgumentException(key + " must be a finite number but was " + value);
+        }
         return withPut(key, String.valueOf(value));
     }
 

@@ -74,6 +74,7 @@ package net.ladenthin.llama.loader;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -354,7 +355,7 @@ public class OSInfo {
             String javaHome = System.getProperty("java.home");
             try {
                 // determine if first JVM found uses ARM hard-float ABI
-                int exitCode = Runtime.getRuntime().exec("which readelf").waitFor();
+                int exitCode = runDiscardingOutput("which", "readelf");
                 if (exitCode == 0) {
                     String[] cmdarray = {
                         "/bin/sh",
@@ -364,7 +365,7 @@ public class OSInfo {
                                 + "' -name 'libjvm.so' | head -1 | xargs readelf -A | "
                                 + "grep 'Tag_ABI_VFP_args: VFP registers'"
                     };
-                    exitCode = Runtime.getRuntime().exec(cmdarray).waitFor();
+                    exitCode = runDiscardingOutput(cmdarray);
                     if (exitCode == 0) {
                         return "armv7";
                     }
@@ -381,6 +382,24 @@ public class OSInfo {
         }
         // Use armv5, soft-float ABI
         return "arm";
+    }
+
+    /**
+     * Run {@code command}, discard its output, and return the exit code. Merges stderr into stdout
+     * and drains the combined stream to EOF <em>before</em> {@code waitFor()}, so the child can never
+     * block writing to a full pipe, and closes every process stream so no file descriptor leaks.
+     * Java&nbsp;8-safe (no {@code Redirect.DISCARD}).
+     */
+    private static int runDiscardingOutput(String... command) throws IOException, InterruptedException {
+        Process process = new ProcessBuilder(command).redirectErrorStream(true).start();
+        process.getOutputStream().close();
+        try (InputStream in = process.getInputStream()) {
+            byte[] buffer = new byte[4096];
+            while (in.read(buffer) != -1) {
+                // drain so the child never blocks on a full pipe
+            }
+        }
+        return process.waitFor();
     }
 
     /**
