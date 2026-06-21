@@ -411,6 +411,7 @@ if(BUILD_TESTING)
         src/test/cpp/test_jni_helpers.cpp
         src/test/cpp/test_json_helpers.cpp
         src/test/cpp/test_log_helpers.cpp
+        src/test/cpp/test_tts_dsp.cpp
         ${llama.cpp_SOURCE_DIR}/tools/server/server-common.cpp
         ${llama.cpp_SOURCE_DIR}/tools/server/server-chat.cpp
         ${llama.cpp_SOURCE_DIR}/tools/server/server-context.cpp
