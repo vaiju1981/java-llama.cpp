@@ -692,6 +692,14 @@ public class LlamaModelTest {
     }
 
     @Test
+    public void testJsonSchemaToGrammarRejectsMalformedSchema() {
+        // Regression for the JNI exception-boundary fix (audit Tier 1, PR #258): a malformed schema
+        // string used to let a C++ json::parse exception escape across the JNI boundary and abort the
+        // JVM. It must now surface as a catchable LlamaException instead of crashing the process.
+        assertThrows(LlamaException.class, () -> LlamaModel.jsonSchemaToGrammar("{ this is not valid json"));
+    }
+
+    @Test
     public void testTemplate() {
 
         List<Pair<String, String>> userMessages = new ArrayList<>();
