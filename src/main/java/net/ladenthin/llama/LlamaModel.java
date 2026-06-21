@@ -384,7 +384,9 @@ public class LlamaModel implements AutoCloseable {
     public static native void setLogger(LogFormat format, BiConsumer<LogLevel, String> callback);
 
     @Override
-    public void close() {
+    public synchronized void close() {
+        // synchronized so two concurrent close() calls cannot both observe a live native
+        // handle and double-free it; native delete() is idempotent (a zero handle is a no-op).
         delete();
     }
 

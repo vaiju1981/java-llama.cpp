@@ -48,7 +48,7 @@ public class ChatResponseTest {
         assertThat(r.getUsage().getCompletionTokens(), is(5L));
         assertThat(r.getUsage().getTotalTokens(), is(17L));
 
-        assertThat(r.getTimings().getPromptN(), is(12));
+        assertThat(r.getTimings().getPromptN(), is(12L));
         assertEquals(100.0, r.getTimings().getPromptMs(), 1e-9);
         assertEquals(100.0, r.getTimings().getPredictedPerSecond(), 1e-9);
 

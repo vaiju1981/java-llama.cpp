@@ -13,6 +13,89 @@ cross-cutting initiative.
 
 ## Open — jllama-specific
 
+### Code audit — pre-existing correctness / safety findings (open)
+
+A multi-area audit (2026-06-20) of the **existing** codebase (independent of the tools / vision /
+session PRs) surfaced the items below. None are regressions from recent work. They are intentionally
+**split into tiers so each can land as its own small, focused PR** rather than one large change.
+Items marked **✓ verified** were re-confirmed by reading the cited code directly; the rest were
+read-confirmed by the audit but warrant a quick re-check before the fix.
+
+**Progress (`feature/todo_fixes`):** Tier 1 (N1, N2, J1, P1) **DONE**, plus Tier 2 quick wins
+N4 and J3 **DONE** — verified (452/452 C++ tests, affected Java tests + a new metrics-overflow
+regression, Spotless + clang-format 22.1.5 clean). Remaining: Tier 2 (S1, N3, J5) and all of Tier 3.
+
+**Tier 1 — high impact, fix first**
+
+- **✓ Unhandled C++ exceptions cross the JNI boundary → JVM abort (UB).** Several `JNIEXPORT`
+  entry points call throwing code with no `try/catch`, so a C++ exception propagates across JNI
+  (no Java exception is raised — the process crashes). Most reachable: the **public** API
+  `LlamaModel.jsonSchemaToGrammar(String)` (`LlamaModel.java:436`) → `jllama.cpp:1090`
+  `ordered_json::parse(c_schema)` deterministically aborts the JVM on a malformed schema string.
+  Same class on `encode` / `handleTokenize` / `handleEmbeddings` / `handleRerank` / `applyTemplate`
+  with malformed JSON or an untokenizable prompt, and `applyTemplate`'s unchecked `.at("prompt")`.
+  **Fix:** wrap each entry-point body and convert to `ThrowNew(c_llama_error, e.what())` (the pattern
+  `handleCompletionsOai` / `configureParallelInference` already use). A shared macro covers them uniformly.
+- **✓ `parse_string_array` — null deref + JNI local-reference leak** (`jllama.cpp:339`). The
+  `GetStringUTFChars` result is not null-checked (OOM → `strdup(NULL)`), a `null` array element is UB,
+  and `GetObjectArrayElement` leaks a local ref each iteration — a `handleRerank` with many documents
+  overflows the ~16-slot local-ref table. **Fix:** null-check both, `DeleteLocalRef` per iteration,
+  free already-allocated slots on the error path. Reachable from `loadModel` + `handleRerank`.
+- **✓ `close()` / native `delete()` double-free under concurrent close** (`LlamaModel.java:387`,
+  `jllama.cpp` delete path). `close()` is not `synchronized`, `ctx` is a plain non-volatile `long`,
+  and native `delete()` does check-then-act on the handle with no atomicity; the library explicitly
+  supports async/parallel use, so two closes (or a close racing a try-with-resources unwind) can both
+  free the same handle. **Fix:** `synchronized` close (or atomic handle exchange).
+- **✓ `ServerMetrics.getCumulativeTimings()` truncates cumulative token totals to `int` → negative**
+  (`ServerMetrics.java:174`). `long` startup-cumulative counters cast `(int)` overflow past ~2.1B
+  tokens (e.g. `(int)3_000_000_000L == -1294967296`). **Fix:** widen `Timings.promptN`/`predictedN`
+  to `long` (the per-request `fromJson` path benefits too).
+
+**Tier 2 — medium**
+
+- **✓ Unbounded request-body read → OOM DoS** (`OpenAiCompatServer.java:820`,
+  `OBJECT_MAPPER.readTree(getRequestBody())`). No size cap / `Content-Length` check; unauthenticated
+  when bound to `0.0.0.0` (the bind is configurable and the default has no key). **Fix:** cap body size
+  / reject oversized `Content-Length` (config-driven, sane default).
+- **Streaming reader raw-pointer use-after-free** (`jllama.cpp` `receiveCompletionJson` /
+  `receiveChatCompletionChunk`). The reader pointer is cached under `readers_mutex`, then `next()` is
+  called outside the lock while `delete()`/`erase_reader` can free it. **Fix:** hold a `shared_ptr`
+  across `next()`.
+- **`Session` permanently wedged on an abandoned stream** (`SessionState`). `streamingActive` is cleared
+  only by `commitStreamedReply`; a consumer that throws / `break`s / closes the iterable without
+  committing leaves the flag stuck `true` forever (every later `send`/`stream`/`save`/`restore` throws),
+  and the user turn is committed with no assistant turn. **Fix:** clear the flag on stream close/cancel.
+- **✓ `LlamaIterator.hasNext` not `volatile`** (`LlamaIterator.java:41`). `cancel()` (documented as a
+  cross-thread call) writes it from another thread; the consumer may never observe `false`. The sibling
+  `CancellationToken.cancelled` is `volatile` for exactly this reason. **Fix:** `volatile`.
+- **Log callback throws from a JVM-unattached native thread** (`jllama.cpp` log lambda + `get_jni_env`).
+  ggml/llama internal threads can fire logging; `get_jni_env` throws, unwinding through C frames →
+  `std::terminate`/UB. **Fix:** make the lambda `noexcept`, skip when the thread is unattached.
+
+**Tier 3 — hardening / low**
+
+- **✓ Timing-unsafe API-key comparison** (`OpenAiCompatServer.java:817`, `String.equals`) →
+  `MessageDigest.isEqual`.
+- **✓ `ChatMessage.toolCalls` not defensively copied** (`ChatMessage.java:102`) — `parts` is copied +
+  wrapped, `toolCalls` is stored/returned by reference, breaking the documented-immutable contract.
+- **Single-thread heartbeat pool** (`OpenAiCompatServer.java:171`) — one stalled SSE client blocks the
+  lone scheduler thread, starving every other stream's keep-alives. **Fix:** size the pool / non-blocking
+  heartbeat write.
+- **Float `NaN`/`Infinity` → invalid JSON** in scalar withers (`JsonParameters.withScalar` via
+  `String.valueOf`); the whole request then fails opaquely in the native parser. **Fix:** reject at the
+  public wither.
+- **Native-lib extraction to a fixed temp path** (`LlamaLoader`) — no per-process uniqueness; concurrent
+  JVMs (CI matrices) can interleave a partial `copy` with a peer's `System.load`, and `cleanup()` can
+  delete a file a live peer needs. **Fix:** per-process temp dir / atomic move.
+- **`OSInfo` raw `exec()`** (32-bit ARM detection) leaks `Process` + undrained pipes (can hang init).
+  **Fix:** route through `ProcessRunner` / drain+close streams.
+- **Discovery routes unauthenticated** (`/props`, `/api/show`) — minor metadata disclosure when a key is
+  set; decide intentional-and-document vs. gate.
+- **`completeBatch` partial-failure leak** — on the first `join()` throw, sibling futures keep running
+  unobserved (native slot pressure); await/cancel the rest before rethrowing.
+- **`probabilities` map is last-wins on duplicate token text** (`CompletionResponseParser`) — document,
+  or key by id+position (lossless data already in `logprobs`).
+
 ### OpenAI-compatible HTTP endpoint (shipped; follow-ups open)
 
 `net.ladenthin.llama.server.OpenAiCompatServer` is the single OpenAI-compatible server (JDK
