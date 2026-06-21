@@ -271,6 +271,43 @@ These are JNI plumbing items for upstream API additions. Policy: add only after 
 
 - **Expose `llama_vocab::get_suppress_tokens()` via `LlamaModel.getSuppressTokens()`.** Added in b9490–b9495 alongside the new `tokenizer.ggml.suppress_tokens` GGUF key and the `LLM_KV_TOKENIZER_SUPPRESS_TOKENS` constant. When a GGUF declares this array, upstream stores it on `llama_vocab::impl::suppress_tokens` and exposes it via the new `llama_vocab::get_suppress_tokens()` accessor. The bias is **applied automatically** inside the model forward graph — the Gemma4 Unified graph (`src/models/gemma4.cpp`) reads the list and adds a `-INFINITY` logit bias to those token IDs via a new `llm_graph_input_logits_bias` input so the model cannot emit them (used to block `<image|>` / `<audio|>` placeholders). A Java mirror would be `public int[] getSuppressTokens()` on `LlamaModel`: a read-only inspector returning the suppression list for debugging or for callers running their own sampling who want to replicate the same bias. Value is low (the bias is auto-applied, Java callers cannot change it; java-llama.cpp does not expose custom logit-bias hooks at this level); cost is trivial (one JNI passthrough + a `getSuppressTokens()` Java method).
 
+### JNI safety and server hardening (from PR #251 contributor)
+
+Raised by [@vaiju1981](https://github.com/vaiju1981) in
+[PR #251 comment](https://github.com/bernardladenthin/java-llama.cpp/pull/251#issuecomment-4761363838).
+Feel free to contribute fixes — PRs welcome.
+
+- **Unhandled C++ exceptions cross the JNI boundary → JVM abort (UB).** Any `std::exception`
+  (or worse, an exception of unknown type) that escapes a native method and crosses the JNI
+  boundary causes undefined behaviour on most JVMs and typically aborts the process. Each native
+  method in `jllama.cpp` should wrap its body in `try { … } catch (const std::exception& e) {
+  env->ThrowNew(llamaExceptionClass, e.what()); return <zero>; } catch (...) { env->ThrowNew(…,
+  "unknown C++ exception"); return <zero>; }` so that errors surface as `LlamaException` on the
+  Java side instead of crashing the JVM.
+
+- **`parse_string_array` — null deref + JNI local-reference leak.** The helper that reads a
+  JSON string array from JNI can dereference a null pointer when an array element is absent,
+  and leaks JNI local references when an early exit skips the matching `DeleteLocalRef`. Fix:
+  guard every `GetObjectArrayElement` result and pair each reference acquisition with a
+  `DeleteLocalRef` before the next iteration or return.
+
+- **`close()` / native `delete()` double-free under concurrent close.** If two threads race to
+  call `LlamaModel.close()`, both can reach the native `delete` path and free the same
+  `jllama_context` pointer twice → heap corruption. Fix: use `AtomicBoolean closed` + a
+  `synchronized` guard (or `compareAndSet`) on the Java side so `close()` is idempotent and
+  the native pointer is nulled before the second caller can reach it.
+
+- **`ServerMetrics.getCumulativeTimings()` truncates cumulative token totals to `int`.** The
+  cumulative token counters are stored as `long` in the JSON but cast to `int` when
+  constructing `ServerMetrics`, silently truncating values above `Integer.MAX_VALUE`
+  (~2.1 billion tokens). Fix: widen the field and constructor parameter to `long`.
+
+- **Unbounded request-body read → OOM DoS.** The HTTP handler reads the entire request body
+  into a `String`/`byte[]` before parsing it, with no size cap. A client that streams a
+  multi-gigabyte body can exhaust heap memory and crash the JVM. Fix: add a configurable
+  `maxRequestBodyBytes` limit (e.g. default 4 MB) and reject oversized requests with
+  `HTTP 413 Content Too Large` before buffering them.
+
 ### Feature backlog from similar projects
 
 - **Feature backlog from similar projects.** See [`docs/feature-investigation-similar-projects.md`](docs/feature-investigation-similar-projects.md) for the consolidated investigation across the 5 pure-Java sibling runtimes ([llama3.java](https://github.com/mukel/llama3.java), [gemma4.java](https://github.com/mukel/gemma4.java), [gptoss.java](https://github.com/mukel/gptoss.java), [qwen35.java](https://github.com/mukel/qwen35.java), [nemotron3.java](https://github.com/mukel/nemotron3.java)) plus the dormant alternative JNI binding [llamacpp4j](https://github.com/sebicom/llamacpp4j). The doc captures 18 candidate items grouped into cross-cutting themes (UTF-8 streaming boundary safety, thinking-channel router, operator timing line, jbang single-file example, README system-properties table, etc.) and per-repo unique findings (Harmony channel decoder, Qwen empty-`<think>` injection, llama_state_* save/load, llama_adapter_lora_* hot-apply, etc.), each with effort sizing (XS / S / M / L) and a prioritised backlog.
