@@ -75,7 +75,7 @@ public final class SlotMetrics {
      * @return decoded-token count
      */
     public long getDecodedTokens() {
-        return node.path("next_token").path("n_decoded").asLong(0L);
+        return nextToken().path("n_decoded").asLong(0L);
     }
 
     /**
@@ -83,7 +83,21 @@ public final class SlotMetrics {
      * @return remaining-token count
      */
     public long getRemainingTokens() {
-        return node.path("next_token").path("n_remain").asLong(0L);
+        return nextToken().path("n_remain").asLong(0L);
+    }
+
+    /**
+     * Resolves the {@code next_token} payload node. llama.cpp's {@code server_slot::to_json}
+     * (b9739) serializes {@code next_token} as a JSON <em>array containing a single object</em>,
+     * so the counters live at {@code next_token[0]}. This unwraps that array; if a bare object
+     * is encountered instead it is used directly, and anything else yields a missing node whose
+     * accessors fall back to their defaults.
+     *
+     * @return the object node carrying {@code n_decoded} / {@code n_remain}, or a missing node
+     */
+    private JsonNode nextToken() {
+        JsonNode next = node.path("next_token");
+        return next.isArray() ? next.path(0) : next;
     }
 
     /**

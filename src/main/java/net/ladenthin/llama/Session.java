@@ -79,15 +79,24 @@ public final class Session implements AutoCloseable {
      * the transformed instance — it cannot mutate the input.
      *
      * @param model the underlying model
-     * @param slotId the slot id
+     * @param slotId the slot id; must be non-negative (a session is pinned to one concrete slot
+     *     for both inference and {@link #save(String)} / {@link #restore(String)} / {@link #close()})
      * @param systemMessage optional system prompt
      * @param paramsCustomizer applied to each request's parameters; may be {@code null}
+     * @throws IllegalArgumentException if {@code slotId} is negative
      */
     public Session(
             LlamaModel model,
             int slotId,
             @Nullable String systemMessage,
             @Nullable UnaryOperator<InferenceParameters> paramsCustomizer) {
+        // Validate here, not per request: every send()/stream() pins this slot id (see
+        // buildParams), and the slot also backs save()/restore()/close(). A negative id is
+        // meaningless for those, so reject it up front with a clear message rather than letting
+        // InferenceParameters.withSlotId throw on the first inference call.
+        if (slotId < 0) {
+            throw new IllegalArgumentException("slotId must be non-negative, was " + slotId);
+        }
         this.model = model;
         this.slotId = slotId;
         this.state = new SessionState(slotId, systemMessage);
