@@ -2,10 +2,11 @@
 //
 // SPDX-License-Identifier: MIT
 //
-// Unit tests for the vendored TTS output DSP (src/main/cpp/tts_dsp.hpp). Pure signal
-// processing — no model, no JNI — so they run in the standard jllama_test suite.
+// Unit tests for the in-memory WAV writer (src/main/cpp/tts_wav.hpp) — our own code, not upstream.
+// The OuteTTS DSP it pairs with (embd_to_audio etc.) is derived from upstream tts.cpp at build time
+// and exercised end-to-end by the Java TtsIntegrationTest, not unit-tested here.
 
-#include "tts_dsp.hpp"
+#include "tts_wav.hpp"
 
 #include <cstdint>
 #include <gtest/gtest.h>
@@ -49,32 +50,4 @@ TEST(TtsWav, ClampsAndEncodesSamplesLittleEndian) {
     EXPECT_EQ(sample(1), 32767);
     EXPECT_EQ(sample(2), -32767);
     EXPECT_EQ(sample(3), -32768);
-}
-
-TEST(TtsDsp, HannWindowPeriodicEndpoints) {
-    std::vector<float> w(8);
-    fill_hann_window((int)w.size(), /*periodic=*/true, w.data());
-    EXPECT_NEAR(w[0], 0.0f, 1e-6); // periodic Hann starts at 0
-    EXPECT_NEAR(w[4], 1.0f, 1e-6); // and peaks at the centre (length/2)
-    for (float v : w) {
-        EXPECT_GE(v, 0.0f);
-        EXPECT_LE(v, 1.0f + 1e-6f);
-    }
-}
-
-TEST(TtsDsp, FoldTrimsPadAndSumsOverlaps) {
-    // n_out=10, n_win=4, n_hop=2, n_pad=1 -> output length n_out - 2*n_pad = 8.
-    std::vector<float> data(/*n_out*/ 10 * /*cols*/ 1, 1.0f);
-    std::vector<float> out;
-    fold(data, 10, 4, 2, 1, out);
-    EXPECT_EQ(out.size(), 8u);
-}
-
-TEST(TtsDsp, EmbdToAudioOutputLengthMatchesIdentity) {
-    // Vocoder spectrogram dim and code count; output length is n_codes * n_hop(=320).
-    const int n_embd = 1282;
-    const int n_codes = 3;
-    std::vector<float> embd(n_embd * n_codes, 0.01f);
-    std::vector<float> audio = embd_to_audio(embd.data(), n_codes, n_embd, /*n_thread=*/2);
-    EXPECT_EQ(audio.size(), (size_t)(n_codes * 320));
 }

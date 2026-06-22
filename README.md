@@ -515,9 +515,9 @@ try (TextToSpeech tts = new TextToSpeech(
 
 Add `(ttcPath, vocoderPath, gpuLayers, threads)` to offload to the GPU, or
 `synthesize(text, maxCodeTokens, topK, seed)` for explicit sampling. As with `LlamaModel`, native
-memory is not GC-managed — use try-with-resources or call `close()`. **Known limitation:** numeric
-digits in the input are dropped (number-to-words romanization is not yet ported), so spell numbers
-out for now; synthesis uses the built-in default speaker profile.
+memory is not GC-managed — use try-with-resources or call `close()`. Synthesis uses the built-in
+default speaker profile; English number words are expanded for speech (`3` → "three"), and
+non-English text is not romanized.
 
 Compatible GGUFs (the CI test defaults): OuteTTS
 [`OuteTTS-0.2-500M-GGUF`](https://huggingface.co/second-state/OuteTTS-0.2-500M-GGUF) +

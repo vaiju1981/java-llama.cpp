@@ -384,6 +384,38 @@ Current patches:
 |-------|-------|
 | `0001-win32-arg-parse-embed-guard.patch` | Windows JNI regression from llama.cpp **#24779** (b9739): `common_params_parse` unconditionally replaced the caller's argv with the process command line (`GetCommandLineW`), so an embedded/JNI caller (`java.exe`) lost its `--model …` args → "Failed to parse model parameters". The patch **drops the override for our build** (keeps the `make_utf8_argv()` call referenced so there's no `-Wunused-function`, but never adopts its result), so the caller's already-UTF-8 argv is always used. This is **deterministic** — an earlier count-guard variant (only override when the re-derived arg count equals `argc`) collided on the server-integration tests whose argv length happened to equal `java.exe`'s and kept them failing. The upstream PR can instead expose an opt-out / `common_params_parse_argv` that preserves the standalone tools' UTF-8 fix. |
 
+## OuteTTS build-time extraction (`cmake/generate-tts-upstream.cmake`)
+
+The `TextToSpeech` native pipeline reuses llama.cpp's OuteTTS helpers (`tools/tts/tts.cpp`)
+**without hand-copying them**. A verbatim copy would be a DRY/maintenance hazard that silently
+diverges on every upgrade, and `tts.cpp` cannot simply be added to `target_sources` — it defines its
+own `main()`, which would clash at link time (the same reason `tools/server/server.cpp` is excluded
+while `server-*.cpp` are compiled in), and all its helpers are `static` (internal linkage), so they
+are unreachable from another TU even if it were linked.
+
+Instead the helpers are **DERIVED mechanically at configure time** from the pinned upstream source:
+
+- **`cmake/generate-tts-upstream.cmake`** — reads `${llama.cpp_SOURCE_DIR}/tools/tts/tts.cpp`, keeps
+  the pre-`main()` span (the DSP `fill_hann_window`/`irfft`/`fold`/`embd_to_audio`, the prompt/text
+  helpers incl. `process_text`'s number-to-words, the `outetts_version` enum), strips `static` from
+  the handful the JNI engine calls (giving them external linkage), and extracts the two hard-coded
+  default-speaker literals out of `main()` into `extern const` strings. Writes
+  `build/tts_generated/tts_upstream_gen.cpp`.
+- **`CMakeLists.txt`** — runs the generator via `execute_process` right after
+  `FetchContent_MakeAvailable(llama.cpp)`, then compiles the generated TU into `jllama`. The file is
+  **never committed** (build artifact, like the native libs / WebUI assets); it is regenerated from
+  whatever `tts.cpp` the pinned `GIT_TAG` resolves to, so a version bump is picked up automatically.
+- **`src/main/cpp/tts_upstream.h`** — committed, hand-written declarations of the extracted symbols
+  (interface facts, not the implementation). `tts_engine.cpp` includes it and links against the
+  generated definitions. The in-memory WAV writer (`tts_wav.hpp`) is ours, not extracted.
+
+**Fail-loud on drift (same contract as `patches/`):** the generator asserts every anchor — the
+`int main(` split point, each `static <signature>` it de-statics, and both speaker literals. If an
+upgrade renames a helper or moves a literal, the **configure step aborts** with a pointer to the
+generator; if upstream changes a *type*, `tts_upstream.h` stops matching and the **link fails**.
+Either way a silent divergence is impossible. On a llama.cpp bump, re-verify the generator the same
+way you re-verify `patches/`.
+
 ## Upgrading/Downgrading llama.cpp Version
 
 To change the llama.cpp version, update the following **three** files (and re-verify `patches/`):
@@ -744,7 +776,7 @@ If the local check passes (`BUILD SUCCESS`), the `mvn package` job in
 
 **Java layer** (`src/main/java/net/ladenthin/llama/`):
 - `LlamaModel` — Main API class (AutoCloseable). Wraps native context for inference, embeddings, re-ranking, and tokenization.
-- `TextToSpeech` — Separate AutoCloseable native type for speech synthesis over the two-model OuteTTS (text-to-codes) + WavTokenizer (codes-to-speech vocoder) pipeline; `synthesize(text)` returns a 24 kHz mono 16-bit WAV byte stream. Native engine in `tts_engine.{h,cpp}`, output DSP in `tts_dsp.hpp`.
+- `TextToSpeech` — Separate AutoCloseable native type for speech synthesis over the two-model OuteTTS (text-to-codes) + WavTokenizer (codes-to-speech vocoder) pipeline; `synthesize(text)` returns a 24 kHz mono 16-bit WAV byte stream. Native orchestration in `tts_engine.{h,cpp}`; the OuteTTS DSP / prompt / text helpers + default speaker are **derived at build time from upstream `tts.cpp`** (see "OuteTTS build-time extraction" below), not hand-copied; the in-memory WAV writer is `tts_wav.hpp`.
 - `ModelParameters` / `InferenceParameters` — Builder-pattern parameter classes that serialize to JSON (extend `JsonParameters`) for passing to native code.
 - `LlamaIterator` / `LlamaIterable` — Streaming generation via Java `Iterator`/`Iterable`.
 - `LlamaLoader` — Extracts the platform-specific native library from the JAR to a temp directory, or finds it on `java.library.path`.
@@ -915,9 +947,9 @@ ctest --test-dir build --output-on-failure -R "ResultsToJson"
 | `src/test/cpp/test_json_helpers.cpp` | 47 | All functions in `json_helpers.hpp`: `get_result_error_message`, `results_to_json`, `rerank_results_to_json`, `parse_encoding_format`, `extract_embedding_prompt`, `is_infill_request`, `parse_slot_prompt_similarity`, `parse_positive_int_config`, `wrap_stream_chunk` |
 | `src/test/cpp/test_log_helpers.cpp` | 13 | All functions in `log_helpers.hpp`: `log_level_name`, `format_log_as_json` |
 | `src/test/cpp/test_jni_helpers.cpp` | 47 | All functions in `jni_helpers.hpp` using a zero-filled `JNINativeInterface_` mock |
-| `src/test/cpp/test_tts_dsp.cpp` | 5 | All functions in `tts_dsp.hpp` (OuteTTS output DSP): `pcm_to_wav16_bytes` (WAV header/payload + little-endian clamping), `fill_hann_window`, `fold`, `embd_to_audio` |
+| `src/test/cpp/test_tts_wav.cpp` | 2 | The in-memory WAV writer `pcm_to_wav16_bytes` in `tts_wav.hpp` (WAV header/payload + little-endian clamping). The OuteTTS DSP it pairs with is derived from upstream `tts.cpp` and covered end-to-end by the Java `TtsIntegrationTest`, not unit-tested here. |
 
-**Current total: 457 tests (all passing).**
+**Current total: 454 tests (all passing).**
 
 #### Upstream source location (in CMake build tree)
 

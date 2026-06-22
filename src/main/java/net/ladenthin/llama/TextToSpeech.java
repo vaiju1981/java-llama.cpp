@@ -23,8 +23,8 @@ import net.ladenthin.llama.loader.LlamaLoader;
  * }
  * }</pre>
  *
- * <p><b>Known limitation:</b> numeric digits in the input are dropped (number-to-words romanization
- * is not yet ported); spell numbers out for now. Uses the built-in default speaker profile.
+ * <p>Synthesis uses the built-in default speaker profile. English number words are expanded for
+ * speech (e.g. {@code 3} is spoken as "three"); non-English text is not romanized.
  */
 public final class TextToSpeech implements AutoCloseable {
 
