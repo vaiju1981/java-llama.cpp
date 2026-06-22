@@ -438,6 +438,25 @@ SPDX-License-Identifier: MIT
     </Match>
 
     <!--
+        ContentPart.inputAudio validates the audio-format token the canonical way: lowercase with the
+        locale-safe Locale.ROOT, then compare against the two allowed ASCII literals ("wav" / "mp3"),
+        throwing IllegalArgumentException otherwise. findsecbugs fires IMPROPER_UNICODE on the
+        case-transform and LSC_LITERAL_STRING_COMPARISON on the literal .equals, but the operand domain
+        is a fixed pair of ASCII format names — no Unicode case-folding collision exists, and comparing
+        the normalised token against the literals is exactly the intended validation. Same false-positive
+        category as the server.* IMPROPER_UNICODE block above. (Pre-existing finding from the merged
+        audio-input feature; suppressed here so the branch's analysis is clean.)
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.value.ContentPart"/>
+        <Method name="inputAudio"/>
+        <Or>
+            <Bug pattern="IMPROPER_UNICODE"/>
+            <Bug pattern="LSC_LITERAL_STRING_COMPARISON"/>
+        </Or>
+    </Match>
+
+    <!--
         LlamaModelBackend.stream bridges the model's Consumer-based streaming API (which cannot throw a
         checked exception) back to the IOException-throwing ChunkSink. A sink IOException is relayed out
         of the consumer as an UncheckedIOException, caught here, and the ORIGINAL IOException is rethrown
@@ -471,7 +490,10 @@ SPDX-License-Identifier: MIT
     <Match>
         <Class name="net.ladenthin.llama.server.OpenAiRequestMapper"/>
         <Bug pattern="WEM_WEAK_EXCEPTION_MESSAGING"/>
-        <Method name="toInferenceParameters"/>
+        <Or>
+            <Method name="toInferenceParameters"/>
+            <Method name="toCompletionParameters"/>
+        </Or>
     </Match>
 
     <!--
@@ -547,6 +569,25 @@ SPDX-License-Identifier: MIT
             <Class name="net.ladenthin.llama.server.OpenAiCompatServer"/>
         </Or>
         <Bug pattern="IMC_IMMATURE_CLASS_NO_TOSTRING"/>
+    </Match>
+
+    <!--
+        TextToSpeech is a native-handle wrapper like LlamaModel: its only instance field is the opaque
+        `long handle` to the native OuteTTS engine. A generated toString would emit just that pointer
+        value (no meaningful state), exactly the IMC_IMMATURE_CLASS_NO_TOSTRING / java/default-tostring
+        case suppressed for LlamaModelBackend above, so toString is intentionally omitted. And
+        synthesize() guards the closed handle with a fixed, descriptive precondition message
+        ("TextToSpeech is closed") — the value is closed-or-not by definition at that throw, with no
+        extra state worth adding (same rationale as the server request-parser WEM suppressions above).
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.TextToSpeech"/>
+        <Bug pattern="IMC_IMMATURE_CLASS_NO_TOSTRING"/>
+    </Match>
+    <Match>
+        <Class name="net.ladenthin.llama.TextToSpeech"/>
+        <Bug pattern="WEM_WEAK_EXCEPTION_MESSAGING"/>
+        <Method name="synthesize"/>
     </Match>
 
 </FindBugsFilter>
