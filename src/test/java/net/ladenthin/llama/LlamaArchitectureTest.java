@@ -127,7 +127,7 @@ public class LlamaArchitectureTest {
             .whereLayer("Parameters")
             .mayOnlyBeAccessedByLayers("Api", "Loader", "Server")
             .whereLayer("Value")
-            .mayOnlyBeAccessedByLayers("Api", "Json", "Parameters")
+            .mayOnlyBeAccessedByLayers("Api", "Json", "Parameters", "Server")
             .whereLayer("Callback")
             .mayOnlyBeAccessedByLayers("Api")
             .whereLayer("Exception")
