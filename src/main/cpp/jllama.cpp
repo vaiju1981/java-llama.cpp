@@ -1477,8 +1477,10 @@ JNIEXPORT jlong JNICALL Java_net_ladenthin_llama_TextToSpeech_loadNative(JNIEnv 
     }
 }
 
-JNIEXPORT jbyteArray JNICALL Java_net_ladenthin_llama_TextToSpeech_synthesizeNative(
-    JNIEnv *env, jclass clazz, jlong handle, jstring jtext, jint max_codes, jint top_k, jint seed) {
+JNIEXPORT jbyteArray JNICALL Java_net_ladenthin_llama_TextToSpeech_synthesizeNative(JNIEnv *env, jclass clazz,
+                                                                                    jlong handle, jstring jtext,
+                                                                                    jint max_codes, jint top_k,
+                                                                                    jint seed) {
     (void)clazz;
     try {
         auto *engine = reinterpret_cast<jllama_tts::tts_engine *>(handle);
