@@ -242,10 +242,14 @@ process, so the override is pure liability), which is deterministic. **As of the
 was reshaped into the clean opt-in form intended for upstreaming (fix option 3's core):**
 `common_params_parse` now parses exactly the argv it is given, and a new `common_params_parse_main()`
 wrapper carries the `GetCommandLineW` UTF-8 recovery that the standalone tools' `main()` opt into.
-Embedded callers stay on `common_params_parse` and are never overridden. The local patch leaves the
-~20 standalone `main()` call-site flips to the upstream PR (we don't ship those tools and a 20-file
-patch would be bump-fragile); once that PR lands the local patch can be dropped. Until then it must be
-re-verified on each llama.cpp bump (the applier fails loud if it no longer applies).
+**The patch now carries the full upstream change (37 files):** the ~34 `common_params_parse(argc, argv,
+…)` call sites across `tools/*`, `examples/*` and the `tests/*` programs flip to
+`common_params_parse_main()`, plus a `tests/test-arg-parser.cpp` regression case. Embedded callers stay
+on `common_params_parse`. Our subproject build compiles only the `arg.{cpp,h}` core
+(`LLAMA_BUILD_TOOLS`/`TESTS` OFF), so the flips + test are validated via a one-off tools+tests build
+(the new test's asserts pass; `test-arg-parser`'s only red is the live `ggml.ai` download check, which
+is sandbox-network). The 37-file patch must be re-verified on each llama.cpp bump (the applier fails
+loud). Submit it to llama.cpp and drop the local copy once merged.
 
 **Symptom.** On **Windows x86_64 only**, every Java test that loads a real model fails in
 `LlamaModel.loadModel` (native) with `LlamaException: "Failed to parse model parameters"`
