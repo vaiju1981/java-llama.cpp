@@ -238,10 +238,14 @@ Windows Java tests, but **collided** on the 4 server-integration setups (`OpenAi
 `OpenAiServerToolCalling*`, `MultimodalIntegrationTest`, `OpenAiCompatServerIntegrationTest`) whose
 argv length happened to equal `java.exe`'s, so they kept failing with the same parse error. The patch
 was changed to **fix option 2** (drop the override entirely for our build — a JNI library is never the
-process, so the override is pure liability), which is deterministic. Still worth upstreaming as an
-opt-out / `common_params_parse_argv` that preserves the standalone tools' UTF-8 fix, so the patch can
-eventually be dropped; until then it must be re-verified on each llama.cpp bump (the applier fails loud
-if it no longer applies).
+process, so the override is pure liability), which is deterministic. **As of the b9789 bump the patch
+was reshaped into the clean opt-in form intended for upstreaming (fix option 3's core):**
+`common_params_parse` now parses exactly the argv it is given, and a new `common_params_parse_main()`
+wrapper carries the `GetCommandLineW` UTF-8 recovery that the standalone tools' `main()` opt into.
+Embedded callers stay on `common_params_parse` and are never overridden. The local patch leaves the
+~20 standalone `main()` call-site flips to the upstream PR (we don't ship those tools and a 20-file
+patch would be bump-fragile); once that PR lands the local patch can be dropped. Until then it must be
+re-verified on each llama.cpp bump (the applier fails loud if it no longer applies).
 
 **Symptom.** On **Windows x86_64 only**, every Java test that loads a real model fails in
 `LlamaModel.loadModel` (native) with `LlamaException: "Failed to parse model parameters"`

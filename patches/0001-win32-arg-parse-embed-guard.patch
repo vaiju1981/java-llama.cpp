@@ -1,26 +1,63 @@
 diff --git a/common/arg.cpp b/common/arg.cpp
+index 276dbec..8cdd367 100644
 --- a/common/arg.cpp
 +++ b/common/arg.cpp
-@@ -933,10 +933,18 @@ bool common_params_parse(int argc, char ** argv, common_params & params, llama_e
+@@ -931,14 +931,11 @@ static utf8_argv make_utf8_argv() {
+ #endif
+ 
  bool common_params_parse(int argc, char ** argv, common_params & params, llama_example ex, void(*print_usage)(int, char **)) {
- #ifdef _WIN32
-     auto utf8 = make_utf8_argv();
+-#ifdef _WIN32
+-    auto utf8 = make_utf8_argv();
 -    // repair argv only when it matches the process command line
 -    if (static_cast<int>(utf8.buf.size()) == argc) {
 -        argv = utf8.ptrs.data();
 -    }
-+    // java-llama.cpp patch (PR #248): upstream (llama.cpp #24779) replaced the caller's argv with
-+    // the process command line (GetCommandLineW) here to recover UTF-8 args for the standalone
-+    // llama-* tools. libjllama is a JNI library, never the process: it already passes correct
-+    // UTF-8 argv (GetStringUTFChars), and adopting GetCommandLineW discarded it -> common_params_parse
-+    // parsed java.exe's command line and failed with "Failed to parse model parameters". We keep the
-+    // make_utf8_argv() call (so it stays referenced -> -Wunused-function-clean) but do NOT adopt its
-+    // result, so the caller's already-UTF-8 argv is always used. This is deterministic: upstream's
-+    // count-guard form here (only override when the re-derived arg count equals argc) collided on the
-+    // server-integration tests whose argv length happened to equal java.exe's, so they kept failing.
-+    // The upstream PR can instead expose an opt-out / a common_params_parse_argv that preserves the
-+    // standalone tools' UTF-8 fix.
-+    (void) utf8;
- #endif
-
+-#endif
+-
++    // java-llama.cpp patch (proposed upstream, llama.cpp #24779): parse exactly the argv we
++    // are given. The Windows process-command-line UTF-8 recovery moved to
++    // common_params_parse_main() below, which the standalone tools' main() opt into. An
++    // embedded/JNI caller passes its own argv (not the process command line), so it must
++    // never be silently overridden here.
      auto ctx_arg = common_params_parser_init(params, ex, print_usage);
+     const common_params params_org = ctx_arg.params; // the example can modify the default params
+ 
+@@ -971,6 +968,22 @@ bool common_params_parse(int argc, char ** argv, common_params & params, llama_e
+     return true;
+ }
+ 
++// java-llama.cpp patch (proposed upstream): entry point for the standalone tools' main().
++// On Windows the process may receive an ANSI/mojibake argv, so recover the correct UTF-8
++// argv from the process command line (GetCommandLineW) before parsing -- the llama.cpp
++// #24779 fix. Embedded callers that build their own argv must call common_params_parse()
++// directly instead, so their argv is never discarded.
++bool common_params_parse_main(int argc, char ** argv, common_params & params, llama_example ex, void(*print_usage)(int, char **)) {
++#ifdef _WIN32
++    // `utf8` must outlive the parse call below -- its ptrs point into its buf.
++    auto utf8 = make_utf8_argv();
++    if (static_cast<int>(utf8.buf.size()) == argc) {
++        return common_params_parse(static_cast<int>(utf8.buf.size()), utf8.ptrs.data(), params, ex, print_usage);
++    }
++#endif
++    return common_params_parse(argc, argv, params, ex, print_usage);
++}
++
+ static std::string list_builtin_chat_templates() {
+     std::vector<const char *> supported_tmpl;
+     int32_t res = llama_chat_builtin_templates(nullptr, 0);
+diff --git a/common/arg.h b/common/arg.h
+index fdfc04b..a5777d7 100644
+--- a/common/arg.h
++++ b/common/arg.h
+@@ -122,6 +122,11 @@ struct common_params_context {
+ // if one argument has invalid value, it will automatically display usage of the specific argument (and not the full usage message)
+ bool common_params_parse(int argc, char ** argv, common_params & params, llama_example ex, void(*print_usage)(int, char **) = nullptr);
+ 
++// Like common_params_parse(), but first recovers the process command line as UTF-8 argv on
++// Windows (the llama.cpp #24779 fix). Standalone tools' main() should call THIS; embedded
++// callers that supply their own argv must call common_params_parse() directly.
++bool common_params_parse_main(int argc, char ** argv, common_params & params, llama_example ex, void(*print_usage)(int, char **) = nullptr);
++
+ // parse input arguments from CLI into a map
+ bool common_params_to_map(int argc, char ** argv, llama_example ex, std::map<common_arg, std::string> & out_map);
+ 
