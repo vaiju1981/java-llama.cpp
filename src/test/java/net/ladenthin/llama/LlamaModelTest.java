@@ -683,9 +683,9 @@ public class LlamaModelTest {
                         + "b-rest ::= ( \",\" space c-kv )?\n"
                         + "c-kv ::= \"\\\"c\\\"\" space \":\" space string\n"
                         + "char ::= [^\"\\\\\\x7F\\x00-\\x1F] | [\\\\] ([\"\\\\bfnrt] | \"u\" [0-9a-fA-F]{4})\n"
-                        + "root ::= \"{\" space  (a-kv a-rest | b-kv b-rest | c-kv )? \"}\" space\n"
+                        + "root ::= \"{\" space  (a-kv a-rest | b-kv b-rest | c-kv )? space \"}\"\n"
                         + "space ::= | \" \" | \"\\n\"{1,2} [ \\t]{0,20}\n"
-                        + "string ::= \"\\\"\" char* \"\\\"\" space\n";
+                        + "string ::= \"\\\"\" char* \"\\\"\"\n";
 
         String actualGrammar = LlamaModel.jsonSchemaToGrammar(schema);
         assertEquals(expectedGrammar, actualGrammar);
