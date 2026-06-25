@@ -13,6 +13,19 @@ cross-cutting initiative.
 
 ## Open — jllama-specific
 
+### PIT gate not hermetic — `value.ContentPart.audioFile(Path)` (open)
+
+The PIT mutation gate reaches 100% **only when the audio test fixture is present**. Without it the
+run is **98%**: 4 `NO_COVERAGE` mutants in `value.ContentPart.audioFile(Path)` (the null file-name
+guard, the `.wav`/`.mp3` extension dispatch, and `Files.readAllBytes`). The only test that exercises
+that method is `AudioInputIntegrationTest`, which is model-/fixture-gated and self-skips (`Assume`)
+when no audio clip is supplied (`net.ladenthin.llama.audio.input` — no committed default). So any
+environment lacking the clip (e.g. a network-restricted sandbox) reds the gate. Fix: add a hermetic
+temp-file unit test for `audioFile(Path)` — write a few bytes to a `@TempDir` `*.wav` / `*.mp3` and
+assert the format dispatch — mirroring the existing `imageFile(Path)` temp-file tests (PNG/JPG/GIF/
+WEBP), which already make the image path hermetic. See
+[`../workspace/policies/pit-mutation-testing.md`](../workspace/policies/pit-mutation-testing.md) §4.
+
 ### Code audit — pre-existing correctness / safety findings (RESOLVED — PRs #258 + #260)
 
 A multi-area audit (2026-06-20) of the **existing** codebase surfaced 18 correctness/safety findings,
