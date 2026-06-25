@@ -410,11 +410,14 @@ Instead the helpers are **DERIVED mechanically at configure time** from the pinn
   generated definitions. The in-memory WAV writer (`tts_wav.hpp`) is ours, not extracted.
 
 **Fail-loud on drift (same contract as `patches/`):** the generator asserts every anchor — the
-`int main(` split point, each `static <signature>` it de-statics, and both speaker literals. If an
-upgrade renames a helper or moves a literal, the **configure step aborts** with a pointer to the
-generator; if upstream changes a *type*, `tts_upstream.h` stops matching and the **link fails**.
-Either way a silent divergence is impossible. On a llama.cpp bump, re-verify the generator the same
-way you re-verify `patches/`.
+`int main(` split point, each `static <signature>` it de-statics, the `outetts_version` enum
+(enumerators + order, kept ODR-identical to the hand-written copy in `tts_upstream.h`), both
+`prompt_add` overloads the header declares (the bare `void prompt_add(` prefix de-statics all three
+upstream overloads, so the two the header relies on are pinned individually), and both speaker
+literals. If an upgrade renames a helper, reorders the enum, or moves a literal, the **configure step
+aborts** with a pointer to the generator; if upstream changes a *type*, `tts_upstream.h` stops
+matching and the **link fails**. Either way a silent divergence is impossible. On a llama.cpp bump,
+re-verify the generator the same way you re-verify `patches/`.
 
 ## Upgrading/Downgrading llama.cpp Version
 

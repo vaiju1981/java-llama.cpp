@@ -56,6 +56,37 @@ foreach(sig IN LISTS JLLAMA_TTS_DESTATIC)
     string(REPLACE "static ${sig}" "${sig}" PREMAIN "${PREMAIN}")
 endforeach()
 
+# --- 2a. pin the outetts_version enum against the hand-written copy in tts_upstream.h ---
+# src/main/cpp/tts_upstream.h re-declares `enum outetts_version { OUTETTS_V0_2, OUTETTS_V0_3 }` because
+# it cannot include the generated TU. The two definitions live in different translation units and must
+# stay token-identical: if upstream reorders/renames/extends the enum, the generated TU and the header
+# would bind the same name to different integer values (a silent miscompile). Capture the upstream enum
+# body and compare its enumerator list so a drift fails the configure with a pointer to update the header.
+string(REGEX MATCH "enum[ \t\r\n]+outetts_version[ \t\r\n]*{([^}]*)}" _enum_match "${PREMAIN}")
+if(_enum_match STREQUAL "")
+    message(FATAL_ERROR "generate-tts-upstream: 'enum outetts_version' not found in tts.cpp — upstream changed; update cmake/generate-tts-upstream.cmake and src/main/cpp/tts_upstream.h")
+endif()
+set(_enum_body "${CMAKE_MATCH_1}")
+string(REGEX REPLACE "//[^\n]*" "" _enum_body "${_enum_body}")  # strip any line comments
+string(REGEX REPLACE "[ \t\r\n]+" "" _enum_body "${_enum_body}") # strip all whitespace
+string(REGEX REPLACE ",+$" "" _enum_body "${_enum_body}")       # strip a trailing comma
+if(NOT _enum_body STREQUAL "OUTETTS_V0_2,OUTETTS_V0_3")
+    message(FATAL_ERROR "generate-tts-upstream: upstream 'enum outetts_version' enumerators are now '${_enum_body}' (expected 'OUTETTS_V0_2,OUTETTS_V0_3'). Update the matching enum in src/main/cpp/tts_upstream.h to keep the two definitions ODR-identical, then update this assertion in cmake/generate-tts-upstream.cmake")
+endif()
+
+# --- 2b. verify BOTH prompt_add overloads that tts_upstream.h declares are present ---
+# `void prompt_add(` is shared by three upstream overloads; the de-static REPLACE above (correctly) gives
+# all of them external linkage, but the single string(FIND) only proves >=1 exists. tts_upstream.h
+# declares exactly two — (llama_tokens&, const llama_tokens&) and the (vocab, txt, add_special,
+# parse_special) builder — and tts_engine.cpp links against them. Pin both here (whitespace-tolerant) so
+# dropping or renaming either fails the configure with a clear pointer instead of a cryptic link error.
+if(NOT PREMAIN MATCHES "void[ \t]+prompt_add[ \t]*\\([^)]*const[ \t]+llama_tokens[ \t]*&[ \t]*tokens[ \t]*\\)")
+    message(FATAL_ERROR "generate-tts-upstream: the prompt_add(llama_tokens&, const llama_tokens&) overload declared in src/main/cpp/tts_upstream.h was not found in tts.cpp — upstream changed; update the de-static list and src/main/cpp/tts_upstream.h")
+endif()
+if(NOT PREMAIN MATCHES "void[ \t]+prompt_add[ \t]*\\([^)]*vocab[^)]*add_special[^)]*parse_special[^)]*\\)")
+    message(FATAL_ERROR "generate-tts-upstream: the prompt_add(llama_tokens&, const llama_vocab*, const std::string&, bool, bool) overload declared in src/main/cpp/tts_upstream.h was not found in tts.cpp — upstream changed; update the de-static list and src/main/cpp/tts_upstream.h")
+endif()
+
 # --- 3. extract the two default-speaker literals from inside main() ---
 # audio_text: a single-line  std::string audio_text = "<|text_start|>the<|text_sep|>...";
 # The leading "<|text_start|>the<|text_sep|>" disambiguates it from the empty-seed literal

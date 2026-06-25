@@ -21,6 +21,11 @@
 #include "llama.h"
 #include "sampling.h"
 
+// Full json definition: tts_upstream.h only forward-declares nlohmann::ordered_json (keeping the heavy
+// header out of the shared interface), but this TU constructs the empty-object speaker argument for
+// get_tts_version(), which needs the complete type.
+#include <nlohmann/json.hpp>
+
 #include <algorithm>
 #include <cstdint>
 #include <regex>
@@ -67,7 +72,9 @@ tts_engine *engine_init(const std::string &ttc_model_path, const std::string &ct
         return nullptr;
     }
     engine->vocab = llama_model_get_vocab(engine->model_ttc);
-    engine->tts_version = get_tts_version(engine->model_ttc);
+    // Explicit empty-object speaker: tts_upstream.h declares no default (it forward-declares json), so
+    // the default lives only in the generated TU. We always use the built-in default speaker profile.
+    engine->tts_version = get_tts_version(engine->model_ttc, nlohmann::ordered_json::object());
 
     // Codes-to-speech (CTS) vocoder, loaded in embedding mode.
     params.model.path = cts_model_path;
@@ -202,13 +209,19 @@ bool engine_synthesize(tts_engine *engine, const std::string &text, int n_predic
     }
     llama_synchronize(engine->ctx_cts);
 
+    // llama_model_n_embd_out (not llama_model_n_embd): read the vocoder's OUTPUT embedding width, which
+    // is what llama_get_embeddings returns here. This matches upstream tts.cpp, which also queries
+    // llama_model_n_embd_out at this step.
     const int n_embd = llama_model_n_embd_out(engine->model_cts);
     const float *embd = llama_get_embeddings(engine->ctx_cts);
     std::vector<float> audio = embd_to_audio(embd, n_codes, n_embd, engine->n_threads);
     llama_batch_free(cts_batch);
 
-    // Zero the first 0.25 s (suppresses a leading click).
+    // 24 kHz mono — the OuteTTS / WavTokenizer output rate.
     const int n_sr = 24000;
+    // Zero the first 0.25 s, mirroring upstream tts.cpp's post-vocoder cleanup (it suppresses a leading
+    // click). The `&& i < audio.size()` guard is ours: it keeps the loop in-bounds for clips shorter
+    // than 0.25 s, where upstream's fixed 24000/4 bound would read past the buffer.
     for (int i = 0; i < n_sr / 4 && i < (int)audio.size(); ++i) {
         audio[i] = 0.0f;
     }
