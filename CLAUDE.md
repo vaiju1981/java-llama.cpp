@@ -1100,10 +1100,9 @@ See [`../workspace/policies/ci-test-diagnostics.md`](../workspace/policies/ci-te
 ## PIT Mutation Testing
 
 See [`../workspace/policies/pit-mutation-testing.md`](../workspace/policies/pit-mutation-testing.md).
-Run PIT with the lifecycle prefix — `mvn test-compile org.pitest:pitest-maven:mutationCoverage`
-(the bare goal fails with `NoSuchFileException: {argLine}`). Note: this repo's gate reaches 100%
-only with the audio fixture present; without it, `value.ContentPart.audioFile(Path)` is
-uncovered (98%) — see §4 of the policy.
+Run PIT with the lifecycle prefix — `mvn test-compile org.pitest:pitest-maven:mutationCoverage`.
+Repo-specific gotcha: the gate reaches 100% only with the audio fixture present — without it
+`value.ContentPart.audioFile(Path)` is uncovered (98%); see policy §4 and `TODO.md`.
 
 ## JPMS Module Descriptor
 
