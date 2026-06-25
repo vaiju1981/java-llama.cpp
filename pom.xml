@@ -673,12 +673,12 @@ SPDX-License-Identifier: MIT
 			</plugin>
 			<plugin>
 				<!--
-				  PIT mutation testing is scoped to packages that have reached 100%
-					  mutation parity, gated at a 100% threshold on every CI build. Expand
-					  the targetClasses globs as further packages reach parity (see README
-					  TODO). The value/ and exception/ trees are at 100% (verified with
-					  pitest-maven 1.25.4); their unit tests are pure-Java (no native
-					  libjllama / model file needed).
+				  Generic PIT policy (version, 100% gate, invocation, expansion rule):
+				  see ../workspace/policies/pit-mutation-testing.md.
+				  Repo-specific: the gated value/exception/args/json classes are pure-Java
+				  (no native libjllama or model file needed); targetClasses/targetTests are
+				  kept in lock-step. NOTE: value.ContentPart.audioFile(Path) mutants are only
+				  killed with the audio fixture present — see TODO.md and policy §4.
 				-->
 				<groupId>org.pitest</groupId>
 				<artifactId>pitest-maven</artifactId>
