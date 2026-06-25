@@ -88,4 +88,13 @@ public class TestConstants {
      * {@code ContentPart.audioFile(Path)}.
      */
     public static final String PROP_AUDIO_PATH = LlamaSystemProperties.PREFIX + ".audio.input";
+
+    /**
+     * System property holding a path to the text-to-codes (OuteTTS) GGUF used by
+     * {@code TtsIntegrationTest}. The test self-skips when this or the vocoder is unset/missing.
+     */
+    public static final String PROP_TTS_TTC_MODEL = LlamaSystemProperties.PREFIX + ".tts.ttc.model";
+
+    /** System property holding a path to the codes-to-speech (WavTokenizer) vocoder GGUF. */
+    public static final String PROP_TTS_VOCODER_MODEL = LlamaSystemProperties.PREFIX + ".tts.vocoder.model";
 }

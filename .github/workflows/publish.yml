@@ -41,6 +41,11 @@ env:
   VISION_MODEL_NAME: "SmolVLM-500M-Instruct-Q8_0.gguf"
   VISION_MMPROJ_URL: "https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
   VISION_MMPROJ_NAME: "mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
+  # Text-to-speech models for AudioInputIntegrationTest's sibling TtsIntegrationTest (OuteTTS pipeline).
+  TTS_MODEL_URL: "https://huggingface.co/second-state/OuteTTS-0.2-500M-GGUF/resolve/main/OuteTTS-0.2-500M-Q4_K_M.gguf"
+  TTS_MODEL_NAME: "OuteTTS-0.2-500M-Q4_K_M.gguf"
+  TTS_VOCODER_URL: "https://huggingface.co/ggml-org/WavTokenizer/resolve/main/WavTokenizer-Large-75-F16.gguf"
+  TTS_VOCODER_NAME: "WavTokenizer-Large-75-F16.gguf"
   # Test image used by MultimodalIntegrationTest is committed to the repo
   # at src/test/resources/images/test-image.jpg (see the README in that
   # directory for licensing). No download step is needed; CI just points
@@ -797,6 +802,10 @@ jobs:
         run: |
           ulimit -c unlimited
           echo "${{ github.workspace }}/core.%e.%p" | sudo tee /proc/sys/kernel/core_pattern
+      - name: Download TTS model (OuteTTS)
+        run: test -f models/${TTS_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${TTS_MODEL_URL} --create-dirs -o models/${TTS_MODEL_NAME}
+      - name: Download TTS vocoder (WavTokenizer)
+        run: test -f models/${TTS_VOCODER_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${TTS_VOCODER_URL} --create-dirs -o models/${TTS_VOCODER_NAME}
       - name: Run tests
         run: |
           mvn -e --no-transfer-progress -P jcstress test \
@@ -804,7 +813,9 @@ jobs:
             -Dnet.ladenthin.llama.nomic.path=models/${NOMIC_EMBED_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
-            -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH}
+            -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH} \
+            -Dnet.ladenthin.llama.tts.ttc.model=models/${TTS_MODEL_NAME} \
+            -Dnet.ladenthin.llama.tts.vocoder.model=models/${TTS_VOCODER_NAME}
       - uses: actions/upload-artifact@v7
         if: success()
         with:

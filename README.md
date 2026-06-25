@@ -103,6 +103,7 @@ Inference of Meta's LLaMA model (and others) in pure C/C++.
 - Text completion (blocking and streaming) with full control over sampling parameters.
 - OpenAI-compatible **chat completion** with automatic chat-template application, including streaming and tool/function calling support via the upstream server.
 - **Embeddings** and **reranking** for retrieval pipelines.
+- **Text-to-speech** (`TextToSpeech`) over the two-model OuteTTS + WavTokenizer pipeline, returning WAV audio.
 - **Infilling** (fill-in-the-middle) for code models.
 - **Tokenize / detokenize** and **JSON-schema → grammar** conversion.
 - **Raw JSON endpoint handlers** mirroring the upstream llama.cpp HTTP server (`/completions`, `/v1/completions`, `/embeddings`, `/infill`, `/tokenize`, `/detokenize`).
@@ -287,8 +288,10 @@ Every `net.ladenthin.llama.*` system property recognised by the library, deep-sc
 | `net.ladenthin.llama.audio.model` | unset (test self-skips) | test | `AudioInputIntegrationTest` (llama.cpp discussion #13759) | Path to an audio-input model GGUF (e.g. Ultravox, Qwen2.5-Omni). |
 | `net.ladenthin.llama.audio.mmproj` | unset (test self-skips) | test | `AudioInputIntegrationTest` | Matching audio mmproj (encoder) GGUF. |
 | `net.ladenthin.llama.audio.input` | unset (test self-skips) | test | `AudioInputIntegrationTest` | `.wav`/`.mp3` audio prompt clip; the extension drives format detection. |
+| `net.ladenthin.llama.tts.ttc.model` | unset (test self-skips) | test | `TtsIntegrationTest` | Path to the OuteTTS text-to-codes GGUF. CI default is `OuteTTS-0.2-500M-Q4_K_M.gguf`. |
+| `net.ladenthin.llama.tts.vocoder.model` | unset (test self-skips) | test | `TtsIntegrationTest` | Path to the matching codes-to-speech vocoder GGUF. CI default is `WavTokenizer-Large-75-F16.gguf`. |
 
-`MultimodalIntegrationTest` self-skips when any of the three `vision.*` properties points at a missing path, so a partial setup (just the vision model + the committed image, no mmproj) lets the test class load without erroring. `AudioInputIntegrationTest` self-skips the same way over the three `audio.*` properties.
+`MultimodalIntegrationTest` self-skips when any of the three `vision.*` properties points at a missing path, so a partial setup (just the vision model + the committed image, no mmproj) lets the test class load without erroring. `AudioInputIntegrationTest` self-skips the same way over the three `audio.*` properties. `TtsIntegrationTest` likewise self-skips unless both `tts.ttc.model` and `tts.vocoder.model` point at existing files.
 
 ## Documentation
 
@@ -493,6 +496,32 @@ try (LlamaModel model = new LlamaModel(modelParams)) {
     float[] embedding = model.embed("Embed this sentence");
 }
 ```
+
+### Text-to-Speech
+
+`TextToSpeech` synthesizes audio from text over llama.cpp's OuteTTS pipeline. It is a separate
+`AutoCloseable` native type (not a `LlamaModel`) because TTS is a **two-model** pipeline: a
+text-to-codes model (OuteTTS) and a codes-to-speech vocoder (WavTokenizer). `synthesize(String)`
+returns a 24&nbsp;kHz mono 16-bit WAV byte stream.
+
+```java
+try (TextToSpeech tts = new TextToSpeech(
+        "models/OuteTTS-0.2-500M-Q4_K_M.gguf",
+        "models/WavTokenizer-Large-75-F16.gguf")) {
+    byte[] wav = tts.synthesize("Hello from llama dot c p p.");
+    Files.write(Paths.get("out.wav"), wav);
+}
+```
+
+Add `(ttcPath, vocoderPath, gpuLayers, threads)` to offload to the GPU, or
+`synthesize(text, maxCodeTokens, topK, seed)` for explicit sampling. As with `LlamaModel`, native
+memory is not GC-managed — use try-with-resources or call `close()`. Synthesis uses the built-in
+default speaker profile; English number words are expanded for speech (`3` → "three"), and
+non-English text is not romanized.
+
+Compatible GGUFs (the CI test defaults): OuteTTS
+[`OuteTTS-0.2-500M-GGUF`](https://huggingface.co/second-state/OuteTTS-0.2-500M-GGUF) +
+[`WavTokenizer`](https://huggingface.co/ggml-org/WavTokenizer).
 
 ### Raw JSON Endpoints
 

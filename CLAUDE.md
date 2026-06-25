@@ -384,6 +384,38 @@ Current patches:
 |-------|-------|
 | `0001-win32-arg-parse-embed-guard.patch` | Windows JNI regression from llama.cpp **#24779** (b9739): `common_params_parse` unconditionally replaced the caller's argv with the process command line (`GetCommandLineW`), so an embedded/JNI caller (`java.exe`) lost its `--model …` args → "Failed to parse model parameters". The patch **drops the override for our build** (keeps the `make_utf8_argv()` call referenced so there's no `-Wunused-function`, but never adopts its result), so the caller's already-UTF-8 argv is always used. This is **deterministic** — an earlier count-guard variant (only override when the re-derived arg count equals `argc`) collided on the server-integration tests whose argv length happened to equal `java.exe`'s and kept them failing. The upstream PR can instead expose an opt-out / `common_params_parse_argv` that preserves the standalone tools' UTF-8 fix. |
 
+## OuteTTS build-time extraction (`cmake/generate-tts-upstream.cmake`)
+
+The `TextToSpeech` native pipeline reuses llama.cpp's OuteTTS helpers (`tools/tts/tts.cpp`)
+**without hand-copying them**. A verbatim copy would be a DRY/maintenance hazard that silently
+diverges on every upgrade, and `tts.cpp` cannot simply be added to `target_sources` — it defines its
+own `main()`, which would clash at link time (the same reason `tools/server/server.cpp` is excluded
+while `server-*.cpp` are compiled in), and all its helpers are `static` (internal linkage), so they
+are unreachable from another TU even if it were linked.
+
+Instead the helpers are **DERIVED mechanically at configure time** from the pinned upstream source:
+
+- **`cmake/generate-tts-upstream.cmake`** — reads `${llama.cpp_SOURCE_DIR}/tools/tts/tts.cpp`, keeps
+  the pre-`main()` span (the DSP `fill_hann_window`/`irfft`/`fold`/`embd_to_audio`, the prompt/text
+  helpers incl. `process_text`'s number-to-words, the `outetts_version` enum), strips `static` from
+  the handful the JNI engine calls (giving them external linkage), and extracts the two hard-coded
+  default-speaker literals out of `main()` into `extern const` strings. Writes
+  `build/tts_generated/tts_upstream_gen.cpp`.
+- **`CMakeLists.txt`** — runs the generator via `execute_process` right after
+  `FetchContent_MakeAvailable(llama.cpp)`, then compiles the generated TU into `jllama`. The file is
+  **never committed** (build artifact, like the native libs / WebUI assets); it is regenerated from
+  whatever `tts.cpp` the pinned `GIT_TAG` resolves to, so a version bump is picked up automatically.
+- **`src/main/cpp/tts_upstream.h`** — committed, hand-written declarations of the extracted symbols
+  (interface facts, not the implementation). `tts_engine.cpp` includes it and links against the
+  generated definitions. The in-memory WAV writer (`tts_wav.hpp`) is ours, not extracted.
+
+**Fail-loud on drift (same contract as `patches/`):** the generator asserts every anchor — the
+`int main(` split point, each `static <signature>` it de-statics, and both speaker literals. If an
+upgrade renames a helper or moves a literal, the **configure step aborts** with a pointer to the
+generator; if upstream changes a *type*, `tts_upstream.h` stops matching and the **link fails**.
+Either way a silent divergence is impossible. On a llama.cpp bump, re-verify the generator the same
+way you re-verify `patches/`.
+
 ## Upgrading/Downgrading llama.cpp Version
 
 To change the llama.cpp version, update the following **three** files (and re-verify `patches/`):
@@ -588,6 +620,8 @@ the README. The summary below covers only the optional-model bindings:
 | `net.ladenthin.llama.audio.model` | `AudioInputIntegrationTest` (llama.cpp discussion #13759) | audio-input model GGUF, e.g. `ultravox-v0_5-llama-3_2-1b.gguf` |
 | `net.ladenthin.llama.audio.mmproj` | `AudioInputIntegrationTest` | matching audio mmproj/encoder, e.g. `mmproj-ultravox-v0_5-llama-3_2-1b-f16.gguf` |
 | `net.ladenthin.llama.audio.input` | `AudioInputIntegrationTest` | a `.wav`/`.mp3` clip on disk (no committed default — audio is not committed) |
+| `net.ladenthin.llama.tts.ttc.model` | `TtsIntegrationTest` | OuteTTS text-to-codes model, e.g. `OuteTTS-0.2-500M-Q4_K_M.gguf` |
+| `net.ladenthin.llama.tts.vocoder.model` | `TtsIntegrationTest` | matching codes-to-speech vocoder, e.g. `WavTokenizer-Large-75-F16.gguf` |
 
 Run those tests by setting the property:
 ```bash
@@ -605,6 +639,9 @@ mvn test -Dtest=AudioInputIntegrationTest \
          -Dnet.ladenthin.llama.audio.model=models/ultravox-v0_5-llama-3_2-1b.gguf \
          -Dnet.ladenthin.llama.audio.mmproj=models/mmproj-ultravox-v0_5-llama-3_2-1b-f16.gguf \
          -Dnet.ladenthin.llama.audio.input=/path/to/speech.wav
+mvn test -Dtest=TtsIntegrationTest \
+         -Dnet.ladenthin.llama.tts.ttc.model=models/OuteTTS-0.2-500M-Q4_K_M.gguf \
+         -Dnet.ladenthin.llama.tts.vocoder.model=models/WavTokenizer-Large-75-F16.gguf
 ```
 
 `MultimodalIntegrationTest` self-skips when any of the three vision properties
@@ -739,6 +776,7 @@ If the local check passes (`BUILD SUCCESS`), the `mvn package` job in
 
 **Java layer** (`src/main/java/net/ladenthin/llama/`):
 - `LlamaModel` — Main API class (AutoCloseable). Wraps native context for inference, embeddings, re-ranking, and tokenization.
+- `TextToSpeech` — Separate AutoCloseable native type for speech synthesis over the two-model OuteTTS (text-to-codes) + WavTokenizer (codes-to-speech vocoder) pipeline; `synthesize(text)` returns a 24 kHz mono 16-bit WAV byte stream. Native orchestration in `tts_engine.{h,cpp}`; the OuteTTS DSP / prompt / text helpers + default speaker are **derived at build time from upstream `tts.cpp`** (see "OuteTTS build-time extraction" below), not hand-copied; the in-memory WAV writer is `tts_wav.hpp`.
 - `ModelParameters` / `InferenceParameters` — Builder-pattern parameter classes that serialize to JSON (extend `JsonParameters`) for passing to native code.
 - `LlamaIterator` / `LlamaIterable` — Streaming generation via Java `Iterator`/`Iterable`.
 - `LlamaLoader` — Extracts the platform-specific native library from the JAR to a temp directory, or finds it on `java.library.path`.
@@ -750,7 +788,7 @@ If the local check passes (`BUILD SUCCESS`), the `mvn package` job in
   - The `server` package is a dedicated top layer in the ArchUnit `layeredArchitecture` rule (the only layer allowed to access the root `Api`); `noInternalJdkImports` carries an explicit exception for the supported `com.sun.net.httpserver` (the exported `jdk.httpserver` module, which `module-info.java` `requires`). See README "OpenAI-compatible HTTP server".
 
 **Native layer** (`src/main/cpp/`):
-- `jllama.cpp` — JNI implementation bridging Java calls to llama.cpp. ~1,215 lines; 17 native methods.
+- `jllama.cpp` — JNI implementation bridging Java calls to llama.cpp. ~1,516 lines; 30 native methods (27 `LlamaModel` + 3 `TextToSpeech`).
 - `utils.hpp` — Helper utilities (format helpers, argv stripping, token-piece serialisation).
 - `json_helpers.hpp` — Pure JSON transformation helpers (no JNI, no llama state). Independently unit-testable.
 - `jni_helpers.hpp` — JNI bridge helpers (handle management + server orchestration). Includes `json_helpers.hpp`.
@@ -905,12 +943,13 @@ ctest --test-dir build --output-on-failure -R "ResultsToJson"
 | File | Tests | Scope |
 |------|-------|-------|
 | `src/test/cpp/test_utils.cpp` | 156 | Upstream helpers: `server_tokens`, `server_grammar_trigger`, `gen_tool_call_id`, `json_value`, `json_get_nested_values`, UTF-8 helpers, `format_response_rerank`, `format_embeddings_response_oaicompat`, `oaicompat_completion_params_parse`, `oaicompat_chat_params_parse`, `are_lora_equal`, `strip_flag_from_argv`, `token_piece_value`, `json_is_array_and_contains_numbers`, `format_oai_sse`, `format_oai_resp_sse`, `format_anthropic_sse` |
-| `src/test/cpp/test_server.cpp` | 188 | Upstream result types: `result_timings`, `task_params::to_json()` (incl. `dry_sequence_breakers`, `preserved_tokens`, `timings_per_token`), `completion_token_output`, `server_task_result_cmpl_partial` (non-oaicompat + `to_json_oaicompat` + logprobs + `to_json_oaicompat_chat` + `to_json_anthropic` + dispatcher), `server_task_result_cmpl_final` (non-oaicompat + `to_json_oaicompat` + `to_json_oaicompat_chat` + `to_json_oaicompat_chat_stream` + `to_json_anthropic` + `to_json_anthropic_stream` + tool_calls + dispatcher), `server_task_result_embd`, `server_task_result_rerank`, `server_task_result_metrics`, `server_task_result_slot_save_load`, `server_task_result_slot_erase`, `server_task_result_apply_lora`, `server_task_result_error`, `format_error_response`, `server_task::need_sampling()`, `server_task::n_tokens()`, `server_schema::eval_llama_cmpl_schema()` (parsing pipeline + grammar routing + error paths), `response_fields` projection |
+| `src/test/cpp/test_server.cpp` | 189 | Upstream result types: `result_timings`, `task_params::to_json()` (incl. `dry_sequence_breakers`, `preserved_tokens`, `timings_per_token`), `completion_token_output`, `server_task_result_cmpl_partial` (non-oaicompat + `to_json_oaicompat` + logprobs + `to_json_oaicompat_chat` + `to_json_anthropic` + dispatcher), `server_task_result_cmpl_final` (non-oaicompat + `to_json_oaicompat` + `to_json_oaicompat_chat` + `to_json_oaicompat_chat_stream` + `to_json_anthropic` + `to_json_anthropic_stream` + tool_calls + dispatcher), `server_task_result_embd`, `server_task_result_rerank`, `server_task_result_metrics`, `server_task_result_slot_save_load`, `server_task_result_slot_erase`, `server_task_result_apply_lora`, `server_task_result_error`, `format_error_response`, `server_task::need_sampling()`, `server_task::n_tokens()`, `server_schema::eval_llama_cmpl_schema()` (parsing pipeline + grammar routing + error paths), `response_fields` projection |
 | `src/test/cpp/test_json_helpers.cpp` | 47 | All functions in `json_helpers.hpp`: `get_result_error_message`, `results_to_json`, `rerank_results_to_json`, `parse_encoding_format`, `extract_embedding_prompt`, `is_infill_request`, `parse_slot_prompt_similarity`, `parse_positive_int_config`, `wrap_stream_chunk` |
 | `src/test/cpp/test_log_helpers.cpp` | 13 | All functions in `log_helpers.hpp`: `log_level_name`, `format_log_as_json` |
-| `src/test/cpp/test_jni_helpers.cpp` | 41 | All functions in `jni_helpers.hpp` using a zero-filled `JNINativeInterface_` mock |
+| `src/test/cpp/test_jni_helpers.cpp` | 47 | All functions in `jni_helpers.hpp` using a zero-filled `JNINativeInterface_` mock |
+| `src/test/cpp/test_tts_wav.cpp` | 2 | The in-memory WAV writer `pcm_to_wav16_bytes` in `tts_wav.hpp` (WAV header/payload + little-endian clamping). The OuteTTS DSP it pairs with is derived from upstream `tts.cpp` and covered end-to-end by the Java `TtsIntegrationTest`, not unit-tested here. |
 
-**Current total: 445 tests (all passing).**
+**Current total: 454 tests (all passing).**
 
 #### Upstream source location (in CMake build tree)
 

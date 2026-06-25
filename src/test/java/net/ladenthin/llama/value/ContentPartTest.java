@@ -147,4 +147,44 @@ public class ContentPartTest {
             assertThat(expected.getMessage(), is(notNullValue()));
         }
     }
+
+    @Test
+    public void inputAudioAcceptsMp3Format() {
+        byte[] bytes = new byte[] {9, 8, 7};
+        ContentPart p = ContentPart.inputAudio(bytes, "MP3");
+        assertThat(p.getAudioFormat(), is("mp3"));
+        assertThat(p.getAudioData(), is(Base64.getEncoder().encodeToString(bytes)));
+    }
+
+    @Test
+    public void audioFileDetectsWavFromExtension() throws IOException {
+        Path file = tmp.resolve("clip.WAV");
+        byte[] bytes = new byte[] {1, 2, 3, 4};
+        Files.write(file, bytes);
+        ContentPart p = ContentPart.audioFile(file);
+        assertThat(p.getAudioFormat(), is("wav"));
+        assertThat(p.getAudioData(), is(Base64.getEncoder().encodeToString(bytes)));
+    }
+
+    @Test
+    public void audioFileDetectsMp3FromExtension() throws IOException {
+        Path file = tmp.resolve("clip.mp3");
+        byte[] bytes = new byte[] {5, 6, 7, 8};
+        Files.write(file, bytes);
+        ContentPart p = ContentPart.audioFile(file);
+        assertThat(p.getAudioFormat(), is("mp3"));
+        assertThat(p.getAudioData(), is(Base64.getEncoder().encodeToString(bytes)));
+    }
+
+    @Test
+    public void audioFileRejectsUnknownExtension() throws IOException {
+        Path file = tmp.resolve("clip.ogg");
+        Files.write(file, new byte[] {0});
+        try {
+            ContentPart.audioFile(file);
+            fail("expected IllegalArgumentException for unknown audio extension");
+        } catch (IllegalArgumentException expected) {
+            assertThat(expected.getMessage(), is(notNullValue()));
+        }
+    }
 }

@@ -26,6 +26,8 @@ OPTIONAL_MODELS=(
   "models/nomic-embed-text-v1.5.f16.gguf"
   "models/SmolVLM-500M-Instruct-Q8_0.gguf"
   "models/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
+  "models/OuteTTS-0.2-500M-Q4_K_M.gguf"
+  "models/WavTokenizer-Large-75-F16.gguf"
 )
 
 validate_gguf() {
