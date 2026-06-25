@@ -9,6 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.File;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.DisplayName;
@@ -26,8 +29,11 @@ import org.junit.jupiter.api.Timeout;
  */
 public class TtsIntegrationTest {
 
+    /** Canonical RIFF/WAVE header size in bytes (16-bit PCM, no extra chunks). */
+    private static final int WAV_HEADER_BYTES = 44;
+
     @Test
-    @DisplayName("synthesize() returns a well-formed 16-bit WAV byte stream")
+    @DisplayName("synthesize() returns a well-formed, non-silent 24 kHz mono 16-bit WAV")
     @Timeout(value = 300_000, unit = TimeUnit.MILLISECONDS)
     public void synthesizesWellFormedWav() {
         String ttc = System.getProperty(TestConstants.PROP_TTS_TTC_MODEL);
@@ -45,15 +51,52 @@ public class TtsIntegrationTest {
             byte[] wav = tts.synthesize("hello from llama");
 
             assertNotNull(wav, "WAV bytes must not be null");
-            assertTrue(wav.length > 44, "WAV must carry a header plus samples; got " + wav.length + " bytes");
-            assertEquals('R', (char) wav[0]);
-            assertEquals('I', (char) wav[1]);
-            assertEquals('F', (char) wav[2]);
-            assertEquals('F', (char) wav[3]);
-            assertEquals('W', (char) wav[8]);
-            assertEquals('A', (char) wav[9]);
-            assertEquals('V', (char) wav[10]);
-            assertEquals('E', (char) wav[11]);
+            // A bare 44-byte header with no payload is not a valid clip: require real samples beyond it.
+            assertTrue(
+                    wav.length > WAV_HEADER_BYTES,
+                    "WAV must carry a header plus samples; got " + wav.length + " bytes");
+
+            // RIFF/WAVE container magic.
+            assertEquals("RIFF", tag(wav, 0), "RIFF magic");
+            assertEquals("WAVE", tag(wav, 8), "WAVE magic");
+            assertEquals("fmt ", tag(wav, 12), "fmt subchunk tag");
+            assertEquals("data", tag(wav, 36), "data subchunk tag");
+
+            // fmt fields must match the documented output format: 24 kHz mono 16-bit PCM. A mis-loaded
+            // model that still framed a header would not silently pass with the wrong rate/channels.
+            ByteBuffer header = ByteBuffer.wrap(wav).order(ByteOrder.LITTLE_ENDIAN);
+            assertEquals(1, header.getShort(20) & 0xFFFF, "audio format must be PCM (1)");
+            assertEquals(1, header.getShort(22) & 0xFFFF, "must be mono (1 channel)");
+            assertEquals(24_000, header.getInt(24), "sample rate must be 24 kHz");
+            assertEquals(16, header.getShort(34) & 0xFFFF, "must be 16-bit samples");
+
+            // Declared chunk sizes must be self-consistent with the actual byte-array length.
+            assertEquals(wav.length - 8, header.getInt(4), "RIFF chunk size must equal fileLength - 8");
+            int dataSize = header.getInt(40);
+            assertEquals(wav.length - WAV_HEADER_BYTES, dataSize, "data chunk size must equal fileLength - 44");
+            assertEquals(0, dataSize % 2, "16-bit PCM data size must be even");
+
+            // The clip must contain real audio, not just the zeroed 0.25 s lead-in (or the all-silent
+            // buffer a mis-configured model could still frame inside an otherwise valid header). The
+            // original `length > 44` check passed on a single padding byte; scan the PCM payload instead.
+            assertTrue(
+                    hasNonZeroSample(wav, WAV_HEADER_BYTES),
+                    "synthesized PCM must contain audible (non-zero) samples, not pure silence");
         }
+    }
+
+    /** Reads the 4-byte ASCII chunk tag at {@code offset}. */
+    private static String tag(byte[] wav, int offset) {
+        return new String(wav, offset, 4, StandardCharsets.US_ASCII);
+    }
+
+    /** Returns {@code true} if any byte of the PCM payload at or after {@code from} is non-zero. */
+    private static boolean hasNonZeroSample(byte[] wav, int from) {
+        for (int i = from; i < wav.length; i++) {
+            if (wav[i] != 0) {
+                return true;
+            }
+        }
+        return false;
     }
 }
