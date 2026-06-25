@@ -164,7 +164,7 @@ primary goal: agentic tool-calling with Qwen):
   What remains is manual validation against the actual editor clients — point Copilot's Ollama provider /
   a Custom Endpoint, Claude Code, and a Responses client at the running server — since a server-side
   round-trip confirms the wire shapes but not each client's own parser.
-- **Gemma 4 tool-calling validation.** Confirm the pinned llama.cpp (`b9739`) includes the Gemma 4
+- **Gemma 4 tool-calling validation.** Confirm the pinned llama.cpp (`b9789`) includes the Gemma 4
   tool-call parser fixes; if not, bump per the upgrade procedure.
 - **NativeServer — wire upstream `server.cpp` routes to JNI (in progress; scaffold landed `dd264b2`).**
   The upstream HTTP transport (`tools/server/server-http.cpp` + the cpp-httplib backend) is already
@@ -238,10 +238,18 @@ Windows Java tests, but **collided** on the 4 server-integration setups (`OpenAi
 `OpenAiServerToolCalling*`, `MultimodalIntegrationTest`, `OpenAiCompatServerIntegrationTest`) whose
 argv length happened to equal `java.exe`'s, so they kept failing with the same parse error. The patch
 was changed to **fix option 2** (drop the override entirely for our build — a JNI library is never the
-process, so the override is pure liability), which is deterministic. Still worth upstreaming as an
-opt-out / `common_params_parse_argv` that preserves the standalone tools' UTF-8 fix, so the patch can
-eventually be dropped; until then it must be re-verified on each llama.cpp bump (the applier fails loud
-if it no longer applies).
+process, so the override is pure liability), which is deterministic. **As of the b9789 bump the patch
+was reshaped into the clean opt-in form intended for upstreaming (fix option 3's core):**
+`common_params_parse` now parses exactly the argv it is given, and a new `common_params_parse_main()`
+wrapper carries the `GetCommandLineW` UTF-8 recovery that the standalone tools' `main()` opt into.
+**The patch now carries the full upstream change (37 files):** the ~34 `common_params_parse(argc, argv,
+…)` call sites across `tools/*`, `examples/*` and the `tests/*` programs flip to
+`common_params_parse_main()`, plus a `tests/test-arg-parser.cpp` regression case. Embedded callers stay
+on `common_params_parse`. Our subproject build compiles only the `arg.{cpp,h}` core
+(`LLAMA_BUILD_TOOLS`/`TESTS` OFF), so the flips + test are validated via a one-off tools+tests build
+(the new test's asserts pass; `test-arg-parser`'s only red is the live `ggml.ai` download check, which
+is sandbox-network). The 37-file patch must be re-verified on each llama.cpp bump (the applier fails
+loud). Submit it to llama.cpp and drop the local copy once merged.
 
 **Symptom.** On **Windows x86_64 only**, every Java test that loads a real model fails in
 `LlamaModel.loadModel` (native) with `LlamaException: "Failed to parse model parameters"`

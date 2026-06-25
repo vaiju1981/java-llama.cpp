@@ -264,7 +264,7 @@ jobs:
     # Native ARM64 build on GitHub's free arm64 runner, mirroring upstream llama.cpp's
     # `ubuntu-cpu` aarch64 release job (ubuntu-24.04-arm + GCC 14). Replaces the former dockcross
     # `linux-arm64-lts` cross-compile (GCC 8.5, glibc 2.17), which can no longer compile llama.cpp
-    # b9739 — its C++17 CTAD-in-`new` needs GCC >= 12. Building natively also lets us run the C++
+    # b9789 — its C++17 CTAD-in-`new` needs GCC >= 12. Building natively also lets us run the C++
     # unit suite (ctest) on real ARM hardware for the first time (the cross build ran no tests).
     # Trade-off: the glibc floor rises 2.17 -> ~2.39, the same envelope upstream's own ARM binaries
     # require. GGML_NATIVE=OFF keeps the artifact portable across ARMv8 CPU generations (no
