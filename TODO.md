@@ -164,7 +164,7 @@ primary goal: agentic tool-calling with Qwen):
   What remains is manual validation against the actual editor clients — point Copilot's Ollama provider /
   a Custom Endpoint, Claude Code, and a Responses client at the running server — since a server-side
   round-trip confirms the wire shapes but not each client's own parser.
-- **Gemma 4 tool-calling validation.** Confirm the pinned llama.cpp (`b9739`) includes the Gemma 4
+- **Gemma 4 tool-calling validation.** Confirm the pinned llama.cpp (`b9789`) includes the Gemma 4
   tool-call parser fixes; if not, bump per the upgrade procedure.
 - **NativeServer — wire upstream `server.cpp` routes to JNI (in progress; scaffold landed `dd264b2`).**
   The upstream HTTP transport (`tools/server/server-http.cpp` + the cpp-httplib backend) is already
