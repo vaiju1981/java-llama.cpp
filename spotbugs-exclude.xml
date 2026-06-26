@@ -123,47 +123,39 @@ SPDX-License-Identifier: MIT
     </Match>
 
     <!--
-        LlamaLoader is the native-library bootstrap. It resolves the path
-        to libjllama.{so,dylib,dll} from three operator-controlled inputs:
+        PATH_TRAVERSAL_IN (reviewed 2026-06-26): confirmed a false positive for
+        this JNI library, so this suppression is permanent and no code fix is
+        appropriate. Two operator-controlled path sites are flagged:
 
-          1. -Dnet.ladenthin.llama.lib.path=<dir>   (line 94)
-          2. java.library.path entries              (line 119)
-          3. java.io.tmpdir + hardcoded basename    (lines 133, 171, 215)
+          1. LlamaLoader (native-library bootstrap) resolves
+             libjllama.{so,dylib,dll} from three JVM-launch inputs:
+               a. the net.ladenthin.llama.lib.path system property (a directory)
+               b. java.library.path entries
+               c. java.io.tmpdir plus a hard-coded basename
+          2. OfflineModelGuard.check() does Files.exists(Paths.get(model)),
+             where model is ModelParameters.getModel() (the configured local
+             model-file path), to fail fast when the offline flag is set and the
+             local model is absent. This is a read-only existence check; the
+             path is not opened or written here.
 
-        findsecbugs PATH_TRAVERSAL_IN flags every non-literal argument to
-        Paths.get, treating "user input" syntactically as "any non-literal
-        string". The threat-model reality is different: all three sources
-        are JVM properties set at process launch by whoever started the
-        process. An attacker who can set JVM properties has already won;
-        there is no untrusted end-user input reaching these paths.
+        findsecbugs taints every non-literal Paths.get argument (System
+        properties and CLI/builder config count as taint sources), but all of
+        these inputs are the operator's own process configuration set at launch,
+        not untrusted end-user input crossing a privilege boundary. An attacker
+        who can set the model path, the lib.path property, or java.library.path
+        already controls the JVM; there is no traversal boundary to cross.
 
-        Canonicalize-and-restrict-to-root mitigation is not applicable
-        because the whole purpose of the .lib.path property is to let the
-        operator point at any directory containing the native library;
-        there is no meaningful "allowed root" to validate against.
-    -->
-    <Match>
-        <Class name="net.ladenthin.llama.loader.LlamaLoader"/>
-        <Bug pattern="PATH_TRAVERSAL_IN"/>
-    </Match>
-
-    <!--
-        PROVISIONAL (under review; see java-llama.cpp TODO.md
-        "PATH_TRAVERSAL_IN suppressions deep-check"). Same operator-supplied
-        model-path case as the LlamaLoader suppression above.
-        OfflineModelGuard.check() does Files.exists(Paths.get(model)) where the
-        model path comes from ModelParameters.getModel() (the configured local
-        model file) to verify the GGUF exists before native load; findsecbugs
-        PATH_TRAVERSAL_IN taints that path. The model path is configured by
-        whoever launches the process (CLI flag or builder), not untrusted
-        end-user input, and the whole point of the setting is to let the
-        operator point at an arbitrary GGUF on disk, so there is no meaningful
-        allowed-root to validate against. Suppressed pending a deep check of
-        whether a real resolution (canonicalize / restrict) is feasible for
-        this and the LlamaLoader case.
+        Why no fix: the canonicalize-and-restrict-to-an-allowed-root remediation
+        does not apply. Pointing at an arbitrary GGUF or library directory
+        anywhere on disk is the entire purpose of these settings, so there is no
+        meaningful allowed root, and a parent-directory-rejecting check would
+        break the legitimate relative-path case. An embedder that exposes the
+        model path to untrusted remote users must validate it before calling this
+        library; that lies outside the library's API contract.
     -->
     <Match>
         <Or>
+            <Class name="net.ladenthin.llama.loader.LlamaLoader"/>
             <Class name="net.ladenthin.llama.loader.OfflineModelGuard"/>
             <Class name="net.ladenthin.llama.parameters.ModelParameters"/>
         </Or>
