@@ -7,6 +7,7 @@ package net.ladenthin.llama.parameters;
 
 import lombok.EqualsAndHashCode;
 import net.ladenthin.llama.args.*;
+import org.jspecify.annotations.Nullable;
 
 /***
  * Parameters used for initializing a {@link net.ladenthin.llama.LlamaModel}.
@@ -1467,28 +1468,42 @@ public final class ModelParameters extends CliParameters {
     }
 
     /**
-     * Skip any model file download — only validation is performed (default: {@code false}).
+     * Run fully offline — never make an outbound network request to download a model
+     * (default: {@code false}).
      *
-     * <p>When enabled, the upstream loader will NOT attempt any outbound network call to
-     * download the configured model. If the model file is missing or invalid (e.g. ETag
-     * mismatch), {@link net.ladenthin.llama.LlamaModel#LlamaModel(ModelParameters)} throws a typed
-     * {@link net.ladenthin.llama.exception.ModelUnavailableException} so the caller can distinguish an air-gapped miss
-     * from a genuine misconfiguration.</p>
+     * <p>When enabled (the upstream {@code --offline} flag), the loader skips all download
+     * tasks: a model already present on disk or in the Hugging Face cache loads normally,
+     * while a missing one fails instead of being fetched. If a local model path is configured
+     * via {@link #setModel(String)} and that file does not exist,
+     * {@link net.ladenthin.llama.LlamaModel#LlamaModel(ModelParameters)} throws a typed
+     * {@link net.ladenthin.llama.exception.ModelUnavailableException} so the caller can
+     * distinguish an air-gapped miss from a genuine misconfiguration.</p>
      *
      * <p>Useful for air-gapped / pre-staged-model deployments where any outbound network
      * call is itself a failure mode.</p>
      *
-     * @param skip {@code true} to skip downloads (set {@link net.ladenthin.llama.args.ModelFlag#SKIP_DOWNLOAD}),
-     *             {@code false} to clear the flag and allow downloads
+     * @param offline {@code true} to run offline (set {@link net.ladenthin.llama.args.ModelFlag#OFFLINE}),
+     *                {@code false} to clear the flag and allow downloads
      * @return this builder
      */
-    public ModelParameters setSkipDownload(boolean skip) {
-        if (skip) {
-            setFlag(ModelFlag.SKIP_DOWNLOAD);
+    public ModelParameters setOffline(boolean offline) {
+        if (offline) {
+            setFlag(ModelFlag.OFFLINE);
         } else {
-            clearFlag(ModelFlag.SKIP_DOWNLOAD);
+            clearFlag(ModelFlag.OFFLINE);
         }
         return this;
+    }
+
+    /**
+     * Returns the configured local model path (the value set via {@link #setModel(String)}),
+     * or {@code null} if no local path was set (e.g. when loading via {@code --hf-repo} or
+     * {@code --model-url} instead).
+     *
+     * @return the {@code --model} path, or {@code null} if unset
+     */
+    public @Nullable String getModel() {
+        return parameters.get("--model");
     }
 
     /**

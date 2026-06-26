@@ -38,7 +38,7 @@ The following are confirmed present in `java-llama.cpp` as of this survey — fl
 
 | Capability | Status |
 |---|---|
-| `setSkipDownload(boolean)` + typed `ModelUnavailableException` | ✅ (commit `37754d4`) |
+| `setOffline(boolean)` (was `setSkipDownload`) + typed `ModelUnavailableException` | ✅ (commit `37754d4`) |
 | Reasoning-format toggle, reasoning-budget tokens | ✅ (`InferenceParameters#setReasoningFormat` etc.) |
 | Tool calls + custom chat templates | ✅ |
 | Speculative draft model | ✅ |

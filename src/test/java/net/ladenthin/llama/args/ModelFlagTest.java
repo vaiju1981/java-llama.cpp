@@ -50,7 +50,7 @@ public class ModelFlagTest {
             {ModelFlag.NO_MMPROJ_AUTO, "--no-mmproj-auto"},
             {ModelFlag.MMPROJ_OFFLOAD, "--mmproj-offload"},
             {ModelFlag.NO_MMPROJ_OFFLOAD, "--no-mmproj-offload"},
-            {ModelFlag.SKIP_DOWNLOAD, "--skip-download"},
+            {ModelFlag.OFFLINE, "--offline"},
         });
     }
 

@@ -8,17 +8,20 @@ import net.ladenthin.llama.parameters.ModelParameters;
 
 /**
  * Thrown by {@link net.ladenthin.llama.LlamaModel#LlamaModel(ModelParameters)} when
- * {@link net.ladenthin.llama.args.ModelFlag#SKIP_DOWNLOAD} (or {@link net.ladenthin.llama.parameters.ModelParameters#setSkipDownload(boolean)
- * setSkipDownload(true)}) is set and the configured model file is missing or
- * invalid &#x2014; i.e. the loader would have had to download a replacement but is
+ * {@link net.ladenthin.llama.args.ModelFlag#OFFLINE} (or {@link net.ladenthin.llama.parameters.ModelParameters#setOffline(boolean)
+ * setOffline(true)}) is set and the configured local model file does not exist
+ * &#x2014; i.e. the loader would have had to download a replacement but is
  * forbidden to.
  *
  * <p>Lets air-gapped / pre-staged-model deployments distinguish &quot;model file
- * absent&quot; from generic configuration errors. Upstream raises
- * {@code common_skip_download_exception} which is caught inside
- * {@code common_params_parse_ex} and surfaces as a {@code false} return; the
- * Java layer combines that with the {@code SKIP_DOWNLOAD} flag to recognise the
- * skip-download case and translate it to this typed exception.</p>
+ * absent&quot; from generic configuration errors. The check is a deterministic
+ * pre-check in {@link net.ladenthin.llama.loader.OfflineModelGuard}: when
+ * {@code --offline} is set and the configured local {@code --model} path points at
+ * a file that does not exist, the loader throws this typed exception before calling
+ * the native loader, rather than letting it surface as a generic load failure.
+ * (The predecessor used a parse-failure heuristic for the removed
+ * {@code --skip-download} flag; that flag and the {@code common_skip_download_exception}
+ * it referenced were removed in llama.cpp b9803 and replaced here by {@code --offline}.)</p>
  */
 public class ModelUnavailableException extends LlamaException {
 
