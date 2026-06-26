@@ -14,11 +14,15 @@ import net.ladenthin.llama.parameters.ModelParameters;
  * forbidden to.
  *
  * <p>Lets air-gapped / pre-staged-model deployments distinguish &quot;model file
- * absent&quot; from generic configuration errors. Upstream raises
- * {@code common_skip_download_exception} which is caught inside
- * {@code common_params_parse_ex} and surfaces as a {@code false} return; the
- * Java layer combines that with the {@code SKIP_DOWNLOAD} flag to recognise the
- * skip-download case and translate it to this typed exception.</p>
+ * absent&quot; from generic configuration errors. The {@code --skip-download}
+ * flag is not a registered upstream argument, so upstream arg parsing fails and
+ * {@code common_params_parse} returns {@code false}; the Java layer combines that
+ * parse-failure signal with the {@code SKIP_DOWNLOAD} flag to recognise the
+ * skip-download case and translate it to this typed exception. (Earlier llama.cpp
+ * builds raised a {@code common_skip_download_exception} for this; that type was
+ * removed in b9803 together with the {@code skip_download} download option, but
+ * the Java-side heuristic is unaffected because it keys on the parse-failure
+ * message, not the C++ exception.)</p>
  */
 public class ModelUnavailableException extends LlamaException {
 

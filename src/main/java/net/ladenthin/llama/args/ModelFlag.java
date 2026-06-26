@@ -119,11 +119,13 @@ public enum ModelFlag {
      * Skip any model file download — only validation is performed. Useful for air-gapped or
      * pre-staged-model deployments where any outbound network call is a failure mode.
      *
-     * <p>When this flag is set and the configured model file is missing or invalid (e.g. ETag
-     * mismatch), upstream throws {@code common_skip_download_exception} during arg parsing,
-     * which is caught inside {@code common_params_parse_ex} and surfaces as a {@code false}
-     * return; the Java layer translates that combined signal into a typed
-     * {@link net.ladenthin.llama.exception.ModelUnavailableException}.</p>
+     * <p>{@code --skip-download} is not a registered upstream argument, so passing it makes
+     * upstream arg parsing fail and {@code common_params_parse} return {@code false}; the Java
+     * layer translates that parse-failure signal (combined with this flag) into a typed
+     * {@link net.ladenthin.llama.exception.ModelUnavailableException}. (Earlier llama.cpp builds
+     * raised a {@code common_skip_download_exception} here; that type and the {@code skip_download}
+     * download option were removed in b9803, but the heuristic is unaffected — it keys on the
+     * parse-failure message, not the C++ exception.)</p>
      */
     SKIP_DOWNLOAD("--skip-download");
 

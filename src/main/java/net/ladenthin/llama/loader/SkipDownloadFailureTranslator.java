@@ -22,16 +22,17 @@ import net.ladenthin.llama.parameters.ModelParameters;
  *
  * <h2>Why a heuristic and not a direct exception catch</h2>
  *
- * <p>Upstream raises {@code common_skip_download_exception} inside
- * {@code common_download_file_single} when {@code --skip-download} is set and
- * the file is missing or has a stale ETag. However that exception is caught
- * INSIDE upstream's own {@code common_params_parse_ex} (at
- * {@code common/arg.cpp:476}) and surfaces only as a {@code false} return
- * from {@code common_params_parse}. The JNI layer reports the {@code false}
- * return as a generic {@link net.ladenthin.llama.exception.LlamaException} with the message
- * {@value #LOAD_PARSE_FAILED_MESSAGE}. The Java layer therefore cannot catch
- * the C++ exception directly and instead recognises the combined signal:
- * {@code SKIP_DOWNLOAD} flag set + JNI message matches.</p>
+ * <p>{@code --skip-download} is not a registered upstream argument, so passing
+ * it makes upstream arg parsing fail and {@code common_params_parse} return
+ * {@code false}. The JNI layer reports that {@code false} return as a generic
+ * {@link net.ladenthin.llama.exception.LlamaException} with the message
+ * {@value #LOAD_PARSE_FAILED_MESSAGE}. The Java layer recognises the combined
+ * signal: {@code SKIP_DOWNLOAD} flag set + JNI message matches. (Earlier
+ * llama.cpp builds raised a {@code common_skip_download_exception} inside
+ * {@code common_download_file_single} for this case, caught within upstream's own
+ * {@code common_params_parse_ex}; that type and the {@code skip_download} option
+ * were removed in b9803, but the heuristic is unaffected because it keys on the
+ * parse-failure message rather than the C++ exception.)</p>
  */
 public final class SkipDownloadFailureTranslator {
 
