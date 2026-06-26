@@ -25,7 +25,7 @@ import net.ladenthin.llama.json.ChatStreamChunkParser;
 import net.ladenthin.llama.json.CompletionResponseParser;
 import net.ladenthin.llama.json.RerankResponseParser;
 import net.ladenthin.llama.loader.LlamaLoader;
-import net.ladenthin.llama.loader.SkipDownloadFailureTranslator;
+import net.ladenthin.llama.loader.OfflineModelGuard;
 import net.ladenthin.llama.parameters.ChatRequest;
 import net.ladenthin.llama.parameters.InferenceParameters;
 import net.ladenthin.llama.parameters.ModelParameters;
@@ -85,21 +85,18 @@ public class LlamaModel implements AutoCloseable {
      * </ul>
      *
      * @param parameters the set of options
-     * @throws net.ladenthin.llama.exception.ModelUnavailableException if {@link net.ladenthin.llama.parameters.ModelParameters#setSkipDownload(boolean)
-     *                                   setSkipDownload(true)} (or
-     *                                   {@link net.ladenthin.llama.args.ModelFlag#SKIP_DOWNLOAD})
-     *                                   is set and the configured model file is missing or invalid
+     * @throws net.ladenthin.llama.exception.ModelUnavailableException if {@link net.ladenthin.llama.parameters.ModelParameters#setOffline(boolean)
+     *                                   setOffline(true)} (or
+     *                                   {@link net.ladenthin.llama.args.ModelFlag#OFFLINE})
+     *                                   is set and the configured local model file does not exist
      * @throws net.ladenthin.llama.exception.LlamaException            for any other load failure
      */
     // loadModel is a native method; it does not call back into Java with this,
     // so the @UnderInitialization receiver warning is a CF false positive.
     @SuppressWarnings("method.invocation")
     public LlamaModel(ModelParameters parameters) {
-        try {
-            loadModel(parameters.toArray());
-        } catch (LlamaException e) {
-            throw SkipDownloadFailureTranslator.translate(parameters, e);
-        }
+        OfflineModelGuard.check(parameters);
+        loadModel(parameters.toArray());
     }
 
     /**
@@ -117,14 +114,11 @@ public class LlamaModel implements AutoCloseable {
     // false positive.
     @SuppressWarnings("method.invocation")
     public LlamaModel(ModelParameters parameters, LoadProgressCallback progress) {
-        try {
-            if (progress == null) {
-                loadModel(parameters.toArray());
-            } else {
-                loadModelWithProgress(parameters.toArray(), progress);
-            }
-        } catch (LlamaException e) {
-            throw SkipDownloadFailureTranslator.translate(parameters, e);
+        OfflineModelGuard.check(parameters);
+        if (progress == null) {
+            loadModel(parameters.toArray());
+        } else {
+            loadModelWithProgress(parameters.toArray(), progress);
         }
     }
 

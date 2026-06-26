@@ -497,7 +497,7 @@ Foundation):
   `ChatRequest`).
 - **Loader** (internal, NOT exported): `loader` (LlamaLoader, OSInfo,
   ProcessRunner, NativeLibraryPermissionSetter, Java8CompatibilityHelper,
-  SkipDownloadFailureTranslator, LlamaSystemProperties).
+  OfflineModelGuard, LlamaSystemProperties).
 - **Api** (root): LlamaModel, Session, LlamaIterable, LlamaIterator.
 
 Cycle-breaking moves: `TimingsLogger` root→`json`, `ParameterJsonSerializer`
@@ -545,7 +545,7 @@ keeps `loader` internal. All 11 ArchUnit rules green; `javadoc:jar` clean.
 - **Banned-API enforcement** — Maven Enforcer (`8baae0c`), ArchUnit `System.exit` / `new Random` / `Thread.sleep` (`329d764`), `sun.*` / `com.sun.*` / `jdk.internal.*` (`e6069da`).
 - **ArchUnit public-fields-final** — `7b6667d`.
 - **LogCaptor smoke test** — `LoggingSmokeTest` (`3cedc6e`).
-- **Expose `common_params::skip_download`** — `ModelFlag.SKIP_DOWNLOAD` + `ModelParameters.setSkipDownload(boolean)` + `hasFlag` helper + new public `ModelUnavailableException` (extends now-public `LlamaException`) + Java-side heuristic translator. 7 unit tests in `LlamaModelSkipDownloadTest`. No JNI rebuild required.
+- **Offline / air-gapped model loading** — `ModelFlag.OFFLINE` + `ModelParameters.setOffline(boolean)` + `hasFlag` helper + public `ModelUnavailableException` (extends now-public `LlamaException`) + deterministic pre-check `OfflineModelGuard`. Unit tests in `LlamaModelOfflineTest`. No JNI rebuild required. *(Originally shipped as `SKIP_DOWNLOAD`/`setSkipDownload` over a parse-failure heuristic; reworked when llama.cpp b9803 removed `common_params::skip_download` and `common_skip_download_exception` — `--skip-download` was never a registered upstream arg, so it never actually skipped a download. `--offline` is the real upstream flag with the intended load-from-cache semantics.)*
 - **`LlamaSystemProperties` registry cleanup** — `getLibName()` deleted (`6bb63e1` upstream forensic trace); `OSInfo.getArchName()` now routes through `LlamaSystemProperties.getOsinfoArchitecture()` (`3ae6c81`).
 - **Abstract the Java and test writing guidelines to a workspace-level shared layer.** Workspace version chain at [`../workspace/guides/src/CODE_WRITING_GUIDE-8.md`](../workspace/guides/src/CODE_WRITING_GUIDE-8.md) and [`../workspace/guides/test/TEST_WRITING_GUIDE-8.md`](../workspace/guides/test/TEST_WRITING_GUIDE-8.md); canonical TDD skill at [`../workspace/.claude/skills/java-tdd-guide/SKILL.md`](../workspace/.claude/skills/java-tdd-guide/SKILL.md).
 - **Standardised CLAUDE.md template** — [`../workspace/templates/CLAUDE.md.template`](../workspace/templates/CLAUDE.md.template).

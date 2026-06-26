@@ -29,7 +29,7 @@ public class ModelUnavailableExceptionTest {
 
     @Test
     public void testMessageAndCausePreserved() {
-        Throwable cause = new IllegalStateException("skip-download set");
+        Throwable cause = new IllegalStateException("offline set");
         ModelUnavailableException ex = new ModelUnavailableException("model file missing", cause);
         assertThat(ex.getMessage(), is("model file missing"));
         assertThat(ex.getCause(), is(sameInstance(cause)));

@@ -116,18 +116,19 @@ public enum ModelFlag {
     NO_MMPROJ_OFFLOAD("--no-mmproj-offload"),
 
     /**
-     * Skip any model file download — only validation is performed. Useful for air-gapped or
-     * pre-staged-model deployments where any outbound network call is a failure mode.
+     * Run fully offline — never make an outbound network request to download a model. Useful for
+     * air-gapped or pre-staged-model deployments where any outbound call is itself a failure mode.
      *
-     * <p>{@code --skip-download} is not a registered upstream argument, so passing it makes
-     * upstream arg parsing fail and {@code common_params_parse} return {@code false}; the Java
-     * layer translates that parse-failure signal (combined with this flag) into a typed
-     * {@link net.ladenthin.llama.exception.ModelUnavailableException}. (Earlier llama.cpp builds
-     * raised a {@code common_skip_download_exception} here; that type and the {@code skip_download}
-     * download option were removed in b9803, but the heuristic is unaffected — it keys on the
-     * parse-failure message, not the C++ exception.)</p>
+     * <p>Maps to the upstream {@code --offline} flag ({@code common_params::offline}), which the
+     * model-download pipeline honors by skipping all download tasks: a model already present on
+     * disk (or in the Hugging Face cache) loads normally, while a missing one fails instead of
+     * being fetched. When a local model path is configured via
+     * {@link net.ladenthin.llama.parameters.ModelParameters#setModel(String)} and that file does
+     * not exist, the loader reports a typed
+     * {@link net.ladenthin.llama.exception.ModelUnavailableException} so callers can distinguish an
+     * air-gapped miss from a genuine misconfiguration.</p>
      */
-    SKIP_DOWNLOAD("--skip-download");
+    OFFLINE("--offline");
 
     private final String cliFlag;
 
