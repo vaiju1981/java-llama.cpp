@@ -148,6 +148,29 @@ SPDX-License-Identifier: MIT
     </Match>
 
     <!--
+        PROVISIONAL (under review; see java-llama.cpp TODO.md
+        "PATH_TRAVERSAL_IN suppressions deep-check"). Same operator-supplied
+        model-path case as the LlamaLoader suppression above.
+        OfflineModelGuard.check() does Files.exists(Paths.get(model)) where the
+        model path comes from ModelParameters.getModel() (the configured local
+        model file) to verify the GGUF exists before native load; findsecbugs
+        PATH_TRAVERSAL_IN taints that path. The model path is configured by
+        whoever launches the process (CLI flag or builder), not untrusted
+        end-user input, and the whole point of the setting is to let the
+        operator point at an arbitrary GGUF on disk, so there is no meaningful
+        allowed-root to validate against. Suppressed pending a deep check of
+        whether a real resolution (canonicalize / restrict) is feasible for
+        this and the LlamaLoader case.
+    -->
+    <Match>
+        <Or>
+            <Class name="net.ladenthin.llama.loader.OfflineModelGuard"/>
+            <Class name="net.ladenthin.llama.parameters.ModelParameters"/>
+        </Or>
+        <Bug pattern="PATH_TRAVERSAL_IN"/>
+    </Match>
+
+    <!--
         LlamaIterator and LlamaModel form a deliberate producer/consumer
         cycle: LlamaModel.generate(...) returns a LlamaIterable that
         yields LlamaIterator instances; each LlamaIterator calls back

@@ -13,6 +13,19 @@ cross-cutting initiative.
 
 ## Open — jllama-specific
 
+### PATH_TRAVERSAL_IN suppressions — deep-check whether they can be resolved (open)
+
+Two `PATH_TRAVERSAL_IN` suppressions live in `spotbugs-exclude.xml`: the long-standing
+`LlamaLoader` (native-lib path resolved from three operator-controlled inputs) and the new
+`OfflineModelGuard` / `ModelParameters` (`--model` GGUF path), added when SpotBugs moved from
+the publish-only `verify` phase to the fast early `code-style` CI gate (so the finding now reds
+every PR, not just a release). Both are currently justified as "operator-supplied path, no
+meaningful allowed-root." **Deep-check whether a genuine fix is feasible** — e.g. canonicalize +
+validate, reject `..` traversal where an expected root exists, or otherwise narrow the sink —
+instead of suppressing. If it is, replace the suppression with code + a regression test; if it
+genuinely is not, keep the suppression and record the finalized rationale here (and on the
+`LlamaLoader` block). See [`../workspace/policies/spotbugs-suppressions.md`](../workspace/policies/spotbugs-suppressions.md).
+
 ### PIT gate not hermetic — `value.ContentPart.audioFile(Path)` (open)
 
 The PIT mutation gate reaches 100% **only when the audio test fixture is present**. Without it the
