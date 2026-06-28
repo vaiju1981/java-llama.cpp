@@ -727,4 +727,84 @@ public class InferenceParametersTest {
         assertThat(value, containsString("1"));
         assertThat(value, containsString("2"));
     }
+
+    // -------------------------------------------------------------------------
+    // DRY (Don't Repeat Yourself) sampling
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void testSetDryMultiplier() {
+        InferenceParameters params = new InferenceParameters("").withDryMultiplier(0.8f);
+        assertThat(params.parameters.get("dry_multiplier"), is("0.8"));
+    }
+
+    @Test
+    public void testSetDryBase() {
+        InferenceParameters params = new InferenceParameters("").withDryBase(1.75f);
+        assertThat(params.parameters.get("dry_base"), is("1.75"));
+    }
+
+    @Test
+    public void testSetDryAllowedLength() {
+        InferenceParameters params = new InferenceParameters("").withDryAllowedLength(2);
+        assertThat(params.parameters.get("dry_allowed_length"), is("2"));
+    }
+
+    @Test
+    public void testSetDryPenaltyLastN() {
+        InferenceParameters params = new InferenceParameters("").withDryPenaltyLastN(-1);
+        assertThat(params.parameters.get("dry_penalty_last_n"), is("-1"));
+    }
+
+    @Test
+    public void testSetDryPenaltyLastNDisabled() {
+        InferenceParameters params = new InferenceParameters("").withDryPenaltyLastN(0);
+        assertThat(params.parameters.get("dry_penalty_last_n"), is("0"));
+    }
+
+    @Test
+    public void testSetDryPenaltyLastNBelowMinusOneRejected() {
+        InferenceParameters params = new InferenceParameters("");
+        assertThrows(IllegalArgumentException.class, () -> params.withDryPenaltyLastN(-2));
+    }
+
+    @Test
+    public void testSetDrySequenceBreakersSingle() {
+        InferenceParameters params = new InferenceParameters("").withDrySequenceBreakers("\n");
+        assertThat(params.parameters.get("dry_sequence_breakers"), is("[\"\\n\"]"));
+    }
+
+    @Test
+    public void testSetDrySequenceBreakersMultiple() {
+        InferenceParameters params = new InferenceParameters("").withDrySequenceBreakers("\n", ":", "\"", "*");
+        assertThat(params.parameters.get("dry_sequence_breakers"), is("[\"\\n\",\":\",\"\\\"\",\"*\"]"));
+    }
+
+    @Test
+    public void testSetDrySequenceBreakersEmpty() {
+        InferenceParameters params = new InferenceParameters("");
+        InferenceParameters result = params.withDrySequenceBreakers();
+        assertThat(params.parameters, not(hasKey("dry_sequence_breakers")));
+        assertThat(result, is(sameInstance(params)));
+    }
+
+    @Test
+    public void testDryDefaultsEmitNothing() {
+        InferenceParameters params = new InferenceParameters("prompt");
+        assertThat(params.parameters, not(hasKey("dry_multiplier")));
+        assertThat(params.parameters, not(hasKey("dry_base")));
+        assertThat(params.parameters, not(hasKey("dry_allowed_length")));
+        assertThat(params.parameters, not(hasKey("dry_penalty_last_n")));
+        assertThat(params.parameters, not(hasKey("dry_sequence_breakers")));
+    }
+
+    @Test
+    public void testDryWithersReturnNewInstance() {
+        InferenceParameters params = new InferenceParameters("");
+        assertThat(params.withDryMultiplier(0.8f), is(not(sameInstance(params))));
+        assertThat(params.withDryBase(1.75f), is(not(sameInstance(params))));
+        assertThat(params.withDryAllowedLength(2), is(not(sameInstance(params))));
+        assertThat(params.withDryPenaltyLastN(-1), is(not(sameInstance(params))));
+        assertThat(params.withDrySequenceBreakers("\n"), is(not(sameInstance(params))));
+    }
 }

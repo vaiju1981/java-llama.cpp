@@ -103,6 +103,11 @@ public final class InferenceParameters extends JsonParameters {
     private static final String PARAM_TOOLS = "tools";
     private static final String PARAM_TOOL_CHOICE = "tool_choice";
     private static final String PARAM_PARALLEL_TOOL_CALLS = "parallel_tool_calls";
+    private static final String PARAM_DRY_MULTIPLIER = "dry_multiplier";
+    private static final String PARAM_DRY_BASE = "dry_base";
+    private static final String PARAM_DRY_ALLOWED_LENGTH = "dry_allowed_length";
+    private static final String PARAM_DRY_PENALTY_LAST_N = "dry_penalty_last_n";
+    private static final String PARAM_DRY_SEQUENCE_BREAKERS = "dry_sequence_breakers";
 
     private static final InferenceParameters EMPTY = new InferenceParameters();
 
@@ -732,6 +737,83 @@ public final class InferenceParameters extends JsonParameters {
      */
     public InferenceParameters withTopNSigma(float topNSigma) {
         return withScalar(PARAM_TOP_N_SIGMA, topNSigma);
+    }
+
+    /**
+     * Returns a new request with the per-request DRY (Don't Repeat Yourself) repetition multiplier
+     * replaced (default: 0.0, 0.0 = DRY disabled). DRY suppresses repeated multi-token sequences
+     * without the collateral damage of the classic {@code repeat_penalty}. This is the per-request
+     * mirror of {@link ModelParameters#setDryMultiplier(float)} (the {@code --dry-multiplier} launch
+     * flag); when this wither is not called, nothing is emitted and DRY stays disabled.
+     *
+     * @param dryMultiplier the DRY sampling multiplier (0.0 = disabled)
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withDryMultiplier(float dryMultiplier) {
+        return withScalar(PARAM_DRY_MULTIPLIER, dryMultiplier);
+    }
+
+    /**
+     * Returns a new request with the per-request DRY base replaced (default: 1.75). The base is the
+     * exponential growth factor applied to the penalty as a repeated sequence lengthens; it only takes
+     * effect when {@link #withDryMultiplier(float)} is non-zero. Per-request mirror of
+     * {@link ModelParameters#setDryBase(float)} (the {@code --dry-base} launch flag).
+     *
+     * @param dryBase the DRY sampling base value
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withDryBase(float dryBase) {
+        return withScalar(PARAM_DRY_BASE, dryBase);
+    }
+
+    /**
+     * Returns a new request with the per-request DRY allowed length replaced (default: 2). Sequences
+     * up to this length are not penalized; the penalty applies only once a repeated sequence grows
+     * longer. Only takes effect when {@link #withDryMultiplier(float)} is non-zero. Per-request mirror
+     * of {@link ModelParameters#setDryAllowedLength(int)} (the {@code --dry-allowed-length} launch flag).
+     *
+     * @param dryAllowedLength the allowed length for DRY sampling
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withDryAllowedLength(int dryAllowedLength) {
+        return withScalar(PARAM_DRY_ALLOWED_LENGTH, dryAllowedLength);
+    }
+
+    /**
+     * Returns a new request with the per-request DRY penalty window replaced (default: -1, -1 = context
+     * size, 0 = disabled). Only takes effect when {@link #withDryMultiplier(float)} is non-zero.
+     * Per-request mirror of {@link ModelParameters#setDryPenaltyLastN(int)} (the
+     * {@code --dry-penalty-last-n} launch flag); values below {@code -1} are rejected.
+     *
+     * @param dryPenaltyLastN the DRY penalty window (-1 = context size, 0 = disabled)
+     * @return a new instance; this instance is unchanged
+     * @throws IllegalArgumentException if {@code dryPenaltyLastN} is less than {@code -1}
+     */
+    public InferenceParameters withDryPenaltyLastN(int dryPenaltyLastN) {
+        if (dryPenaltyLastN < -1) {
+            throw new IllegalArgumentException("Invalid dry_penalty_last_n value: " + dryPenaltyLastN
+                    + " (must be >= -1; -1 = context size, 0 = disabled)");
+        }
+        return withScalar(PARAM_DRY_PENALTY_LAST_N, dryPenaltyLastN);
+    }
+
+    /**
+     * Returns a new request with the per-request DRY sequence breakers replaced. Sequence breakers are
+     * tokens at which DRY restarts matching, so repetition is not penalized across them (llama.cpp
+     * default: {@code ["\n", ":", "\"", "*"]}). Empty input is a no-op (returns {@code this}), so when
+     * this wither is not called nothing is emitted and the server's default breakers apply. Only takes
+     * effect when {@link #withDryMultiplier(float)} is non-zero.
+     *
+     * @param breakers the sequence-breaker strings
+     * @return a new instance with the breaker array set, or {@code this} if {@code breakers} is empty
+     */
+    public InferenceParameters withDrySequenceBreakers(String... breakers) {
+        if (breakers.length == 0) {
+            return this;
+        }
+        return withRaw(
+                PARAM_DRY_SEQUENCE_BREAKERS,
+                serializer.buildStopStrings(breakers).toString());
     }
 
     /**
