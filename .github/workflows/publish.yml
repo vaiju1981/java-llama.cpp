@@ -734,6 +734,7 @@ jobs:
         with:
           name: Windows-x86_64-cuda
           path: ${{ github.workspace }}/src/main/resources_windows_cuda/net/ladenthin/llama/
+          if-no-files-found: error
 
   build-windows-x86_64-vulkan:
     name: Build Windows 2025 x86_64 Vulkan (Ninja + sccache)
@@ -782,6 +783,7 @@ jobs:
         with:
           name: Windows-x86_64-vulkan
           path: ${{ github.workspace }}/src/main/resources_windows_vulkan/net/ladenthin/llama/
+          if-no-files-found: error
 
   build-windows-x86_64-opencl:
     name: Build Windows 2025 x86_64 OpenCL (Ninja + sccache)
@@ -825,6 +827,7 @@ jobs:
         with:
           name: Windows-x86_64-opencl
           path: ${{ github.workspace }}/src/main/resources_windows_opencl/net/ladenthin/llama/
+          if-no-files-found: error
 
   # ---------------------------------------------------------------------------
   # CI-only jobs — no release artifact, purely for test coverage

@@ -202,8 +202,12 @@ Wiring (mirrors the CUDA-Linux / OpenCL-Android classifier pattern):
    `resources_android_opencl`). The default CPU build (both generators) still emits to the canonical
    `src/main/resources/.../Windows/{x86_64,x86}/`, so the Ninja-vs-MSVC split is purely a
    CI-artifact-name + pom-profile concern (no CMake change for it).
-2. **`.github/build.bat`** — the sccache probe guard (mirrors `build.sh`); for CUDA builds it also
-   adds `-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache` (detects `GGML_CUDA` in the args) so nvcc caches too.
+2. **`.github/build.bat`** — the sccache probe guard (mirrors `build.sh`) wraps the **cl.exe** C/C++ TUs
+   only. Unlike `build.sh` (Linux), it does **not** wrap `nvcc`: sccache on Windows can't parse the nvcc
+   command line (`sccache: error: Could not parse shell line`) and fails every `.cu` compile, so CUDA
+   device code builds with nvcc directly (uncached). `build.bat` also propagates a `cmake --build`
+   failure as a non-zero exit (a prior bug let a failed CUDA build exit 0 → empty artifact → late
+   `package` failure); the GPU upload steps additionally use `if-no-files-found: error` as a backstop.
 3. **`.github/build_opencl_windows.bat`** — stages Khronos OpenCL-Headers + builds OpenCL-ICD-Loader
    (`OpenCL.lib`), then delegates to `build.bat` with `-DOpenCL_INCLUDE_DIR`/`-DOpenCL_LIBRARY`
    (the Windows analogue of `build_opencl_android.sh`).
