@@ -256,6 +256,17 @@ public final class ModelParameters extends CliParameters {
     }
 
     /**
+     * Use the full-size SWA KV cache so the sliding-window layers' KV is reusable across requests
+     * (restores prompt-prefix cache reuse with {@link #setCacheReuse(int)}); costs ~2x SWA-layer
+     * KV RAM. Off by default; only beneficial for multi-request sessions sharing a prompt prefix.
+     *
+     * @return this builder
+     */
+    public ModelParameters enableSwaFull() {
+        return setFlag(ModelFlag.SWA_FULL);
+    }
+
+    /**
      * Disable internal libllama performance timings (default: false).
      *
      * @return this builder

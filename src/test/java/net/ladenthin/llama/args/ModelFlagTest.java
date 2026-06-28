@@ -19,6 +19,7 @@ public class ModelFlagTest {
         return Arrays.asList(new Object[][] {
             {ModelFlag.NO_CONTEXT_SHIFT, "--no-context-shift"},
             {ModelFlag.FLASH_ATTN, "--flash-attn"},
+            {ModelFlag.SWA_FULL, "--swa-full"},
             {ModelFlag.NO_PERF, "--no-perf"},
             {ModelFlag.ESCAPE, "--escape"},
             {ModelFlag.NO_ESCAPE, "--no-escape"},
@@ -66,7 +67,7 @@ public class ModelFlagTest {
 
     @Test
     public void testEnumCount() {
-        assertEquals(34, ModelFlag.values().length);
+        assertEquals(35, ModelFlag.values().length);
     }
 
     @ParameterizedTest(name = "{0} -> {1}")

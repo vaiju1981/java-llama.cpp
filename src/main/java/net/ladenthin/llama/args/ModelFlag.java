@@ -22,6 +22,11 @@ public enum ModelFlag {
     /** Enable Flash Attention. */
     FLASH_ATTN("--flash-attn"),
 
+    /** Keep the full-size sliding-window-attention (SWA) KV cache, enabling cross-request
+     *  prompt-prefix reuse (pairs with --cache-reuse) at ~2x the SWA-layer KV RAM. Default off.
+     *  Env: LLAMA_ARG_SWA_FULL. */
+    SWA_FULL("--swa-full"),
+
     /** Disable internal libllama performance timings. */
     NO_PERF("--no-perf"),
 
