@@ -768,7 +768,7 @@ jobs:
       # workflow_dispatch input / USE_CACHE env. Not Depot — GB-scale blobs are usage-priced
       # there and its file cache needs Depot-hosted runners. See CLAUDE.md.
       - name: Cache GGUF models (GitHub Actions cache; avoids re-downloading from HuggingFace)
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: models/
           # GGUF is platform-independent, so ubuntu + macOS + Windows share one entry;
@@ -911,7 +911,7 @@ jobs:
       # workflow_dispatch input / USE_CACHE env. Not Depot — GB-scale blobs are usage-priced
       # there and its file cache needs Depot-hosted runners. See CLAUDE.md.
       - name: Cache GGUF models (GitHub Actions cache; avoids re-downloading from HuggingFace)
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: models/
           # GGUF is platform-independent, so ubuntu + macOS + Windows share one entry;
@@ -1000,7 +1000,7 @@ jobs:
       # workflow_dispatch input / USE_CACHE env. Not Depot — GB-scale blobs are usage-priced
       # there and its file cache needs Depot-hosted runners. See CLAUDE.md.
       - name: Cache GGUF models (GitHub Actions cache; avoids re-downloading from HuggingFace)
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: models/
           # GGUF is platform-independent, so ubuntu + macOS + Windows share one entry;
@@ -1089,7 +1089,7 @@ jobs:
       # workflow_dispatch input / USE_CACHE env. Not Depot — GB-scale blobs are usage-priced
       # there and its file cache needs Depot-hosted runners. See CLAUDE.md.
       - name: Cache GGUF models (GitHub Actions cache; avoids re-downloading from HuggingFace)
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: models/
           # GGUF is platform-independent, so ubuntu + macOS + Windows share one entry;
@@ -1175,7 +1175,7 @@ jobs:
           name: Windows-x86_64-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
       - name: Cache GGUF models (GitHub Actions cache; avoids re-downloading from HuggingFace)
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: models/
           # GGUF is platform-independent, so ubuntu + macOS + Windows share one entry;
@@ -1284,7 +1284,7 @@ jobs:
           name: Windows-x86_64-ninja
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
       - name: Cache GGUF models (GitHub Actions cache; avoids re-downloading from HuggingFace)
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: models/
           # GGUF is platform-independent, so ubuntu + macOS + Windows share one entry;
