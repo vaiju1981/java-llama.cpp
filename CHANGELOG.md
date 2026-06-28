@@ -18,6 +18,7 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 - End-to-end vision input across blocking, typed `ChatRequest`, streaming, and OpenAI-compatible request mapping; real-model tests verify that distinct red and blue images produce the correct semantic answers.
 - Explicit `setMmprojAuto(boolean)` and `setMmprojOffload(boolean)` controls, including the upstream `--no-mmproj-auto` and `--no-mmproj-offload` flags.
 - Per-request KV controls: `InferenceParameters.withSlotId(int)` and `withCacheReuse(int)`.
+- Per-request DRY sampling to `InferenceParameters` (`dry_multiplier`/`dry_base`/`dry_allowed_length`/`dry_penalty_last_n`/`dry_sequence_breakers`).
 - Typed cache observability through `Usage.getCachedTokens()`, `Usage.getProcessedPromptTokens()`, `SlotMetrics`, and `ServerMetrics.getSlotMetrics()`.
 - Authenticated JSON `GET /metrics` and `GET /slots` endpoints on the embedded server.
 
@@ -27,9 +28,12 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 - README license badge corrected from "Apache 2.0" to "MIT" (matches `LICENSE` file and `pom.xml`).
 - `pom.xml` SCM URL: `tree/master` → `tree/main` (default branch renamed).
 - Upgraded llama.cpp from b9151 to b9172.
+- Upgraded llama.cpp from b9803 to b9829. Compiles the new upstream `server-stream.cpp` (resumable-streaming SSE replay buffer) into `libjllama`, required because `server-context`/`server-http`/`server-models` now reference its symbols; refreshed `patches/0001` for the `tests/test-export-graph-ops.cpp` rename and the `server.cpp` GC-init context shift.
+- `configureParallelInference` now applies `slot_prompt_similarity` live via `server_context::set_slot_prompt_similarity()` (upstream PR ggml-org/llama.cpp#22393, carried as `patches/0003` until merged), instead of validating it and discarding the value.
 - Extracted the `chatWithTools` agent loop into `ToolCallingAgent`; tool-result errors (unknown tool / handler exception) are now JSON-serialized so tool names containing special characters remain valid JSON.
 
 ### Fixed
+- Per-request `reasoning_budget_tokens` is now honored (via `patches/0004`, upstream PR ggml-org/llama.cpp#23116): `reasoning_budget_tokens=0` suppresses thinking. `ReasoningBudgetTest` now asserts the suppression directly (the previous test that pinned the unfixed-bug behavior was removed).
 - Preserved decoded image buffers across the JNI chat boundary and submitted media requests through llama.cpp's upstream multimodal task path instead of silently tokenizing them as text-only prompts.
 - Preserved multipart image content when using the typed `ChatRequest` serializer.
 - The standalone OpenAI-compatible server now advertises vision only when the loaded model confirms usable vision support.

@@ -143,7 +143,7 @@ set(LLAMA_BUILD_APP OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
 	llama.cpp
 	GIT_REPOSITORY https://github.com/ggerganov/llama.cpp.git
-	GIT_TAG        b9803
+	GIT_TAG        b9829
 	PATCH_COMMAND  ${CMAKE_COMMAND}
 		-DPATCH_DIR=${CMAKE_CURRENT_SOURCE_DIR}/patches
 		-DLLAMA_SRC=<SOURCE_DIR>
@@ -166,7 +166,7 @@ execute_process(
     COMMAND ${CMAKE_COMMAND}
         -DTTS_SRC=${llama.cpp_SOURCE_DIR}/tools/tts/tts.cpp
         -DOUT_CPP=${JLLAMA_TTS_GEN_CPP}
-        -DLLAMA_TAG=b9803
+        -DLLAMA_TAG=b9829
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate-tts-upstream.cmake
     RESULT_VARIABLE JLLAMA_TTS_GEN_RESULT
 )
@@ -306,11 +306,23 @@ endif()
 # in subprocess.h which calls posix_spawn_*, declared but not implemented by the
 # Android NDK.  Guard with both ANDROID_ABI (NDK toolchain convention) and
 # OS_NAME (always set to "Linux-Android" by the CI cmake invocation).
+#
+# server-stream.cpp (added upstream in b9829) owns the resumable-streaming SSE
+# replay buffer (g_stream_sessions, stream_session_attach_pipe,
+# stream_aware_should_stop, stream_conv_id_from_headers, stream_pipe_*).
+# server-context.cpp / server-http.cpp / server-models.cpp now #include
+# "server-stream.h" and reference those symbols, so it MUST be compiled in or the
+# link fails with undefined references.  It is platform-neutral (threads + the
+# std mutex/condvar primitives, no subprocess.h / posix_spawn_*), so it builds on
+# Android too and stays outside the server-models Android guard below.  jllama
+# wires its own routes and never calls g_stream_sessions.start_gc() (only the
+# standalone server.cpp main does), so the GC thread stays dormant here.
 target_sources(jllama PRIVATE
     ${llama.cpp_SOURCE_DIR}/tools/server/server-context.cpp
     ${llama.cpp_SOURCE_DIR}/tools/server/server-queue.cpp
     ${llama.cpp_SOURCE_DIR}/tools/server/server-task.cpp
     ${llama.cpp_SOURCE_DIR}/tools/server/server-schema.cpp
+    ${llama.cpp_SOURCE_DIR}/tools/server/server-stream.cpp
 )
 if(NOT ANDROID_ABI AND NOT OS_NAME MATCHES "Android")
     target_sources(jllama PRIVATE
@@ -451,6 +463,7 @@ if(BUILD_TESTING)
         ${llama.cpp_SOURCE_DIR}/tools/server/server-task.cpp
         ${llama.cpp_SOURCE_DIR}/tools/server/server-schema.cpp
         ${llama.cpp_SOURCE_DIR}/tools/server/server-models.cpp
+        ${llama.cpp_SOURCE_DIR}/tools/server/server-stream.cpp
     )
 
     target_include_directories(jllama_test PRIVATE

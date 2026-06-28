@@ -7,7 +7,7 @@
 **Build:**  
 ![Java 8+](https://img.shields.io/badge/Java-8%2B-informational)  
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Android-lightgrey)  
-[![llama.cpp b9803](https://img.shields.io/badge/llama.cpp-%23b9803-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9803)  
+[![llama.cpp b9829](https://img.shields.io/badge/llama.cpp-%23b9829-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9829)  
 [![JPMS](https://img.shields.io/badge/JPMS-modular%20JAR-25A162)](https://openjdk.org/projects/jigsaw/)  
 ![JUnit](https://img.shields.io/badge/tested%20with-JUnit6-25A162)  
 [![JSpecify](https://img.shields.io/badge/JSpecify-1.0.0%20%40NullMarked-25A162)](https://jspecify.dev)  
@@ -282,7 +282,7 @@ Every `net.ladenthin.llama.*` system property recognised by the library, deep-sc
 | `net.ladenthin.llama.test.ngl` | `43` for the general suite; `0` for `ToolCallingIntegrationTest` | test | Model-backed integration tests | Number of GPU layers used during testing. Pin to `0` on CPU-only hosts: `mvn test -Dnet.ladenthin.llama.test.ngl=0`. The tool test also selects device `none` at zero layers so Metal/CUDA is not initialized. |
 | `net.ladenthin.llama.tool.model` | `models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf` (test self-skips if missing) | test | `ToolCallingIntegrationTest` | Path to a tool-capable GGUF used to verify required blocking and streaming tool calls. The default matches the Qwen2.5 model in upstream llama.cpp's tool-call test matrix. |
 | `net.ladenthin.llama.nomic.path` | unset (test self-skips) | test | `LlamaEmbeddingsTest#testNomicEmbedLoads` | Path to a Nomic embedding model (`nomic-embed-text-v1.5.f16.gguf` or a compatible BERT-family encoder). Regression test for upstream issue #98 (BERT-encoder `result_output` assertion). |
-| `net.ladenthin.llama.vision.model` | unset (test self-skips) | test | `MultimodalIntegrationTest` (upstream kherud/java-llama.cpp#103 / #34) | Path to a vision-capable model GGUF. Any vision-capable GGUF works; CI default is `SmolVLM-500M-Instruct-Q8_0.gguf`. |
+| `net.ladenthin.llama.vision.model` | unset (test self-skips) | test | `MultimodalIntegrationTest` | Path to a vision-capable model GGUF. Any vision-capable GGUF works; CI default is `SmolVLM-500M-Instruct-Q8_0.gguf`. |
 | `net.ladenthin.llama.vision.mmproj` | unset (test self-skips) | test | `MultimodalIntegrationTest` | Matching mmproj GGUF for the vision model. |
 | `net.ladenthin.llama.vision.image` | `src/test/resources/images/test-image.jpg` (a CC-BY-4.0 / MIT-granted photo committed to the repo) | test | `MultimodalIntegrationTest` | Visual prompt image. Any png/jpeg/webp/gif works; the extension drives MIME detection. |
 | `net.ladenthin.llama.audio.model` | unset (test self-skips) | test | `AudioInputIntegrationTest` (llama.cpp discussion #13759) | Path to an audio-input model GGUF (e.g. Ultravox, Qwen2.5-Omni). |

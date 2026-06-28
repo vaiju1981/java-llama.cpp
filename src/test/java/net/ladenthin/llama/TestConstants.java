@@ -46,7 +46,7 @@ public class TestConstants {
 
     /**
      * System property holding a path to a vision-capable model GGUF. Consumed by
-     * {@code MultimodalIntegrationTest} (upstream kherud/java-llama.cpp#103 / #34). The CI default is the
+     * {@code MultimodalIntegrationTest}. The CI default is the
      * SmolVLM-500M Q8_0 GGUF; the test self-skips when the property is unset or
      * the file is missing.
      */

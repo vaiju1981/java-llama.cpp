@@ -267,10 +267,10 @@ index 0a75ac1..bdf13ba 100644
          return 1;
      }
  
-diff --git a/tests/export-graph-ops.cpp b/tests/export-graph-ops.cpp
-index 64cf6dc..ca382e4 100644
---- a/tests/export-graph-ops.cpp
-+++ b/tests/export-graph-ops.cpp
+diff --git a/tests/test-export-graph-ops.cpp b/tests/test-export-graph-ops.cpp
+index 7d8118d..88b7641 100644
+--- a/tests/test-export-graph-ops.cpp
++++ b/tests/test-export-graph-ops.cpp
 @@ -131,7 +131,7 @@ int main(int argc, char ** argv) {
  
      common_init();
@@ -496,13 +496,13 @@ index f2179ed..6d958a8 100644
      }
      if (params.out_file.empty()) {
 diff --git a/tools/server/server.cpp b/tools/server/server.cpp
-index 4165c10..7a7ad2f 100644
+index eafef86..84c7f0b 100644
 --- a/tools/server/server.cpp
 +++ b/tools/server/server.cpp
-@@ -82,7 +82,7 @@ int llama_server(int argc, char ** argv) {
- 
-     common_init();
- 
+@@ -87,7 +87,7 @@ int llama_server(int argc, char ** argv) {
+     // touch it. lifecycle is symmetric, stop_gc() runs in clean_up() before backend free
+     g_stream_sessions.start_gc();
+
 -    if (!common_params_parse(argc, argv, params, LLAMA_EXAMPLE_SERVER)) {
 +    if (!common_params_parse_main(argc, argv, params, LLAMA_EXAMPLE_SERVER)) {
          return 1;

@@ -59,13 +59,18 @@ import org.junit.jupiter.api.Timeout;
  * author. Any image the test machine can reach works at runtime &#x2014; the
  * URL is just an env var.</p>
  *
- * <p>Implements the upstream vision feature requests kherud/java-llama.cpp#103 and #34.</p>
+ * <p>Implements the vision feature originally requested in the pre-fork upstream repository:
+ * <a href="https://github.com/kherud/java-llama.cpp/issues/103">https://github.com/kherud/java-llama.cpp/issues/103</a>
+ * and
+ * <a href="https://github.com/kherud/java-llama.cpp/issues/34">https://github.com/kherud/java-llama.cpp/issues/34</a>.</p>
  */
 @ClaudeGenerated(
         purpose = "End-to-end vision regression: real vision GGUF + mmproj + author-licensed (MIT) "
                 + "test image fed through the typed ChatMessage(role, List<ContentPart>) API; "
                 + "asserts non-empty reply to prove the OAI multipart content round-trips through "
-                + "the upstream mtmd pipeline. Implements upstream kherud/java-llama.cpp#103 / #34.")
+                + "the upstream mtmd pipeline. Implements the pre-fork upstream vision requests "
+                + "https://github.com/kherud/java-llama.cpp/issues/103 and "
+                + "https://github.com/kherud/java-llama.cpp/issues/34.")
 public class MultimodalIntegrationTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();

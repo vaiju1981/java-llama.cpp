@@ -9,12 +9,14 @@ REM GGUF files start with magic bytes: 0x47 0x47 0x55 0x46 ("GGUF")
 
 setlocal enabledelayedexpansion
 
-set "MODELS=models\codellama-7b.Q2_K.gguf" "models\jina-reranker-v1-tiny-en-Q4_0.gguf" "models\AMD-Llama-135m-code.Q2_K.gguf" "models\Qwen3-0.6B-Q4_K_M.gguf" "models\Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
+REM Every CI Java test job (incl. Windows) now downloads the full model set before
+REM validating and runs the embedding / vision / TTS integration tests, so all of
+REM these are REQUIRED (a missing one is a hard failure, not a silent self-skip).
+set "MODELS=models\codellama-7b.Q2_K.gguf" "models\jina-reranker-v1-tiny-en-Q4_0.gguf" "models\AMD-Llama-135m-code.Q2_K.gguf" "models\Qwen3-0.6B-Q4_K_M.gguf" "models\Qwen2.5-1.5B-Instruct-Q4_K_M.gguf" "models\nomic-embed-text-v1.5.f16.gguf" "models\SmolVLM-500M-Instruct-Q8_0.gguf" "models\mmproj-SmolVLM-500M-Instruct-Q8_0.gguf" "models\OuteTTS-0.2-500M-Q4_K_M.gguf" "models\WavTokenizer-Large-75-F16.gguf"
 
-REM Vision GGUFs are validated only when present (the Windows job downloads
-REM them too, but the validation step must not fail when a future job opts
-REM out of the vision matrix).
-set "OPTIONAL_MODELS=models\SmolVLM-500M-Instruct-Q8_0.gguf" "models\mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
+REM No optional models remain (the audio-input model has no CI download and its
+REM test self-skips). Left empty so the optional loop below is a no-op.
+set "OPTIONAL_MODELS="
 
 echo Validating required model files...
 for %%M in (%MODELS%) do (
