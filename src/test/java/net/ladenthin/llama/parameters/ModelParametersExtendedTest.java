@@ -642,6 +642,18 @@ public class ModelParametersExtendedTest {
     }
 
     @Test
+    public void testEnableSwaFull() {
+        ModelParameters p = new ModelParameters().enableSwaFull();
+        assertThat(p.parameters, hasKey("--swa-full"));
+        assertThat(p.parameters.get("--swa-full"), is(nullValue()));
+    }
+
+    @Test
+    public void testSwaFullNotEnabledByDefault() {
+        assertThat(new ModelParameters().parameters, not(hasKey("--swa-full")));
+    }
+
+    @Test
     public void testDisablePerf() {
         ModelParameters p = new ModelParameters().disablePerf();
         assertThat(p.parameters, hasKey("--no-perf"));
