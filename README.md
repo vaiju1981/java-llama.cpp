@@ -162,17 +162,22 @@ If any of these match your platform, you can include the Maven dependency and ge
 
 ### Choosing the right classifier
 
-The Maven coordinate `net.ladenthin:llama` publishes one default JAR (CPU-only)
-plus optional JARs selected via a Maven `<classifier>`: two GPU/accelerator
-builds and one alternate-toolchain Windows build. Pick at most one GPU/accelerator
-classifier — those are mutually exclusive — and optionally the Windows build.
+The Maven coordinate `net.ladenthin:llama` publishes one default JAR (CPU-only;
+its Windows natives are built with the Ninja Multi-Config + MSVC toolchain) plus
+optional JARs selected via a Maven `<classifier>`: three Windows GPU builds
+(CUDA / Vulkan / OpenCL), the Linux CUDA and Android OpenCL builds, and an
+alternate-toolchain MSVC Windows CPU build. Pick at most one GPU/accelerator
+classifier — those are mutually exclusive — and optionally a CPU Windows build.
 
 | Classifier | Backend | Target platform | Runtime requirement |
 |---|---|---|---|
-| _(none)_ | CPU | Linux x86-64 / aarch64, macOS x86-64 / aarch64, Windows x86-64 (MSVC / Visual Studio generator), Android aarch64 (CPU) | A JDK 8+ JVM. **Linux `aarch64` additionally requires glibc ≥ 2.39** (e.g. Ubuntu 24.04+, Debian 13+) — it is built natively on `ubuntu-24.04-arm`, matching upstream llama.cpp's own ARM binaries; older-glibc ARM hosts (Ubuntu 22.04, Debian 12, RHEL 8/9, Amazon Linux 2023) are not supported. Linux x86-64 keeps a glibc 2.17 floor (manylinux2014). |
+| _(none)_ | CPU | Linux x86-64 / aarch64, macOS x86-64 / aarch64, Windows x86-64 / x86 (Ninja Multi-Config + MSVC), Android aarch64 (CPU) | A JDK 8+ JVM. **Linux `aarch64` additionally requires glibc ≥ 2.39** (e.g. Ubuntu 24.04+, Debian 13+) — it is built natively on `ubuntu-24.04-arm`, matching upstream llama.cpp's own ARM binaries; older-glibc ARM hosts (Ubuntu 22.04, Debian 12, RHEL 8/9, Amazon Linux 2023) are not supported. Linux x86-64 keeps a glibc 2.17 floor (manylinux2014). |
+| `msvc-windows` | CPU (MSVC / Visual Studio generator) | Windows x86-64 and x86 | None beyond a JDK 8+ JVM. Same CPU backend as the default JAR's Windows natives, but compiled with the Visual Studio generator instead of `Ninja Multi-Config`. Both use the same MSVC toolchain (static `/MT` CRT), so they are functionally equivalent — provided as an alternate-toolchain option. |
+| `cuda13-windows-x86-64` | CUDA 13 | Windows x86-64 with NVIDIA GPU | NVIDIA driver + CUDA 13 Toolkit installed on the host (`cudart64_13.dll`, `cublas64_13.dll`, `cublasLt64_13.dll` resolvable on `PATH`). The runtime libraries are **not bundled** in the JAR; native-library load fails with `UnsatisfiedLinkError` if they are absent. No CPU fallback. |
+| `vulkan-windows-x86-64` | Vulkan | Windows x86-64 with a Vulkan 1.2+ GPU (NVIDIA / AMD / Intel) | A Vulkan runtime (`vulkan-1.dll`), which current GPU drivers install. No Vulkan SDK is needed at runtime. The most portable Windows GPU option (vendor-independent). |
+| `opencl-windows-x86-64` | OpenCL | Windows x86-64 with an OpenCL 2.0+ GPU | A vendor OpenCL ICD (`OpenCL.dll`, installed by the GPU driver). **Note:** the GGML OpenCL backend is Adreno-tuned; on desktop GPUs CUDA or Vulkan are better supported. |
 | `cuda13-linux-x86-64` | CUDA 13 | Linux x86-64 with NVIDIA GPU | NVIDIA driver + CUDA 13 runtime libraries (`libcudart.so.13`, `libcublas.so.13`) installed on the host. The shared library is dynamically linked against them and will fail to `dlopen` if they are absent — there is no automatic fallback to CPU. |
 | `opencl-android-aarch64` | OpenCL (Adreno) | Android aarch64 with Qualcomm Adreno GPU | A device-supplied OpenCL ICD (`libOpenCL.so`). Devices without an ICD (e.g. most non-Snapdragon Android hardware) must use the default CPU JAR. |
-| `ninja-windows` | CPU (Ninja Multi-Config + MSVC) | Windows x86-64 and x86 | None beyond a JDK 8+ JVM. Same CPU backend as the default JAR's Windows natives, but compiled with the `Ninja Multi-Config` generator (sccache-cached in CI) instead of the Visual Studio generator. Provided so both Windows builds are available; functionally equivalent for normal use. |
 
 ```xml
 <!-- CPU (default) -->
@@ -198,23 +203,52 @@ classifier — those are mutually exclusive — and optionally the Windows build
     <classifier>opencl-android-aarch64</classifier>
 </dependency>
 
-<!-- Windows natives built with the Ninja Multi-Config generator (CPU) -->
+<!-- CUDA on Windows x86-64 (requires CUDA 13 Toolkit on the host) -->
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
     <version>5.0.2</version>
-    <classifier>ninja-windows</classifier>
+    <classifier>cuda13-windows-x86-64</classifier>
+</dependency>
+
+<!-- Vulkan on Windows x86-64 (NVIDIA/AMD/Intel; vulkan-1.dll from the driver) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.2</version>
+    <classifier>vulkan-windows-x86-64</classifier>
+</dependency>
+
+<!-- OpenCL on Windows x86-64 (requires a driver-provided OpenCL ICD) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.2</version>
+    <classifier>opencl-windows-x86-64</classifier>
+</dependency>
+
+<!-- Windows CPU natives built with the MSVC / Visual Studio generator -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.2</version>
+    <classifier>msvc-windows</classifier>
 </dependency>
 ```
 
 > [!IMPORTANT]
-> The CUDA JAR is **CUDA-only at runtime**. On a CPU-only host (no NVIDIA
-> driver or no CUDA 13 runtime libraries installed) the JVM will fail at
-> native-library load time with `UnsatisfiedLinkError` caused by an
-> underlying `dlopen` failure on `libcudart.so.13`. If you want to ship a
-> single artifact that works on both CPU and CUDA hosts, depend on the
-> default (CPU) JAR; users who want GPU acceleration must compile locally
-> with `-DGGML_CUDA=ON` (see [Setup required](#setup-required)).
+> The GPU JARs are **GPU-only at runtime**. On a host without the matching
+> GPU driver/runtime the JVM fails at native-library load time with
+> `UnsatisfiedLinkError`: the CUDA JARs are dynamically linked against the
+> CUDA runtime (`libcudart.so.13` on Linux, `cudart64_13.dll` /
+> `cublas64_13.dll` / `cublasLt64_13.dll` on Windows — the Windows CUDA
+> runtime is **not bundled**, install the CUDA 13 Toolkit), the Vulkan JAR
+> needs a Vulkan runtime (`vulkan-1.dll`, shipped with current GPU drivers),
+> and the OpenCL JARs need a vendor OpenCL ICD. There is no automatic
+> fallback to CPU. If you want a single artifact that works on both CPU and
+> GPU hosts, depend on the default (CPU) JAR; users who want GPU acceleration
+> on an unlisted platform must compile locally with the matching `-DGGML_*=ON`
+> flag (see [Setup required](#setup-required)).
 
 > [!NOTE]
 > Android `armeabi-v7a` (32-bit ARM) is **not** published. Only 64-bit

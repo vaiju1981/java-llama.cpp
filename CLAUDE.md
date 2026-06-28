@@ -163,49 +163,84 @@ At runtime the device must provide its own OpenCL ICD (`libOpenCL.so`);
 Qualcomm Adreno drivers do. Devices without an ICD should use the default
 CPU-only Android JAR.
 
-## Windows Ninja artifact (sccache-cached, parallel to the MSVC build)
+## Windows native classifiers (default Ninja CPU + MSVC classifier + CUDA/Vulkan/OpenCL GPU)
 
-The Visual Studio generator ignores `CMAKE_{C,CXX}_COMPILER_LAUNCHER`, so the two MSVC Windows
-jobs (`build-windows-x86_64`, `build-windows-x86`) **cannot** use the sccache/Depot cache. Rather
-than switch the trusted MSVC build, the repo builds the **same CPU natives a second time** with the
-**`Ninja Multi-Config`** generator (which *does* honor the launcher) and ships them as a separate
-**`ninja-windows`** Maven classifier JAR. **The MSVC build is the default JAR and is kept
-permanently** — the Ninja artifact is an additional, cache-accelerated, independently
-end-to-end-tested option, not a replacement. (Upstream llama.cpp ships its `windows-cuda` artifact
-with Ninja Multi-Config + MSVC, proving the combination works on the same tree.)
+The Windows native libraries ship in **five** forms. The **default JAR's** Windows natives are now
+built with the **`Ninja Multi-Config`** generator (the *default flip*); the Visual Studio / MSVC
+build is shipped as the **`msvc-windows`** classifier; and three GPU backends ship as
+**`cuda13-windows-x86-64`**, **`vulkan-windows-x86-64`**, and **`opencl-windows-x86-64`** (all
+**x86_64 only**, all Ninja).
 
-Unlike the CUDA / OpenCL classifiers — which differ by a **GGML backend flag** and route their
-output in `CMakeLists.txt` — the Ninja Windows build differs only by **generator/toolchain**, so
-there is **no `CMakeLists.txt` change**: both generators emit to the canonical
-`src/main/resources/.../Windows/{x86_64,x86}/`. Routing to the classifier tree happens purely at the
-CI-download + pom-profile level. Four places wire it together:
+**Why Ninja is the default (the flip).** The Visual Studio generator ignores
+`CMAKE_{C,CXX}_COMPILER_LAUNCHER`, so only Ninja Multi-Config can front `cl.exe` with sccache over
+Depot WebDAV. **Both generators use the same MSVC toolchain** (`cl.exe`, static `/MT` CRT via
+`CMAKE_MSVC_RUNTIME_LIBRARY`, same Release flags, same runner), so the produced
+`jllama.dll`/`llama.dll`/`ggml.dll` are **functionally equivalent with identical runtime
+dependencies** — the only difference is build-system plumbing + caching. Making Ninja the default
+gives the most-pulled JAR the sccache cache; MSVC stays available as a classifier for anyone who
+wants the Visual-Studio-generator build. (Upstream llama.cpp also builds its Windows artifacts with
+Ninja Multi-Config + MSVC.) Both Windows CPU builds are validated end-to-end with the full
+model-backed Java suite (`test-java-windows-x86_64` = default/Ninja, `test-java-windows-x86_64-msvc`
+= MSVC classifier).
 
-1. **`.github/build.bat`** — sccache probe guard mirroring `build.sh`'s `sccache_can_wrap_compiler()`:
-   when `USE_CACHE=true` and `sccache` is on PATH, it compiles a trivial TU through `sccache cl.exe`;
-   only on success does it pass `-DCMAKE_{C,CXX}_COMPILER_LAUNCHER=sccache` and print
-   `sccache --show-stats`. A missing/crashing sccache falls back to a green uncached build. The MSVC
-   jobs do not set `USE_CACHE`, so the guard is inert for them.
-2. **`.github/workflows/publish.yml`** — build jobs `build-windows-x86_64-ninja` /
-   `build-windows-x86-ninja` (`windows-2025-vs2026`, `ilammy/msvc-dev-cmd@v1` for the arch env,
-   sccache v0.16.0 from the GitHub release **zip** + Depot WebDAV, `build.bat -G "Ninja Multi-Config"`),
-   uploading artifacts `Windows-{x86_64,x86}-ninja` (**not** `*-libraries`, so the `package` job's
-   `pattern: "*-libraries"` ignores them). `test-java-windows-x86_64-ninja` loads the Ninja DLL via
-   JNI and runs the full model-backed suite. The `package`, `publish-snapshot`, and `publish-release`
-   jobs download `Windows-*-ninja` into `src/main/resources_windows_ninja/` and activate the
-   `windows-ninja` Maven profile.
-3. **`pom.xml`** — the `windows-ninja` profile produces a second JAR with `<classifier>ninja-windows</classifier>`
-   from the `${project.build.outputDirectory}_windows_ninja` tree (separate compile pass + resource
-   copy + classified jar; mirrors the `cuda` / `opencl-android` profiles). Activated only in CI.
-4. **`README.md`** — the `ninja-windows` row + dependency snippet in "Choosing the right classifier".
+**GPU runtime libraries are NOT bundled.** The GPU JARs ship only `jllama.dll`/`llama.dll`/`ggml.dll`
+(plus the embedded backend). The consumer's driver/toolkit must supply the runtime: CUDA needs the
+installed CUDA 13 Toolkit (`cudart64_13.dll`/`cublas64_13.dll`/`cublasLt64_13.dll` on `PATH`); Vulkan
+needs `vulkan-1.dll` (ships with current GPU drivers); OpenCL needs the vendor ICD
+(`System32\OpenCL.dll`). Not bundling = no NVIDIA-EULA redistribution obligation. **GitHub-hosted
+Windows runners have NO GPU**, so the GPU jobs build + run the C++ unit suite (`ctest`, CPU-only) but
+**cannot run model-backed GPU inference** — end-to-end GPU validation is local / self-hosted.
 
-`src/main/resources_windows_ninja/` is git-ignored (staged by CI, never committed — same policy as
-the native libs and the CUDA/OpenCL trees).
+Wiring (mirrors the CUDA-Linux / OpenCL-Android classifier pattern):
 
-**Local sanity build** (needs MSVC + a Ninja on PATH; sccache optional):
+1. **`CMakeLists.txt`** — the `if(GGML_CUDA) … elseif(GGML_VULKAN) … elseif(GGML_OPENCL) … else()`
+   chain is **OS-aware**: CUDA → `resources_windows_cuda` on Windows (else `resources_linux_cuda`),
+   Vulkan → `resources_windows_vulkan`, OpenCL → `resources_windows_opencl` on Windows (else
+   `resources_android_opencl`). The default CPU build (both generators) still emits to the canonical
+   `src/main/resources/.../Windows/{x86_64,x86}/`, so the Ninja-vs-MSVC split is purely a
+   CI-artifact-name + pom-profile concern (no CMake change for it).
+2. **`.github/build.bat`** — the sccache probe guard (mirrors `build.sh`); for CUDA builds it also
+   adds `-DCMAKE_CUDA_COMPILER_LAUNCHER=sccache` (detects `GGML_CUDA` in the args) so nvcc caches too.
+3. **`.github/build_opencl_windows.bat`** — stages Khronos OpenCL-Headers + builds OpenCL-ICD-Loader
+   (`OpenCL.lib`), then delegates to `build.bat` with `-DOpenCL_INCLUDE_DIR`/`-DOpenCL_LIBRARY`
+   (the Windows analogue of `build_opencl_android.sh`).
+4. **`.github/workflows/publish.yml`** — build jobs (all `windows-2025-vs2026`, `ilammy/msvc-dev-cmd@v1`,
+   sccache v0.16.0 zip + Depot WebDAV):
+   - `build-windows-x86_64` / `build-windows-x86` — **Ninja CPU**, artifacts `Windows-{arch}-libraries`
+     → picked up by the `package` job's `pattern: "*-libraries"` into the **default** tree.
+   - `build-windows-x86_64-msvc` / `build-windows-x86-msvc` — **MSVC CPU**, artifacts `Windows-{arch}-msvc`.
+   - `build-windows-x86_64-cuda` — `Jimver/cuda-toolkit` + `-DGGML_CUDA=ON`, artifact `Windows-x86_64-cuda`.
+   - `build-windows-x86_64-vulkan` — `humbletim/install-vulkan-sdk` + `-DGGML_VULKAN=ON`, artifact
+     `Windows-x86_64-vulkan`.
+   - `build-windows-x86_64-opencl` — `build_opencl_windows.bat -DGGML_OPENCL=ON -DGGML_OPENCL_EMBED_KERNELS=ON`,
+     artifact `Windows-x86_64-opencl`.
+   The `package`, `publish-snapshot`, and `publish-release` jobs download each non-default artifact into
+   its `src/main/resources_windows_{msvc,cuda,vulkan,opencl}/` tree and activate the
+   `windows-msvc,cuda-windows,vulkan-windows,opencl-windows` Maven profiles.
+5. **`pom.xml`** — profiles `windows-msvc` / `cuda-windows` / `vulkan-windows` / `opencl-windows`,
+   each a separate compile pass + resource copy + classified jar (classifiers `msvc-windows` /
+   `cuda13-windows-x86-64` / `vulkan-windows-x86-64` / `opencl-windows-x86-64`). Activated only in CI.
+6. **`README.md`** — the classifier table + dependency snippets in "Choosing the right classifier".
+
+`src/main/resources_windows_{msvc,cuda,vulkan,opencl}/` are git-ignored (staged by CI, never committed).
+
+**First-run unknowns (no GPU/Windows CI tested locally — validate on the first CI run):** the exact
+`Jimver/cuda-toolkit` CUDA version that resolves on Windows (the job requests `13.0.0`; if Jimver has
+no 13.x the classifier would need to drop to `cuda12-…`), the `humbletim/install-vulkan-sdk` action
+inputs, and the `build_opencl_windows.bat` ICD-loader staging are all unproven on the runner image and
+may need adjustment. Because all five Windows build jobs are in the `package`/publish `needs:` graph, a
+GPU-toolchain failure blocks packaging — the same release-gating policy the Linux-CUDA / Android-OpenCL
+jobs already follow.
+
+**Local sanity builds** (need MSVC + Ninja on PATH; sccache optional; GPU builds also need the matching SDK):
 ```bat
 mvn -q compile
 .github\build.bat -G "Ninja Multi-Config" -DOS_NAME=Windows -DOS_ARCH=x86_64 -DBUILD_TESTING=ON
 ctest --test-dir build --output-on-failure
+:: GPU (needs the matching SDK installed + on PATH):
+.github\build.bat -G "Ninja Multi-Config" -DGGML_CUDA=ON   -DOS_NAME=Windows -DOS_ARCH=x86_64
+.github\build.bat -G "Ninja Multi-Config" -DGGML_VULKAN=ON -DOS_NAME=Windows -DOS_ARCH=x86_64
+.github\build_opencl_windows.bat -G "Ninja Multi-Config" -DGGML_OPENCL=ON -DGGML_OPENCL_EMBED_KERNELS=ON -DOS_NAME=Windows -DOS_ARCH=x86_64
 ```
 
 ## WebUI (llama.cpp Svelte UI) embedding
@@ -348,9 +383,10 @@ dockcross wrapper only forwards host env it is explicitly told to via `-e`. The 
 version is the `SCCACHE_DL_VERSION` knob in `build.sh` (default **0.16.0**; overridable per-job
 to try a different build against a container that crashed another). **Windows** is handled
 separately (the Visual Studio generator ignores `CMAKE_*_COMPILER_LAUNCHER`): see
-"Windows Ninja artifact" below — the cached path uses the **Ninja Multi-Config** generator with a
-`build.bat` sccache probe and a direct sccache zip download (not `mozilla-actions/sccache-action`),
-shipped as a parallel `ninja-windows` classifier JAR while the MSVC default stays the trusted build.
+"Windows native classifiers" below — the **default** Windows CPU JAR now uses the **Ninja
+Multi-Config** generator (so it caches) with a `build.bat` sccache probe and a direct sccache zip
+download (not `mozilla-actions/sccache-action`); the uncached MSVC build ships as the `msvc-windows`
+classifier, and the three Windows GPU classifiers (CUDA/Vulkan/OpenCL) use the same Ninja path.
 
 **Cross-repo scope.** This Depot/sccache compiler cache makes sense only for java-llama.cpp —
 it is the only sibling repo with a native (C++/JNI) build. It does not apply to the pure-Maven

@@ -38,6 +38,18 @@ if /I "%USE_CACHE%"=="true" (
     )
 )
 
+REM CUDA device-code caching: when sccache wrapping succeeded (LAUNCH set) and this
+REM is a CUDA build (GGML_CUDA in the cmake args), also front nvcc with sccache so the
+REM per-arch .cu device passes cache over Depot alongside the cl.exe TUs (mirrors
+REM build.sh). Inert on non-CUDA builds (the flag is simply unused).
+if defined LAUNCH (
+    echo %* | findstr /I "GGML_CUDA" >nul
+    if not errorlevel 1 (
+        set "LAUNCH=!LAUNCH! -DCMAKE_CUDA_COMPILER_LAUNCHER=sccache"
+        echo build.bat: CUDA build detected -- also wrapping nvcc with sccache.
+    )
+)
+
 mkdir build
 cmake -Bbuild %LAUNCH% %*
 if errorlevel 1 exit /b %ERRORLEVEL%
