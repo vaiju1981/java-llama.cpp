@@ -22,9 +22,9 @@ set "HEADERS_DIR=%OPENCL_STAGE%\OpenCL-Headers"
 set "LOADER_DIR=%OPENCL_STAGE%\OpenCL-ICD-Loader"
 set "LOADER_BUILD=%LOADER_DIR%\build"
 
-REM Pinned tags for reproducibility (match build_opencl_android.sh).
-set "HEADERS_TAG=v2025.07.22"
-set "LOADER_TAG=v2025.07.22"
+REM Pinned tags for reproducibility (OpenCL 3.1.1; match build_opencl_android.sh).
+set "HEADERS_TAG=v2026.05.29"
+set "LOADER_TAG=v2026.05.29"
 
 if not exist "%HEADERS_DIR%" (
     git clone --depth 1 --branch %HEADERS_TAG% https://github.com/KhronosGroup/OpenCL-Headers.git "%HEADERS_DIR%"
