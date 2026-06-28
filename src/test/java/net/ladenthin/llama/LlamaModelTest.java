@@ -122,6 +122,49 @@ public class LlamaModelTest {
         assertTrue(generated > 0 && generated <= nPredict + 1);
     }
 
+    /**
+     * Per-request DRY sampling must actually reach the native sampler and alter generation.
+     *
+     * <p>With greedy decoding ({@code withTopK(1)}) and a fixed seed, two completions of the same
+     * prompt are byte-identical unless something changes the sampler. The prompt is saturated with a
+     * repeated multi-token n-gram, so enabling DRY with a strong multiplier and a short allowed length
+     * ({@code dry_penalty_last_n = -1} scans the whole context) penalizes the next token that would
+     * extend that n-gram &mdash; forcing the DRY run to diverge from the baseline. This exercises the
+     * full Java &rarr; JSON &rarr; native path for {@code withDryMultiplier} / {@code withDryBase} /
+     * {@code withDryAllowedLength} / {@code withDryPenaltyLastN} end to end; the per-field JSON
+     * round-trip is pinned deterministically by the C++ {@code ParamsFromJsonCmpl.Dry*} tests.
+     */
+    @Test
+    public void testDrySamplingAltersRepetitiveGeneration() {
+        final String repetitivePrompt = "The cat sat. The cat sat. The cat sat. The cat sat. ";
+
+        InferenceParameters baseline = new InferenceParameters(repetitivePrompt)
+                .withNPredict(24)
+                .withTopK(1) // greedy → deterministic given the seed
+                .withSeed(42)
+                .withDryMultiplier(0.0f); // DRY disabled (llama.cpp default)
+
+        InferenceParameters withDry = new InferenceParameters(repetitivePrompt)
+                .withNPredict(24)
+                .withTopK(1)
+                .withSeed(42)
+                .withDryMultiplier(4.0f)
+                .withDryBase(1.75f)
+                .withDryAllowedLength(2)
+                .withDryPenaltyLastN(-1);
+
+        String baselineOutput = model.complete(baseline);
+        String dryOutput = model.complete(withDry);
+
+        assertNotNull(baselineOutput);
+        assertNotNull(dryOutput);
+        assertNotEquals(
+                baselineOutput,
+                dryOutput,
+                "DRY sampling with a strong multiplier must change greedy generation on a repetitive prompt; "
+                        + "identical output means the dry_* fields never reached the sampler");
+    }
+
     @Test
     public void testGenerateGrammar() {
         InferenceParameters params = new InferenceParameters("")

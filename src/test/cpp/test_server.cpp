@@ -1760,6 +1760,44 @@ TEST(ParamsFromJsonCmpl, EmptyDrySequenceBreakers_Throws) {
     EXPECT_THROW(parse_params({{"dry_sequence_breakers", json::array()}}), std::invalid_argument);
 }
 
+// Happy-path DRY field parsing. Pins the contract that the JSON keys emitted by
+// InferenceParameters.withDryMultiplier / withDryBase / withDryAllowedLength /
+// withDryPenaltyLastN / withDrySequenceBreakers are exactly the keys
+// server-schema.cpp reads into common_params_sampling. An upstream field rename
+// would break the per-request DRY feature silently; these catch it at the C++
+// unit-test layer (no model / vocab required — DRY parsing is vocab-independent).
+TEST(ParamsFromJsonCmpl, DryMultiplier_RoundTrip) {
+    const auto p = parse_params({{"dry_multiplier", 0.8f}});
+    EXPECT_FLOAT_EQ(p.sampling.dry_multiplier, 0.8f);
+}
+
+TEST(ParamsFromJsonCmpl, DryBase_AtOrAboveOne_RoundTrip) {
+    // 2.5 != the 1.75 default, so this proves the supplied value is stored (not defaulted)
+    const auto p = parse_params({{"dry_base", 2.5f}});
+    EXPECT_FLOAT_EQ(p.sampling.dry_base, 2.5f);
+}
+
+TEST(ParamsFromJsonCmpl, DryAllowedLength_RoundTrip) {
+    const auto p = parse_params({{"dry_allowed_length", 3}});
+    EXPECT_EQ(p.sampling.dry_allowed_length, 3);
+}
+
+TEST(ParamsFromJsonCmpl, DryPenaltyLastN_Positive_RoundTrip) {
+    // a positive value is kept verbatim (only -1 expands to n_ctx_slot, covered above)
+    const auto p = parse_params({{"dry_penalty_last_n", 64}});
+    EXPECT_EQ(p.sampling.dry_penalty_last_n, 64);
+}
+
+TEST(ParamsFromJsonCmpl, DrySequenceBreakers_NonEmpty_RoundTrip) {
+    // mirrors the llama.cpp default list that withDrySequenceBreakers forwards verbatim
+    const auto p = parse_params({{"dry_sequence_breakers", {"\n", ":", "\"", "*"}}});
+    ASSERT_EQ(p.sampling.dry_sequence_breakers.size(), 4u);
+    EXPECT_EQ(p.sampling.dry_sequence_breakers[0], "\n");
+    EXPECT_EQ(p.sampling.dry_sequence_breakers[1], ":");
+    EXPECT_EQ(p.sampling.dry_sequence_breakers[2], "\"");
+    EXPECT_EQ(p.sampling.dry_sequence_breakers[3], "*");
+}
+
 TEST(ParamsFromJsonCmpl, LoraNotArray_Throws) {
     EXPECT_THROW(parse_params({{"lora", "not-an-array"}}), std::invalid_argument);
 }
