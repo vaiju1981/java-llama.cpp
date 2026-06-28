@@ -916,6 +916,22 @@ Require a model file. The CI downloads models from HuggingFace:
 - **LlamaModel tests**: CodeLlama-7B-GGUF (`codellama-7b.Q2_K.gguf`)
 - **RerankingModel tests**: Jina-Reranker model
 
+**CI model policy (publish.yml): the full model set is downloaded and exercised on EVERY
+Java test job** — Linux x86_64, all three macOS arm64 jobs (Metal / no-Metal / Metal-15), and
+both Windows jobs (MSVC + Ninja). That includes the nomic embedding model, the SmolVLM vision
+model + mmproj, and the OuteTTS + WavTokenizer TTS pair, with their `-Dnet.ladenthin.llama.*`
+properties set, so `LlamaEmbeddingsTest`, `MultimodalIntegrationTest`, and `TtsIntegrationTest`
+**run on every platform** rather than self-skipping. `validate-models.{sh,bat}` treats all of
+these as **required** (a missing model hard-fails the job before tests run, so a download
+regression can never silently downgrade to a skip). The only model still self-skipping is the
+audio-input model (`AudioInputIntegrationTest`) — it has no committed clip and no CI download.
+The shared GGUF cache (`actions/cache`, key `gguf-models-v1`, path `models/`) holds the full set;
+since every test job downloads the full set before the cache can save, whichever job wins the
+save race caches everything. Because the cache key is immutable, changing the model set means the
+**existing cache entry must be deleted** (not bumped to `v2`) so the next run rebuilds it complete
+— locally the model tests still self-skip when a GGUF is absent (`Assume.assumeTrue`), so a
+partial local checkout is fine.
+
 Set the model path via system property or environment variable (see test files for exact property names).
 
 Test files are in `src/test/java/net/ladenthin/llama/` and `src/test/java/examples/`.
