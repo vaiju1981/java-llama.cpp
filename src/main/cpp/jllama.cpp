@@ -1437,15 +1437,14 @@ JNIEXPORT jboolean JNICALL Java_net_ladenthin_llama_LlamaModel_configureParallel
 
     // slot_prompt_similarity: validated above (the [0.0, 1.0] range check still
     // throws for out-of-range values, preserving the existing exception
-    // contract).  Live mutation requires an upstream setter that does not yet
-    // exist at b8913 — upstream PR: https://github.com/ggml-org/llama.cpp/pull/22393
-    // adds server_context::set_slot_prompt_similarity().  Once that lands and
-    // the pinned llama.cpp version is bumped, uncomment the block below:
-    //
-    // if (slot_sim_opt.has_value()) {
-    //     ctx_server->set_slot_prompt_similarity(*slot_sim_opt);
-    // }
-    (void)slot_sim_opt;
+    // contract).  Live mutation uses server_context::set_slot_prompt_similarity(),
+    // added upstream by https://github.com/ggml-org/llama.cpp/pull/22393 and carried
+    // in this repo as patches/0003-pr22393-... until it merges upstream (the pinned
+    // llama.cpp is now b9829, which the patch applies against).  not thread-safe per
+    // the upstream contract — main-thread only, which this JNI call is.
+    if (slot_sim_opt.has_value()) {
+        ctx_server->set_slot_prompt_similarity(*slot_sim_opt);
+    }
 
     return JNI_TRUE;
 }

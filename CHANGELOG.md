@@ -28,6 +28,8 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 - README license badge corrected from "Apache 2.0" to "MIT" (matches `LICENSE` file and `pom.xml`).
 - `pom.xml` SCM URL: `tree/master` → `tree/main` (default branch renamed).
 - Upgraded llama.cpp from b9151 to b9172.
+- Upgraded llama.cpp from b9803 to b9829. Compiles the new upstream `server-stream.cpp` (resumable-streaming SSE replay buffer) into `libjllama`, required because `server-context`/`server-http`/`server-models` now reference its symbols; refreshed `patches/0001` for the `tests/test-export-graph-ops.cpp` rename and the `server.cpp` GC-init context shift.
+- `configureParallelInference` now applies `slot_prompt_similarity` live via `server_context::set_slot_prompt_similarity()` (upstream PR ggml-org/llama.cpp#22393, carried as `patches/0003` until merged), instead of validating it and discarding the value.
 - Extracted the `chatWithTools` agent loop into `ToolCallingAgent`; tool-result errors (unknown tool / handler exception) are now JSON-serialized so tool names containing special characters remain valid JSON.
 
 ### Fixed
