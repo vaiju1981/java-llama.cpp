@@ -33,6 +33,7 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 - Extracted the `chatWithTools` agent loop into `ToolCallingAgent`; tool-result errors (unknown tool / handler exception) are now JSON-serialized so tool names containing special characters remain valid JSON.
 
 ### Fixed
+- Per-request `reasoning_budget_tokens` is now honored (via `patches/0004`, upstream PR ggml-org/llama.cpp#23116): `reasoning_budget_tokens=0` suppresses thinking. `ReasoningBudgetTest` now asserts the suppression directly (the previous test that pinned the unfixed-bug behavior was removed).
 - Preserved decoded image buffers across the JNI chat boundary and submitted media requests through llama.cpp's upstream multimodal task path instead of silently tokenizing them as text-only prompts.
 - Preserved multipart image content when using the typed `ChatRequest` serializer.
 - The standalone OpenAI-compatible server now advertises vision only when the loaded model confirms usable vision support.

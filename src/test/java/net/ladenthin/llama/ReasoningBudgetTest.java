@@ -17,7 +17,6 @@ import net.ladenthin.llama.value.Pair;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -36,25 +35,22 @@ import org.junit.jupiter.api.Test;
  *       {@code --reasoning-format deepseek} at model load time causes the server to
  *       strip the {@code <think>…</think>} block from the response body and surface it
  *       in {@code reasoning_content}.</li>
- *   <li><b>{@code reasoning_budget_tokens} is NOT enforced for any model when set
- *       per-request.</b> The root cause is a bug in
- *       {@code tools/server/server-common.cpp}, function
- *       {@code oaicompat_chat_params_parse}: the reasoning-budget block writes
- *       the model-level default ({@code opt.reasoning_budget}, typically &#x2212;1)
- *       into {@code llama_params["reasoning_budget_tokens"]} before the generic
- *       copy loop runs. The copy loop then skips the per-request value from the
- *       request body because the key already exists
- *       ({@code !llama_params.contains(item.key())} is false). Result: the
- *       reasoning-budget sampler is never created (it requires
- *       {@code reasoning_budget_tokens &#x2265; 0}), and any per-request budget
- *       has no effect. Parameter serialisation itself is correct — see
- *       {@code InferenceParametersTest} and the C++ unit tests.</li>
+ *   <li><b>{@code reasoning_budget_tokens} IS enforced per-request.</b> This was originally
+ *       broken in {@code tools/server/server-common.cpp} ({@code oaicompat_chat_params_parse}):
+ *       the reasoning-budget block wrote the model-level default into
+ *       {@code llama_params["reasoning_budget_tokens"]} before the generic copy loop, which then
+ *       skipped the per-request value because the key already existed, so the reasoning-budget
+ *       sampler was never created. It is fixed by upstream PR #23116, carried here as
+ *       {@code patches/0004-pr23116-server-per-request-reasoning-budget-tokens.patch} (drop the
+ *       patch once a pinned {@code b<nnnn>} includes it). With the fix,
+ *       {@code reasoning_budget_tokens=0} suppresses thinking. Parameter serialisation is covered
+ *       by {@code InferenceParametersTest} and the C++ unit tests.</li>
  * </ol>
  */
 @ClaudeGenerated(
-        purpose = "Integration tests for Qwen3 thinking-mode extraction and reasoning_budget_tokens "
-                + "parameter acceptance. Documents the known llama.cpp limitation that budget "
-                + "enforcement does not work for prompt-injected thinking models.")
+        purpose = "Integration tests for Qwen3 thinking-mode extraction and per-request "
+                + "reasoning_budget_tokens enforcement (fixed via patches/0004, upstream PR #23116): "
+                + "budget=0 suppresses thinking.")
 public class ReasoningBudgetTest {
 
     /**
@@ -123,85 +119,27 @@ public class ReasoningBudgetTest {
     }
 
     /**
-     * {@code reasoning_budget_tokens=0} is accepted by the API and the response
-     * completes without error, but the budget is NOT enforced.
+     * Per-request {@code reasoning_budget_tokens=0} suppresses thinking: the model emits an
+     * empty {@code reasoning_content}.
      *
-     * <p><b>Documents current (broken) behaviour.</b> The per-request value is
-     * silently discarded by a bug in {@code tools/server/server-common.cpp}
-     * ({@code oaicompat_chat_params_parse}): the reasoning-budget block writes the
-     * model-level default (&#x2212;1) to {@code llama_params["reasoning_budget_tokens"]}
-     * before the generic copy loop runs, and the copy loop then skips the user value
-     * because the key already exists. The reasoning-budget sampler is therefore never
-     * created, and {@code reasoning_content} remains non-empty.
+     * <p>The per-request budget is honored by upstream
+     * <a href="https://github.com/ggml-org/llama.cpp/pull/23116">llama.cpp PR #23116</a>, carried
+     * in this repo as {@code patches/0004-pr23116-server-per-request-reasoning-budget-tokens.patch}
+     * until a pinned {@code b<nnnn>} includes it. Before that fix,
+     * {@code oaicompat_chat_params_parse} ({@code tools/server/server-common.cpp}) wrote the
+     * model-level default into {@code llama_params["reasoning_budget_tokens"]} before the generic
+     * copy loop, so the per-request value was dropped and the reasoning-budget sampler was never
+     * created. With the fix, {@code budget=0} forces the end-of-thinking sequence immediately.
      *
-     * <p>This assertion will start <b>failing</b> once the llama.cpp bug is fixed —
-     * that is the signal to remove this test and enable
-     * {@link #testReasoningBudgetZero_expectedBehavior_suppressesThinking}.
-     * Tracked in <a href="https://github.com/ggml-org/llama.cpp/pull/23116">llama.cpp PR #23116</a>.
-     *
-     * <p>{@code temperature=0} (greedy sampling) is used so the model deterministically
-     * enters the {@code <think>} block on every platform. Without it, Metal (macOS arm64)
-     * occasionally samples a non-thinking first token even when the budget is unlimited
-     * (due to the bug), causing a spurious test failure.
+     * <p>{@code temperature=0} (greedy) keeps the first-token choice deterministic across
+     * platforms (notably macOS Metal), so the result does not depend on sampling. Parameter
+     * serialisation is covered separately by {@code InferenceParametersTest} and the C++ unit tests.
      */
     @Test
-    public void testReasoningBudgetZero_parameterAccepted_thinkingNotSuppressed() {
+    public void testReasoningBudgetZero_suppressesThinking() {
         InferenceParameters params = new InferenceParameters("")
                 .withMessages(null, Collections.singletonList(new Pair<>("user", "What is 2+2?")))
                 .withTemperature(0.0f)
-                .withReasoningBudgetTokens(0)
-                .withNPredict(N_PREDICT);
-
-        String json = model.chatComplete(params);
-
-        assertNotNull(json, "Response JSON must not be null");
-
-        String reasoningContent = parser.extractChoiceReasoningContent(json);
-        assertFalse(
-                reasoningContent == null || reasoningContent.trim().isEmpty(),
-                "reasoning_content is expected to be present because the per-request "
-                        + "budget is not applied (llama.cpp server-common.cpp copy-loop bug). "
-                        + "If this assertion fails, the bug has been fixed — remove this test and "
-                        + "enable testReasoningBudgetZero_expectedBehavior_suppressesThinking.");
-    }
-
-    /**
-     * Expected correct behaviour after the llama.cpp bug is fixed.
-     *
-     * <p><b>Bug:</b> In {@code tools/server/server-common.cpp},
-     * {@code oaicompat_chat_params_parse} sets
-     * {@code llama_params["reasoning_budget_tokens"]} to the model-level default
-     * ({@code opt.reasoning_budget}, typically &#x2212;1) before the generic copy
-     * loop runs. The copy loop then skips the per-request value from the request
-     * body because the key already exists. Result: the sampler is never created
-     * ({@code reasoning_budget_tokens &#x2265; 0} is required), and budget=0
-     * has no effect.
-     *
-     * <p><b>Fix (server-common.cpp, reasoning budget block):</b>
-     * Read {@code reasoning_budget_tokens} from the request body <em>before</em>
-     * writing to {@code llama_params}:
-     * <pre>
-     * int reasoning_budget = opt.reasoning_budget;
-     * if (body.contains("reasoning_budget_tokens")) {
-     *     reasoning_budget = json_value(body, "reasoning_budget_tokens", reasoning_budget);
-     * }
-     * if (reasoning_budget == -1 &amp;&amp; body.contains("thinking_budget_tokens")) {
-     *     reasoning_budget = json_value(body, "thinking_budget_tokens", -1);
-     * }
-     * </pre>
-     *
-     * <p>Once this fix is applied: remove {@code @Ignore}, confirm this test passes,
-     * and remove
-     * {@link #testReasoningBudgetZero_parameterAccepted_thinkingNotSuppressed}.
-     * Tracked in <a href="https://github.com/ggml-org/llama.cpp/pull/23116">llama.cpp PR #23116</a>.
-     */
-    @Disabled("llama.cpp bug: per-request reasoning_budget_tokens is overwritten by model default "
-            + "in oaicompat_chat_params_parse (server-common.cpp). "
-            + "See Javadoc for exact fix location and code.")
-    @Test
-    public void testReasoningBudgetZero_expectedBehavior_suppressesThinking() {
-        InferenceParameters params = new InferenceParameters("")
-                .withMessages(null, Collections.singletonList(new Pair<>("user", "What is 2+2?")))
                 .withReasoningBudgetTokens(0)
                 .withNPredict(N_PREDICT);
 
@@ -211,7 +149,7 @@ public class ReasoningBudgetTest {
         String reasoningContent = parser.extractChoiceReasoningContent(json);
         assertTrue(
                 reasoningContent == null || reasoningContent.trim().isEmpty(),
-                "reasoning_content should be empty when budget=0 suppresses thinking, " + "but was: "
+                "reasoning_content must be empty when reasoning_budget_tokens=0 suppresses thinking, " + "but was: "
                         + reasoningContent);
     }
 
@@ -224,8 +162,9 @@ public class ReasoningBudgetTest {
      * model may exhaust the token budget inside the thinking block and emit an empty
      * {@code content}; checking both fields makes the test robust to that behaviour.
      *
-     * <p>See {@link #testReasoningBudgetZero_parameterAccepted_thinkingNotSuppressed} for
-     * the note on why the budget count itself is not asserted.
+     * <p>The exact number of thinking tokens consumed is not asserted — it is hardware- and
+     * sampling-dependent; {@link #testReasoningBudgetZero_suppressesThinking} covers the
+     * deterministic {@code budget=0} suppression case.
      */
     @Test
     public void testReasoningBudgetPositive_parameterAccepted() {
