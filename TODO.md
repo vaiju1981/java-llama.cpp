@@ -196,7 +196,8 @@ Multi-Config + MSVC.
   artifacts `Windows-{arch}-libraries`); `build-windows-x86_64-msvc` / `build-windows-x86-msvc` are
   **MSVC** (artifacts `Windows-{arch}-msvc`). `test-java-windows-x86_64` (default/Ninja) and
   `test-java-windows-x86_64-msvc` both load the DLL via JNI and run the full model-backed suite.
-- **GPU build jobs (x86_64, Ninja, build + `ctest` only — runners have no GPU):**
+- **GPU build jobs (x86_64, Ninja, build the artifact only — runners have no GPU, and a
+  GPU-linked jllama_test can't be enumerated there; C++ suite runs on the CPU jobs):**
   `build-windows-x86_64-cuda` (`Jimver/cuda-toolkit@v0.2.35` CUDA `13.2.0` + `-DGGML_CUDA=ON`),
   `build-windows-x86_64-vulkan` (`jakoch/install-vulkan-sdk-action` + `-DGGML_VULKAN=ON`),
   `build-windows-x86_64-opencl` (`build_opencl_windows.bat` stages the ICD loader + `-DGGML_OPENCL=ON`).

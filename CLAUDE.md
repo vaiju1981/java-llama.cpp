@@ -188,8 +188,11 @@ model-backed Java suite (`test-java-windows-x86_64` = default/Ninja, `test-java-
 installed CUDA 13 Toolkit (`cudart64_13.dll`/`cublas64_13.dll`/`cublasLt64_13.dll` on `PATH`); Vulkan
 needs `vulkan-1.dll` (ships with current GPU drivers); OpenCL needs the vendor ICD
 (`System32\OpenCL.dll`). Not bundling = no NVIDIA-EULA redistribution obligation. **GitHub-hosted
-Windows runners have NO GPU**, so the GPU jobs build + run the C++ unit suite (`ctest`, CPU-only) but
-**cannot run model-backed GPU inference** — end-to-end GPU validation is local / self-hosted.
+Windows runners have NO GPU**, so the GPU jobs **build the artifact only** (no `-DBUILD_TESTING`/`ctest`)
+— a GPU-linked `jllama_test.exe` can't even be enumerated on a GPU-less runner (it errors probing for a
+device, so `gtest_discover_tests` registers a failing `*_NOT_BUILT` sentinel). The CPU-only C++ unit
+suite is fully covered by the `C++ Tests` job + the CPU Windows jobs; model-backed GPU inference is
+local / self-hosted.
 
 Wiring (mirrors the CUDA-Linux / OpenCL-Android classifier pattern):
 

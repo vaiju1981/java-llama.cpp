@@ -723,10 +723,12 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value "$env:RUNNER_TEMP\sccache\$rel"
       - name: Build libraries
         shell: cmd
+        # GPU jobs build the artifact only — no -DBUILD_TESTING / ctest. The C++ unit
+        # suite is CPU-only and fully covered by the `C++ Tests` job + the CPU Windows
+        # jobs; a GPU-linked jllama_test.exe cannot be discovered/run on a GPU-less
+        # GitHub runner (it errors probing for a CUDA device -> ctest *_NOT_BUILT).
         run: |
-          .github\build.bat -G "Ninja Multi-Config" -DGGML_CUDA=ON -DOS_NAME=Windows -DOS_ARCH=x86_64 -DBUILD_TESTING=ON
-      - name: Run C++ unit tests
-        run: ctest --test-dir build --output-on-failure
+          .github\build.bat -G "Ninja Multi-Config" -DGGML_CUDA=ON -DOS_NAME=Windows -DOS_ARCH=x86_64
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -771,10 +773,10 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value "$env:RUNNER_TEMP\sccache\$rel"
       - name: Build libraries
         shell: cmd
+        # Build the artifact only (see the CUDA job's note: GPU-less runner can't run a
+        # GPU-linked jllama_test; the C++ unit suite is covered by the CPU jobs).
         run: |
-          .github\build.bat -G "Ninja Multi-Config" -DGGML_VULKAN=ON -DOS_NAME=Windows -DOS_ARCH=x86_64 -DBUILD_TESTING=ON
-      - name: Run C++ unit tests
-        run: ctest --test-dir build --output-on-failure
+          .github\build.bat -G "Ninja Multi-Config" -DGGML_VULKAN=ON -DOS_NAME=Windows -DOS_ARCH=x86_64
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -814,10 +816,10 @@ jobs:
           Add-Content -Path $env:GITHUB_PATH -Value "$env:RUNNER_TEMP\sccache\$rel"
       - name: Build libraries
         shell: cmd
+        # Build the artifact only (see the CUDA job's note: GPU-less runner can't run a
+        # GPU-linked jllama_test; the C++ unit suite is covered by the CPU jobs).
         run: |
-          .github\build_opencl_windows.bat -G "Ninja Multi-Config" -DGGML_OPENCL=ON -DGGML_OPENCL_EMBED_KERNELS=ON -DOS_NAME=Windows -DOS_ARCH=x86_64 -DBUILD_TESTING=ON
-      - name: Run C++ unit tests
-        run: ctest --test-dir build --output-on-failure
+          .github\build_opencl_windows.bat -G "Ninja Multi-Config" -DGGML_OPENCL=ON -DGGML_OPENCL_EMBED_KERNELS=ON -DOS_NAME=Windows -DOS_ARCH=x86_64
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
