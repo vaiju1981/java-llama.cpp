@@ -209,8 +209,9 @@ Wiring (mirrors the CUDA-Linux / OpenCL-Android classifier pattern):
    - `build-windows-x86_64` / `build-windows-x86` — **Ninja CPU**, artifacts `Windows-{arch}-libraries`
      → picked up by the `package` job's `pattern: "*-libraries"` into the **default** tree.
    - `build-windows-x86_64-msvc` / `build-windows-x86-msvc` — **MSVC CPU**, artifacts `Windows-{arch}-msvc`.
-   - `build-windows-x86_64-cuda` — `Jimver/cuda-toolkit` + `-DGGML_CUDA=ON`, artifact `Windows-x86_64-cuda`.
-   - `build-windows-x86_64-vulkan` — `humbletim/install-vulkan-sdk` + `-DGGML_VULKAN=ON`, artifact
+   - `build-windows-x86_64-cuda` — `Jimver/cuda-toolkit@v0.2.35` (CUDA `13.2.0`) + `-DGGML_CUDA=ON`,
+     artifact `Windows-x86_64-cuda`.
+   - `build-windows-x86_64-vulkan` — `jakoch/install-vulkan-sdk-action` + `-DGGML_VULKAN=ON`, artifact
      `Windows-x86_64-vulkan`.
    - `build-windows-x86_64-opencl` — `build_opencl_windows.bat -DGGML_OPENCL=ON -DGGML_OPENCL_EMBED_KERNELS=ON`,
      artifact `Windows-x86_64-opencl`.
@@ -224,11 +225,13 @@ Wiring (mirrors the CUDA-Linux / OpenCL-Android classifier pattern):
 
 `src/main/resources_windows_{msvc,cuda,vulkan,opencl}/` are git-ignored (staged by CI, never committed).
 
-**First-run unknowns (no GPU/Windows CI tested locally — validate on the first CI run):** the exact
-`Jimver/cuda-toolkit` CUDA version that resolves on Windows (the job requests `13.0.0`; if Jimver has
-no 13.x the classifier would need to drop to `cuda12-…`), the `humbletim/install-vulkan-sdk` action
-inputs, and the `build_opencl_windows.bat` ICD-loader staging are all unproven on the runner image and
-may need adjustment. Because all five Windows build jobs are in the `package`/publish `needs:` graph, a
+**First CI run (PR #276, run 28327740376):** the default Ninja CPU flip, the MSVC classifier, and the
+**OpenCL** job were green on the first try. Two GPU jobs needed a toolchain fix: **CUDA** failed with
+`Version not available: 13.0.0` because the pinned `Jimver/cuda-toolkit@v0.2.24` predated CUDA 13.x →
+bumped to `@v0.2.35` + `13.2.0` (matches the Linux pin, classifier stays `cuda13-…`); **Vulkan** failed
+`find_package(Vulkan)` because `humbletim/install-vulkan-sdk` set `VULKAN_SDK` but laid the SDK out in a
+way CMake's `FindVulkan` couldn't read → switched to `jakoch/install-vulkan-sdk-action` (purpose-built,
+FindVulkan-compatible). Because all five Windows build jobs are in the `package`/publish `needs:` graph, a
 GPU-toolchain failure blocks packaging — the same release-gating policy the Linux-CUDA / Android-OpenCL
 jobs already follow.
 

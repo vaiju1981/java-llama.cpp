@@ -197,8 +197,8 @@ Multi-Config + MSVC.
   **MSVC** (artifacts `Windows-{arch}-msvc`). `test-java-windows-x86_64` (default/Ninja) and
   `test-java-windows-x86_64-msvc` both load the DLL via JNI and run the full model-backed suite.
 - **GPU build jobs (x86_64, Ninja, build + `ctest` only — runners have no GPU):**
-  `build-windows-x86_64-cuda` (`Jimver/cuda-toolkit` + `-DGGML_CUDA=ON`),
-  `build-windows-x86_64-vulkan` (`humbletim/install-vulkan-sdk` + `-DGGML_VULKAN=ON`),
+  `build-windows-x86_64-cuda` (`Jimver/cuda-toolkit@v0.2.35` CUDA `13.2.0` + `-DGGML_CUDA=ON`),
+  `build-windows-x86_64-vulkan` (`jakoch/install-vulkan-sdk-action` + `-DGGML_VULKAN=ON`),
   `build-windows-x86_64-opencl` (`build_opencl_windows.bat` stages the ICD loader + `-DGGML_OPENCL=ON`).
 - **`CMakeLists.txt`** — OS-aware backend routing (CUDA/OpenCL → Windows trees, new Vulkan branch).
 - **`.github/build.bat`** — also wraps nvcc with sccache for CUDA builds.
@@ -210,12 +210,12 @@ Multi-Config + MSVC.
   four profiles; all five Windows build jobs are in the `package` `needs:` graph.
 - Docs: `README.md` classifier table + `CLAUDE.md` "Windows native classifiers" section.
 
-**Verification — PENDING.** GPU/Windows builds could not be exercised locally (no Windows host, no
-GPU). The first CI run must confirm: the `Jimver/cuda-toolkit` CUDA version resolves on Windows (the
-job requests `13.0.0`; drop the classifier to `cuda12-…` if Jimver has no 13.x), the
-`humbletim/install-vulkan-sdk` inputs are correct, and `build_opencl_windows.bat`'s ICD-loader staging
-works on the runner image. The default Ninja CPU flip should be green immediately (it reuses the
-already-proven Ninja jobs, just renamed).
+**Verification — first CI run done (PR #276, run 28327740376).** Green on the first try: default Ninja
+CPU flip (x64+x86), MSVC classifier (x64+x86), and the **OpenCL** GPU job (`build_opencl_windows.bat`
+ICD staging works). Two GPU jobs were fixed after the first run: **CUDA** (`Version not available:
+13.0.0` → bumped `Jimver/cuda-toolkit` `v0.2.24`→`v0.2.35` + `13.2.0`) and **Vulkan**
+(`find_package(Vulkan)` couldn't read the `humbletim` SDK layout → switched to
+`jakoch/install-vulkan-sdk-action`). Re-run pending to confirm both fixes.
 
 **Optional follow-up:** smoke-test that each *published* classifier JAR loads its DLL on a clean
 Windows host with the matching GPU driver/toolkit installed.
