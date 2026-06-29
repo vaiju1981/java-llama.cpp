@@ -7,7 +7,7 @@
 **Build:**  
 ![Java 8+](https://img.shields.io/badge/Java-8%2B-informational)  
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Android-lightgrey)  
-[![llama.cpp b9840](https://img.shields.io/badge/llama.cpp-%23b9840-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9840)  
+[![llama.cpp b9842](https://img.shields.io/badge/llama.cpp-%23b9842-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9842)  
 [![JPMS](https://img.shields.io/badge/JPMS-modular%20JAR-25A162)](https://openjdk.org/projects/jigsaw/)  
 ![JUnit](https://img.shields.io/badge/tested%20with-JUnit6-25A162)  
 [![JSpecify](https://img.shields.io/badge/JSpecify-1.0.0%20%40NullMarked-25A162)](https://jspecify.dev)  
@@ -119,7 +119,7 @@ Access this library via Maven (released versions on Maven Central):
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
 </dependency>
 ```
 
@@ -184,14 +184,14 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
 </dependency>
 
 <!-- CUDA on Linux x86-64 (requires CUDA 13 runtime on the host) -->
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
     <classifier>cuda13-linux-x86-64</classifier>
 </dependency>
 
@@ -199,7 +199,7 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
     <classifier>opencl-android-aarch64</classifier>
 </dependency>
 
@@ -207,7 +207,7 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
     <classifier>cuda13-windows-x86-64</classifier>
 </dependency>
 
@@ -215,7 +215,7 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
     <classifier>vulkan-windows-x86-64</classifier>
 </dependency>
 
@@ -223,7 +223,7 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
     <classifier>opencl-windows-x86-64</classifier>
 </dependency>
 
@@ -231,7 +231,7 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
     <classifier>msvc-windows</classifier>
 </dependency>
 ```

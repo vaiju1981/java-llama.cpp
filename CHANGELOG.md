@@ -9,42 +9,61 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 
 ## [Unreleased]
 
+## [5.0.3] - 2026-06-29
+
+Feature release. Headline addition is a full OpenAI-compatible embedded HTTP
+server with multi-protocol surfaces, plus end-to-end multimodal (vision, audio
+input, text-to-speech) and slot-bound sessions. Tracks llama.cpp **b9555 → b9842**.
+
+### Added
+- **OpenAI-compatible HTTP server** (`server` package, built on the JDK's `com.sun.net.httpserver` — no new runtime dependency; embeddable and the fat-jar `Main-Class`). Serves `POST /v1/chat/completions` (streaming SSE + non-streaming), `/v1/completions` (token-by-token streaming), `/v1/embeddings`, `/v1/rerank`, `/infill`, `GET /v1/models`, `GET /health`, and `GET /props` (every route also reachable without the `/v1` prefix), with optional bearer auth and CORS — drives editor clients such as VS Code Copilot, Cline, Roo Code, and Continue.
+- **Multi-protocol surfaces** over the same inference core (pure translation, no second inference path): **Ollama-native** (`/api/version`, `/api/tags`, `/api/show`, `/api/chat` NDJSON, `/api/generate`), **Anthropic Messages** (`POST /v1/messages`, SSE), and **OpenAI Responses** (`POST /v1/responses`, SSE).
+- **Agentic tool-calling**: `parallel_tool_calls` support (`ChatRequest.withParallelToolCalls(Boolean)`, `InferenceParameters.withParallelToolCalls(boolean)`, server-mapper pass-through), the `ToolCallingAgent` chat loop (JSON-serialized tool-result errors), and `ToolCallDeltaAccumulator` for reconstructing streamed tool calls; real-model integration tests (`ToolCallingIntegrationTest`, Qwen2.5-1.5B-Instruct).
+- **Text-to-speech** (`TextToSpeech`): OuteTTS (text-to-codes) + WavTokenizer (codes-to-speech) pipeline; `synthesize(text)` returns a 24 kHz mono 16-bit WAV byte stream. The OuteTTS DSP is derived at build time from upstream `tts.cpp` rather than hand-copied.
+- **Audio input** via OpenAI `input_audio` content parts (`ContentPart.audioFile`), for Ultravox / Qwen2.5-Omni-class models.
+- **End-to-end vision input** across blocking, typed `ChatRequest`, streaming, and OpenAI-compatible request mapping; real-model tests verify distinct red/blue images produce the correct semantic answers. Explicit `setMmprojAuto(boolean)` / `setMmprojOffload(boolean)` controls (`--no-mmproj-auto` / `--no-mmproj-offload`).
+- Per-request KV controls: `InferenceParameters.withSlotId(int)` and `withCacheReuse(int)`.
+- Per-request DRY sampling on `InferenceParameters` (`dry_multiplier` / `dry_base` / `dry_allowed_length` / `dry_penalty_last_n` / `dry_sequence_breakers`).
+- `ModelParameters.enableSwaFull()` (`--swa-full`): keep a full-size SWA KV cache to enable cross-request prompt-prefix reuse.
+- Typed cache observability: `Usage.getCachedTokens()`, `Usage.getProcessedPromptTokens()`, `SlotMetrics`, `ServerMetrics.getSlotMetrics()`, plus authenticated JSON `GET /metrics` and `GET /slots`.
+- **Windows GPU native classifiers**: `cuda13-windows-x86-64`, `vulkan-windows-x86-64`, `opencl-windows-x86-64`, and the `msvc-windows` CPU classifier (the default Windows CPU JAR flipped to the Ninja Multi-Config generator).
+- `log_helpers.hpp` — pure, unit-tested log-formatting helpers (`log_level_name`, `format_log_as_json`).
+
+### Changed
+- Upgraded llama.cpp from **b9555 to b9842** across eleven incremental upgrades. Notable upstream features now reachable: DRY sampling, `--swa-full`, DFlash block-diffusion speculative decoding (`--spec-type draft-dflash`), the MiniCPM5 XML tool-call chat template, the server `--reasoning-preserve` flag, Jinja `min`/`max` array filters, and the **DeepSeek-V4** architecture (b9840). The b9829 bump additionally compiles the new upstream `server-stream.cpp` (resumable-streaming SSE replay buffer) into `libjllama`. The final b9840→b9842 step is internal-only (preset INI section-tag canonicalization in `common/preset.cpp`; a Vulkan graph-submission heuristic switched from weight-matrix bytes to estimated FLOPs) — no project source changes, no API impact, all four local patches (`0001`–`0004`) apply unchanged across the range.
+- Replaced the `--skip-download` flag with `--offline` (llama.cpp b9803).
+- `Session` now pins every inference request to its configured slot, so generation and slot save/restore/erase target the same KV state (`SessionState` extracted as a testable concurrency contract).
+- `configureParallelInference` now applies `slot_prompt_similarity` live via `server_context::set_slot_prompt_similarity()` (upstream PR ggml-org/llama.cpp#22393, carried as `patches/0003`), instead of validating and discarding the value.
+- **Android minimum API level raised from 24 to 28** (Android 9.0 Pie), satisfied via bionic's weak-symbol mechanism rather than `__ANDROID_API__`.
+- CI: rolled out the sccache → Depot shared compiler cache across all native build jobs (incl. nvcc wrapping for full-arch CUDA and the Windows Ninja path), fork-PR token-gating, and a shared GGUF model cache.
+- `LlamaLoader` native-library extraction is now race-safe (atomic write) and uses a private lock object instead of `synchronized` methods.
+- SpotBugs (effort=Max, threshold=Low) made clean and wired into CI; C++ unit suite grown to 459 tests.
+
+### Fixed
+- Per-request `reasoning_budget_tokens` is now honored (via `patches/0004`, upstream PR ggml-org/llama.cpp#23116): `reasoning_budget_tokens=0` suppresses thinking.
+- Preserved decoded image buffers across the JNI chat boundary and submitted media requests through llama.cpp's multimodal task path instead of silently tokenizing them as text-only prompts; preserved multipart image content in the typed `ChatRequest` serializer.
+- The standalone OpenAI-compatible server now advertises vision only when the loaded model confirms usable vision support.
+- Cached-token usage is preserved through typed Java responses and the OpenAI Responses / Anthropic blocking and streaming adapters.
+- Stabilized flaky reasoning-budget tests on Metal by using greedy sampling.
+
+## [5.0.2] - 2026-06-08
+
+Tracks llama.cpp **b9151 → b9555**.
+
 ### Added
 - `CODE_OF_CONDUCT.md` (Contributor Covenant 2.0).
 - `docs/RELEASE.md` capturing the maintainer-facing release procedure (moved out of CHANGELOG).
 - OpenSSF Best Practices badge (project 12862) on README.
-- OpenAI-compatible `parallel_tool_calls` support: `ChatRequest.withParallelToolCalls(Boolean)` / `getParallelToolCalls()`, `InferenceParameters.withParallelToolCalls(boolean)`, and pass-through in the `/v1/chat/completions` server mapper.
-- Real-model tool-calling integration tests for blocking and streaming required tool calls (`ToolCallingIntegrationTest`, Qwen2.5-1.5B-Instruct), wired into CI and `validate-models`.
-- End-to-end vision input across blocking, typed `ChatRequest`, streaming, and OpenAI-compatible request mapping; real-model tests verify that distinct red and blue images produce the correct semantic answers.
-- Explicit `setMmprojAuto(boolean)` and `setMmprojOffload(boolean)` controls, including the upstream `--no-mmproj-auto` and `--no-mmproj-offload` flags.
-- Per-request KV controls: `InferenceParameters.withSlotId(int)` and `withCacheReuse(int)`.
-- Per-request DRY sampling to `InferenceParameters` (`dry_multiplier`/`dry_base`/`dry_allowed_length`/`dry_penalty_last_n`/`dry_sequence_breakers`).
-- `ModelParameters.enableSwaFull()` (`--swa-full`): keep full-size SWA KV cache to enable cross-request prompt-prefix reuse.
-- Typed cache observability through `Usage.getCachedTokens()`, `Usage.getProcessedPromptTokens()`, `SlotMetrics`, and `ServerMetrics.getSlotMetrics()`.
-- Authenticated JSON `GET /metrics` and `GET /slots` endpoints on the embedded server.
+- Reasoning-budget tests (Qwen3-0.6B).
 
 ### Changed
-- Unified `CONTRIBUTING.md` and `SECURITY.md` structure with sibling repositories in the project family.
+- **Reorganized the Java API into subpackages** — `parameters` (`ModelParameters`, `InferenceParameters`, …), `value` (`LogLevel`, …), `callback`, `exception` (`LlamaException`, …), and `loader` (`LlamaLoader`, `OSInfo`). Source-incompatible for consumers: import statements for the moved types must be updated.
+- Unified `CONTRIBUTING.md` and `SECURITY.md` structure with sibling repositories, and migrated cross-repo `CLAUDE.md` sections to `workspace` pointers.
 - Reconciled Java baseline to **11+** across `pom.xml`, README badge, `CLAUDE.md`, and `CONTRIBUTING.md`.
 - README license badge corrected from "Apache 2.0" to "MIT" (matches `LICENSE` file and `pom.xml`).
 - `pom.xml` SCM URL: `tree/master` → `tree/main` (default branch renamed).
-- Upgraded llama.cpp from b9151 to b9172.
-- Upgraded llama.cpp from b9803 to b9829. Compiles the new upstream `server-stream.cpp` (resumable-streaming SSE replay buffer) into `libjllama`, required because `server-context`/`server-http`/`server-models` now reference its symbols; refreshed `patches/0001` for the `tests/test-export-graph-ops.cpp` rename and the `server.cpp` GC-init context shift.
-- Upgraded llama.cpp from b9829 to b9839. Pure version bump — no project source changes: all four patches (`0001`–`0004`) apply unchanged against b9839, and every upstream change in the range is absorbed inside upstream-compiled translation units. Brings DFlash block-diffusion speculative decoding (`--spec-type draft-dflash`), the MiniCPM5 XML tool-call chat template, a server `--reasoning-preserve` flag (preserve reasoning trace across the full history when the template supports it), and Jinja `min`/`max` array filters; removes the now-unused `common/regex-partial.{cpp,h}` (partial-regex matching is fully inside the PEG parser), which the project never referenced.
-- Upgraded llama.cpp from b9839 to b9840. Pure version bump — no project source changes: the range is entirely the new **DeepSeek-V4** architecture (new `deepseek4` arch + dedicated `llama-kv-cache-dsv4` cache, `sqrtsoftplus` MoE gating, hyper-connection/compressor hparams + tensors, conversion scripts and embedded chat template), all absorbed inside upstream-compiled `libllama` and the Python converters. Upstream's `src/CMakeLists.txt` adds the new `llama-kv-cache-dsv4.cpp` itself (built via FetchContent). All four patches (`0001`–`0004`) apply unchanged; the project binds none of the new symbols.
-- `configureParallelInference` now applies `slot_prompt_similarity` live via `server_context::set_slot_prompt_similarity()` (upstream PR ggml-org/llama.cpp#22393, carried as `patches/0003` until merged), instead of validating it and discarding the value.
-- Extracted the `chatWithTools` agent loop into `ToolCallingAgent`; tool-result errors (unknown tool / handler exception) are now JSON-serialized so tool names containing special characters remain valid JSON.
-
-### Fixed
-- Per-request `reasoning_budget_tokens` is now honored (via `patches/0004`, upstream PR ggml-org/llama.cpp#23116): `reasoning_budget_tokens=0` suppresses thinking. `ReasoningBudgetTest` now asserts the suppression directly (the previous test that pinned the unfixed-bug behavior was removed).
-- Preserved decoded image buffers across the JNI chat boundary and submitted media requests through llama.cpp's upstream multimodal task path instead of silently tokenizing them as text-only prompts.
-- Preserved multipart image content when using the typed `ChatRequest` serializer.
-- The standalone OpenAI-compatible server now advertises vision only when the loaded model confirms usable vision support.
-- `Session` now pins every inference request to its configured slot, so generation and slot save/restore/erase target the same KV state.
-- Cached-token usage is preserved through typed Java responses and OpenAI Responses/Anthropic blocking and streaming adapters.
-
-### Added
-- Reasoning-budget tests (Qwen3-0.6B).
+- Upgraded Maven dependencies (incl. `logback-classic` 1.5.32 → 1.5.33).
+- Upgraded llama.cpp from **b9151 to b9555** across multiple incremental upgrades.
 
 ## [5.0.1] - 2026-05-14
 
@@ -110,6 +129,8 @@ Releases `1.1.1` through `4.2.0` were authored by [@kherud](https://github.com/k
 
 For an architecture-level diff between the pre-fork baseline (`49be664`) and the first 5.0.0 candidate (`24918e4`), see [`docs/history/49be664_24918e4.md`](docs/history/49be664_24918e4.md). For the server-fork-deletion refactor that culminated in 5.0.0, see [`docs/history/REFACTORING.md`](docs/history/REFACTORING.md). For the chat-completion integration that landed in 5.0.0, see [`docs/history/CHAT_INTEGRATION_SUMMARY.md`](docs/history/CHAT_INTEGRATION_SUMMARY.md).
 
-[Unreleased]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.1...HEAD
+[Unreleased]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.3...HEAD
+[5.0.3]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.2...v5.0.3
+[5.0.2]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.1...v5.0.2
 [5.0.1]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.0...v5.0.1
 [5.0.0]: https://github.com/bernardladenthin/java-llama.cpp/releases/tag/v5.0.0
