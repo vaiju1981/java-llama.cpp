@@ -9,10 +9,9 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 
 ## [Unreleased]
 
+## [5.0.3] - 2026-06-29
+
 ### Added
-- `CODE_OF_CONDUCT.md` (Contributor Covenant 2.0).
-- `docs/RELEASE.md` capturing the maintainer-facing release procedure (moved out of CHANGELOG).
-- OpenSSF Best Practices badge (project 12862) on README.
 - OpenAI-compatible `parallel_tool_calls` support: `ChatRequest.withParallelToolCalls(Boolean)` / `getParallelToolCalls()`, `InferenceParameters.withParallelToolCalls(boolean)`, and pass-through in the `/v1/chat/completions` server mapper.
 - Real-model tool-calling integration tests for blocking and streaming required tool calls (`ToolCallingIntegrationTest`, Qwen2.5-1.5B-Instruct), wired into CI and `validate-models`.
 - End-to-end vision input across blocking, typed `ChatRequest`, streaming, and OpenAI-compatible request mapping; real-model tests verify that distinct red and blue images produce the correct semantic answers.
@@ -22,13 +21,10 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 - `ModelParameters.enableSwaFull()` (`--swa-full`): keep full-size SWA KV cache to enable cross-request prompt-prefix reuse.
 - Typed cache observability through `Usage.getCachedTokens()`, `Usage.getProcessedPromptTokens()`, `SlotMetrics`, and `ServerMetrics.getSlotMetrics()`.
 - Authenticated JSON `GET /metrics` and `GET /slots` endpoints on the embedded server.
+- Windows GPU native classifiers: `cuda13-windows-x86-64`, `vulkan-windows-x86-64`, and `opencl-windows-x86-64`; the default Windows CPU JAR flipped to the Ninja Multi-Config generator with an `msvc-windows` classifier preserving the Visual Studio build.
 
 ### Changed
-- Unified `CONTRIBUTING.md` and `SECURITY.md` structure with sibling repositories in the project family.
-- Reconciled Java baseline to **11+** across `pom.xml`, README badge, `CLAUDE.md`, and `CONTRIBUTING.md`.
-- README license badge corrected from "Apache 2.0" to "MIT" (matches `LICENSE` file and `pom.xml`).
-- `pom.xml` SCM URL: `tree/master` → `tree/main` (default branch renamed).
-- Upgraded llama.cpp from b9151 to b9172.
+- Upgraded llama.cpp from b9172 to b9803 across multiple incremental upgrades.
 - Upgraded llama.cpp from b9803 to b9829. Compiles the new upstream `server-stream.cpp` (resumable-streaming SSE replay buffer) into `libjllama`, required because `server-context`/`server-http`/`server-models` now reference its symbols; refreshed `patches/0001` for the `tests/test-export-graph-ops.cpp` rename and the `server.cpp` GC-init context shift.
 - Upgraded llama.cpp from b9829 to b9839. Pure version bump — no project source changes: all four patches (`0001`–`0004`) apply unchanged against b9839, and every upstream change in the range is absorbed inside upstream-compiled translation units. Brings DFlash block-diffusion speculative decoding (`--spec-type draft-dflash`), the MiniCPM5 XML tool-call chat template, a server `--reasoning-preserve` flag (preserve reasoning trace across the full history when the template supports it), and Jinja `min`/`max` array filters; removes the now-unused `common/regex-partial.{cpp,h}` (partial-regex matching is fully inside the PEG parser), which the project never referenced.
 - Upgraded llama.cpp from b9839 to b9840. Pure version bump — no project source changes: the range is entirely the new **DeepSeek-V4** architecture (new `deepseek4` arch + dedicated `llama-kv-cache-dsv4` cache, `sqrtsoftplus` MoE gating, hyper-connection/compressor hparams + tensors, conversion scripts and embedded chat template), all absorbed inside upstream-compiled `libllama` and the Python converters. Upstream's `src/CMakeLists.txt` adds the new `llama-kv-cache-dsv4.cpp` itself (built via FetchContent). All four patches (`0001`–`0004`) apply unchanged; the project binds none of the new symbols.
@@ -43,8 +39,20 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 - `Session` now pins every inference request to its configured slot, so generation and slot save/restore/erase target the same KV state.
 - Cached-token usage is preserved through typed Java responses and OpenAI Responses/Anthropic blocking and streaming adapters.
 
+## [5.0.2] - 2026-06-08
+
 ### Added
+- `CODE_OF_CONDUCT.md` (Contributor Covenant 2.0).
+- `docs/RELEASE.md` capturing the maintainer-facing release procedure (moved out of CHANGELOG).
+- OpenSSF Best Practices badge (project 12862) on README.
 - Reasoning-budget tests (Qwen3-0.6B).
+
+### Changed
+- Unified `CONTRIBUTING.md` and `SECURITY.md` structure with sibling repositories in the project family.
+- Reconciled Java baseline to **11+** across `pom.xml`, README badge, `CLAUDE.md`, and `CONTRIBUTING.md`.
+- README license badge corrected from "Apache 2.0" to "MIT" (matches `LICENSE` file and `pom.xml`).
+- `pom.xml` SCM URL: `tree/master` → `tree/main` (default branch renamed).
+- Upgraded llama.cpp from b9151 to b9172.
 
 ## [5.0.1] - 2026-05-14
 
@@ -110,6 +118,8 @@ Releases `1.1.1` through `4.2.0` were authored by [@kherud](https://github.com/k
 
 For an architecture-level diff between the pre-fork baseline (`49be664`) and the first 5.0.0 candidate (`24918e4`), see [`docs/history/49be664_24918e4.md`](docs/history/49be664_24918e4.md). For the server-fork-deletion refactor that culminated in 5.0.0, see [`docs/history/REFACTORING.md`](docs/history/REFACTORING.md). For the chat-completion integration that landed in 5.0.0, see [`docs/history/CHAT_INTEGRATION_SUMMARY.md`](docs/history/CHAT_INTEGRATION_SUMMARY.md).
 
-[Unreleased]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.1...HEAD
+[Unreleased]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.3...HEAD
+[5.0.3]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.2...v5.0.3
+[5.0.2]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.1...v5.0.2
 [5.0.1]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.0...v5.0.1
 [5.0.0]: https://github.com/bernardladenthin/java-llama.cpp/releases/tag/v5.0.0

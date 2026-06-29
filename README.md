@@ -119,7 +119,7 @@ Access this library via Maven (released versions on Maven Central):
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
 </dependency>
 ```
 
@@ -184,14 +184,14 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
 </dependency>
 
 <!-- CUDA on Linux x86-64 (requires CUDA 13 runtime on the host) -->
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
     <classifier>cuda13-linux-x86-64</classifier>
 </dependency>
 
@@ -199,7 +199,7 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
     <classifier>opencl-android-aarch64</classifier>
 </dependency>
 
@@ -207,7 +207,7 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
     <classifier>cuda13-windows-x86-64</classifier>
 </dependency>
 
@@ -215,7 +215,7 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
     <classifier>vulkan-windows-x86-64</classifier>
 </dependency>
 
@@ -223,7 +223,7 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
     <classifier>opencl-windows-x86-64</classifier>
 </dependency>
 
@@ -231,7 +231,7 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.2</version>
+    <version>5.0.3</version>
     <classifier>msvc-windows</classifier>
 </dependency>
 ```
