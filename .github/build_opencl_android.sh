@@ -20,9 +20,9 @@ HEADERS_DIR="$OPENCL_STAGE/OpenCL-Headers"
 LOADER_DIR="$OPENCL_STAGE/OpenCL-ICD-Loader"
 LOADER_BUILD="$LOADER_DIR/build"
 
-# Pinned tags for reproducibility.
-HEADERS_TAG=v2025.07.22
-LOADER_TAG=v2025.07.22
+# Pinned tags for reproducibility (OpenCL 3.1.1 spec release).
+HEADERS_TAG=v2026.05.29
+LOADER_TAG=v2026.05.29
 
 if [ ! -d "$HEADERS_DIR" ]; then
     mkdir -p "$OPENCL_STAGE"

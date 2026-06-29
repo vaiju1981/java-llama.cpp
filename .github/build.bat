@@ -38,15 +38,28 @@ if /I "%USE_CACHE%"=="true" (
     )
 )
 
+REM NOTE: nvcc is NOT wrapped with sccache on Windows. Unlike build.sh (Linux) -- where
+REM sccache caches the per-arch .cu device passes -- sccache on Windows cannot parse the
+REM nvcc command line (it dies with `sccache: error: Could not parse shell line` and
+REM fails every .cu compile). So CUDA device code is built by nvcc directly (uncached)
+REM here; the cl.exe C/C++ TUs still cache via the C/CXX launcher set above.
+
 mkdir build
 cmake -Bbuild %LAUNCH% %*
-if errorlevel 1 exit /b %ERRORLEVEL%
+if errorlevel 1 exit /b 1
 cmake --build build --config Release
-if errorlevel 1 exit /b %ERRORLEVEL%
+set "BUILD_RC=!ERRORLEVEL!"
 
-REM Only query stats when sccache was actually wired in as the launcher; re-invoking
-REM a rejected/crashing sccache here would just repeat its failure output.
+REM Print cache stats (best-effort) regardless of build outcome -- only when sccache
+REM was wired in as the launcher.
 if defined LAUNCH (
     echo build.bat: sccache --show-stats
     sccache --show-stats
+)
+
+REM Propagate a build failure as a non-zero exit (a prior bug let a failed `cmake
+REM --build` reach here and exit 0, masquerading as a green build with no artifacts).
+if not "!BUILD_RC!"=="0" (
+    echo build.bat: cmake --build failed with exit code !BUILD_RC!.
+    exit /b !BUILD_RC!
 )

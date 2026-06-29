@@ -40,7 +40,12 @@ replay_pid*
 models/*.gguf
 src/main/cpp/net_ladenthin_llama_*.h
 src/main/resources_cuda_linux/
-src/main/resources_windows_ninja/
+# Per-classifier native trees, staged by CI before the matching Maven profile runs,
+# never committed (same policy as the default-tree native libs below).
+src/main/resources_windows_msvc/
+src/main/resources_windows_cuda/
+src/main/resources_windows_vulkan/
+src/main/resources_windows_opencl/
 src/main/resources/**/*.so
 src/main/resources/**/*.dylib
 src/main/resources/**/*.dll

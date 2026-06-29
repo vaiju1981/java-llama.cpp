@@ -476,8 +476,8 @@ jobs:
           name: macos-14-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
 
-  build-windows-x86_64:
-    name: Build and Test Windows 2025 x86_64 (VS 2026)
+  build-windows-x86_64-msvc:
+    name: Build and Test Windows 2025 x86_64 (MSVC / VS 2026, classifier)
     needs: [startgate, build-webui]
     runs-on: windows-2025-vs2026
     steps:
@@ -507,11 +507,11 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: Windows-x86_64-libraries
+          name: Windows-x86_64-msvc
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
 
-  build-windows-x86:
-    name: Build and Test Windows 2025 x86 (VS 2026)
+  build-windows-x86-msvc:
+    name: Build and Test Windows 2025 x86 (MSVC / VS 2026, classifier)
     needs: [startgate, build-webui]
     runs-on: windows-2025-vs2026
     steps:
@@ -541,25 +541,25 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: Windows-x86-libraries
+          name: Windows-x86-msvc
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
 
   # ---------------------------------------------------------------------------
-  # Windows Ninja Multi-Config + sccache — EVALUATION jobs (not yet released).
-  # The Visual Studio generator ignores CMAKE_{C,CXX}_COMPILER_LAUNCHER, so the two
-  # build-windows-* jobs above are the only uncached native builds. Upstream
-  # llama.cpp ships its windows-cuda artifact with "Ninja Multi-Config" + MSVC,
-  # which proves the combination works on the same tree. These two jobs run that
-  # combination in parallel with the trusted VS jobs and front cl.exe with sccache
-  # over Depot WebDAV (build.bat probe-guards it). Artifacts are named
-  # `Windows-*-ninja` (NOT `*-libraries`) so the package job's `pattern: "*-libraries"`
-  # does NOT pick them up — they are evaluation-only until cache hits are confirmed,
-  # at which point the release path is switched over (see TODO.md). The package job's
-  # `needs:` is intentionally left unchanged.
+  # Windows Ninja Multi-Config + sccache — the DEFAULT Windows CPU natives.
+  # The Visual Studio generator ignores CMAKE_{C,CXX}_COMPILER_LAUNCHER, so only the
+  # Ninja Multi-Config generator can front cl.exe with sccache over Depot WebDAV
+  # (build.bat probe-guards it). Both generators use the same MSVC toolchain (cl.exe,
+  # static /MT CRT) on the same runner, so the produced jllama.dll/llama.dll/ggml.dll
+  # are functionally equivalent with identical runtime dependencies — the only delta
+  # is build-system plumbing + caching. The Ninja build is therefore the default JAR
+  # (artifacts `Windows-*-libraries`, picked up by the package job's `pattern:
+  # "*-libraries"`); the MSVC build above is shipped as the `msvc-windows` classifier
+  # for anyone who wants the Visual-Studio-generator natives. Upstream llama.cpp also
+  # builds its Windows artifacts with Ninja Multi-Config + MSVC.
   # ---------------------------------------------------------------------------
 
-  build-windows-x86_64-ninja:
-    name: Build and Test Windows 2025 x86_64 (Ninja Multi-Config + sccache, eval)
+  build-windows-x86_64:
+    name: Build and Test Windows 2025 x86_64 (Ninja Multi-Config + sccache, default)
     needs: [startgate, build-webui]
     runs-on: windows-2025-vs2026
     env:
@@ -609,11 +609,11 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: Windows-x86_64-ninja
+          name: Windows-x86_64-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
 
-  build-windows-x86-ninja:
-    name: Build and Test Windows 2025 x86 (Ninja Multi-Config + sccache, eval)
+  build-windows-x86:
+    name: Build and Test Windows 2025 x86 (Ninja Multi-Config + sccache, default)
     needs: [startgate, build-webui]
     runs-on: windows-2025-vs2026
     env:
@@ -663,8 +663,171 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
-          name: Windows-x86-ninja
+          name: Windows-x86-libraries
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+
+  # ---------------------------------------------------------------------------
+  # Windows GPU classifiers (x86_64 only) — CUDA, Vulkan, OpenCL.
+  # All three use the same Ninja Multi-Config + MSVC + sccache toolchain as the
+  # default CPU build; they differ only by the GGML backend flag (and the build-time
+  # SDK each needs). CMakeLists.txt routes each backend's output to its own
+  # src/main/resources_windows_{cuda,vulkan,opencl}/ tree, which the matching Maven
+  # profile (cuda-windows / vulkan-windows / opencl-windows) turns into a classifier
+  # JAR. GPU runtime libraries are NOT bundled — the consumer's GPU driver / toolkit
+  # provides them (CUDA: cudart64_13/cublas64_13 from the CUDA Toolkit; Vulkan:
+  # vulkan-1.dll from the driver; OpenCL: System32\OpenCL.dll from the driver).
+  # NOTE: GitHub-hosted Windows runners have NO GPU, so these jobs build + run the
+  # C++ unit suite (ctest, CPU-only) but cannot run model-backed GPU inference;
+  # end-to-end GPU validation is local / self-hosted.
+  # ---------------------------------------------------------------------------
+
+  build-windows-x86_64-cuda:
+    name: Build Windows 2025 x86_64 CUDA (Ninja + sccache)
+    needs: [startgate, build-webui]
+    runs-on: windows-2025-vs2026
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/webui-generated/
+      - name: Set up MSVC developer environment (x64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Install CUDA Toolkit
+        # Full toolkit install (default method: local, no sub-packages restriction).
+        # A reduced network sub-package set ("nvcc","cudart","cublas",…) omitted the
+        # nvcc crt headers (crt/host_config.h), so cmake's CUDA compiler detection
+        # failed at configure. The full installer ships every header reliably.
+        uses: Jimver/cuda-toolkit@v0.2.35
+        id: cuda-toolkit
+        with:
+          cuda: '13.2.0'
+      - name: Install sccache (shared compiler cache)
+        if: env.USE_CACHE == 'true' && env.SCCACHE_WEBDAV_TOKEN != ''
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ver = "0.16.0"
+          $rel = "sccache-v$ver-x86_64-pc-windows-msvc"
+          $url = "https://github.com/mozilla/sccache/releases/download/v$ver/$rel.zip"
+          Write-Host "Downloading $url"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\sccache.zip"
+          Expand-Archive -Path "$env:RUNNER_TEMP\sccache.zip" -DestinationPath "$env:RUNNER_TEMP\sccache" -Force
+          Add-Content -Path $env:GITHUB_PATH -Value "$env:RUNNER_TEMP\sccache\$rel"
+      - name: Build libraries
+        shell: cmd
+        # GPU jobs build the artifact only — no -DBUILD_TESTING / ctest. The C++ unit
+        # suite is CPU-only and fully covered by the `C++ Tests` job + the CPU Windows
+        # jobs; a GPU-linked jllama_test.exe cannot be discovered/run on a GPU-less
+        # GitHub runner (it errors probing for a CUDA device -> ctest *_NOT_BUILT).
+        run: |
+          .github\build.bat -G "Ninja Multi-Config" -DGGML_CUDA=ON -DOS_NAME=Windows -DOS_ARCH=x86_64
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Windows-x86_64-cuda
+          path: ${{ github.workspace }}/src/main/resources_windows_cuda/net/ladenthin/llama/
+          if-no-files-found: error
+
+  build-windows-x86_64-vulkan:
+    name: Build Windows 2025 x86_64 Vulkan (Ninja + sccache)
+    needs: [startgate, build-webui]
+    runs-on: windows-2025-vs2026
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/webui-generated/
+      - name: Set up MSVC developer environment (x64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Install Vulkan SDK
+        uses: jakoch/install-vulkan-sdk-action@v1.6.0
+        with:
+          vulkan_version: 1.4.350.0
+          cache: true
+      - name: Install sccache (shared compiler cache)
+        if: env.USE_CACHE == 'true' && env.SCCACHE_WEBDAV_TOKEN != ''
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ver = "0.16.0"
+          $rel = "sccache-v$ver-x86_64-pc-windows-msvc"
+          $url = "https://github.com/mozilla/sccache/releases/download/v$ver/$rel.zip"
+          Write-Host "Downloading $url"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\sccache.zip"
+          Expand-Archive -Path "$env:RUNNER_TEMP\sccache.zip" -DestinationPath "$env:RUNNER_TEMP\sccache" -Force
+          Add-Content -Path $env:GITHUB_PATH -Value "$env:RUNNER_TEMP\sccache\$rel"
+      - name: Build libraries
+        shell: cmd
+        # Build the artifact only (see the CUDA job's note: GPU-less runner can't run a
+        # GPU-linked jllama_test; the C++ unit suite is covered by the CPU jobs).
+        run: |
+          .github\build.bat -G "Ninja Multi-Config" -DGGML_VULKAN=ON -DOS_NAME=Windows -DOS_ARCH=x86_64
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Windows-x86_64-vulkan
+          path: ${{ github.workspace }}/src/main/resources_windows_vulkan/net/ladenthin/llama/
+          if-no-files-found: error
+
+  build-windows-x86_64-opencl:
+    name: Build Windows 2025 x86_64 OpenCL (Ninja + sccache)
+    needs: [startgate, build-webui]
+    runs-on: windows-2025-vs2026
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/webui-generated/
+      - name: Set up MSVC developer environment (x64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Install sccache (shared compiler cache)
+        if: env.USE_CACHE == 'true' && env.SCCACHE_WEBDAV_TOKEN != ''
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ver = "0.16.0"
+          $rel = "sccache-v$ver-x86_64-pc-windows-msvc"
+          $url = "https://github.com/mozilla/sccache/releases/download/v$ver/$rel.zip"
+          Write-Host "Downloading $url"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\sccache.zip"
+          Expand-Archive -Path "$env:RUNNER_TEMP\sccache.zip" -DestinationPath "$env:RUNNER_TEMP\sccache" -Force
+          Add-Content -Path $env:GITHUB_PATH -Value "$env:RUNNER_TEMP\sccache\$rel"
+      - name: Build libraries
+        shell: cmd
+        # Build the artifact only (see the CUDA job's note: GPU-less runner can't run a
+        # GPU-linked jllama_test; the C++ unit suite is covered by the CPU jobs).
+        run: |
+          .github\build_opencl_windows.bat -G "Ninja Multi-Config" -DGGML_OPENCL=ON -DGGML_OPENCL_EMBED_KERNELS=ON -DOS_NAME=Windows -DOS_ARCH=x86_64
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Windows-x86_64-opencl
+          path: ${{ github.workspace }}/src/main/resources_windows_opencl/net/ladenthin/llama/
+          if-no-files-found: error
 
   # ---------------------------------------------------------------------------
   # CI-only jobs — no release artifact, purely for test coverage
@@ -1154,7 +1317,7 @@ jobs:
           if-no-files-found: warn
 
   test-java-windows-x86_64:
-    name: Java Tests Windows 2025 x86_64 (VS 2026)
+    name: Java Tests Windows 2025 x86_64 (default / Ninja)
     needs: build-windows-x86_64
     runs-on: windows-2025-vs2026
     steps:
@@ -1258,13 +1421,13 @@ jobs:
             ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/**/*
           if-no-files-found: warn
 
-  # Java/inference validation of the Ninja-built x86_64 DLL (the analogue of
-  # test-java-windows-x86_64 for the MSVC build). Loads the Ninja jllama.dll via
-  # JNI and runs the full model-backed suite, so both Windows generators are
-  # validated end-to-end before the `ninja-windows` classifier JAR ships.
-  test-java-windows-x86_64-ninja:
-    name: Java Tests Windows 2025 x86_64 (Ninja, eval)
-    needs: build-windows-x86_64-ninja
+  # Java/inference validation of the MSVC-built x86_64 DLL (the analogue of
+  # test-java-windows-x86_64 for the default Ninja build). Loads the MSVC jllama.dll
+  # via JNI and runs the full model-backed suite, so both Windows generators are
+  # validated end-to-end before the `msvc-windows` classifier JAR ships.
+  test-java-windows-x86_64-msvc:
+    name: Java Tests Windows 2025 x86_64 (MSVC classifier)
+    needs: build-windows-x86_64-msvc
     runs-on: windows-2025-vs2026
     steps:
       - uses: actions/checkout@v7
@@ -1281,7 +1444,7 @@ jobs:
           Get-ComputerInfo -Property "CsProcessors*" 2>$null || Write-Host "Get-ComputerInfo not available"
       - uses: actions/download-artifact@v8
         with:
-          name: Windows-x86_64-ninja
+          name: Windows-x86_64-msvc
           path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
       - name: Cache GGUF models (GitHub Actions cache; avoids re-downloading from HuggingFace)
         uses: actions/cache@v6
@@ -1355,7 +1518,7 @@ jobs:
       - if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: windows-output-ninja
+          name: windows-output-msvc
           path: |
             ${{ github.workspace }}\hs_err_pid*.log
             ${{ github.workspace }}\*.hprof
@@ -1378,9 +1541,13 @@ jobs:
       - crosscompile-linux-aarch64
       - crosscompile-android-aarch64
       - crosscompile-android-aarch64-opencl
+      - build-windows-x86_64
       - build-windows-x86
-      - build-windows-x86_64-ninja
-      - build-windows-x86-ninja
+      - build-windows-x86_64-msvc
+      - build-windows-x86-msvc
+      - build-windows-x86_64-cuda
+      - build-windows-x86_64-vulkan
+      - build-windows-x86_64-opencl
       - test-cpp-linux-x86_64
       - build-macos-arm64-metal-15
       - test-java-linux-x86_64
@@ -1388,7 +1555,7 @@ jobs:
       - test-java-macos-arm64-no-metal
       - test-java-macos-arm64-metal-15
       - test-java-windows-x86_64
-      - test-java-windows-x86_64-ninja
+      - test-java-windows-x86_64-msvc
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -1405,17 +1572,29 @@ jobs:
         with:
           name: android-libraries-opencl
           path: ${{ github.workspace }}/src/main/resources_android_opencl/net/ladenthin/llama/
-      # Ninja-built Windows natives -> separate tree consumed by the `windows-ninja`
-      # Maven profile (the `ninja-windows` classifier JAR). The default JAR keeps the
-      # MSVC `*-libraries` natives downloaded above.
+      # MSVC-built Windows natives -> `msvc-windows` classifier tree. The default JAR
+      # now ships the Ninja `*-libraries` natives merged above (default flip).
       - uses: actions/download-artifact@v8
         with:
-          name: Windows-x86_64-ninja
-          path: ${{ github.workspace }}/src/main/resources_windows_ninja/net/ladenthin/llama/
+          name: Windows-x86_64-msvc
+          path: ${{ github.workspace }}/src/main/resources_windows_msvc/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
-          name: Windows-x86-ninja
-          path: ${{ github.workspace }}/src/main/resources_windows_ninja/net/ladenthin/llama/
+          name: Windows-x86-msvc
+          path: ${{ github.workspace }}/src/main/resources_windows_msvc/net/ladenthin/llama/
+      # Windows GPU classifiers (x86_64 only) -> one tree each.
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-cuda
+          path: ${{ github.workspace }}/src/main/resources_windows_cuda/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-vulkan
+          path: ${{ github.workspace }}/src/main/resources_windows_vulkan/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-opencl
+          path: ${{ github.workspace }}/src/main/resources_windows_opencl/net/ladenthin/llama/
       - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
@@ -1426,8 +1605,10 @@ jobs:
         # default-platform native libs in one drop-on-classpath JAR, runnable via its
         # OpenAiCompatServer Main-Class). It lands in target/ and is uploaded in the `llama-jars`
         # artifact below - a CI run artifact only, not a Maven Central / GitHub-Release asset.
-        # `windows-ninja` attaches the `ninja-windows` classifier JAR (Ninja-built Windows natives).
-        run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android,windows-ninja,assembly -Dmaven.test.skip=true -Dgpg.skip=true package
+        # Windows classifier JARs: `windows-msvc` (MSVC-built CPU natives) plus the GPU
+        # backends `cuda-windows` / `vulkan-windows` / `opencl-windows`. The default JAR's
+        # Windows natives are the Ninja `*-libraries` merged into src/main/resources/ above.
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,assembly -Dmaven.test.skip=true -Dgpg.skip=true package
       - name: Upload JARs
         uses: actions/upload-artifact@v7
         with:
@@ -1507,12 +1688,24 @@ jobs:
           path: ${{ github.workspace }}/src/main/resources_android_opencl/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
-          name: Windows-x86_64-ninja
-          path: ${{ github.workspace }}/src/main/resources_windows_ninja/net/ladenthin/llama/
+          name: Windows-x86_64-msvc
+          path: ${{ github.workspace }}/src/main/resources_windows_msvc/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
-          name: Windows-x86-ninja
-          path: ${{ github.workspace }}/src/main/resources_windows_ninja/net/ladenthin/llama/
+          name: Windows-x86-msvc
+          path: ${{ github.workspace }}/src/main/resources_windows_msvc/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-cuda
+          path: ${{ github.workspace }}/src/main/resources_windows_cuda/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-vulkan
+          path: ${{ github.workspace }}/src/main/resources_windows_vulkan/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-opencl
+          path: ${{ github.workspace }}/src/main/resources_windows_opencl/net/ladenthin/llama/
       - name: Set up Maven Central Repository
         uses: actions/setup-java@v5
         with:
@@ -1533,7 +1726,7 @@ jobs:
             *) echo "::error::Refusing to publish non-SNAPSHOT version '$VERSION' from the snapshot job. Snapshot publishing requires a -SNAPSHOT version; releases go through the v* tag path."; exit 1 ;;
           esac
       - name: Publish snapshot
-        run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android,windows-ninja -Dmaven.test.skip=true deploy
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows -Dmaven.test.skip=true deploy
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
@@ -1599,12 +1792,24 @@ jobs:
           path: ${{ github.workspace }}/src/main/resources_android_opencl/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
-          name: Windows-x86_64-ninja
-          path: ${{ github.workspace }}/src/main/resources_windows_ninja/net/ladenthin/llama/
+          name: Windows-x86_64-msvc
+          path: ${{ github.workspace }}/src/main/resources_windows_msvc/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
-          name: Windows-x86-ninja
-          path: ${{ github.workspace }}/src/main/resources_windows_ninja/net/ladenthin/llama/
+          name: Windows-x86-msvc
+          path: ${{ github.workspace }}/src/main/resources_windows_msvc/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-cuda
+          path: ${{ github.workspace }}/src/main/resources_windows_cuda/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-vulkan
+          path: ${{ github.workspace }}/src/main/resources_windows_vulkan/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-opencl
+          path: ${{ github.workspace }}/src/main/resources_windows_opencl/net/ladenthin/llama/
       - name: Set up Maven Central Repository
         uses: actions/setup-java@v5
         with:
@@ -1616,7 +1821,7 @@ jobs:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
       - name: Publish release
-        run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android,windows-ninja -Dmaven.test.skip=true deploy
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows -Dmaven.test.skip=true deploy
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
