@@ -13,7 +13,7 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 
 Feature release. Headline addition is a full OpenAI-compatible embedded HTTP
 server with multi-protocol surfaces, plus end-to-end multimodal (vision, audio
-input, text-to-speech) and slot-bound sessions. Tracks llama.cpp **b9555 → b9840**.
+input, text-to-speech) and slot-bound sessions. Tracks llama.cpp **b9555 → b9842**.
 
 ### Added
 - **OpenAI-compatible HTTP server** (`server` package, built on the JDK's `com.sun.net.httpserver` — no new runtime dependency; embeddable and the fat-jar `Main-Class`). Serves `POST /v1/chat/completions` (streaming SSE + non-streaming), `/v1/completions` (token-by-token streaming), `/v1/embeddings`, `/v1/rerank`, `/infill`, `GET /v1/models`, `GET /health`, and `GET /props` (every route also reachable without the `/v1` prefix), with optional bearer auth and CORS — drives editor clients such as VS Code Copilot, Cline, Roo Code, and Continue.
@@ -30,7 +30,7 @@ input, text-to-speech) and slot-bound sessions. Tracks llama.cpp **b9555 → b98
 - `log_helpers.hpp` — pure, unit-tested log-formatting helpers (`log_level_name`, `format_log_as_json`).
 
 ### Changed
-- Upgraded llama.cpp from **b9555 to b9840** across ten incremental upgrades. Notable upstream features now reachable: DRY sampling, `--swa-full`, DFlash block-diffusion speculative decoding (`--spec-type draft-dflash`), the MiniCPM5 XML tool-call chat template, the server `--reasoning-preserve` flag, Jinja `min`/`max` array filters, and the **DeepSeek-V4** architecture (b9840). The b9829 bump additionally compiles the new upstream `server-stream.cpp` (resumable-streaming SSE replay buffer) into `libjllama`. All four local patches (`0001`–`0004`) apply across the range.
+- Upgraded llama.cpp from **b9555 to b9842** across eleven incremental upgrades. Notable upstream features now reachable: DRY sampling, `--swa-full`, DFlash block-diffusion speculative decoding (`--spec-type draft-dflash`), the MiniCPM5 XML tool-call chat template, the server `--reasoning-preserve` flag, Jinja `min`/`max` array filters, and the **DeepSeek-V4** architecture (b9840). The b9829 bump additionally compiles the new upstream `server-stream.cpp` (resumable-streaming SSE replay buffer) into `libjllama`. The final b9840→b9842 step is internal-only (preset INI section-tag canonicalization in `common/preset.cpp`; a Vulkan graph-submission heuristic switched from weight-matrix bytes to estimated FLOPs) — no project source changes, no API impact, all four local patches (`0001`–`0004`) apply unchanged across the range.
 - Replaced the `--skip-download` flag with `--offline` (llama.cpp b9803).
 - `Session` now pins every inference request to its configured slot, so generation and slot save/restore/erase target the same KV state (`SessionState` extracted as a testable concurrency contract).
 - `configureParallelInference` now applies `slot_prompt_similarity` live via `server_context::set_slot_prompt_similarity()` (upstream PR ggml-org/llama.cpp#22393, carried as `patches/0003`), instead of validating and discarding the value.
