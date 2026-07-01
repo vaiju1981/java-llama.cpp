@@ -1,4 +1,4 @@
-# langchain4j-jllama
+# llama-langchain4j
 
 [LangChain4j](https://github.com/langchain4j/langchain4j) adapters backed by an **in-process**
 [java-llama.cpp](https://github.com/bernardladenthin/java-llama.cpp) model over JNI — no HTTP server,
@@ -61,7 +61,7 @@ ScoringModel reranker     = new JllamaScoringModel(rerankLlama);
 ```xml
 <dependency>
     <groupId>net.ladenthin</groupId>
-    <artifactId>langchain4j-jllama</artifactId>
+    <artifactId>llama-langchain4j</artifactId>
     <version>5.0.4-SNAPSHOT</version>
 </dependency>
 ```
@@ -79,15 +79,27 @@ build here:
 mvn -DskipTests install
 
 # then build/test this module
-cd langchain4j-jllama
+cd llama-langchain4j
 mvn test
 ```
 
-The end-to-end test (`JllamaChatModelIntegrationTest`) self-skips unless you pass a model:
+The model-backed integration tests self-skip unless you point them at a GGUF. Each adapter has
+its own property so you can run them independently (a chat/instruct model, an embedding-mode model,
+and a reranking-mode model respectively):
 
 ```bash
-mvn test -Dnet.ladenthin.llama.model.path=/abs/path/to/model.gguf
+# chat + streaming (JllamaChatModelIntegrationTest)
+mvn test -Dnet.ladenthin.llama.model.path=/abs/path/to/chat.gguf
+# embeddings (JllamaEmbeddingModelIntegrationTest)
+mvn test -Dnet.ladenthin.llama.langchain4j.embedding.model=/abs/path/to/embedding.gguf
+# re-ranking / scoring (JllamaScoringModelIntegrationTest)
+mvn test -Dnet.ladenthin.llama.langchain4j.rerank.model=/abs/path/to/reranker.gguf
 ```
+
+In CI these reuse the project's existing shared GGUF cache (the chat, nomic-embedding and
+jina-reranker models the core test jobs already download) — the
+`test-java-llama-langchain4j-integration` job restores that cache and the
+`Linux-x86_64` native library artifact, so no extra model is downloaded.
 
 ## Not mapped yet
 

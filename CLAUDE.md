@@ -971,12 +971,18 @@ properties set, so `LlamaEmbeddingsTest`, `MultimodalIntegrationTest`, and `TtsI
 these as **required** (a missing model hard-fails the job before tests run, so a download
 regression can never silently downgrade to a skip). The only model still self-skipping is the
 audio-input model (`AudioInputIntegrationTest`) — it has no committed clip and no CI download.
-The shared GGUF cache (`actions/cache`, key `gguf-models-v1`, path `models/`) holds the full set;
-since every test job downloads the full set before the cache can save, whichever job wins the
-save race caches everything. Because the cache key is immutable, changing the model set means the
-**existing cache entry must be deleted** (not bumped to `v2`) so the next run rebuilds it complete
-— locally the model tests still self-skip when a GGUF is absent (`Assume.assumeTrue`), so a
-partial local checkout is fine.
+The shared GGUF cache (`actions/cache`, key `gguf-models-v1`, path `models/`) holds the full set
+and is populated **once, upfront** by a dedicated **`download-models`** job (`needs: startgate`):
+it is the single place the ~5 GB set is fetched from HuggingFace (the ten `curl` steps + the
+`validate-models.sh` gate live only there). Every `test-java-*` job — and the langchain4j
+integration job — `needs: download-models` and then only **restores** that cache (no per-job
+download, no cold-start save race), keeping `validate-models.{sh,bat}` as a per-job integrity
+guard. GGUF is platform-independent, so the one ubuntu `download-models` cache is reused by the
+macOS and Windows jobs too. `validate-models.{sh,bat}` treats the models as **required** (a
+missing model hard-fails the job before tests run). Because the cache key is immutable, changing
+the model set means the **existing cache entry must be deleted** (not bumped to `v2`) so
+`download-models` rebuilds it complete — locally the model tests still self-skip when a GGUF is
+absent (`Assume.assumeTrue`), so a partial local checkout is fine.
 
 Set the model path via system property or environment variable (see test files for exact property names).
 
@@ -1218,6 +1224,56 @@ currently runs in **classpath mode** (javadoc `<source>` is `1.8`), which is the
 keeping it clear of the JPMS module-mode javadoc trap that bit BAF. **Before raising the Java /
 javadoc source level to ≥ 9, read**
 [`../workspace/policies/jpms-module-descriptor.md`](../workspace/policies/jpms-module-descriptor.md).
+
+## LangChain4j integration (`llama-langchain4j` sibling module)
+
+`llama-langchain4j/` adapts a `LlamaModel` to LangChain4j's `ChatModel`,
+`StreamingChatModel`, `EmbeddingModel` and `ScoringModel` interfaces **in-process over
+JNI** (no HTTP hop). It is a **standalone sibling module**, deliberately *not* in the root
+reactor, so the native build/release pipeline is untouched.
+
+Why it is a **separate artifact** and not a classifier of the core: langchain4j 1.x
+requires **Java 17** (the core stays Java 8), and classifiers share the core's single POM —
+adding `langchain4j-core` there would force it (and the Java 17 floor) on every plain
+`net.ladenthin:llama` consumer. A separate `artifactId` with its own POM is the only way to
+keep that dependency (and Java floor) off the core. It is pure Java with **no per-classifier
+matrix**: it compiles against the core's Java API, which is identical across every native
+classifier; the backend (CPU/CUDA/OpenCL/Vulkan) is a runtime classpath choice for the
+consumer.
+
+Wiring:
+
+1. **`llama-langchain4j/pom.xml`** — `net.ladenthin:llama-langchain4j`, `release 17`,
+   depends on `net.ladenthin:llama:${project.version}` (so the core dep always matches the
+   module's own version) and `dev.langchain4j:langchain4j-core`. Carries its own
+   sources/javadoc/gpg + `release` profile (Central requires per-artifact signing; the module
+   has no parent to inherit them from — plugin versions are pinned in lockstep with the root
+   `pom.xml`). Java package stays `net.ladenthin.llama.langchain4j` (package name need not track
+   the artifactId).
+2. **`.github/workflows/publish.yml`** — the `test-java-llama-langchain4j` job installs the
+   core Java jar, runs a **version-lockstep guard** (module version must equal core version,
+   else the build fails — the standalone module can't inherit `${project.version}` from a
+   reactor), then `mvn -f llama-langchain4j/pom.xml verify` (7 model-free mapping unit tests
+   run; the 4 model-backed integration tests self-skip without a GGUF; `verify` also builds the
+   javadoc jar so a release-time javadoc break is caught in PR CI). The
+   `publish-snapshot`/`publish-release` jobs `needs:` this job and, after the core `deploy`
+   (which installs the core jar locally), run a second `deploy` of the module at the same
+   version. A separate **`test-java-llama-langchain4j-integration`** job runs the model-backed
+   tests (chat/streaming/embedding/scoring adapters) by **reusing** the shared GGUF cache
+   (`gguf-models-v1`, restore-only — no extra download) and the `Linux-x86_64-libraries` native
+   artifact: it `needs: [crosscompile-linux-x86_64, download-models]` (so the cache is already
+   populated and it runs in parallel), installs the core jar with the downloaded native lib
+   bundled, and passes the already-cached chat
+   (`REASONING_MODEL_NAME`), nomic-embedding and jina-reranker model paths via the module's
+   `-Dnet.ladenthin.llama.langchain4j.{embedding,rerank}.model` / `net.ladenthin.llama.model.path`
+   properties. It is validation-only (not a release gate); a cold cache degrades to a self-skip.
+3. **Version bumps** — when the root `pom.xml` `<version>` changes, bump
+   `llama-langchain4j/pom.xml` `<version>` to match in the same commit, or the lockstep guard
+   reds CI.
+
+**Open follow-ups** (documented in `llama-langchain4j/README.md`): tool calling
+(`ToolSpecification` ↔ jllama `ToolDefinition`), `response_format`/JSON mode, and multimodal
+user input (currently flattened to text).
 
 ## Open TODOs
 

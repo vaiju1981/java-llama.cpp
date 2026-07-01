@@ -24,7 +24,7 @@ path = [
     ".github/ISSUE_TEMPLATE/bug_report.md",
     ".github/ISSUE_TEMPLATE/feature_request.md",
     ".claude/commands/find-cpp-duplication.md",
-    "langchain4j-jllama/README.md",
+    "llama-langchain4j/README.md",
 ]
 SPDX-FileCopyrightText = [
     "2023-2025 Konstantin Herud",
