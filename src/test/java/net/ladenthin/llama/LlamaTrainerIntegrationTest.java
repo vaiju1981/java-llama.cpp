@@ -11,6 +11,8 @@ import static org.hamcrest.Matchers.is;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import net.ladenthin.llama.args.Optimizer;
+import net.ladenthin.llama.parameters.TrainingParameters;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -35,7 +37,15 @@ class LlamaTrainerIntegrationTest {
         }
 
         Path output = tmp.resolve("finetuned.gguf");
-        LlamaTrainer.finetune(Paths.get(modelPath), corpus.toString(), output, 1, 1e-5f);
+        LlamaTrainer.finetune(
+                TrainingParameters.builder()
+                        .modelPath(Paths.get(modelPath))
+                        .trainingText(corpus.toString())
+                        .outputPath(output)
+                        .epochs(1)
+                        .learningRate(1e-5f)
+                        .optimizer(Optimizer.ADAMW)
+                        .build());
 
         assertThat(Files.exists(output), is(true));
         assertThat(Files.size(output), greaterThan(0L));

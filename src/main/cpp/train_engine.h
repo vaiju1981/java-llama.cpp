@@ -18,12 +18,20 @@ namespace jllama_train {
 // One fine-tuning run's inputs.
 struct finetune_config {
     std::string model_path;    // base GGUF to fine-tune
-    std::string training_text; // corpus (tokenized in-process)
+    std::string training_text; // corpus supplied inline (used when training_file is empty)
+    std::string training_file; // corpus read from this path instead of training_text
     std::string output_path;   // where the fine-tuned GGUF is written
     int         epochs;        // number of passes over the corpus (>= 1)
-    float       learning_rate; // AdamW lr at the first epoch
+    float       learning_rate; // lr at the first epoch
+    float       lr_min;        // minimum lr for decay; < 0 = no decay
+    float       decay_epochs;  // decay lr0 -> lr_min over this many epochs; <= 0 = disabled
+    float       weight_decay;  // weight decay; 0 = disabled
+    int         optimizer;     // ggml_opt_optimizer_type: 0 = AdamW, 1 = SGD
     int         n_ctx;         // context size; 0 = the model's trained context
     int         n_gpu_layers;  // layers offloaded to the GPU; -1 = auto
+    float       val_split;     // fraction of the corpus held out for validation
+    int         n_batch;       // logical batch size; 0 = native default
+    int         n_ubatch;      // physical (micro) batch size; 0 = native default
 };
 
 // Run one fine-tuning job end to end. Returns true on success; on failure returns false and sets
