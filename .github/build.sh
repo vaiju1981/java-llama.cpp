@@ -5,6 +5,14 @@
 #
 # SPDX-License-Identifier: MIT
 
+# The core project (CMakeLists.txt + src/) lives in the `llama/` module of the Maven
+# reactor. Re-root here once — every native build delegates to this script (incl. the
+# build_cuda_linux.sh / build_opencl_*.sh wrappers that `exec .github/build.sh`) — so
+# cmake configures the module regardless of the caller's CWD. Anchored to this script's
+# own location (via BASH_SOURCE), so it works from the repo root and inside the dockcross
+# container whose workdir is the mounted repo root.
+cd "$(dirname "${BASH_SOURCE[0]}")/../llama" || exit 1
+
 mkdir -p build
 
 # Build parallelism. Defaults to all cores; RAM-limited CI runners (notably GitHub's

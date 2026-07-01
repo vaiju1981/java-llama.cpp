@@ -19,7 +19,7 @@ path = [
     "docs/history/49be664_open_issues_comments.md",
     "docs/history/CHAT_INTEGRATION_SUMMARY.md",
     "docs/history/REFACTORING.md",
-    "src/test/resources/images/README.md",
+    "llama/src/test/resources/images/README.md",
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".github/ISSUE_TEMPLATE/bug_report.md",
     ".github/ISSUE_TEMPLATE/feature_request.md",
@@ -43,7 +43,7 @@ SPDX-License-Identifier = "MIT"
 
 # CMakeLists.txt (CMake format not recognized by reuse annotate)
 [[annotations]]
-path = "CMakeLists.txt"
+path = "llama/CMakeLists.txt"
 SPDX-FileCopyrightText = [
     "2023-2025 Konstantin Herud",
     "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>",
@@ -79,13 +79,13 @@ SPDX-License-Identifier = "MIT"
 # diff). Glob covers every current and future patch dropped into patches/ — see CLAUDE.md
 # "Local llama.cpp source patches".
 [[annotations]]
-path = "patches/**"
+path = "llama/patches/**"
 SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
 SPDX-License-Identifier = "MIT"
 
 # Test image (binary, cannot carry inline SPDX)
 [[annotations]]
-path = "src/test/resources/images/test-image.jpg"
+path = "llama/src/test/resources/images/test-image.jpg"
 SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
 SPDX-License-Identifier = "MIT"
 

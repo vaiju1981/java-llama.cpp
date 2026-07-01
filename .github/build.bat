@@ -6,6 +6,11 @@ REM SPDX-License-Identifier: MIT
 @echo off
 setlocal enabledelayedexpansion
 
+REM The core project (CMakeLists.txt + src\) lives in the `llama\` module of the Maven
+REM reactor. Re-root here once (relative to this script's own location) so cmake
+REM configures the module regardless of the caller's CWD.
+cd /d "%~dp0..\llama" || exit /b 1
+
 REM ---------------------------------------------------------------------------
 REM Optional shared compiler cache: sccache fronting Depot Cache (WebDAV).
 REM Mirrors build.sh's sccache_can_wrap_compiler() probe. Because sccache *is*

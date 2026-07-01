@@ -50,7 +50,7 @@ env:
   # at src/test/resources/images/test-image.jpg (see the README in that
   # directory for licensing). No download step is needed; CI just points
   # mvn test at the committed path.
-  VISION_IMAGE_PATH: "src/test/resources/images/test-image.jpg"
+  VISION_IMAGE_PATH: "llama/src/test/resources/images/test-image.jpg"
 permissions:
   contents: read
 jobs:
@@ -133,25 +133,26 @@ jobs:
           java-version: '21'
           distribution: temurin
       - name: Spotless check (fail fast on format violations)
-        run: mvn -B --no-transfer-progress spotless:check
+        run: mvn -B --no-transfer-progress -f llama/pom.xml spotless:check
       - name: SpotBugs check (fail fast on static-analysis findings)
-        run: mvn -B --no-transfer-progress -DskipTests -Denforcer.skip=true compile spotbugs:check
+        run: mvn -B --no-transfer-progress -f llama/pom.xml -DskipTests -Denforcer.skip=true compile spotbugs:check
       - name: Print internal package dependency graph (jdeps, informational)
         continue-on-error: true
         run: |
-          mvn -B --no-transfer-progress -DskipTests -Denforcer.skip=true compile
+          mvn -B --no-transfer-progress -f llama/pom.xml -DskipTests -Denforcer.skip=true compile
           echo "=== internal package dependency graph (jdeps, bytecode) ==="
-          jdeps -verbose:package target/classes | grep 'net.ladenthin.llama' || true
+          jdeps -verbose:package llama/target/classes | grep 'net.ladenthin.llama' || true
 
   # ---------------------------------------------------------------------------
   # Sibling module `llama-langchain4j` (LangChain4j adapters). Pure Java, no native
   # code and no per-classifier matrix: it compiles against the core's stable Java API
   # (identical across every classifier) and the backend is a runtime choice for the
-  # consumer. This job installs the core Java jar, guards that the module version is in
-  # lockstep with the core, then builds + tests the module (Java 17; langchain4j 1.x
-  # baseline). It runs its mapping unit tests; the model-backed integration test
-  # self-skips without a GGUF. `verify` also builds the javadoc/sources jars so a
-  # release-time javadoc break is caught here in PR CI.
+  # consumer. This job installs the parent + core into the local repo, then builds + tests
+  # the module (Java 17; langchain4j 1.x baseline). It runs its mapping unit tests; the
+  # model-backed integration test self-skips without a GGUF. `verify` also builds the
+  # javadoc/sources jars so a release-time javadoc break is caught here in PR CI. Version
+  # lockstep is now guaranteed by construction (both modules inherit the parent's version),
+  # so the old lockstep guard is gone.
   # ---------------------------------------------------------------------------
 
   test-java-llama-langchain4j:
@@ -164,19 +165,9 @@ jobs:
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: temurin
-      - name: Version lockstep guard (module version must equal core version)
-        shell: bash
-        run: |
-          CORE=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n1)
-          MOD=$(mvn -q -DforceStdout -f llama-langchain4j/pom.xml help:evaluate -Dexpression=project.version | tail -n1)
-          echo "core=$CORE module=$MOD"
-          if [ "$CORE" != "$MOD" ]; then
-            echo "::error::Version drift: core ($CORE) != llama-langchain4j ($MOD). Keep llama-langchain4j/pom.xml <version> in lockstep with the root pom.xml."
-            exit 1
-          fi
-      - name: Install core net.ladenthin:llama jar (Java only)
+      - name: Install parent + core net.ladenthin:llama into the local repo (Java only)
         run: >
-          mvn -B --no-transfer-progress -DskipTests -Denforcer.skip=true
+          mvn -B --no-transfer-progress -pl llama -am -DskipTests -Denforcer.skip=true
           -Dspotless.check.skip=true -Dspotbugs.skip=true
           -Dmaven.javadoc.skip=true -Dmaven.source.skip=true -Dgpg.skip=true install
       - name: Build and test llama-langchain4j
@@ -202,7 +193,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: Linux-x86_64-libraries
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
       - name: Restore shared GGUF model cache (populated by download-models; no re-download)
         uses: actions/cache@v6
         with:
@@ -212,9 +203,9 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
-      - name: Install core net.ladenthin:llama jar (bundles the downloaded native library)
+      - name: Install parent + core net.ladenthin:llama (bundles the downloaded native library)
         run: >
-          mvn -B --no-transfer-progress -DskipTests -Denforcer.skip=true
+          mvn -B --no-transfer-progress -pl llama -am -DskipTests -Denforcer.skip=true
           -Dspotless.check.skip=true -Dspotbugs.skip=true
           -Dmaven.javadoc.skip=true -Dmaven.source.skip=true -Dgpg.skip=true install
       - name: Run llama-langchain4j model-backed integration tests (reused cached models)
@@ -242,7 +233,7 @@ jobs:
         id: tag
         shell: bash
         run: |
-          TAG=$(grep -oE 'GIT_TAG[[:space:]]+b[0-9]+' CMakeLists.txt | grep -oE 'b[0-9]+' | head -1)
+          TAG=$(grep -oE 'GIT_TAG[[:space:]]+b[0-9]+' llama/CMakeLists.txt | grep -oE 'b[0-9]+' | head -1)
           if [ -z "$TAG" ]; then
             echo "could not resolve llama.cpp GIT_TAG (b<nnnn>) from CMakeLists.txt" >&2
             exit 1
@@ -284,14 +275,14 @@ jobs:
             done )
           # llama-ui-embed is a self-contained C++17 host tool (no npm) — build + run it.
           g++ -O2 -std=c++17 -o llama-ui-embed embed.cpp
-          mkdir -p "$GITHUB_WORKSPACE/webui-generated"
+          mkdir -p "$GITHUB_WORKSPACE/llama/webui-generated"
           ./llama-ui-embed \
-            "$GITHUB_WORKSPACE/webui-generated/ui.cpp" \
-            "$GITHUB_WORKSPACE/webui-generated/ui.h" \
+            "$GITHUB_WORKSPACE/llama/webui-generated/ui.cpp" \
+            "$GITHUB_WORKSPACE/llama/webui-generated/ui.h" \
             dist
           echo "=== generated WebUI assets ==="
-          ls -la "$GITHUB_WORKSPACE/webui-generated"
-          if grep -q LLAMA_UI_HAS_ASSETS "$GITHUB_WORKSPACE/webui-generated/ui.h"; then
+          ls -la "$GITHUB_WORKSPACE/llama/webui-generated"
+          if grep -q LLAMA_UI_HAS_ASSETS "$GITHUB_WORKSPACE/llama/webui-generated/ui.h"; then
             echo "LLAMA_UI_HAS_ASSETS: present (real WebUI embedded)"
           else
             echo "ERROR: embed produced an empty asset table" >&2
@@ -301,7 +292,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: webui-generated
-          path: ${{ github.workspace }}/webui-generated/
+          path: ${{ github.workspace }}/llama/webui-generated/
           retention-days: 1
           if-no-files-found: error
 
@@ -332,7 +323,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webui-generated
-          path: ${{ github.workspace }}/webui-generated/
+          path: ${{ github.workspace }}/llama/webui-generated/
       - name: Display CPU Info
         shell: bash
         run: |
@@ -349,7 +340,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: linux-libraries-cuda
-          path: ${{ github.workspace }}/src/main/resources_linux_cuda/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_cuda/net/ladenthin/llama/
 
   crosscompile-linux-x86_64:
     name: Cross-Compile manylinux2014 x86_64
@@ -372,7 +363,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webui-generated
-          path: ${{ github.workspace }}/webui-generated/
+          path: ${{ github.workspace }}/llama/webui-generated/
       - name: Display CPU Info
         shell: bash
         run: |
@@ -389,7 +380,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Linux-x86_64-libraries
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
 
   crosscompile-linux-aarch64:
     name: Build and Test Linux aarch64
@@ -414,7 +405,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webui-generated
-          path: ${{ github.workspace }}/webui-generated/
+          path: ${{ github.workspace }}/llama/webui-generated/
       - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
@@ -436,15 +427,15 @@ jobs:
       - name: Build libraries
         shell: bash
         run: |
-          mvn --no-transfer-progress compile
+          mvn --no-transfer-progress -f llama/pom.xml compile
           .github/build.sh "-DOS_NAME=Linux -DOS_ARCH=aarch64 -DGGML_NATIVE=OFF -DBUILD_TESTING=ON"
       - name: Run C++ unit tests
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir llama/build --output-on-failure
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: Linux-aarch64-libraries
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
 
   crosscompile-android-aarch64:
     name: Cross-Compile Android aarch64
@@ -464,7 +455,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webui-generated
-          path: ${{ github.workspace }}/webui-generated/
+          path: ${{ github.workspace }}/llama/webui-generated/
       - name: Display CPU Info
         shell: bash
         run: |
@@ -481,7 +472,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Linux-Android-aarch64-libraries
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
 
   crosscompile-android-aarch64-opencl:
     name: Cross-Compile Android aarch64 (OpenCL/Adreno)
@@ -502,7 +493,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webui-generated
-          path: ${{ github.workspace }}/webui-generated/
+          path: ${{ github.workspace }}/llama/webui-generated/
       - name: Build libraries
         shell: bash
         run: |
@@ -511,7 +502,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: android-libraries-opencl
-          path: ${{ github.workspace }}/src/main/resources_android_opencl/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_android_opencl/net/ladenthin/llama/
 
   # ---------------------------------------------------------------------------
   # Native build jobs — produce release artifacts + run C++ unit tests
@@ -532,7 +523,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webui-generated
-          path: ${{ github.workspace }}/webui-generated/
+          path: ${{ github.workspace }}/llama/webui-generated/
       - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
@@ -552,15 +543,15 @@ jobs:
       - name: Build libraries
         shell: bash
         run: |
-          mvn --no-transfer-progress compile
+          mvn --no-transfer-progress -f llama/pom.xml compile
           .github/build.sh -DLLAMA_METAL=OFF -DGGML_NATIVE=OFF -DBUILD_TESTING=ON
       - name: Run C++ unit tests
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir llama/build --output-on-failure
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: macos-15-libraries
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
 
   build-macos-arm64-metal:
     name: Build and Test macOS 14 arm64 (Metal)
@@ -577,7 +568,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webui-generated
-          path: ${{ github.workspace }}/webui-generated/
+          path: ${{ github.workspace }}/llama/webui-generated/
       - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
@@ -597,15 +588,15 @@ jobs:
       - name: Build libraries
         shell: bash
         run: |
-          mvn --no-transfer-progress compile
+          mvn --no-transfer-progress -f llama/pom.xml compile
           .github/build.sh -DLLAMA_METAL_EMBED_LIBRARY=ON -DBUILD_TESTING=ON
       - name: Run C++ unit tests
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir llama/build --output-on-failure
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: macos-14-libraries
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
 
   build-windows-x86_64-msvc:
     name: Build and Test Windows 2025 x86_64 (MSVC / VS 2026, classifier)
@@ -617,7 +608,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webui-generated
-          path: ${{ github.workspace }}/webui-generated/
+          path: ${{ github.workspace }}/llama/webui-generated/
       - name: Display CPU Info
         shell: pwsh
         run: |
@@ -634,12 +625,12 @@ jobs:
         run: |
           .github\build.bat -G "Visual Studio 18 2026" -A "x64" -DOS_NAME=Windows -DOS_ARCH=x86_64 -DBUILD_TESTING=ON
       - name: Run C++ unit tests
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir llama/build --output-on-failure
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: Windows-x86_64-msvc
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
 
   build-windows-x86-msvc:
     name: Build and Test Windows 2025 x86 (MSVC / VS 2026, classifier)
@@ -651,7 +642,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webui-generated
-          path: ${{ github.workspace }}/webui-generated/
+          path: ${{ github.workspace }}/llama/webui-generated/
       - name: Display CPU Info
         shell: pwsh
         run: |
@@ -668,12 +659,12 @@ jobs:
         run: |
           .github\build.bat -G "Visual Studio 18 2026" -A "Win32" -DOS_NAME=Windows -DOS_ARCH=x86 -DBUILD_TESTING=ON
       - name: Run C++ unit tests
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir llama/build --output-on-failure
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: Windows-x86-msvc
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
 
   # ---------------------------------------------------------------------------
   # Windows Ninja Multi-Config + sccache — the DEFAULT Windows CPU natives.
@@ -703,7 +694,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webui-generated
-          path: ${{ github.workspace }}/webui-generated/
+          path: ${{ github.workspace }}/llama/webui-generated/
       - name: Set up MSVC developer environment (x64)
         uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -736,12 +727,12 @@ jobs:
         run: |
           .github\build.bat -G "Ninja Multi-Config" -DOS_NAME=Windows -DOS_ARCH=x86_64 -DBUILD_TESTING=ON
       - name: Run C++ unit tests
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir llama/build --output-on-failure
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: Windows-x86_64-libraries
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
 
   build-windows-x86:
     name: Build and Test Windows 2025 x86 (Ninja Multi-Config + sccache, default)
@@ -757,7 +748,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webui-generated
-          path: ${{ github.workspace }}/webui-generated/
+          path: ${{ github.workspace }}/llama/webui-generated/
       - name: Set up MSVC developer environment (x86)
         uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -790,12 +781,12 @@ jobs:
         run: |
           .github\build.bat -G "Ninja Multi-Config" -DOS_NAME=Windows -DOS_ARCH=x86 -DBUILD_TESTING=ON
       - name: Run C++ unit tests
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir llama/build --output-on-failure
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: Windows-x86-libraries
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
 
   # ---------------------------------------------------------------------------
   # Windows GPU classifiers (x86_64 only) — CUDA, Vulkan, OpenCL.
@@ -826,7 +817,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webui-generated
-          path: ${{ github.workspace }}/webui-generated/
+          path: ${{ github.workspace }}/llama/webui-generated/
       - name: Set up MSVC developer environment (x64)
         uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -864,7 +855,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Windows-x86_64-cuda
-          path: ${{ github.workspace }}/src/main/resources_windows_cuda/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_cuda/net/ladenthin/llama/
           if-no-files-found: error
 
   build-windows-x86_64-vulkan:
@@ -881,7 +872,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webui-generated
-          path: ${{ github.workspace }}/webui-generated/
+          path: ${{ github.workspace }}/llama/webui-generated/
       - name: Set up MSVC developer environment (x64)
         uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -913,7 +904,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Windows-x86_64-vulkan
-          path: ${{ github.workspace }}/src/main/resources_windows_vulkan/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_vulkan/net/ladenthin/llama/
           if-no-files-found: error
 
   build-windows-x86_64-opencl:
@@ -930,7 +921,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webui-generated
-          path: ${{ github.workspace }}/webui-generated/
+          path: ${{ github.workspace }}/llama/webui-generated/
       - name: Set up MSVC developer environment (x64)
         uses: ilammy/msvc-dev-cmd@v1
         with:
@@ -957,7 +948,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Windows-x86_64-opencl
-          path: ${{ github.workspace }}/src/main/resources_windows_opencl/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_opencl/net/ladenthin/llama/
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
@@ -983,10 +974,10 @@ jobs:
           cat /proc/cpuinfo
       - name: Build libraries
         run: |
-          mvn -q --no-transfer-progress compile
+          mvn -q --no-transfer-progress -f llama/pom.xml compile
           .github/build.sh -DBUILD_TESTING=ON
       - name: Run C++ unit tests
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir llama/build --output-on-failure
 
   build-macos-arm64-metal-15:
     name: Build and Test macOS 15 arm64 (Metal)
@@ -1003,7 +994,7 @@ jobs:
         uses: actions/download-artifact@v8
         with:
           name: webui-generated
-          path: ${{ github.workspace }}/webui-generated/
+          path: ${{ github.workspace }}/llama/webui-generated/
       - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
@@ -1023,15 +1014,15 @@ jobs:
       - name: Build libraries
         shell: bash
         run: |
-          mvn --no-transfer-progress compile
+          mvn --no-transfer-progress -f llama/pom.xml compile
           .github/build.sh -DLLAMA_METAL_EMBED_LIBRARY=ON -DGGML_NATIVE=OFF -DBUILD_TESTING=ON
       - name: Run C++ unit tests
-        run: ctest --test-dir build --output-on-failure
+        run: ctest --test-dir llama/build --output-on-failure
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: macos-15-metal-libraries
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
 
   # ---------------------------------------------------------------------------
   # Java test jobs — download release artifact, run mvn test
@@ -1054,7 +1045,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: Linux-x86_64-libraries
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
       # GGUF models are downloaded + cached ONCE by the upstream `download-models` job
       # (this job `needs:` it), so here we only RESTORE the shared cache — no per-job
       # download logic. GGUF is platform-independent, so ubuntu + macOS + Windows share
@@ -1079,7 +1070,7 @@ jobs:
           echo "${{ github.workspace }}/core.%e.%p" | sudo tee /proc/sys/kernel/core_pattern
       - name: Run tests
         run: |
-          mvn -e --no-transfer-progress -P jcstress test \
+          mvn -e --no-transfer-progress -f llama/pom.xml -P jcstress test \
             -Dnet.ladenthin.llama.tool.model=models/${TOOL_MODEL_NAME} \
             -Dnet.ladenthin.llama.nomic.path=models/${NOMIC_EMBED_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
@@ -1091,15 +1082,15 @@ jobs:
         if: success()
         with:
           name: jacoco-report
-          path: target/site/jacoco/jacoco.xml
+          path: llama/target/site/jacoco/jacoco.xml
           if-no-files-found: ignore
       - name: Run PIT mutation tests
-        run: mvn --batch-mode --no-transfer-progress test-compile org.pitest:pitest-maven:mutationCoverage
+        run: mvn --batch-mode --no-transfer-progress -f llama/pom.xml test-compile org.pitest:pitest-maven:mutationCoverage
       - name: Extract PIT survivors
         if: always()
         run: |
           echo "=== PIT Survived Mutations ==="
-          for html_file in $(find target/pit-reports -name "*.html" -type f 2>/dev/null | sort); do
+          for html_file in $(find llama/target/pit-reports -name "*.html" -type f 2>/dev/null | sort); do
             if grep -q "SURVIVED" "$html_file"; then
               echo "Found survivors in $html_file:"
               grep -B 2 -A 3 "SURVIVED" "$html_file"
@@ -1108,7 +1099,7 @@ jobs:
           done
       - uses: actions/upload-artifact@v7
         if: always()
-        with: { name: pit-reports, path: target/pit-reports/ }
+        with: { name: pit-reports, path: llama/target/pit-reports/ }
       - name: Memory after tests
         if: always()
         run: free -h
@@ -1146,13 +1137,13 @@ jobs:
         # -Dtest matches simple class names, not package globs; the default suite is
         # excluded from the vmlens package via pom.xml managed surefire <excludes>).
         run: >-
-          mvn --batch-mode --no-transfer-progress -Pvmlens test
+          mvn --batch-mode --no-transfer-progress -f llama/pom.xml -Pvmlens test
           -Dtest=VmlensInterleavingSmokeTest,SessionStateInterleavingTest -DfailIfNoTests=false
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: vmlens-report
-          path: target/vmlens-report/
+          path: llama/target/vmlens-report/
           if-no-files-found: ignore
 
   test-java-macos-arm64-metal:
@@ -1172,7 +1163,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: macos-14-libraries
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
       # GGUF models are downloaded + cached ONCE by the upstream `download-models` job
       # (this job `needs:` it), so here we only RESTORE the shared cache — no per-job
       # download logic. GGUF is platform-independent, so ubuntu + macOS + Windows share
@@ -1195,7 +1186,7 @@ jobs:
         run: ulimit -c unlimited
       - name: Run tests
         run: |
-          mvn -e --no-transfer-progress -Dnet.ladenthin.llama.test.ngl=0 test \
+          mvn -e --no-transfer-progress -f llama/pom.xml -Dnet.ladenthin.llama.test.ngl=0 test \
             -Dnet.ladenthin.llama.tool.model=models/${TOOL_MODEL_NAME} \
             -Dnet.ladenthin.llama.nomic.path=models/${NOMIC_EMBED_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
@@ -1236,7 +1227,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: macos-15-libraries
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
       # GGUF models are downloaded + cached ONCE by the upstream `download-models` job
       # (this job `needs:` it), so here we only RESTORE the shared cache — no per-job
       # download logic. GGUF is platform-independent, so ubuntu + macOS + Windows share
@@ -1259,7 +1250,7 @@ jobs:
         run: ulimit -c unlimited
       - name: Run tests
         run: |
-          mvn -e --no-transfer-progress test \
+          mvn -e --no-transfer-progress -f llama/pom.xml test \
             -Dnet.ladenthin.llama.tool.model=models/${TOOL_MODEL_NAME} \
             -Dnet.ladenthin.llama.nomic.path=models/${NOMIC_EMBED_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
@@ -1300,7 +1291,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: macos-15-metal-libraries
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
       # GGUF models are downloaded + cached ONCE by the upstream `download-models` job
       # (this job `needs:` it), so here we only RESTORE the shared cache — no per-job
       # download logic. GGUF is platform-independent, so ubuntu + macOS + Windows share
@@ -1323,7 +1314,7 @@ jobs:
         run: ulimit -c unlimited
       - name: Run tests
         run: |
-          mvn -e --no-transfer-progress test \
+          mvn -e --no-transfer-progress -f llama/pom.xml test \
             -Dnet.ladenthin.llama.tool.model=models/${TOOL_MODEL_NAME} \
             -Dnet.ladenthin.llama.nomic.path=models/${NOMIC_EMBED_MODEL_NAME} \
             -Dnet.ladenthin.llama.vision.model=models/${VISION_MODEL_NAME} \
@@ -1367,7 +1358,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86_64-libraries
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
       # GGUF models are downloaded + cached ONCE by the upstream `download-models` job
       # (this job `needs:` it), so here we only RESTORE the shared cache — no per-job
       # download logic. validate-models is kept as an integrity guard so a partial/absent
@@ -1405,7 +1396,7 @@ jobs:
           Get-ItemProperty -Path $key | Format-List
       - name: Run tests
         run: |
-          mvn -e --no-transfer-progress test `
+          mvn -e --no-transfer-progress -f llama/pom.xml test `
             "-Dnet.ladenthin.llama.tool.model=models/$env:TOOL_MODEL_NAME" `
             "-Dnet.ladenthin.llama.nomic.path=models/$env:NOMIC_EMBED_MODEL_NAME" `
             "-Dnet.ladenthin.llama.vision.model=models/$env:VISION_MODEL_NAME" `
@@ -1429,7 +1420,7 @@ jobs:
             ${{ github.workspace }}\target\surefire-reports\*.dumpstream
             ${{ github.workspace }}\target\surefire-reports\*.txt
             ${{ github.workspace }}\target\surefire-reports\TEST-*.xml
-            ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/**/*
+            ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/**/*
           if-no-files-found: warn
 
   # Java/inference validation of the MSVC-built x86_64 DLL (the analogue of
@@ -1456,7 +1447,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86_64-msvc
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
       # GGUF models are downloaded + cached ONCE by the upstream `download-models` job
       # (this job `needs:` it), so here we only RESTORE the shared cache — no per-job
       # download logic. validate-models is kept as an integrity guard so a partial/absent
@@ -1494,7 +1485,7 @@ jobs:
           Get-ItemProperty -Path $key | Format-List
       - name: Run tests
         run: |
-          mvn -e --no-transfer-progress test `
+          mvn -e --no-transfer-progress -f llama/pom.xml test `
             "-Dnet.ladenthin.llama.tool.model=models/$env:TOOL_MODEL_NAME" `
             "-Dnet.ladenthin.llama.nomic.path=models/$env:NOMIC_EMBED_MODEL_NAME" `
             "-Dnet.ladenthin.llama.vision.model=models/$env:VISION_MODEL_NAME" `
@@ -1518,7 +1509,7 @@ jobs:
             ${{ github.workspace }}\target\surefire-reports\*.dumpstream
             ${{ github.workspace }}\target\surefire-reports\*.txt
             ${{ github.workspace }}\target\surefire-reports\TEST-*.xml
-            ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/**/*
+            ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/**/*
           if-no-files-found: warn
 
   # ---------------------------------------------------------------------------
@@ -1554,38 +1545,38 @@ jobs:
         with:
           pattern: "*-libraries"
           merge-multiple: true
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: linux-libraries-cuda
-          path: ${{ github.workspace }}/src/main/resources_linux_cuda/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_cuda/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: android-libraries-opencl
-          path: ${{ github.workspace }}/src/main/resources_android_opencl/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_android_opencl/net/ladenthin/llama/
       # MSVC-built Windows natives -> `msvc-windows` classifier tree. The default JAR
       # now ships the Ninja `*-libraries` natives merged above (default flip).
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86_64-msvc
-          path: ${{ github.workspace }}/src/main/resources_windows_msvc/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_msvc/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86-msvc
-          path: ${{ github.workspace }}/src/main/resources_windows_msvc/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_msvc/net/ladenthin/llama/
       # Windows GPU classifiers (x86_64 only) -> one tree each.
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86_64-cuda
-          path: ${{ github.workspace }}/src/main/resources_windows_cuda/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_cuda/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86_64-vulkan
-          path: ${{ github.workspace }}/src/main/resources_windows_vulkan/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_vulkan/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86_64-opencl
-          path: ${{ github.workspace }}/src/main/resources_windows_opencl/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_opencl/net/ladenthin/llama/
       - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
@@ -1604,7 +1595,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: llama-jars
-          path: target/*.jar
+          path: llama/target/*.jar
 
   report:
     name: Report
@@ -1668,35 +1659,35 @@ jobs:
         with:
           pattern: "*-libraries"
           merge-multiple: true
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: linux-libraries-cuda
-          path: ${{ github.workspace }}/src/main/resources_linux_cuda/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_cuda/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: android-libraries-opencl
-          path: ${{ github.workspace }}/src/main/resources_android_opencl/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_android_opencl/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86_64-msvc
-          path: ${{ github.workspace }}/src/main/resources_windows_msvc/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_msvc/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86-msvc
-          path: ${{ github.workspace }}/src/main/resources_windows_msvc/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_msvc/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86_64-cuda
-          path: ${{ github.workspace }}/src/main/resources_windows_cuda/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_cuda/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86_64-vulkan
-          path: ${{ github.workspace }}/src/main/resources_windows_vulkan/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_vulkan/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86_64-opencl
-          path: ${{ github.workspace }}/src/main/resources_windows_opencl/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_opencl/net/ladenthin/llama/
       - name: Set up Maven Central Repository
         uses: actions/setup-java@v5
         with:
@@ -1716,18 +1707,12 @@ jobs:
             *-SNAPSHOT) echo "OK: -SNAPSHOT version, continuing snapshot deploy." ;;
             *) echo "::error::Refusing to publish non-SNAPSHOT version '$VERSION' from the snapshot job. Snapshot publishing requires a -SNAPSHOT version; releases go through the v* tag path."; exit 1 ;;
           esac
-      - name: Publish snapshot
+      # One reactor deploy publishes all three artifacts at the same version:
+      # net.ladenthin:llama-parent (the pom), :llama (the core jar + classifiers), and
+      # :llama-langchain4j. The `release` profile (GPG + Central Publishing) is inherited
+      # from the parent, so every module — including the parent pom — is signed.
+      - name: Publish snapshot (reactor - parent + llama + llama-langchain4j)
         run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows -Dmaven.test.skip=true deploy
-        env:
-          MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
-          MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
-          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-      # Deploy the sibling llama-langchain4j at the same version. The core `deploy`
-      # above ran through `install`, so net.ladenthin:llama is in the local repo for
-      # the module to resolve. Standalone module (not in the reactor), so it is a
-      # separate deploy invocation.
-      - name: Publish snapshot (llama-langchain4j)
-        run: mvn --batch-mode --no-transfer-progress -f llama-langchain4j/pom.xml -P release -Dmaven.test.skip=true deploy
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
@@ -1735,8 +1720,8 @@ jobs:
       - name: Collect signed artifacts
         run: |
           mkdir -p signed-snapshot-assets
-          cp target/*.jar signed-snapshot-assets/ 2>/dev/null || true
-          cp target/*.jar.asc signed-snapshot-assets/ 2>/dev/null || true
+          cp llama/target/*.jar signed-snapshot-assets/ 2>/dev/null || true
+          cp llama/target/*.jar.asc signed-snapshot-assets/ 2>/dev/null || true
           cp llama-langchain4j/target/*.jar signed-snapshot-assets/ 2>/dev/null || true
           cp llama-langchain4j/target/*.jar.asc signed-snapshot-assets/ 2>/dev/null || true
       - uses: actions/upload-artifact@v7
@@ -1784,35 +1769,35 @@ jobs:
         with:
           pattern: "*-libraries"
           merge-multiple: true
-          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: linux-libraries-cuda
-          path: ${{ github.workspace }}/src/main/resources_linux_cuda/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_cuda/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: android-libraries-opencl
-          path: ${{ github.workspace }}/src/main/resources_android_opencl/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_android_opencl/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86_64-msvc
-          path: ${{ github.workspace }}/src/main/resources_windows_msvc/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_msvc/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86-msvc
-          path: ${{ github.workspace }}/src/main/resources_windows_msvc/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_msvc/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86_64-cuda
-          path: ${{ github.workspace }}/src/main/resources_windows_cuda/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_cuda/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86_64-vulkan
-          path: ${{ github.workspace }}/src/main/resources_windows_vulkan/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_vulkan/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: Windows-x86_64-opencl
-          path: ${{ github.workspace }}/src/main/resources_windows_opencl/net/ladenthin/llama/
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_opencl/net/ladenthin/llama/
       - name: Set up Maven Central Repository
         uses: actions/setup-java@v5
         with:
@@ -1823,18 +1808,12 @@ jobs:
           server-password: MAVEN_PASSWORD
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: MAVEN_GPG_PASSPHRASE
-      - name: Publish release
+      # One reactor deploy publishes all three artifacts at the same version:
+      # net.ladenthin:llama-parent (the pom), :llama (the core jar + classifiers), and
+      # :llama-langchain4j. The `release` profile (GPG + Central Publishing) is inherited
+      # from the parent, so every module — including the parent pom — is signed.
+      - name: Publish release (reactor - parent + llama + llama-langchain4j)
         run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows -Dmaven.test.skip=true deploy
-        env:
-          MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
-          MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
-          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-      # Deploy the sibling llama-langchain4j at the same version. The core `deploy`
-      # above ran through `install`, so net.ladenthin:llama is in the local repo for
-      # the module to resolve. Standalone module (not in the reactor), so it is a
-      # separate deploy invocation.
-      - name: Publish release (llama-langchain4j)
-        run: mvn --batch-mode --no-transfer-progress -f llama-langchain4j/pom.xml -P release -Dmaven.test.skip=true deploy
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
@@ -1842,8 +1821,8 @@ jobs:
       - name: Collect signed artifacts
         run: |
           mkdir -p signed-release-assets
-          cp target/*.jar signed-release-assets/ 2>/dev/null || true
-          cp target/*.jar.asc signed-release-assets/ 2>/dev/null || true
+          cp llama/target/*.jar signed-release-assets/ 2>/dev/null || true
+          cp llama/target/*.jar.asc signed-release-assets/ 2>/dev/null || true
           cp llama-langchain4j/target/*.jar signed-release-assets/ 2>/dev/null || true
           cp llama-langchain4j/target/*.jar.asc signed-release-assets/ 2>/dev/null || true
       - uses: actions/upload-artifact@v7
