@@ -94,6 +94,45 @@ jobs:
           jdeps -verbose:package target/classes | grep 'net.ladenthin.llama' || true
 
   # ---------------------------------------------------------------------------
+  # Sibling module `llama-langchain4j` (LangChain4j adapters). Pure Java, no native
+  # code and no per-classifier matrix: it compiles against the core's stable Java API
+  # (identical across every classifier) and the backend is a runtime choice for the
+  # consumer. This job installs the core Java jar, guards that the module version is in
+  # lockstep with the core, then builds + tests the module (Java 17; langchain4j 1.x
+  # baseline). It runs its mapping unit tests; the model-backed integration test
+  # self-skips without a GGUF. `verify` also builds the javadoc/sources jars so a
+  # release-time javadoc break is caught here in PR CI.
+  # ---------------------------------------------------------------------------
+
+  test-java-llama-langchain4j:
+    name: Build and Test llama-langchain4j
+    needs: startgate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+      - name: Version lockstep guard (module version must equal core version)
+        shell: bash
+        run: |
+          CORE=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n1)
+          MOD=$(mvn -q -DforceStdout -f llama-langchain4j/pom.xml help:evaluate -Dexpression=project.version | tail -n1)
+          echo "core=$CORE module=$MOD"
+          if [ "$CORE" != "$MOD" ]; then
+            echo "::error::Version drift: core ($CORE) != llama-langchain4j ($MOD). Keep llama-langchain4j/pom.xml <version> in lockstep with the root pom.xml."
+            exit 1
+          fi
+      - name: Install core net.ladenthin:llama jar (Java only)
+        run: >
+          mvn -B --no-transfer-progress -DskipTests -Denforcer.skip=true
+          -Dspotless.check.skip=true -Dspotbugs.skip=true
+          -Dmaven.javadoc.skip=true -Dmaven.source.skip=true -Dgpg.skip=true install
+      - name: Build and test llama-langchain4j
+        run: mvn -B --no-transfer-progress -f llama-langchain4j/pom.xml verify
+
+  # ---------------------------------------------------------------------------
   # Build the llama.cpp WebUI ONCE, from the same pinned tag CMakeLists.txt fetches,
   # and share it to every native build as the generated, platform-independent
   # ui.cpp/ui.h ("webui-generated" artifact).  The native builds embed it into
@@ -1665,7 +1704,7 @@ jobs:
 
   publish-snapshot:
     name: Publish Snapshot to Central
-    needs: [check-snapshot, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, code-style]
+    needs: [check-snapshot, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, code-style, test-java-llama-langchain4j]
     if: needs.check-snapshot.result == 'success' && inputs.publish_to_central
     runs-on: ubuntu-latest
     environment: maven-central
@@ -1731,11 +1770,23 @@ jobs:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      # Deploy the sibling llama-langchain4j at the same version. The core `deploy`
+      # above ran through `install`, so net.ladenthin:llama is in the local repo for
+      # the module to resolve. Standalone module (not in the reactor), so it is a
+      # separate deploy invocation.
+      - name: Publish snapshot (llama-langchain4j)
+        run: mvn --batch-mode --no-transfer-progress -f llama-langchain4j/pom.xml -P release -Dmaven.test.skip=true deploy
+        env:
+          MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
       - name: Collect signed artifacts
         run: |
           mkdir -p signed-snapshot-assets
           cp target/*.jar signed-snapshot-assets/ 2>/dev/null || true
           cp target/*.jar.asc signed-snapshot-assets/ 2>/dev/null || true
+          cp llama-langchain4j/target/*.jar signed-snapshot-assets/ 2>/dev/null || true
+          cp llama-langchain4j/target/*.jar.asc signed-snapshot-assets/ 2>/dev/null || true
       - uses: actions/upload-artifact@v7
         with:
           name: signed-snapshot-assets
@@ -1770,7 +1821,7 @@ jobs:
   publish-release:
     name: Publish Release to Central
     if: needs.check-tag.result == 'success' && inputs.publish_to_central
-    needs: [check-tag, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, code-style]
+    needs: [check-tag, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, code-style, test-java-llama-langchain4j]
     runs-on: ubuntu-latest
     environment: maven-central
     permissions:
@@ -1826,11 +1877,23 @@ jobs:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      # Deploy the sibling llama-langchain4j at the same version. The core `deploy`
+      # above ran through `install`, so net.ladenthin:llama is in the local repo for
+      # the module to resolve. Standalone module (not in the reactor), so it is a
+      # separate deploy invocation.
+      - name: Publish release (llama-langchain4j)
+        run: mvn --batch-mode --no-transfer-progress -f llama-langchain4j/pom.xml -P release -Dmaven.test.skip=true deploy
+        env:
+          MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
       - name: Collect signed artifacts
         run: |
           mkdir -p signed-release-assets
           cp target/*.jar signed-release-assets/ 2>/dev/null || true
           cp target/*.jar.asc signed-release-assets/ 2>/dev/null || true
+          cp llama-langchain4j/target/*.jar signed-release-assets/ 2>/dev/null || true
+          cp llama-langchain4j/target/*.jar.asc signed-release-assets/ 2>/dev/null || true
       - uses: actions/upload-artifact@v7
         with:
           name: signed-release-assets

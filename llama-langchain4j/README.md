@@ -1,4 +1,4 @@
-# langchain4j-jllama
+# llama-langchain4j
 
 [LangChain4j](https://github.com/langchain4j/langchain4j) adapters backed by an **in-process**
 [java-llama.cpp](https://github.com/bernardladenthin/java-llama.cpp) model over JNI — no HTTP server,
@@ -61,7 +61,7 @@ ScoringModel reranker     = new JllamaScoringModel(rerankLlama);
 ```xml
 <dependency>
     <groupId>net.ladenthin</groupId>
-    <artifactId>langchain4j-jllama</artifactId>
+    <artifactId>llama-langchain4j</artifactId>
     <version>5.0.4-SNAPSHOT</version>
 </dependency>
 ```
@@ -79,7 +79,7 @@ build here:
 mvn -DskipTests install
 
 # then build/test this module
-cd langchain4j-jllama
+cd llama-langchain4j
 mvn test
 ```
 

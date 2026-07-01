@@ -1219,6 +1219,48 @@ keeping it clear of the JPMS module-mode javadoc trap that bit BAF. **Before rai
 javadoc source level to ≥ 9, read**
 [`../workspace/policies/jpms-module-descriptor.md`](../workspace/policies/jpms-module-descriptor.md).
 
+## LangChain4j integration (`llama-langchain4j` sibling module)
+
+`llama-langchain4j/` adapts a `LlamaModel` to LangChain4j's `ChatModel`,
+`StreamingChatModel`, `EmbeddingModel` and `ScoringModel` interfaces **in-process over
+JNI** (no HTTP hop). It is a **standalone sibling module**, deliberately *not* in the root
+reactor, so the native build/release pipeline is untouched.
+
+Why it is a **separate artifact** and not a classifier of the core: langchain4j 1.x
+requires **Java 17** (the core stays Java 8), and classifiers share the core's single POM —
+adding `langchain4j-core` there would force it (and the Java 17 floor) on every plain
+`net.ladenthin:llama` consumer. A separate `artifactId` with its own POM is the only way to
+keep that dependency (and Java floor) off the core. It is pure Java with **no per-classifier
+matrix**: it compiles against the core's Java API, which is identical across every native
+classifier; the backend (CPU/CUDA/OpenCL/Vulkan) is a runtime classpath choice for the
+consumer.
+
+Wiring:
+
+1. **`llama-langchain4j/pom.xml`** — `net.ladenthin:llama-langchain4j`, `release 17`,
+   depends on `net.ladenthin:llama:${project.version}` (so the core dep always matches the
+   module's own version) and `dev.langchain4j:langchain4j-core`. Carries its own
+   sources/javadoc/gpg + `release` profile (Central requires per-artifact signing; the module
+   has no parent to inherit them from — plugin versions are pinned in lockstep with the root
+   `pom.xml`). Java package stays `net.ladenthin.llama.langchain4j` (package name need not track
+   the artifactId).
+2. **`.github/workflows/publish.yml`** — the `test-java-llama-langchain4j` job installs the
+   core Java jar, runs a **version-lockstep guard** (module version must equal core version,
+   else the build fails — the standalone module can't inherit `${project.version}` from a
+   reactor), then `mvn -f llama-langchain4j/pom.xml verify` (mapping unit tests run; the
+   model-backed `JllamaChatModelIntegrationTest` self-skips without a GGUF; `verify` also
+   builds the javadoc jar so a release-time javadoc break is caught in PR CI). The
+   `publish-snapshot`/`publish-release` jobs `needs:` this job and, after the core `deploy`
+   (which installs the core jar locally), run a second `deploy` of the module at the same
+   version.
+3. **Version bumps** — when the root `pom.xml` `<version>` changes, bump
+   `llama-langchain4j/pom.xml` `<version>` to match in the same commit, or the lockstep guard
+   reds CI.
+
+**Open follow-ups** (documented in `llama-langchain4j/README.md`): tool calling
+(`ToolSpecification` ↔ jllama `ToolDefinition`), `response_format`/JSON mode, and multimodal
+user input (currently flattened to text).
+
 ## Open TODOs
 
 Open TODOs for this repo live in [`TODO.md`](TODO.md). Cross-repo status

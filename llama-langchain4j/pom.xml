@@ -1,0 +1,193 @@
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>net.ladenthin</groupId>
+	<artifactId>llama-langchain4j</artifactId>
+	<version>5.0.4-SNAPSHOT</version>
+	<packaging>jar</packaging>
+
+	<name>${project.groupId}:${project.artifactId}</name>
+	<description>LangChain4j integration for java-llama.cpp: in-process ChatModel,
+		StreamingChatModel, EmbeddingModel and ScoringModel adapters backed by a
+		llama.cpp model over JNI (no HTTP hop).</description>
+	<url>https://github.com/bernardladenthin/java-llama.cpp</url>
+
+	<licenses>
+		<license>
+			<name>MIT License</name>
+			<url>https://www.opensource.org/licenses/mit-license.php</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
+
+	<developers>
+		<developer>
+			<name>Bernard Ladenthin</name>
+			<organizationUrl>https://github.com/bernardladenthin</organizationUrl>
+		</developer>
+	</developers>
+
+	<scm>
+		<connection>scm:git:https://github.com/bernardladenthin/java-llama.cpp.git</connection>
+		<developerConnection>scm:git:https://github.com/bernardladenthin/java-llama.cpp.git</developerConnection>
+		<url>https://github.com/bernardladenthin/java-llama.cpp/tree/main</url>
+	</scm>
+
+	<distributionManagement>
+		<snapshotRepository>
+			<id>central</id>
+			<url>https://central.sonatype.com/repository/maven-snapshots/</url>
+		</snapshotRepository>
+	</distributionManagement>
+
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<!-- langchain4j 1.x requires Java 17; the core net.ladenthin:llama stays Java 8. -->
+		<maven.compiler.release>17</maven.compiler.release>
+		<langchain4j.version>1.17.1</langchain4j.version>
+		<junit.version>6.1.1</junit.version>
+		<hamcrest.version>3.0</hamcrest.version>
+		<!-- Plugin versions are kept in lockstep with the core pom.xml. This module has no
+		     parent, so it cannot inherit their pluginManagement and must pin them here. -->
+		<compiler.plugin.version>3.15.0</compiler.plugin.version>
+		<surefire.version>3.5.6</surefire.version>
+		<source.plugin.version>3.4.0</source.plugin.version>
+		<javadoc.plugin.version>3.12.0</javadoc.plugin.version>
+		<gpg.plugin.version>3.2.8</gpg.plugin.version>
+		<central.plugin.version>0.11.0</central.plugin.version>
+	</properties>
+
+	<dependencies>
+		<!-- The JNI binding we adapt. Version is pinned to this module's own version via
+		     ${project.version}: the module always ships in lockstep with the core artifact
+		     (a CI guard fails the build if the two versions ever diverge). -->
+		<dependency>
+			<groupId>net.ladenthin</groupId>
+			<artifactId>llama</artifactId>
+			<version>${project.version}</version>
+		</dependency>
+
+		<!-- The interfaces we implement (ChatModel/StreamingChatModel/EmbeddingModel/ScoringModel). -->
+		<dependency>
+			<groupId>dev.langchain4j</groupId>
+			<artifactId>langchain4j-core</artifactId>
+			<version>${langchain4j.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<version>${junit.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.hamcrest</groupId>
+			<artifactId>hamcrest</artifactId>
+			<version>${hamcrest.version}</version>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-compiler-plugin</artifactId>
+				<version>${compiler.plugin.version}</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>${surefire.version}</version>
+			</plugin>
+
+			<!-- -sources.jar (Maven Central requirement). -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-source-plugin</artifactId>
+				<version>${source.plugin.version}</version>
+				<executions>
+					<execution>
+						<id>attach-sources</id>
+						<goals>
+							<goal>jar-no-fork</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<!-- -javadoc.jar (Maven Central requirement). Classpath mode (no module-info in
+			     this module), so it is clear of the JPMS module-mode javadoc trap. -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<version>${javadoc.plugin.version}</version>
+				<configuration>
+					<source>17</source>
+					<failOnError>true</failOnError>
+					<doclint>all</doclint>
+				</configuration>
+				<executions>
+					<execution>
+						<id>attach-javadocs</id>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+
+	<profiles>
+		<!-- Mirrors the core pom.xml `release` profile: GPG-sign the artifacts and route the
+		     deploy through the Central Publishing plugin. Activated by the publish-snapshot /
+		     publish-release CI jobs (`-P release ... deploy`). -->
+		<profile>
+			<id>release</id>
+			<build>
+				<plugins>
+					<plugin>
+						<groupId>org.apache.maven.plugins</groupId>
+						<artifactId>maven-gpg-plugin</artifactId>
+						<version>${gpg.plugin.version}</version>
+						<executions>
+							<execution>
+								<id>sign-artifacts</id>
+								<phase>verify</phase>
+								<goals><goal>sign</goal></goals>
+								<configuration>
+									<keyname>${gpg.keyname}</keyname>
+									<gpgArguments>
+										<arg>--pinentry-mode</arg>
+										<arg>loopback</arg>
+									</gpgArguments>
+								</configuration>
+							</execution>
+						</executions>
+					</plugin>
+
+					<plugin>
+						<groupId>org.sonatype.central</groupId>
+						<artifactId>central-publishing-maven-plugin</artifactId>
+						<version>${central.plugin.version}</version>
+						<extensions>true</extensions>
+						<configuration>
+							<publishingServerId>central</publishingServerId>
+							<autoPublish>true</autoPublish>
+							<waitUntil>published</waitUntil>
+						</configuration>
+					</plugin>
+				</plugins>
+			</build>
+		</profile>
+	</profiles>
+</project>
