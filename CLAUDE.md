@@ -1247,12 +1247,19 @@ Wiring:
 2. **`.github/workflows/publish.yml`** — the `test-java-llama-langchain4j` job installs the
    core Java jar, runs a **version-lockstep guard** (module version must equal core version,
    else the build fails — the standalone module can't inherit `${project.version}` from a
-   reactor), then `mvn -f llama-langchain4j/pom.xml verify` (mapping unit tests run; the
-   model-backed `JllamaChatModelIntegrationTest` self-skips without a GGUF; `verify` also
-   builds the javadoc jar so a release-time javadoc break is caught in PR CI). The
+   reactor), then `mvn -f llama-langchain4j/pom.xml verify` (7 model-free mapping unit tests
+   run; the 4 model-backed integration tests self-skip without a GGUF; `verify` also builds the
+   javadoc jar so a release-time javadoc break is caught in PR CI). The
    `publish-snapshot`/`publish-release` jobs `needs:` this job and, after the core `deploy`
    (which installs the core jar locally), run a second `deploy` of the module at the same
-   version.
+   version. A separate **`test-java-llama-langchain4j-integration`** job runs the model-backed
+   tests (chat/streaming/embedding/scoring adapters) by **reusing** the shared GGUF cache
+   (`gguf-models-v1`, restore-only — no extra download) and the `Linux-x86_64-libraries` native
+   artifact: it runs after `test-java-linux-x86_64` (which populates the cache), installs the
+   core jar with the downloaded native lib bundled, and passes the already-cached chat
+   (`REASONING_MODEL_NAME`), nomic-embedding and jina-reranker model paths via the module's
+   `-Dnet.ladenthin.llama.langchain4j.{embedding,rerank}.model` / `net.ladenthin.llama.model.path`
+   properties. It is validation-only (not a release gate); a cold cache degrades to a self-skip.
 3. **Version bumps** — when the root `pom.xml` `<version>` changes, bump
    `llama-langchain4j/pom.xml` `<version>` to match in the same commit, or the lockstep guard
    reds CI.

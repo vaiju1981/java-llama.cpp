@@ -133,6 +133,49 @@ jobs:
         run: mvn -B --no-transfer-progress -f llama-langchain4j/pom.xml verify
 
   # ---------------------------------------------------------------------------
+  # Model-backed integration for the langchain4j adapters. Reuses the SAME shared GGUF
+  # cache and the SAME Linux-x86_64 native artifact the core Java jobs already use — no
+  # extra model download and no duplicated download logic (restore-only cache, no curl
+  # steps). Runs after test-java-linux-x86_64 so the shared cache is guaranteed populated
+  # (that job saves it), then exercises the chat / embedding / scoring adapters against
+  # the already-cached chat (Qwen3-0.6B), nomic-embedding and jina-reranker models. The
+  # model-backed tests self-skip when a model is absent, so a cold cache degrades to a
+  # skip, never a failure.
+  # ---------------------------------------------------------------------------
+
+  test-java-llama-langchain4j-integration:
+    name: Integration Test llama-langchain4j (model-backed)
+    needs: [crosscompile-linux-x86_64, test-java-linux-x86_64]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download Linux x86_64 native library (reused, not rebuilt)
+        uses: actions/download-artifact@v8
+        with:
+          name: Linux-x86_64-libraries
+          path: ${{ github.workspace }}/src/main/resources/net/ladenthin/llama/
+      - name: Restore shared GGUF model cache (restore-only; populated by the Java test jobs)
+        uses: actions/cache@v6
+        with:
+          path: models/
+          key: gguf-models-v1
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Install core net.ladenthin:llama jar (bundles the downloaded native library)
+        run: >
+          mvn -B --no-transfer-progress -DskipTests -Denforcer.skip=true
+          -Dspotless.check.skip=true -Dspotbugs.skip=true
+          -Dmaven.javadoc.skip=true -Dmaven.source.skip=true -Dgpg.skip=true install
+      - name: Run llama-langchain4j model-backed integration tests (reused cached models)
+        run: >
+          mvn -B --no-transfer-progress -f llama-langchain4j/pom.xml test
+          -Dnet.ladenthin.llama.model.path=models/${REASONING_MODEL_NAME}
+          -Dnet.ladenthin.llama.langchain4j.embedding.model=models/${NOMIC_EMBED_MODEL_NAME}
+          -Dnet.ladenthin.llama.langchain4j.rerank.model=models/${RERANKING_MODEL_NAME}
+
+  # ---------------------------------------------------------------------------
   # Build the llama.cpp WebUI ONCE, from the same pinned tag CMakeLists.txt fetches,
   # and share it to every native build as the generated, platform-independent
   # ui.cpp/ui.h ("webui-generated" artifact).  The native builds embed it into
