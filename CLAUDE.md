@@ -16,7 +16,7 @@ To change the CUDA version, update the following **three** places:
 
 1. **`.github/build_cuda_linux.sh`** — Line 10: `sudo dnf install -y cuda-toolkit-13-2`
 2. **`.github/build_cuda_linux.sh`** — Line 12: `-DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.2/bin/nvcc`
-3. **`pom.xml`** — The `<classifier>` tag in the `cuda` jar execution: `cuda13-linux-x86-64`
+3. **`llama/pom.xml`** — The `<classifier>` tag in the `cuda` jar execution: `cuda13-linux-x86-64`
 
 Also update the header comment in `build_cuda_linux.sh` and the job name in `.github/workflows/release.yaml` for clarity.
 
@@ -32,9 +32,9 @@ Example: To upgrade from 13.2 to a hypothetical 13.3:
 # Edit .github/build_cuda_linux.sh:
 #   line 10: cuda-toolkit-13-2 -> cuda-toolkit-13-3
 #   line 12: /usr/local/cuda-13.2/bin/nvcc -> /usr/local/cuda-13.3/bin/nvcc
-# Edit pom.xml classifier: cuda13-linux-x86-64 (major version only, no need to change for minor bumps)
+# Edit llama/pom.xml classifier: cuda13-linux-x86-64 (major version only, no need to change for minor bumps)
 # Edit CLAUDE.md line: Current CUDA version: **13.2** -> **13.3**
-git add .github/build_cuda_linux.sh pom.xml CLAUDE.md
+git add .github/build_cuda_linux.sh llama/pom.xml CLAUDE.md
 git commit -m "Upgrade CUDA from 13.2 to 13.3"
 ```
 
@@ -88,7 +88,7 @@ This is enforced through bionic's **weak-symbol** mechanism, *not* by bumping
 `__ANDROID_API__` or passing `-DANDROID_PLATFORM`. See "How the API gate is
 satisfied" below for why. To change anything here, update:
 
-1. **`CMakeLists.txt`** — the `add_compile_definitions(__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)`
+1. **`llama/CMakeLists.txt`** — the `add_compile_definitions(__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)`
    block and its Android-detection guard (`OS_NAME MATCHES "Android"` etc.).
 2. **`CLAUDE.md`** (this file) — the "Current Android minimum API level" line above.
 3. **`README.md`** — the minimum-API note (the `[!NOTE]` block near the Android
@@ -134,7 +134,7 @@ The default Android arm64 JAR remains CPU-only.
 
 Three places wire it together (mirrors the CUDA classifier pattern):
 
-1. **`CMakeLists.txt`** — `elseif(GGML_OPENCL)` branch routes artifacts to
+1. **`llama/CMakeLists.txt`** — `elseif(GGML_OPENCL)` branch routes artifacts to
    `src/main/resources_android_opencl/net/ladenthin/llama/${OS_NAME}/${OS_ARCH}/`.
 2. **`.github/workflows/publish.yml`** — `crosscompile-android-aarch64-opencl`
    job runs the dockcross-android-arm64 build with
@@ -142,7 +142,7 @@ Three places wire it together (mirrors the CUDA classifier pattern):
    and uploads as artifact `android-libraries-opencl`. The `package`,
    `publish-snapshot`, and `publish-release` jobs download it into
    `resources_android_opencl/` and activate the `opencl-android` Maven profile.
-3. **`pom.xml`** — the `opencl-android` profile produces a second JAR with
+3. **`llama/pom.xml`** — the `opencl-android` profile produces a second JAR with
    `<classifier>opencl-android-aarch64</classifier>` from the
    `${project.build.outputDirectory}_opencl_android` tree.
 
@@ -196,7 +196,7 @@ local / self-hosted.
 
 Wiring (mirrors the CUDA-Linux / OpenCL-Android classifier pattern):
 
-1. **`CMakeLists.txt`** — the `if(GGML_CUDA) … elseif(GGML_VULKAN) … elseif(GGML_OPENCL) … else()`
+1. **`llama/CMakeLists.txt`** — the `if(GGML_CUDA) … elseif(GGML_VULKAN) … elseif(GGML_OPENCL) … else()`
    chain is **OS-aware**: CUDA → `resources_windows_cuda` on Windows (else `resources_linux_cuda`),
    Vulkan → `resources_windows_vulkan`, OpenCL → `resources_windows_opencl` on Windows (else
    `resources_android_opencl`). The default CPU build (both generators) still emits to the canonical
@@ -225,7 +225,7 @@ Wiring (mirrors the CUDA-Linux / OpenCL-Android classifier pattern):
    The `package`, `publish-snapshot`, and `publish-release` jobs download each non-default artifact into
    its `src/main/resources_windows_{msvc,cuda,vulkan,opencl}/` tree and activate the
    `windows-msvc,cuda-windows,vulkan-windows,opencl-windows` Maven profiles.
-5. **`pom.xml`** — profiles `windows-msvc` / `cuda-windows` / `vulkan-windows` / `opencl-windows`,
+5. **`llama/pom.xml`** — profiles `windows-msvc` / `cuda-windows` / `vulkan-windows` / `opencl-windows`,
    each a separate compile pass + resource copy + classified jar (classifiers `msvc-windows` /
    `cuda13-windows-x86-64` / `vulkan-windows-x86-64` / `opencl-windows-x86-64`). Activated only in CI.
 6. **`README.md`** — the classifier table + dependency snippets in "Choosing the right classifier".
@@ -263,7 +263,7 @@ checked in (same policy as the native libs).
 Pipeline (`.github/workflows/publish.yml`):
 
 1. **`build-webui` job** (ubuntu — the *only* job that runs `npm`): resolves the
-   pinned `b<nnnn>` tag from `CMakeLists.txt`'s `GIT_TAG`, sparse-checks-out
+   pinned `b<nnnn>` tag from `llama/CMakeLists.txt`'s `GIT_TAG`, sparse-checks-out
    `ggml-org/llama.cpp@<tag>` `tools/ui`, runs the upstream Svelte build
    (`npm ci && npm run build`), gzips `dist/` into `dist/_gzip/` (LLAMA_UI_GZIP
    parity), builds the self-contained `llama-ui-embed` host tool (plain C++17, **no
@@ -472,16 +472,16 @@ re-verify the generator the same way you re-verify `patches/`.
 
 To change the llama.cpp version, update the following **three** files (and re-verify `patches/`):
 
-1. **CMakeLists.txt** — the `GIT_TAG` line for llama.cpp: `GIT_TAG        b8831`
+1. **llama/CMakeLists.txt** — the `GIT_TAG` line for llama.cpp: `GIT_TAG        b8831`
 2. **README.md** — the badge and link line with the version number
 3. **CLAUDE.md** — the "Current llama.cpp pinned version" line
 
 Example: To upgrade from b8808 to b8831:
 ```bash
-# Edit CMakeLists.txt: change GIT_TAG b8808 to b8831
+# Edit llama/CMakeLists.txt: change GIT_TAG b8808 to b8831
 # Edit README.md: change b8808 to b8831 (in both badge and link)
 # Edit CLAUDE.md: change b8808 to b8831
-git add CMakeLists.txt README.md CLAUDE.md
+git add llama/CMakeLists.txt README.md CLAUDE.md
 git commit -m "Upgrade llama.cpp from b8808 to b8831"
 git push -u origin <your-branch>
 ```
