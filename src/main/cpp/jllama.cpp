@@ -767,12 +767,22 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_loadModelWithProgress
     load_model_impl(env, obj, jparams, callback);
 }
 
+// Build the special-token id map (a token is -1 / LLAMA_TOKEN_NULL when the model defines none).
+static json special_tokens_json(const llama_vocab *vocab) {
+    return {
+        {"bos", llama_vocab_bos(vocab)}, {"eos", llama_vocab_eos(vocab)},
+        {"eot", llama_vocab_eot(vocab)}, {"sep", llama_vocab_sep(vocab)},
+        {"nl", llama_vocab_nl(vocab)},   {"pad", llama_vocab_pad(vocab)},
+    };
+}
+
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_getModelMetaJson(JNIEnv *env, jobject obj) {
     REQUIRE_SERVER_CONTEXT(nullptr);
     if (jctx->vocab_only) {
         json meta = {
             {"vocab_type", llama_vocab_type(jctx->vocab)},
             {"n_vocab", llama_vocab_n_tokens(jctx->vocab)},
+            {"special_tokens", special_tokens_json(jctx->vocab)},
         };
         return json_to_jstring_impl(env, meta);
     }
@@ -794,6 +804,26 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_getModelMetaJson(J
         {"name", m.model_name},
         {"architecture", std::string(arch_buf)},
     };
+    // Resolved default chat template (Jinja); empty when the model ships none.
+    const char *chat_tmpl = mdl != nullptr ? llama_model_chat_template(mdl, /*name*/ nullptr) : nullptr;
+    j["chat_template"] = chat_tmpl != nullptr ? std::string(chat_tmpl) : std::string();
+    j["special_tokens"] = special_tokens_json(jctx->vocab);
+    // Full GGUF metadata key/value map.
+    if (mdl != nullptr) {
+        json meta_map = json::object();
+        const int meta_count = llama_model_meta_count(mdl);
+        for (int i = 0; i < meta_count; i++) {
+            char key_buf[256] = {};
+            // ponytail: 2 KB/value cap — scalar metadata fits; huge array values
+            // (tokenizer tokens/merges) truncate rather than bloating the JSON.
+            char val_buf[2048] = {};
+            if (llama_model_meta_key_by_index(mdl, i, key_buf, sizeof(key_buf)) >= 0 &&
+                llama_model_meta_val_str_by_index(mdl, i, val_buf, sizeof(val_buf)) >= 0) {
+                meta_map[std::string(key_buf)] = std::string(val_buf);
+            }
+        }
+        j["metadata"] = std::move(meta_map);
+    }
     return json_to_jstring_impl(env, j);
 }
 

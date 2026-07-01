@@ -130,6 +130,55 @@ public final class ModelMeta {
     }
 
     /**
+     * The model's resolved default chat template (Jinja), from GGUF
+     * {@code tokenizer.chat_template} metadata.
+     *
+     * @return the chat template string, or {@code ""} if the model ships none
+     */
+    public String getChatTemplate() {
+        return node.path("chat_template").asText("");
+    }
+
+    /**
+     * Beginning-of-sentence token id.
+     *
+     * @return the BOS token id, or {@code -1} if the model defines none
+     */
+    public int getBosTokenId() {
+        return node.at("/special_tokens/bos").asInt(-1);
+    }
+
+    /**
+     * End-of-sentence token id.
+     *
+     * @return the EOS token id, or {@code -1} if the model defines none
+     */
+    public int getEosTokenId() {
+        return node.at("/special_tokens/eos").asInt(-1);
+    }
+
+    /**
+     * End-of-turn token id (used by chat- and FIM-aware models).
+     *
+     * @return the EOT token id, or {@code -1} if the model defines none
+     */
+    public int getEotTokenId() {
+        return node.at("/special_tokens/eot").asInt(-1);
+    }
+
+    /**
+     * Look up a raw GGUF metadata value by key (e.g. {@code "general.architecture"},
+     * {@code "general.quantization_version"}). Large array metadata (tokenizer tokens/merges)
+     * is truncated by the native layer, not returned in full.
+     *
+     * @param key the GGUF metadata key
+     * @return the metadata value as a string, or {@code ""} if the key is absent
+     */
+    public String getMetadata(String key) {
+        return node.path("metadata").path(key).asText("");
+    }
+
+    /**
      * Returns the underlying {@link JsonNode} for direct access to any field,
      * including fields added in future llama.cpp versions.
      *

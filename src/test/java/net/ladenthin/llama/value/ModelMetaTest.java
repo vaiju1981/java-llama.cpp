@@ -133,4 +133,30 @@ public class ModelMetaTest {
         assertThat(json, containsString("\"llama\""));
         assertThat(json, containsString("\"CodeLlama-7B\""));
     }
+
+    @Test
+    public void testChatTemplateSpecialTokensAndMetadata() throws Exception {
+        ModelMeta meta = parse("{\"n_vocab\":32000,"
+                + "\"chat_template\":\"{% for m in messages %}{{ m.content }}{% endfor %}\","
+                + "\"special_tokens\":{\"bos\":1,\"eos\":2,\"eot\":32000,\"sep\":-1,\"nl\":13,\"pad\":-1},"
+                + "\"metadata\":{\"general.architecture\":\"llama\",\"general.quantization_version\":\"2\"}}");
+
+        assertThat(meta.getChatTemplate(), containsString("for m in messages"));
+        assertThat(meta.getBosTokenId(), is(1));
+        assertThat(meta.getEosTokenId(), is(2));
+        assertThat(meta.getEotTokenId(), is(32000));
+        assertThat(meta.getMetadata("general.architecture"), is("llama"));
+        assertThat(meta.getMetadata("general.quantization_version"), is("2"));
+    }
+
+    @Test
+    public void testNewGettersDefaultWhenAbsent() throws Exception {
+        ModelMeta meta = parse("{\"n_vocab\":100}");
+
+        assertThat(meta.getChatTemplate(), is(""));
+        assertThat(meta.getBosTokenId(), is(-1));
+        assertThat(meta.getEosTokenId(), is(-1));
+        assertThat(meta.getEotTokenId(), is(-1));
+        assertThat(meta.getMetadata("general.architecture"), is(""));
+    }
 }
