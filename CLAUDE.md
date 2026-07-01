@@ -971,12 +971,18 @@ properties set, so `LlamaEmbeddingsTest`, `MultimodalIntegrationTest`, and `TtsI
 these as **required** (a missing model hard-fails the job before tests run, so a download
 regression can never silently downgrade to a skip). The only model still self-skipping is the
 audio-input model (`AudioInputIntegrationTest`) — it has no committed clip and no CI download.
-The shared GGUF cache (`actions/cache`, key `gguf-models-v1`, path `models/`) holds the full set;
-since every test job downloads the full set before the cache can save, whichever job wins the
-save race caches everything. Because the cache key is immutable, changing the model set means the
-**existing cache entry must be deleted** (not bumped to `v2`) so the next run rebuilds it complete
-— locally the model tests still self-skip when a GGUF is absent (`Assume.assumeTrue`), so a
-partial local checkout is fine.
+The shared GGUF cache (`actions/cache`, key `gguf-models-v1`, path `models/`) holds the full set
+and is populated **once, upfront** by a dedicated **`download-models`** job (`needs: startgate`):
+it is the single place the ~5 GB set is fetched from HuggingFace (the ten `curl` steps + the
+`validate-models.sh` gate live only there). Every `test-java-*` job — and the langchain4j
+integration job — `needs: download-models` and then only **restores** that cache (no per-job
+download, no cold-start save race), keeping `validate-models.{sh,bat}` as a per-job integrity
+guard. GGUF is platform-independent, so the one ubuntu `download-models` cache is reused by the
+macOS and Windows jobs too. `validate-models.{sh,bat}` treats the models as **required** (a
+missing model hard-fails the job before tests run). Because the cache key is immutable, changing
+the model set means the **existing cache entry must be deleted** (not bumped to `v2`) so
+`download-models` rebuilds it complete — locally the model tests still self-skip when a GGUF is
+absent (`Assume.assumeTrue`), so a partial local checkout is fine.
 
 Set the model path via system property or environment variable (see test files for exact property names).
 
@@ -1255,8 +1261,9 @@ Wiring:
    version. A separate **`test-java-llama-langchain4j-integration`** job runs the model-backed
    tests (chat/streaming/embedding/scoring adapters) by **reusing** the shared GGUF cache
    (`gguf-models-v1`, restore-only — no extra download) and the `Linux-x86_64-libraries` native
-   artifact: it runs after `test-java-linux-x86_64` (which populates the cache), installs the
-   core jar with the downloaded native lib bundled, and passes the already-cached chat
+   artifact: it `needs: [crosscompile-linux-x86_64, download-models]` (so the cache is already
+   populated and it runs in parallel), installs the core jar with the downloaded native lib
+   bundled, and passes the already-cached chat
    (`REASONING_MODEL_NAME`), nomic-embedding and jina-reranker model paths via the module's
    `-Dnet.ladenthin.llama.langchain4j.{embedding,rerank}.model` / `net.ladenthin.llama.model.path`
    properties. It is validation-only (not a release gate); a cold cache degrades to a self-skip.
