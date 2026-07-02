@@ -931,3 +931,11 @@ The system's updated C++ runtime will be used instead, resolving the crash.
 - [gptoss.java](https://github.com/mukel/gptoss.java) — GPT-OSS architecture inference.
 - [qwen35.java](https://github.com/mukel/qwen35.java) — Qwen 3.5 inference.
 - [nemotron3.java](https://github.com/mukel/nemotron3.java) — NVIDIA Nemotron-3 inference.
+
+**Pure-Java inference engines (no JNI / no llama.cpp)**
+
+- [Jlama](https://github.com/tjake/Jlama) — a full pure-Java LLM inference engine for the JVM (multiple model architectures, quantization, and distributed inference) built on the Java Vector API. A no-native alternative to the JNI approach here; different design point (pure JVM portability vs. GGUF compatibility and llama.cpp performance via JNI).
+
+**Frameworks / orchestration**
+
+- [LangChain4j](https://github.com/langchain4j/langchain4j) — LLM-application framework for Java (chat, embeddings, RAG, tool calling, agents) over a unified provider API. This project ships a first-class **in-process** integration — see the [`llama-langchain4j`](llama-langchain4j/) module — so a llama.cpp model plugs straight into LangChain4j's `ChatModel` / `StreamingChatModel` / `EmbeddingModel` / `ScoringModel` without an HTTP hop.

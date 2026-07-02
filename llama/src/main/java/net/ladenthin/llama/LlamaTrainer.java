@@ -51,14 +51,13 @@ public final class LlamaTrainer {
      * @throws LlamaException if the model cannot be loaded or training fails
      */
     public static void finetune(Path model, String trainingText, Path output, int epochs, float learningRate) {
-        finetune(
-                TrainingParameters.builder()
-                        .modelPath(model)
-                        .trainingText(trainingText)
-                        .outputPath(output)
-                        .epochs(epochs)
-                        .learningRate(learningRate)
-                        .build());
+        finetune(TrainingParameters.builder()
+                .modelPath(model)
+                .trainingText(trainingText)
+                .outputPath(output)
+                .epochs(epochs)
+                .learningRate(learningRate)
+                .build());
     }
 
     private static native String finetuneNative(String configJson);

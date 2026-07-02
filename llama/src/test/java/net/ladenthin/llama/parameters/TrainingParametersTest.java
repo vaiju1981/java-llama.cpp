@@ -24,12 +24,11 @@ class TrainingParametersTest {
 
     @Test
     void defaultsSerializeWithExpectedValues() throws Exception {
-        TrainingParameters parameters =
-                TrainingParameters.builder()
-                        .modelPath(Paths.get("base.gguf"))
-                        .trainingText("hello world")
-                        .outputPath(Paths.get("tuned.gguf"))
-                        .build();
+        TrainingParameters parameters = TrainingParameters.builder()
+                .modelPath(Paths.get("base.gguf"))
+                .trainingText("hello world")
+                .outputPath(Paths.get("tuned.gguf"))
+                .build();
 
         JsonNode node = json(parameters);
         assertThat(node.get("model_path").asText(), is("base.gguf"));
@@ -46,20 +45,19 @@ class TrainingParametersTest {
 
     @Test
     void customValuesSerialize() throws Exception {
-        TrainingParameters parameters =
-                TrainingParameters.builder()
-                        .modelPath(Paths.get("base.gguf"))
-                        .trainingFile(Paths.get("corpus.txt"))
-                        .outputPath(Paths.get("tuned.gguf"))
-                        .epochs(5)
-                        .learningRate(3e-4f)
-                        .optimizer(Optimizer.SGD)
-                        .nCtx(512)
-                        .nGpuLayers(0)
-                        .valSplit(0.1f)
-                        .nBatch(256)
-                        .nUbatch(64)
-                        .build();
+        TrainingParameters parameters = TrainingParameters.builder()
+                .modelPath(Paths.get("base.gguf"))
+                .trainingFile(Paths.get("corpus.txt"))
+                .outputPath(Paths.get("tuned.gguf"))
+                .epochs(5)
+                .learningRate(3e-4f)
+                .optimizer(Optimizer.SGD)
+                .nCtx(512)
+                .nGpuLayers(0)
+                .valSplit(0.1f)
+                .nBatch(256)
+                .nUbatch(64)
+                .build();
 
         JsonNode node = json(parameters);
         assertThat(node.get("epochs").asInt(), is(5));

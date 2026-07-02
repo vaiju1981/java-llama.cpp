@@ -1108,13 +1108,13 @@ jobs:
         with:
           name: error-log-linux-x86_64
           path: |
-            ${{ github.workspace }}/hs_err_pid*.log
+            ${{ github.workspace }}/llama/hs_err_pid*.log
             ${{ github.workspace }}/core.*
-            ${{ github.workspace }}/*.hprof
-            ${{ github.workspace }}/target/surefire-reports/*.dump
-            ${{ github.workspace }}/target/surefire-reports/*.dumpstream
-            ${{ github.workspace }}/target/surefire-reports/*.txt
-            ${{ github.workspace }}/target/surefire-reports/TEST-*.xml
+            ${{ github.workspace }}/llama/*.hprof
+            ${{ github.workspace }}/llama/target/surefire-reports/*.dump
+            ${{ github.workspace }}/llama/target/surefire-reports/*.dumpstream
+            ${{ github.workspace }}/llama/target/surefire-reports/*.txt
+            ${{ github.workspace }}/llama/target/surefire-reports/TEST-*.xml
           if-no-files-found: warn
 
   # ---------------------------------------------------------------------------
@@ -1202,12 +1202,12 @@ jobs:
         with:
           name: error-log-macos-14-metal
           path: |
-            ${{ github.workspace }}/hs_err_pid*.log
-            ${{ github.workspace }}/*.hprof
-            ${{ github.workspace }}/target/surefire-reports/*.dump
-            ${{ github.workspace }}/target/surefire-reports/*.dumpstream
-            ${{ github.workspace }}/target/surefire-reports/*.txt
-            ${{ github.workspace }}/target/surefire-reports/TEST-*.xml
+            ${{ github.workspace }}/llama/hs_err_pid*.log
+            ${{ github.workspace }}/llama/*.hprof
+            ${{ github.workspace }}/llama/target/surefire-reports/*.dump
+            ${{ github.workspace }}/llama/target/surefire-reports/*.dumpstream
+            ${{ github.workspace }}/llama/target/surefire-reports/*.txt
+            ${{ github.workspace }}/llama/target/surefire-reports/TEST-*.xml
           if-no-files-found: warn
 
   test-java-macos-arm64-no-metal:
@@ -1266,12 +1266,12 @@ jobs:
         with:
           name: error-log-macos-15-no-metal
           path: |
-            ${{ github.workspace }}/hs_err_pid*.log
-            ${{ github.workspace }}/*.hprof
-            ${{ github.workspace }}/target/surefire-reports/*.dump
-            ${{ github.workspace }}/target/surefire-reports/*.dumpstream
-            ${{ github.workspace }}/target/surefire-reports/*.txt
-            ${{ github.workspace }}/target/surefire-reports/TEST-*.xml
+            ${{ github.workspace }}/llama/hs_err_pid*.log
+            ${{ github.workspace }}/llama/*.hprof
+            ${{ github.workspace }}/llama/target/surefire-reports/*.dump
+            ${{ github.workspace }}/llama/target/surefire-reports/*.dumpstream
+            ${{ github.workspace }}/llama/target/surefire-reports/*.txt
+            ${{ github.workspace }}/llama/target/surefire-reports/TEST-*.xml
           if-no-files-found: warn
 
   test-java-macos-arm64-metal-15:
@@ -1330,12 +1330,12 @@ jobs:
         with:
           name: error-log-macos-15-metal
           path: |
-            ${{ github.workspace }}/hs_err_pid*.log
-            ${{ github.workspace }}/*.hprof
-            ${{ github.workspace }}/target/surefire-reports/*.dump
-            ${{ github.workspace }}/target/surefire-reports/*.dumpstream
-            ${{ github.workspace }}/target/surefire-reports/*.txt
-            ${{ github.workspace }}/target/surefire-reports/TEST-*.xml
+            ${{ github.workspace }}/llama/hs_err_pid*.log
+            ${{ github.workspace }}/llama/*.hprof
+            ${{ github.workspace }}/llama/target/surefire-reports/*.dump
+            ${{ github.workspace }}/llama/target/surefire-reports/*.dumpstream
+            ${{ github.workspace }}/llama/target/surefire-reports/*.txt
+            ${{ github.workspace }}/llama/target/surefire-reports/TEST-*.xml
           if-no-files-found: warn
 
   test-java-windows-x86_64:
@@ -1413,13 +1413,13 @@ jobs:
         with:
           name: windows-output
           path: |
-            ${{ github.workspace }}\hs_err_pid*.log
-            ${{ github.workspace }}\*.hprof
+            ${{ github.workspace }}\llama\hs_err_pid*.log
+            ${{ github.workspace }}\llama\*.hprof
             ${{ github.workspace }}\dumps\*.dmp
-            ${{ github.workspace }}\target\surefire-reports\*.dump
-            ${{ github.workspace }}\target\surefire-reports\*.dumpstream
-            ${{ github.workspace }}\target\surefire-reports\*.txt
-            ${{ github.workspace }}\target\surefire-reports\TEST-*.xml
+            ${{ github.workspace }}\llama\target\surefire-reports\*.dump
+            ${{ github.workspace }}\llama\target\surefire-reports\*.dumpstream
+            ${{ github.workspace }}\llama\target\surefire-reports\*.txt
+            ${{ github.workspace }}\llama\target\surefire-reports\TEST-*.xml
             ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/**/*
           if-no-files-found: warn
 
@@ -1502,13 +1502,13 @@ jobs:
         with:
           name: windows-output-msvc
           path: |
-            ${{ github.workspace }}\hs_err_pid*.log
-            ${{ github.workspace }}\*.hprof
+            ${{ github.workspace }}\llama\hs_err_pid*.log
+            ${{ github.workspace }}\llama\*.hprof
             ${{ github.workspace }}\dumps\*.dmp
-            ${{ github.workspace }}\target\surefire-reports\*.dump
-            ${{ github.workspace }}\target\surefire-reports\*.dumpstream
-            ${{ github.workspace }}\target\surefire-reports\*.txt
-            ${{ github.workspace }}\target\surefire-reports\TEST-*.xml
+            ${{ github.workspace }}\llama\target\surefire-reports\*.dump
+            ${{ github.workspace }}\llama\target\surefire-reports\*.dumpstream
+            ${{ github.workspace }}\llama\target\surefire-reports\*.txt
+            ${{ github.workspace }}\llama\target\surefire-reports\TEST-*.xml
             ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/**/*
           if-no-files-found: warn
 

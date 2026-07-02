@@ -61,8 +61,8 @@ llama/src/test/resources/**/*.gbnf
 **/*.lastModified
 llama/src/main/cpp/llama.cpp/
 
-# jcstress / jqwik test outputs (generated in repo root)
-/.jqwik-database
+# jcstress / jqwik test outputs (generated in the module dir where surefire runs, e.g. llama/)
+.jqwik-database
 
 # Local AI agent tooling (not part of the project)
 AGENTS.md
