@@ -308,6 +308,7 @@ endif()
 add_library(jllama SHARED
     src/main/cpp/jllama.cpp
     src/main/cpp/tts_engine.cpp
+    src/main/cpp/train_engine.cpp
     ${JLLAMA_TTS_GEN_CPP}
     src/main/cpp/utils.hpp
     ${llama.cpp_SOURCE_DIR}/tools/server/server-common.cpp
