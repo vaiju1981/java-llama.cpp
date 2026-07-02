@@ -1250,9 +1250,22 @@ target the core with Maven via `-f llama/pom.xml` (or `-pl llama -am` from the r
 file shows `cmake -B build` / `src/main/...` / `mvn compile` at the root, read it as running in
 `llama/`** (the paths moved; the recipes are otherwise unchanged).
 
-**Version bump:** change the `<version>` in the **root** `pom.xml` only; `llama` and
-`llama-langchain4j` inherit it. (The SNAPSHOT/`-SNAPSHOT` line and the README badge still need
-the usual manual update.)
+**Version bump:** the child modules declare **no `<version>` of their own** — their *project*
+version is inherited from the parent. But each child still hardcodes the parent version inside its
+`<parent><version>` pointer (Maven requires a literal there — there is **no `${revision}`/CI-friendly
+versioning** here), so a version change must be applied to **all three poms in lockstep**:
+
+- `pom.xml` (root) — `<version>`
+- `llama/pom.xml` — `<parent><version>`
+- `llama-langchain4j/pom.xml` — `<parent><version>`
+
+The safe way is `mvn -q versions:set -DnewVersion=X.Y.Z -DgenerateBackupPoms=false` from the repo
+root (it updates the parent and every child `<parent>` reference at once). Changing only the root
+`<version>` leaves the children pointing at a non-existent parent and **fails the reactor build**
+(`Could not find artifact net.ladenthin:llama-parent:pom:X.Y.Z`). The README version examples and
+badge still need the usual manual update. (If single-source ergonomics are wanted, the Maven
+CI-friendly `${revision}` property + `flatten-maven-plugin` would let a bump touch only the root —
+that plugin is not configured today, so do not rely on "root only".)
 
 ## LangChain4j integration (`llama-langchain4j` reactor module)
 
@@ -1273,8 +1286,9 @@ consumer.
 Wiring:
 
 1. **`llama-langchain4j/pom.xml`** — `net.ladenthin:llama-langchain4j`, `release 17`, a child of
-   `net.ladenthin:llama-parent` (so it **inherits `${project.version}`** — no hardcoded version,
-   no lockstep guard). Depends on `net.ladenthin:llama:${project.version}` and
+   `net.ladenthin:llama-parent` (so it **inherits `${project.version}`** — no hardcoded *dependency*
+   version, no lockstep guard; the `<parent><version>` literal itself is still bumped in lockstep,
+   see "Version bump" above). Depends on `net.ladenthin:llama:${project.version}` and
    `dev.langchain4j:langchain4j-core`. Builds its own sources/javadoc jars; the `release`
    profile (GPG + Central Publishing) is **inherited from the parent**, not duplicated here.
    Java package stays `net.ladenthin.llama.langchain4j` (package name need not track the artifactId).
