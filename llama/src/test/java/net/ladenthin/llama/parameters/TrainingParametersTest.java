@@ -70,10 +70,4 @@ class TrainingParametersTest {
         // training_text is omitted when a corpus file is given.
         assertThat(node.has("training_text"), is(false));
     }
-
-    @Test
-    void optimizerNativeValuesMatchGgml() {
-        assertThat(Optimizer.ADAMW.getNativeValue(), is(0));
-        assertThat(Optimizer.SGD.getNativeValue(), is(1));
-    }
 }

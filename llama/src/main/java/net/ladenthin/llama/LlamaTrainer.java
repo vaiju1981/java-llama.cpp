@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import net.ladenthin.llama.exception.LlamaException;
 import net.ladenthin.llama.loader.LlamaLoader;
 import net.ladenthin.llama.parameters.TrainingParameters;
+import org.jspecify.annotations.Nullable;
 
 /**
  * In-process fine-tuning entry point, wrapping llama.cpp's ggml-opt training path
@@ -60,5 +61,8 @@ public final class LlamaTrainer {
                 .build());
     }
 
-    private static native String finetuneNative(String configJson);
+    // The native layer returns null on success and a non-empty error message on failure, so the
+    // return is genuinely @Nullable — without this the module's @NullMarked default would treat it
+    // as @NonNull and SpotBugs would flag the `error != null` guard as a redundant null check.
+    private static native @Nullable String finetuneNative(String configJson);
 }

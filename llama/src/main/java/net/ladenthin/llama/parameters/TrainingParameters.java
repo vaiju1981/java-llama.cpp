@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.file.Path;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.ToString;
 import net.ladenthin.llama.args.Optimizer;
 import org.jspecify.annotations.Nullable;
 
@@ -23,7 +24,12 @@ import org.jspecify.annotations.Nullable;
  */
 @Builder
 @Getter
+@ToString
 public final class TrainingParameters {
+
+    // Jackson mapper for JSON serialization. Static field declared before the instance fields
+    // to satisfy fb-contrib's IMC_IMMATURE_CLASS_WRONG_FIELD_ORDER (static members come first).
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     // Base GGUF model to fine-tune.
     private final Path modelPath;
@@ -80,45 +86,6 @@ public final class TrainingParameters {
     // Physical (micro) batch size, or 0 to use the native default.
     @Builder.Default
     private final int nUbatch = 0;
-
-    private static final ObjectMapper MAPPER = new ObjectMapper();
-
-    // Explicit all-args constructor used by the Lombok-generated builder. Declared explicitly (rather
-    // than letting @Builder synthesize the package-private one) so Javadoc sees a real constructor and
-    // does not emit the "use of default constructor, which does not provide a comment" warning; it is
-    // private, so it is not part of the public API and is not doclint-checked.
-    private TrainingParameters(
-            Path modelPath,
-            @Nullable String trainingText,
-            @Nullable Path trainingFile,
-            Path outputPath,
-            int epochs,
-            float learningRate,
-            float lrMin,
-            float decayEpochs,
-            float weightDecay,
-            Optimizer optimizer,
-            int nCtx,
-            int nGpuLayers,
-            float valSplit,
-            int nBatch,
-            int nUbatch) {
-        this.modelPath = modelPath;
-        this.trainingText = trainingText;
-        this.trainingFile = trainingFile;
-        this.outputPath = outputPath;
-        this.epochs = epochs;
-        this.learningRate = learningRate;
-        this.lrMin = lrMin;
-        this.decayEpochs = decayEpochs;
-        this.weightDecay = weightDecay;
-        this.optimizer = optimizer;
-        this.nCtx = nCtx;
-        this.nGpuLayers = nGpuLayers;
-        this.valSplit = valSplit;
-        this.nBatch = nBatch;
-        this.nUbatch = nUbatch;
-    }
 
     /**
      * Serialize this configuration to the JSON object the native fine-tuning layer expects.
