@@ -38,31 +38,31 @@ hs_err_pid*
 replay_pid*
 
 models/*.gguf
-src/main/cpp/net_ladenthin_llama_*.h
-src/main/resources_cuda_linux/
+llama/src/main/cpp/net_ladenthin_llama_*.h
+llama/src/main/resources_cuda_linux/
 # Per-classifier native trees, staged by CI before the matching Maven profile runs,
 # never committed (same policy as the default-tree native libs below).
-src/main/resources_windows_msvc/
-src/main/resources_windows_cuda/
-src/main/resources_windows_vulkan/
-src/main/resources_windows_opencl/
-src/main/resources/**/*.so
-src/main/resources/**/*.dylib
-src/main/resources/**/*.dll
-src/main/resources/**/*.metal
-src/test/resources/**/*.gbnf
+llama/src/main/resources_windows_msvc/
+llama/src/main/resources_windows_cuda/
+llama/src/main/resources_windows_vulkan/
+llama/src/main/resources_windows_opencl/
+llama/src/main/resources/**/*.so
+llama/src/main/resources/**/*.dylib
+llama/src/main/resources/**/*.dll
+llama/src/main/resources/**/*.metal
+llama/src/test/resources/**/*.gbnf
 
 # Generated WebUI assets (ui.cpp/ui.h) produced once by the build-webui CI job and
 # downloaded into every native build; embedded into libjllama, never committed
 # (this repo commits no build outputs — same policy as the native libs above).
-/webui-generated/
+/llama/webui-generated/
 
 **/*.etag
 **/*.lastModified
-src/main/cpp/llama.cpp/
+llama/src/main/cpp/llama.cpp/
 
-# jcstress / jqwik test outputs (generated in repo root)
-/.jqwik-database
+# jcstress / jqwik test outputs (generated in the module dir where surefire runs, e.g. llama/)
+.jqwik-database
 
 # Local AI agent tooling (not part of the project)
 AGENTS.md

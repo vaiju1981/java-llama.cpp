@@ -9,9 +9,14 @@ SPDX-License-Identifier: MIT
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
-	<groupId>net.ladenthin</groupId>
+	<parent>
+		<groupId>net.ladenthin</groupId>
+		<artifactId>llama-parent</artifactId>
+		<version>5.0.4-SNAPSHOT</version>
+		<relativePath>../pom.xml</relativePath>
+	</parent>
+
 	<artifactId>llama-langchain4j</artifactId>
-	<version>5.0.4-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
 	<name>${project.groupId}:${project.artifactId}</name>
@@ -61,8 +66,6 @@ SPDX-License-Identifier: MIT
 		<surefire.version>3.5.6</surefire.version>
 		<source.plugin.version>3.4.0</source.plugin.version>
 		<javadoc.plugin.version>3.12.0</javadoc.plugin.version>
-		<gpg.plugin.version>3.2.8</gpg.plugin.version>
-		<central.plugin.version>0.11.0</central.plugin.version>
 	</properties>
 
 	<dependencies>
@@ -147,47 +150,9 @@ SPDX-License-Identifier: MIT
 		</plugins>
 	</build>
 
-	<profiles>
-		<!-- Mirrors the core pom.xml `release` profile: GPG-sign the artifacts and route the
-		     deploy through the Central Publishing plugin. Activated by the publish-snapshot /
-		     publish-release CI jobs (`-P release ... deploy`). -->
-		<profile>
-			<id>release</id>
-			<build>
-				<plugins>
-					<plugin>
-						<groupId>org.apache.maven.plugins</groupId>
-						<artifactId>maven-gpg-plugin</artifactId>
-						<version>${gpg.plugin.version}</version>
-						<executions>
-							<execution>
-								<id>sign-artifacts</id>
-								<phase>verify</phase>
-								<goals><goal>sign</goal></goals>
-								<configuration>
-									<keyname>${gpg.keyname}</keyname>
-									<gpgArguments>
-										<arg>--pinentry-mode</arg>
-										<arg>loopback</arg>
-									</gpgArguments>
-								</configuration>
-							</execution>
-						</executions>
-					</plugin>
-
-					<plugin>
-						<groupId>org.sonatype.central</groupId>
-						<artifactId>central-publishing-maven-plugin</artifactId>
-						<version>${central.plugin.version}</version>
-						<extensions>true</extensions>
-						<configuration>
-							<publishingServerId>central</publishingServerId>
-							<autoPublish>true</autoPublish>
-							<waitUntil>published</waitUntil>
-						</configuration>
-					</plugin>
-				</plugins>
-			</build>
-		</profile>
-	</profiles>
+	<!--
+		No `release` profile here: GPG signing + Central Publishing are inherited from the
+		parent pom (../pom.xml), so a single reactor `mvn -P release deploy` signs and
+		publishes this module alongside the core.
+	-->
 </project>

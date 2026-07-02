@@ -770,9 +770,8 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_loadModelWithProgress
 // Build the special-token id map (a token is -1 / LLAMA_TOKEN_NULL when the model defines none).
 static json special_tokens_json(const llama_vocab *vocab) {
     return {
-        {"bos", llama_vocab_bos(vocab)}, {"eos", llama_vocab_eos(vocab)},
-        {"eot", llama_vocab_eot(vocab)}, {"sep", llama_vocab_sep(vocab)},
-        {"nl", llama_vocab_nl(vocab)},   {"pad", llama_vocab_pad(vocab)},
+        {"bos", llama_vocab_bos(vocab)}, {"eos", llama_vocab_eos(vocab)}, {"eot", llama_vocab_eot(vocab)},
+        {"sep", llama_vocab_sep(vocab)}, {"nl", llama_vocab_nl(vocab)},   {"pad", llama_vocab_pad(vocab)},
     };
 }
 

@@ -37,15 +37,14 @@ class LlamaTrainerIntegrationTest {
         }
 
         Path output = tmp.resolve("finetuned.gguf");
-        LlamaTrainer.finetune(
-                TrainingParameters.builder()
-                        .modelPath(Paths.get(modelPath))
-                        .trainingText(corpus.toString())
-                        .outputPath(output)
-                        .epochs(1)
-                        .learningRate(1e-5f)
-                        .optimizer(Optimizer.ADAMW)
-                        .build());
+        LlamaTrainer.finetune(TrainingParameters.builder()
+                .modelPath(Paths.get(modelPath))
+                .trainingText(corpus.toString())
+                .outputPath(output)
+                .epochs(1)
+                .learningRate(1e-5f)
+                .optimizer(Optimizer.ADAMW)
+                .build());
 
         assertThat(Files.exists(output), is(true));
         assertThat(Files.size(output), greaterThan(0L));

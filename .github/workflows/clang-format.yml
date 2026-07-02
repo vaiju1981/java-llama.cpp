@@ -31,8 +31,9 @@ jobs:
       - name: Check C++ formatting
         run: |
           clang-format --version
-          # All hand-written C++ sources; the generated JNI header (src/main/cpp/jllama.h,
-          # produced by `javac -h`) is intentionally excluded.
-          files=$(find src/main/cpp src/test/cpp -type f \( -name '*.cpp' -o -name '*.hpp' \) | sort)
+          # All hand-written C++ sources; the generated JNI header (llama/src/main/cpp/jllama.h,
+          # produced by `javac -h`) is intentionally excluded. Sources live in the `llama/`
+          # reactor module; clang-format finds llama/.clang-format by walking up from each file.
+          files=$(find llama/src/main/cpp llama/src/test/cpp -type f \( -name '*.cpp' -o -name '*.hpp' \) | sort)
           echo "Checking:"; echo "$files"
           clang-format --dry-run --Werror $files

@@ -16,7 +16,7 @@ To change the CUDA version, update the following **three** places:
 
 1. **`.github/build_cuda_linux.sh`** — Line 10: `sudo dnf install -y cuda-toolkit-13-2`
 2. **`.github/build_cuda_linux.sh`** — Line 12: `-DCMAKE_CUDA_COMPILER=/usr/local/cuda-13.2/bin/nvcc`
-3. **`pom.xml`** — The `<classifier>` tag in the `cuda` jar execution: `cuda13-linux-x86-64`
+3. **`llama/pom.xml`** — The `<classifier>` tag in the `cuda` jar execution: `cuda13-linux-x86-64`
 
 Also update the header comment in `build_cuda_linux.sh` and the job name in `.github/workflows/release.yaml` for clarity.
 
@@ -32,9 +32,9 @@ Example: To upgrade from 13.2 to a hypothetical 13.3:
 # Edit .github/build_cuda_linux.sh:
 #   line 10: cuda-toolkit-13-2 -> cuda-toolkit-13-3
 #   line 12: /usr/local/cuda-13.2/bin/nvcc -> /usr/local/cuda-13.3/bin/nvcc
-# Edit pom.xml classifier: cuda13-linux-x86-64 (major version only, no need to change for minor bumps)
+# Edit llama/pom.xml classifier: cuda13-linux-x86-64 (major version only, no need to change for minor bumps)
 # Edit CLAUDE.md line: Current CUDA version: **13.2** -> **13.3**
-git add .github/build_cuda_linux.sh pom.xml CLAUDE.md
+git add .github/build_cuda_linux.sh llama/pom.xml CLAUDE.md
 git commit -m "Upgrade CUDA from 13.2 to 13.3"
 ```
 
@@ -88,7 +88,7 @@ This is enforced through bionic's **weak-symbol** mechanism, *not* by bumping
 `__ANDROID_API__` or passing `-DANDROID_PLATFORM`. See "How the API gate is
 satisfied" below for why. To change anything here, update:
 
-1. **`CMakeLists.txt`** — the `add_compile_definitions(__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)`
+1. **`llama/CMakeLists.txt`** — the `add_compile_definitions(__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)`
    block and its Android-detection guard (`OS_NAME MATCHES "Android"` etc.).
 2. **`CLAUDE.md`** (this file) — the "Current Android minimum API level" line above.
 3. **`README.md`** — the minimum-API note (the `[!NOTE]` block near the Android
@@ -134,7 +134,7 @@ The default Android arm64 JAR remains CPU-only.
 
 Three places wire it together (mirrors the CUDA classifier pattern):
 
-1. **`CMakeLists.txt`** — `elseif(GGML_OPENCL)` branch routes artifacts to
+1. **`llama/CMakeLists.txt`** — `elseif(GGML_OPENCL)` branch routes artifacts to
    `src/main/resources_android_opencl/net/ladenthin/llama/${OS_NAME}/${OS_ARCH}/`.
 2. **`.github/workflows/publish.yml`** — `crosscompile-android-aarch64-opencl`
    job runs the dockcross-android-arm64 build with
@@ -142,7 +142,7 @@ Three places wire it together (mirrors the CUDA classifier pattern):
    and uploads as artifact `android-libraries-opencl`. The `package`,
    `publish-snapshot`, and `publish-release` jobs download it into
    `resources_android_opencl/` and activate the `opencl-android` Maven profile.
-3. **`pom.xml`** — the `opencl-android` profile produces a second JAR with
+3. **`llama/pom.xml`** — the `opencl-android` profile produces a second JAR with
    `<classifier>opencl-android-aarch64</classifier>` from the
    `${project.build.outputDirectory}_opencl_android` tree.
 
@@ -196,7 +196,7 @@ local / self-hosted.
 
 Wiring (mirrors the CUDA-Linux / OpenCL-Android classifier pattern):
 
-1. **`CMakeLists.txt`** — the `if(GGML_CUDA) … elseif(GGML_VULKAN) … elseif(GGML_OPENCL) … else()`
+1. **`llama/CMakeLists.txt`** — the `if(GGML_CUDA) … elseif(GGML_VULKAN) … elseif(GGML_OPENCL) … else()`
    chain is **OS-aware**: CUDA → `resources_windows_cuda` on Windows (else `resources_linux_cuda`),
    Vulkan → `resources_windows_vulkan`, OpenCL → `resources_windows_opencl` on Windows (else
    `resources_android_opencl`). The default CPU build (both generators) still emits to the canonical
@@ -225,7 +225,7 @@ Wiring (mirrors the CUDA-Linux / OpenCL-Android classifier pattern):
    The `package`, `publish-snapshot`, and `publish-release` jobs download each non-default artifact into
    its `src/main/resources_windows_{msvc,cuda,vulkan,opencl}/` tree and activate the
    `windows-msvc,cuda-windows,vulkan-windows,opencl-windows` Maven profiles.
-5. **`pom.xml`** — profiles `windows-msvc` / `cuda-windows` / `vulkan-windows` / `opencl-windows`,
+5. **`llama/pom.xml`** — profiles `windows-msvc` / `cuda-windows` / `vulkan-windows` / `opencl-windows`,
    each a separate compile pass + resource copy + classified jar (classifiers `msvc-windows` /
    `cuda13-windows-x86-64` / `vulkan-windows-x86-64` / `opencl-windows-x86-64`). Activated only in CI.
 6. **`README.md`** — the classifier table + dependency snippets in "Choosing the right classifier".
@@ -263,7 +263,7 @@ checked in (same policy as the native libs).
 Pipeline (`.github/workflows/publish.yml`):
 
 1. **`build-webui` job** (ubuntu — the *only* job that runs `npm`): resolves the
-   pinned `b<nnnn>` tag from `CMakeLists.txt`'s `GIT_TAG`, sparse-checks-out
+   pinned `b<nnnn>` tag from `llama/CMakeLists.txt`'s `GIT_TAG`, sparse-checks-out
    `ggml-org/llama.cpp@<tag>` `tools/ui`, runs the upstream Svelte build
    (`npm ci && npm run build`), gzips `dist/` into `dist/_gzip/` (LLAMA_UI_GZIP
    parity), builds the self-contained `llama-ui-embed` host tool (plain C++17, **no
@@ -472,16 +472,16 @@ re-verify the generator the same way you re-verify `patches/`.
 
 To change the llama.cpp version, update the following **three** files (and re-verify `patches/`):
 
-1. **CMakeLists.txt** — the `GIT_TAG` line for llama.cpp: `GIT_TAG        b8831`
+1. **llama/CMakeLists.txt** — the `GIT_TAG` line for llama.cpp: `GIT_TAG        b8831`
 2. **README.md** — the badge and link line with the version number
 3. **CLAUDE.md** — the "Current llama.cpp pinned version" line
 
 Example: To upgrade from b8808 to b8831:
 ```bash
-# Edit CMakeLists.txt: change GIT_TAG b8808 to b8831
+# Edit llama/CMakeLists.txt: change GIT_TAG b8808 to b8831
 # Edit README.md: change b8808 to b8831 (in both badge and link)
 # Edit CLAUDE.md: change b8808 to b8831
-git add CMakeLists.txt README.md CLAUDE.md
+git add llama/CMakeLists.txt README.md CLAUDE.md
 git commit -m "Upgrade llama.cpp from b8808 to b8831"
 git push -u origin <your-branch>
 ```
@@ -1225,17 +1225,46 @@ keeping it clear of the JPMS module-mode javadoc trap that bit BAF. **Before rai
 javadoc source level to ≥ 9, read**
 [`../workspace/policies/jpms-module-descriptor.md`](../workspace/policies/jpms-module-descriptor.md).
 
-## LangChain4j integration (`llama-langchain4j` sibling module)
+## Repository layout — Maven reactor (`llama/` + `llama-langchain4j/`)
+
+The repo root is a thin **aggregator/parent POM** (`net.ladenthin:llama-parent`,
+`packaging=pom`) with two modules:
+
+- **`llama/`** — the native JNI core (`net.ladenthin:llama`). *All the core sources and build
+  files live here now:* `llama/src/`, `llama/CMakeLists.txt`, `llama/cmake/`, `llama/patches/`,
+  `llama/pom.xml`, `llama/spotbugs-exclude.xml`, `llama/lombok.config`, `llama/.clang-format`.
+  Its published coordinates are unchanged (`net.ladenthin:llama`), so consumers are unaffected.
+- **`llama-langchain4j/`** — the LangChain4j adapters (see below).
+
+Both modules inherit the single `<version>` from the parent, so they **ship in lockstep by
+construction** (no CI guard needed). The parent also holds the shared `release` profile (GPG +
+Central Publishing), so one reactor `mvn -P release deploy` signs and publishes all three
+artifacts (`llama-parent` pom, `llama`, `llama-langchain4j`) at the same version.
+
+**Consequences for build commands:** the core's cmake/native build runs *in `llama/`*.
+`.github/build.sh` / `build.bat` `cd` into `llama/` themselves (relative to the script), so CI
+and the dockcross containers (whose workdir stays the repo root) are unaffected. Locally, run
+core cmake builds from `llama/` (e.g. `cd llama && cmake -B build && cmake --build build`), and
+target the core with Maven via `-f llama/pom.xml` (or `-pl llama -am` from the root). A plain
+`mvn` at the root builds the whole reactor. **When a build-command example elsewhere in this
+file shows `cmake -B build` / `src/main/...` / `mvn compile` at the root, read it as running in
+`llama/`** (the paths moved; the recipes are otherwise unchanged).
+
+**Version bump:** change the `<version>` in the **root** `pom.xml` only; `llama` and
+`llama-langchain4j` inherit it. (The SNAPSHOT/`-SNAPSHOT` line and the README badge still need
+the usual manual update.)
+
+## LangChain4j integration (`llama-langchain4j` reactor module)
 
 `llama-langchain4j/` adapts a `LlamaModel` to LangChain4j's `ChatModel`,
 `StreamingChatModel`, `EmbeddingModel` and `ScoringModel` interfaces **in-process over
-JNI** (no HTTP hop). It is a **standalone sibling module**, deliberately *not* in the root
-reactor, so the native build/release pipeline is untouched.
+JNI** (no HTTP hop). It is a **reactor module** alongside the core `llama` module (see
+"Repository layout" above), so it is built, versioned and released together with the core.
 
 Why it is a **separate artifact** and not a classifier of the core: langchain4j 1.x
 requires **Java 17** (the core stays Java 8), and classifiers share the core's single POM —
 adding `langchain4j-core` there would force it (and the Java 17 floor) on every plain
-`net.ladenthin:llama` consumer. A separate `artifactId` with its own POM is the only way to
+`net.ladenthin:llama` consumer. A separate `artifactId` (its own module POM) is the only way to
 keep that dependency (and Java floor) off the core. It is pure Java with **no per-classifier
 matrix**: it compiles against the core's Java API, which is identical across every native
 classifier; the backend (CPU/CUDA/OpenCL/Vulkan) is a runtime classpath choice for the
@@ -1243,33 +1272,29 @@ consumer.
 
 Wiring:
 
-1. **`llama-langchain4j/pom.xml`** — `net.ladenthin:llama-langchain4j`, `release 17`,
-   depends on `net.ladenthin:llama:${project.version}` (so the core dep always matches the
-   module's own version) and `dev.langchain4j:langchain4j-core`. Carries its own
-   sources/javadoc/gpg + `release` profile (Central requires per-artifact signing; the module
-   has no parent to inherit them from — plugin versions are pinned in lockstep with the root
-   `pom.xml`). Java package stays `net.ladenthin.llama.langchain4j` (package name need not track
-   the artifactId).
-2. **`.github/workflows/publish.yml`** — the `test-java-llama-langchain4j` job installs the
-   core Java jar, runs a **version-lockstep guard** (module version must equal core version,
-   else the build fails — the standalone module can't inherit `${project.version}` from a
-   reactor), then `mvn -f llama-langchain4j/pom.xml verify` (7 model-free mapping unit tests
-   run; the 4 model-backed integration tests self-skip without a GGUF; `verify` also builds the
-   javadoc jar so a release-time javadoc break is caught in PR CI). The
-   `publish-snapshot`/`publish-release` jobs `needs:` this job and, after the core `deploy`
-   (which installs the core jar locally), run a second `deploy` of the module at the same
-   version. A separate **`test-java-llama-langchain4j-integration`** job runs the model-backed
-   tests (chat/streaming/embedding/scoring adapters) by **reusing** the shared GGUF cache
+1. **`llama-langchain4j/pom.xml`** — `net.ladenthin:llama-langchain4j`, `release 17`, a child of
+   `net.ladenthin:llama-parent` (so it **inherits `${project.version}`** — no hardcoded version,
+   no lockstep guard). Depends on `net.ladenthin:llama:${project.version}` and
+   `dev.langchain4j:langchain4j-core`. Builds its own sources/javadoc jars; the `release`
+   profile (GPG + Central Publishing) is **inherited from the parent**, not duplicated here.
+   Java package stays `net.ladenthin.llama.langchain4j` (package name need not track the artifactId).
+2. **`.github/workflows/publish.yml`** — the `test-java-llama-langchain4j` job installs
+   parent + core into the local repo (`mvn -pl llama -am -DskipTests install`), then
+   `mvn -f llama-langchain4j/pom.xml verify` (7 model-free mapping unit tests run; the 4
+   model-backed integration tests self-skip without a GGUF; `verify` also builds the javadoc
+   jar so a release-time javadoc break is caught in PR CI). The `publish-snapshot`/
+   `publish-release` jobs `needs:` this job; deployment is a **single reactor**
+   `mvn -P release deploy` (no separate module deploy step — the parent's inherited `release`
+   profile signs and publishes parent + llama + llama-langchain4j together at the same version).
+   A separate **`test-java-llama-langchain4j-integration`** job runs the model-backed tests
+   (chat/streaming/embedding/scoring adapters) by **reusing** the shared GGUF cache
    (`gguf-models-v1`, restore-only — no extra download) and the `Linux-x86_64-libraries` native
    artifact: it `needs: [crosscompile-linux-x86_64, download-models]` (so the cache is already
-   populated and it runs in parallel), installs the core jar with the downloaded native lib
-   bundled, and passes the already-cached chat
-   (`REASONING_MODEL_NAME`), nomic-embedding and jina-reranker model paths via the module's
+   populated and it runs in parallel), installs parent+core with the downloaded native lib
+   bundled, and passes the already-cached chat (`REASONING_MODEL_NAME`), nomic-embedding and
+   jina-reranker model paths via the module's
    `-Dnet.ladenthin.llama.langchain4j.{embedding,rerank}.model` / `net.ladenthin.llama.model.path`
    properties. It is validation-only (not a release gate); a cold cache degrades to a self-skip.
-3. **Version bumps** — when the root `pom.xml` `<version>` changes, bump
-   `llama-langchain4j/pom.xml` `<version>` to match in the same commit, or the lockstep guard
-   reds CI.
 
 **Open follow-ups** (documented in `llama-langchain4j/README.md`): tool calling
 (`ToolSpecification` ↔ jllama `ToolDefinition`), `response_format`/JSON mode, and multimodal

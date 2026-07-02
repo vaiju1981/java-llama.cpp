@@ -605,4 +605,21 @@ SPDX-License-Identifier: MIT
         <Method name="synthesize"/>
     </Match>
 
+    <!--
+        TrainingParameters uses Lombok @Builder with @Builder.Default on its schedule/optimizer
+        fields. For each defaulted field Lombok emits a synthetic static `$default$<field>()` method
+        that simply returns the default constant, which fb-contrib flags as
+        MRC_METHOD_RETURNS_CONSTANT. Unlike Lombok's accessor/constructor output, these
+        `$default$*` methods are NOT tagged with @lombok.Generated even when
+        `lombok.addLombokGeneratedAnnotation = true` (a long-standing Lombok limitation), so
+        SpotBugs cannot skip them automatically the way it does the rest of the generated members.
+        The methods are pure generated boilerplate — returning a constant is exactly their purpose —
+        so the finding is suppressed for these synthetic methods only.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.parameters.TrainingParameters"/>
+        <Bug pattern="MRC_METHOD_RETURNS_CONSTANT"/>
+        <Method name="~\$default\$.*"/>
+    </Match>
+
 </FindBugsFilter>

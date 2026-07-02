@@ -123,7 +123,7 @@ Access this library via Maven (released versions on Maven Central):
 </dependency>
 ```
 
-There are multiple [examples](src/test/java/examples).
+There are multiple [examples](llama/src/test/java/examples).
 
 ### Snapshot builds
 
@@ -272,10 +272,12 @@ This consists of two steps: 1) Compiling the libraries and 2) putting them in th
 
 First, have a look at [llama.cpp](https://github.com/ggerganov/llama.cpp/blob/master/docs/build.md) to know which build arguments to use (e.g. for CUDA support).
 Any build option of llama.cpp works equivalently for this project.
-You then have to run the following commands in the directory of this repository (java-llama.cpp):
+You then have to run the following commands in the `llama/` module directory (the native core lives
+there; the repository root is just the Maven reactor aggregator):
 
 ```shell
-mvn compile  # don't forget this line
+cd llama       # the native core module
+mvn compile    # don't forget this line
 cmake -B build # add any other arguments for your backend, e.g. -DGGML_CUDA=ON
 cmake --build build --config Release
 ```
@@ -286,7 +288,7 @@ cmake --build build --config Release
 All compiled libraries will be put in a resources directory matching your platform, which will appear in the cmake output. For example something like:
 
 ```shell
---  Installing files to /java-llama.cpp/src/main/resources/net/ladenthin/llama/Linux/x86_64
+--  Installing files to /java-llama.cpp/llama/src/main/resources/net/ladenthin/llama/Linux/x86_64
 ```
 
 #### Library Location
@@ -318,7 +320,7 @@ Every `net.ladenthin.llama.*` system property recognised by the library, deep-sc
 | `net.ladenthin.llama.nomic.path` | unset (test self-skips) | test | `LlamaEmbeddingsTest#testNomicEmbedLoads` | Path to a Nomic embedding model (`nomic-embed-text-v1.5.f16.gguf` or a compatible BERT-family encoder). Regression test for upstream issue #98 (BERT-encoder `result_output` assertion). |
 | `net.ladenthin.llama.vision.model` | unset (test self-skips) | test | `MultimodalIntegrationTest` | Path to a vision-capable model GGUF. Any vision-capable GGUF works; CI default is `SmolVLM-500M-Instruct-Q8_0.gguf`. |
 | `net.ladenthin.llama.vision.mmproj` | unset (test self-skips) | test | `MultimodalIntegrationTest` | Matching mmproj GGUF for the vision model. |
-| `net.ladenthin.llama.vision.image` | `src/test/resources/images/test-image.jpg` (a CC-BY-4.0 / MIT-granted photo committed to the repo) | test | `MultimodalIntegrationTest` | Visual prompt image. Any png/jpeg/webp/gif works; the extension drives MIME detection. |
+| `net.ladenthin.llama.vision.image` | `llama/src/test/resources/images/test-image.jpg` (a CC-BY-4.0 / MIT-granted photo committed to the repo) | test | `MultimodalIntegrationTest` | Visual prompt image. Any png/jpeg/webp/gif works; the extension drives MIME detection. |
 | `net.ladenthin.llama.audio.model` | unset (test self-skips) | test | `AudioInputIntegrationTest` (llama.cpp discussion #13759) | Path to an audio-input model GGUF (e.g. Ultravox, Qwen2.5-Omni). |
 | `net.ladenthin.llama.audio.mmproj` | unset (test self-skips) | test | `AudioInputIntegrationTest` | Matching audio mmproj (encoder) GGUF. |
 | `net.ladenthin.llama.audio.input` | unset (test self-skips) | test | `AudioInputIntegrationTest` | `.wav`/`.mp3` audio prompt clip; the extension drives format detection. |
@@ -370,7 +372,7 @@ public class Example {
 }
 ```
 
-Also have a look at the other [examples](src/test/java/examples).
+Also have a look at the other [examples](llama/src/test/java/examples).
 
 ### Inference
 
@@ -704,6 +706,46 @@ tool calling depends on the model's own tool-calling quality. Pass `--api-key` (
 `OpenAiServerConfig.apiKey(...)`) to require an `Authorization: Bearer` token; the server binds to
 `127.0.0.1` by default.
 
+### LangChain4j integration
+
+A separate artifact, **`net.ladenthin:llama-langchain4j`**, adapts a `LlamaModel` to
+[LangChain4j](https://github.com/langchain4j/langchain4j)'s `ChatModel`, `StreamingChatModel`,
+`EmbeddingModel` and `ScoringModel` interfaces **in-process over JNI** — no HTTP hop, no separate
+server. It is a separate `artifactId` (not a classifier of the core) because LangChain4j 1.x
+requires **Java 17** while the core `net.ladenthin:llama` stays Java 8; keeping it separate avoids
+forcing that floor on every core consumer. It ships and versions in lockstep with the core.
+
+```xml
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama-langchain4j</artifactId>
+    <version>5.0.4-SNAPSHOT</version>
+</dependency>
+```
+
+Each adapter **borrows** a `LlamaModel` you already loaded — it never loads or closes the native
+model, so you manage its lifecycle (try-with-resources), and one `LlamaModel` can back several
+adapters at once:
+
+```java
+try (LlamaModel llama = new LlamaModel(new ModelParameters().setModel("models/qwen3-0.6b.gguf"))) {
+    ChatModel chat = new JllamaChatModel(llama);
+    String reply = chat.chat("Write a haiku about lazy senior devs.");
+    System.out.println(reply);
+}
+```
+
+| Adapter | LangChain4j interface | java-llama.cpp call |
+|---------|-----------------------|---------------------|
+| `JllamaChatModel` | `ChatModel` | `LlamaModel.chat(...)` |
+| `JllamaStreamingChatModel` | `StreamingChatModel` | `LlamaModel.generateChat(...)` (token streaming) |
+| `JllamaEmbeddingModel` | `EmbeddingModel` | `LlamaModel.embed(...)` (model loaded with `enableEmbedding()`) |
+| `JllamaScoringModel` | `ScoringModel` (re-ranking) | `LlamaModel.handleRerank(...)` (model loaded with `enableReranking()`) |
+
+See [`llama-langchain4j/README.md`](llama-langchain4j/) for streaming/embedding/re-ranking
+examples and the current mapping limitations (tool calling, JSON mode, and multimodal input are
+not yet forwarded).
+
 ### Model/Inference Configuration
 
 There are two sets of parameters you can configure, `ModelParameters` and `InferenceParameters`. Both provide builder 
@@ -831,11 +873,12 @@ git submodule add https://github.com/bernardladenthin/java-llama.cpp
 android {
     val jllamaLib = file("java-llama.cpp")
 
-    // Execute "mvn compile" if folder target/ doesn't exist at ./java-llama.cpp/
-    if (!file("$jllamaLib/target").exists()) {
+    // Execute "mvn compile" in the llama/ core module if its target/ doesn't exist
+    // (the repository root is the Maven reactor aggregator; the native core lives in llama/).
+    if (!file("$jllamaLib/llama/target").exists()) {
         exec {
             commandLine = listOf("mvn", "compile")
-            workingDir = file("java-llama.cpp/")
+            workingDir = file("java-llama.cpp/llama/")
         }
     }
 
@@ -931,3 +974,11 @@ The system's updated C++ runtime will be used instead, resolving the crash.
 - [gptoss.java](https://github.com/mukel/gptoss.java) — GPT-OSS architecture inference.
 - [qwen35.java](https://github.com/mukel/qwen35.java) — Qwen 3.5 inference.
 - [nemotron3.java](https://github.com/mukel/nemotron3.java) — NVIDIA Nemotron-3 inference.
+
+**Pure-Java inference engines (no JNI / no llama.cpp)**
+
+- [Jlama](https://github.com/tjake/Jlama) — a full pure-Java LLM inference engine for the JVM (multiple model architectures, quantization, and distributed inference) built on the Java Vector API. A no-native alternative to the JNI approach here; different design point (pure JVM portability vs. GGUF compatibility and llama.cpp performance via JNI).
+
+**Frameworks / orchestration**
+
+- [LangChain4j](https://github.com/langchain4j/langchain4j) — LLM-application framework for Java (chat, embeddings, RAG, tool calling, agents) over a unified provider API. This project ships a first-class **in-process** integration — see the [`llama-langchain4j`](llama-langchain4j/) module — so a llama.cpp model plugs straight into LangChain4j's `ChatModel` / `StreamingChatModel` / `EmbeddingModel` / `ScoringModel` without an HTTP hop.

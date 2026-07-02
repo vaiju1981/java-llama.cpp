@@ -37,8 +37,7 @@ bool finetune(const finetune_config &cfg, std::string &err) {
         params.n_ubatch = cfg.n_ubatch;
     }
 
-    params.optimizer =
-        cfg.optimizer == 1 ? GGML_OPT_OPTIMIZER_TYPE_SGD : GGML_OPT_OPTIMIZER_TYPE_ADAMW;
+    params.optimizer = cfg.optimizer == 1 ? GGML_OPT_OPTIMIZER_TYPE_SGD : GGML_OPT_OPTIMIZER_TYPE_ADAMW;
     params.lr.lr0 = cfg.learning_rate;
     params.lr.lr_min = cfg.lr_min;
     params.lr.decay_epochs = cfg.decay_epochs;
@@ -99,8 +98,8 @@ bool finetune(const finetune_config &cfg, std::string &err) {
     ggml_opt_result_t result_eval = ggml_opt_result_init();
 
     for (params.lr.epoch = 0; params.lr.epoch < params.lr.epochs; ++params.lr.epoch) {
-        llama_opt_epoch(ctx, dataset, result_train, result_eval, idata_split,
-                        ggml_opt_epoch_callback_progress_bar, ggml_opt_epoch_callback_progress_bar);
+        llama_opt_epoch(ctx, dataset, result_train, result_eval, idata_split, ggml_opt_epoch_callback_progress_bar,
+                        ggml_opt_epoch_callback_progress_bar);
         ggml_opt_result_reset(result_train);
         ggml_opt_result_reset(result_eval);
     }
@@ -118,8 +117,8 @@ bool finetune(const finetune_config &cfg, std::string &err) {
 
 } // namespace jllama_train
 
-extern "C" JNIEXPORT jstring JNICALL
-Java_net_ladenthin_llama_LlamaTrainer_finetuneNative(JNIEnv *env, jclass, jstring jconfig) {
+extern "C" JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaTrainer_finetuneNative(JNIEnv *env, jclass,
+                                                                                          jstring jconfig) {
     std::string config_json;
     if (jconfig != nullptr) {
         const char *c = env->GetStringUTFChars(jconfig, nullptr);

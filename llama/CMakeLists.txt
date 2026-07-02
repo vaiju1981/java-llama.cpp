@@ -277,10 +277,13 @@ endif()
 
 # include jni.h and jni_md.h
 if(NOT DEFINED JNI_INCLUDE_DIRS)
+    # The bundled JNI headers live in .github/include/ at the REPO ROOT, one level above
+    # this module (the core moved into llama/). Anchor to the parent of the CMake source
+    # dir so the path is correct regardless of the build CWD.
     if(OS_NAME MATCHES "^Linux" OR OS_NAME STREQUAL "Mac" OR OS_NAME STREQUAL "Darwin")
-        set(JNI_INCLUDE_DIRS .github/include/unix)
+        set(JNI_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/../.github/include/unix)
     elseif(OS_NAME STREQUAL "Windows")
-        set(JNI_INCLUDE_DIRS .github/include/windows)
+        set(JNI_INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/../.github/include/windows)
     # if we don't have provided headers, try to find them via Java
     else()
         find_package(Java REQUIRED)

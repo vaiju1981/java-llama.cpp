@@ -9,13 +9,14 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.file.Path;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.ToString;
 import net.ladenthin.llama.args.Optimizer;
 import org.jspecify.annotations.Nullable;
 
 /**
  * Immutable configuration for a {@link net.ladenthin.llama.LlamaTrainer} fine-tuning run.
  *
- * <p>Build with {@link #builder()}; only {@code modelPath} and {@code outputPath} are required, and
+ * <p>Build with {@code builder()}; only {@code modelPath} and {@code outputPath} are required, and
  * exactly one of {@code trainingText} / {@code trainingFile} should be set. All other fields default
  * to values that mirror upstream llama.cpp's fine-tuning defaults. The configuration is serialized to
  * JSON via {@link #toJson()} and parsed by the native layer, the same way {@link ModelParameters} and
@@ -23,7 +24,12 @@ import org.jspecify.annotations.Nullable;
  */
 @Builder
 @Getter
+@ToString
 public final class TrainingParameters {
+
+    // Jackson mapper for JSON serialization. Static field declared before the instance fields
+    // to satisfy fb-contrib's IMC_IMMATURE_CLASS_WRONG_FIELD_ORDER (static members come first).
+    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     // Base GGUF model to fine-tune.
     private final Path modelPath;
@@ -38,39 +44,48 @@ public final class TrainingParameters {
     private final Path outputPath;
 
     // Number of passes over the corpus (at least 1).
-    @Builder.Default private final int epochs = 2;
+    @Builder.Default
+    private final int epochs = 2;
 
     // Learning rate at the first epoch.
-    @Builder.Default private final float learningRate = 1e-5f;
+    @Builder.Default
+    private final float learningRate = 1e-5f;
 
     // Minimum learning rate for decay, or -1 to disable decay.
-    @Builder.Default private final float lrMin = -1f;
+    @Builder.Default
+    private final float lrMin = -1f;
 
     // If > 0, decay the learning rate from learningRate to lrMin over this many epochs.
-    @Builder.Default private final float decayEpochs = -1f;
+    @Builder.Default
+    private final float decayEpochs = -1f;
 
     // Weight decay (0 disables it).
-    @Builder.Default private final float weightDecay = 0f;
+    @Builder.Default
+    private final float weightDecay = 0f;
 
     // Optimizer algorithm.
-    @Builder.Default private final Optimizer optimizer = Optimizer.ADAMW;
+    @Builder.Default
+    private final Optimizer optimizer = Optimizer.ADAMW;
 
     // Context size in tokens, or 0 to use the model's trained context.
-    @Builder.Default private final int nCtx = 0;
+    @Builder.Default
+    private final int nCtx = 0;
 
     // Layers to offload to the GPU, or -1 for automatic.
-    @Builder.Default private final int nGpuLayers = -1;
+    @Builder.Default
+    private final int nGpuLayers = -1;
 
     // Fraction of the corpus held out for validation.
-    @Builder.Default private final float valSplit = 0.05f;
+    @Builder.Default
+    private final float valSplit = 0.05f;
 
     // Logical batch size, or 0 to use the native default.
-    @Builder.Default private final int nBatch = 0;
+    @Builder.Default
+    private final int nBatch = 0;
 
     // Physical (micro) batch size, or 0 to use the native default.
-    @Builder.Default private final int nUbatch = 0;
-
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    @Builder.Default
+    private final int nUbatch = 0;
 
     /**
      * Serialize this configuration to the JSON object the native fine-tuning layer expects.
