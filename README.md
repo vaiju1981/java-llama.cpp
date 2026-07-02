@@ -272,10 +272,12 @@ This consists of two steps: 1) Compiling the libraries and 2) putting them in th
 
 First, have a look at [llama.cpp](https://github.com/ggerganov/llama.cpp/blob/master/docs/build.md) to know which build arguments to use (e.g. for CUDA support).
 Any build option of llama.cpp works equivalently for this project.
-You then have to run the following commands in the directory of this repository (java-llama.cpp):
+You then have to run the following commands in the `llama/` module directory (the native core lives
+there; the repository root is just the Maven reactor aggregator):
 
 ```shell
-mvn compile  # don't forget this line
+cd llama       # the native core module
+mvn compile    # don't forget this line
 cmake -B build # add any other arguments for your backend, e.g. -DGGML_CUDA=ON
 cmake --build build --config Release
 ```
@@ -286,7 +288,7 @@ cmake --build build --config Release
 All compiled libraries will be put in a resources directory matching your platform, which will appear in the cmake output. For example something like:
 
 ```shell
---  Installing files to /java-llama.cpp/src/main/resources/net/ladenthin/llama/Linux/x86_64
+--  Installing files to /java-llama.cpp/llama/src/main/resources/net/ladenthin/llama/Linux/x86_64
 ```
 
 #### Library Location
@@ -871,11 +873,12 @@ git submodule add https://github.com/bernardladenthin/java-llama.cpp
 android {
     val jllamaLib = file("java-llama.cpp")
 
-    // Execute "mvn compile" if folder target/ doesn't exist at ./java-llama.cpp/
-    if (!file("$jllamaLib/target").exists()) {
+    // Execute "mvn compile" in the llama/ core module if its target/ doesn't exist
+    // (the repository root is the Maven reactor aggregator; the native core lives in llama/).
+    if (!file("$jllamaLib/llama/target").exists()) {
         exec {
             commandLine = listOf("mvn", "compile")
-            workingDir = file("java-llama.cpp/")
+            workingDir = file("java-llama.cpp/llama/")
         }
     }
 
