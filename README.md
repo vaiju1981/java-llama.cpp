@@ -144,7 +144,7 @@ To use the latest snapshot, add the repository and dependency to your `pom.xml`:
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4-SNAPSHOT</version>
+    <version>5.0.5-SNAPSHOT</version>
 </dependency>
 ```
 
@@ -719,7 +719,7 @@ forcing that floor on every core consumer. It ships and versions in lockstep wit
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama-langchain4j</artifactId>
-    <version>5.0.4-SNAPSHOT</version>
+    <version>5.0.5-SNAPSHOT</version>
 </dependency>
 ```
 
