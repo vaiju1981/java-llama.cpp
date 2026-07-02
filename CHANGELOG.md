@@ -9,6 +9,24 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 
 ## [Unreleased]
 
+## [5.0.4] - 2026-07-02
+
+Feature release. Adds in-process LangChain4j adapters, an experimental
+fine-tuning API, and richer model introspection, and restructures the build
+into a Maven reactor (published coordinates unchanged). Tracks llama.cpp
+**b9842 → b9859**.
+
+### Added
+- **LangChain4j integration** (`llama-langchain4j` module): in-process adapters for LangChain4j's `ChatModel`, `StreamingChatModel`, `EmbeddingModel`, and `ScoringModel` over JNI (no HTTP hop). Shipped as a separate artifact `net.ladenthin:llama-langchain4j` (Java 17), versioned and released in lockstep with the core so a Java-8 `net.ladenthin:llama` consumer is unaffected.
+- **In-process fine-tuning** (`LlamaTrainer`): an experimental training API with configurable `TrainingParameters` and `Optimizer` (`args.Optimizer`) driving llama.cpp's optimizer through the JNI binding.
+- **Model introspection via `ModelMeta`** (`value.ModelMeta`): exposes the model's chat template, special tokens, and full key/value metadata.
+
+### Changed
+- Restructured the build into a **Maven reactor**: the native JNI core moved into the `llama/` module under a new aggregator parent POM (`net.ladenthin:llama-parent`, `packaging=pom`), alongside the `llama-langchain4j` module. Both modules inherit a single version, so all artifacts ship in lockstep. Published coordinates (`net.ladenthin:llama`) are **unchanged** — no consumer action required.
+- Upgraded llama.cpp from **b9842 to b9859**. All four local patches (`0001`–`0004`) apply unchanged across the range.
+- CI: the GGUF model set is now downloaded once upfront by a dedicated job and restored (not re-fetched) by every test job, de-duplicating the pipeline.
+- Bumped `palantir-java-format` 2.92.0 → 2.94.0.
+
 ## [5.0.3] - 2026-06-29
 
 Feature release. Headline addition is a full OpenAI-compatible embedded HTTP
@@ -129,7 +147,8 @@ Releases `1.1.1` through `4.2.0` were authored by [@kherud](https://github.com/k
 
 For an architecture-level diff between the pre-fork baseline (`49be664`) and the first 5.0.0 candidate (`24918e4`), see [`docs/history/49be664_24918e4.md`](docs/history/49be664_24918e4.md). For the server-fork-deletion refactor that culminated in 5.0.0, see [`docs/history/REFACTORING.md`](docs/history/REFACTORING.md). For the chat-completion integration that landed in 5.0.0, see [`docs/history/CHAT_INTEGRATION_SUMMARY.md`](docs/history/CHAT_INTEGRATION_SUMMARY.md).
 
-[Unreleased]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.3...HEAD
+[Unreleased]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.4...HEAD
+[5.0.4]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.3...v5.0.4
 [5.0.3]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.2...v5.0.3
 [5.0.2]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.1...v5.0.2
 [5.0.1]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.0...v5.0.1
