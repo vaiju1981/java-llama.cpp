@@ -71,16 +71,17 @@ platform the usual way (bundled in the `net.ladenthin:llama` JAR or on `java.lib
 
 ## Building
 
-This is a **sibling module**, not part of the root reactor. Install the core artifact first, then
-build here:
+This is a **reactor module** built, versioned and released together with the core (see the root
+`pom.xml` `<modules>`). To build/test just this module locally, build it with its ancestors from the
+repo root so the core is compiled/installed first:
 
 ```bash
-# from the repo root: publish the core net.ladenthin:llama jar to your local ~/.m2
-mvn -DskipTests install
+# from the repo root: build the core (-am) and this module together
+mvn -pl llama-langchain4j -am -DskipTests test
 
-# then build/test this module
-cd llama-langchain4j
-mvn test
+# or install the core first, then build here on its own
+mvn -pl llama -am -DskipTests install
+cd llama-langchain4j && mvn test
 ```
 
 The model-backed integration tests self-skip unless you point them at a GGUF. Each adapter has

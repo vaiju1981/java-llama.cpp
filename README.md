@@ -704,6 +704,46 @@ tool calling depends on the model's own tool-calling quality. Pass `--api-key` (
 `OpenAiServerConfig.apiKey(...)`) to require an `Authorization: Bearer` token; the server binds to
 `127.0.0.1` by default.
 
+### LangChain4j integration
+
+A separate artifact, **`net.ladenthin:llama-langchain4j`**, adapts a `LlamaModel` to
+[LangChain4j](https://github.com/langchain4j/langchain4j)'s `ChatModel`, `StreamingChatModel`,
+`EmbeddingModel` and `ScoringModel` interfaces **in-process over JNI** — no HTTP hop, no separate
+server. It is a separate `artifactId` (not a classifier of the core) because LangChain4j 1.x
+requires **Java 17** while the core `net.ladenthin:llama` stays Java 8; keeping it separate avoids
+forcing that floor on every core consumer. It ships and versions in lockstep with the core.
+
+```xml
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama-langchain4j</artifactId>
+    <version>5.0.4-SNAPSHOT</version>
+</dependency>
+```
+
+Each adapter **borrows** a `LlamaModel` you already loaded — it never loads or closes the native
+model, so you manage its lifecycle (try-with-resources), and one `LlamaModel` can back several
+adapters at once:
+
+```java
+try (LlamaModel llama = new LlamaModel(new ModelParameters().setModel("models/qwen3-0.6b.gguf"))) {
+    ChatModel chat = new JllamaChatModel(llama);
+    String reply = chat.chat("Write a haiku about lazy senior devs.");
+    System.out.println(reply);
+}
+```
+
+| Adapter | LangChain4j interface | java-llama.cpp call |
+|---------|-----------------------|---------------------|
+| `JllamaChatModel` | `ChatModel` | `LlamaModel.chat(...)` |
+| `JllamaStreamingChatModel` | `StreamingChatModel` | `LlamaModel.generateChat(...)` (token streaming) |
+| `JllamaEmbeddingModel` | `EmbeddingModel` | `LlamaModel.embed(...)` (model loaded with `enableEmbedding()`) |
+| `JllamaScoringModel` | `ScoringModel` (re-ranking) | `LlamaModel.handleRerank(...)` (model loaded with `enableReranking()`) |
+
+See [`llama-langchain4j/README.md`](llama-langchain4j/) for streaming/embedding/re-ranking
+examples and the current mapping limitations (tool calling, JSON mode, and multimodal input are
+not yet forwarded).
+
 ### Model/Inference Configuration
 
 There are two sets of parameters you can configure, `ModelParameters` and `InferenceParameters`. Both provide builder 
