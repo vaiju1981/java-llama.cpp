@@ -802,6 +802,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_getModelMetaJson(J
         {"modalities", {{"vision", m.has_inp_image}, {"audio", m.has_inp_audio}}},
         {"name", m.model_name},
         {"architecture", std::string(arch_buf)},
+        {"ftype", m.model_ftype},
     };
     // Resolved default chat template (Jinja); empty when the model ships none.
     const char *chat_tmpl = mdl != nullptr ? llama_model_chat_template(mdl, /*name*/ nullptr) : nullptr;

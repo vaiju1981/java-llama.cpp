@@ -122,10 +122,26 @@ final class OpenAiSseFormatter {
      * @return an OpenAI model-list object serialized as JSON
      */
     static String modelsJson(String modelId) {
+        return modelsJson(modelId, "");
+    }
+
+    /**
+     * Build the {@code GET /v1/models} body advertising a single model, including the model's file
+     * type (quantization) as a {@code data[].ftype} field when known — mirroring the upstream
+     * llama.cpp server's {@code get_model_info()}.
+     *
+     * @param modelId the model id to advertise
+     * @param ftype the model's file-type (quantization) label, or {@code ""}/{@code null} to omit it
+     * @return an OpenAI model-list object serialized as JSON
+     */
+    static String modelsJson(String modelId, @Nullable String ftype) {
         ObjectNode model = OBJECT_MAPPER.createObjectNode();
         model.put("id", modelId);
         model.put("object", "model");
         model.put("owned_by", "llama.cpp");
+        if (ftype != null && !ftype.isEmpty()) {
+            model.put("ftype", ftype);
+        }
         ArrayNode data = OBJECT_MAPPER.createArrayNode();
         data.add(model);
         ObjectNode root = OBJECT_MAPPER.createObjectNode();

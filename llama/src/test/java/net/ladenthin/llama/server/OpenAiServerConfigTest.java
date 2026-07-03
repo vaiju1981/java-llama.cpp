@@ -29,8 +29,17 @@ public class OpenAiServerConfigTest {
         assertThat(config.getHeartbeatMillis(), is(OpenAiServerConfig.DEFAULT_HEARTBEAT_MILLIS));
         assertThat(config.getCorsAllowOrigin(), is(OpenAiServerConfig.DEFAULT_CORS_ALLOW_ORIGIN));
         assertThat(config.isSupportsVision(), is(false));
+        assertThat(config.getModelFtype(), is(""));
         assertThat(config.getApiKey(), is((String) null));
         assertThat(config.isAuthenticationEnabled(), is(false));
+    }
+
+    @Test
+    public void modelFtypeIsConfigurableAndNullBecomesEmpty() {
+        assertThat(
+                OpenAiServerConfig.builder().modelFtype("Q4_K - Medium").build().getModelFtype(), is("Q4_K - Medium"));
+        // null is normalized to the empty "unknown" marker
+        assertThat(OpenAiServerConfig.builder().modelFtype(null).build().getModelFtype(), is(""));
     }
 
     @Test

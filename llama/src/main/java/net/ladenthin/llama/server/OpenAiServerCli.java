@@ -620,7 +620,7 @@ public final class OpenAiServerCli {
          * @return the server configuration
          */
         public OpenAiServerConfig toServerConfig() {
-            return toServerConfig(mmproj != null);
+            return toServerConfig(mmproj != null, "");
         }
 
         /**
@@ -632,11 +632,25 @@ public final class OpenAiServerCli {
          * @return the server configuration
          */
         public OpenAiServerConfig toServerConfig(boolean supportsVision) {
+            return toServerConfig(supportsVision, "");
+        }
+
+        /**
+         * Build the server configuration with capability + metadata values obtained from the loaded
+         * model. This overload lets the standalone launcher advertise the model's quantization file
+         * type in {@code /v1/models} alongside the vision capability.
+         *
+         * @param supportsVision whether the loaded model reports usable vision input
+         * @param modelFtype the model's file-type (quantization) label, or {@code ""} if unknown
+         * @return the server configuration
+         */
+        public OpenAiServerConfig toServerConfig(boolean supportsVision, String modelFtype) {
             final OpenAiServerConfig.Builder builder = OpenAiServerConfig.builder()
                     .host(host)
                     .port(port)
                     .modelId(getModelId())
-                    .supportsVision(supportsVision);
+                    .supportsVision(supportsVision)
+                    .modelFtype(modelFtype);
             if (apiKey != null) {
                 builder.apiKey(apiKey);
             }

@@ -856,6 +856,18 @@ public class LlamaModel implements AutoCloseable {
         return getModelMeta().supportsAudio();
     }
 
+    /**
+     * Returns the loaded model's file type (quantization) as a human-readable string, e.g.
+     * {@code "Q8_0"} or {@code "Q4_K - Medium"} (llama.cpp {@code llama_ftype_name}); a guessed
+     * type is prefixed with {@code "(guessed) "}. Returns an empty string when the native layer does
+     * not report it.
+     *
+     * @return the quantization file-type label, or {@code ""} if absent
+     */
+    public String getModelFtype() {
+        return getModelMeta().getFtype();
+    }
+
     native String getModelMetaJson();
 
     /**
