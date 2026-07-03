@@ -467,7 +467,7 @@ jobs:
       - name: Install Vulkan SDK (headers + loader + glslc shader compiler)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libvulkan-dev glslc glslang-tools
+          sudo apt-get install -y libvulkan-dev glslc glslang-tools spirv-headers
       - name: Build libraries
         shell: bash
         run: |
@@ -506,7 +506,7 @@ jobs:
       - name: Install toolchain (GCC 14) + Vulkan SDK
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-14 g++-14 libvulkan-dev glslc glslang-tools
+          sudo apt-get install -y gcc-14 g++-14 libvulkan-dev glslc glslang-tools spirv-headers
           echo "CC=gcc-14" >> "$GITHUB_ENV"
           echo "CXX=g++-14" >> "$GITHUB_ENV"
       - name: Build libraries
@@ -881,6 +881,15 @@ jobs:
     # src/main/resources. sccache is intentionally omitted (the existing install step pulls the
     # x86_64 sccache zip; an arm64 build would need the aarch64 release — not worth the extra path
     # for one CPU job, so build.bat just builds uncached when sccache is absent).
+    #
+    # Compiler: clang-cl, NOT MSVC cl.exe. ggml's ggml-cpu/CMakeLists.txt aborts with "MSVC is not
+    # supported for ARM, use clang" via `if (MSVC AND NOT CMAKE_C_COMPILER_ID STREQUAL "Clang")`.
+    # clang-cl (LLVM's MSVC-compatible driver) satisfies that guard (its compiler id is "Clang")
+    # while still leaving CMake's MSVC=TRUE, so our static /MT CRT block (CMAKE_MSVC_RUNTIME_LIBRARY
+    # in CMakeLists.txt) keeps applying and the generator stays Ninja Multi-Config. msvc-dev-cmd
+    # (arm64) supplies the MSVC headers/libs/linker that clang-cl links against. NOTE: clang-cl must
+    # be on PATH (the VS "C++ Clang tools" component / LLVM); if a first CI run reports it missing,
+    # add an LLVM setup step here.
     runs-on: windows-11-arm
     steps:
       - uses: actions/checkout@v7
@@ -898,8 +907,9 @@ jobs:
         # No mvn compile needed: the JNI header (jllama.h) is committed and the native build
         # uses the bundled JNI headers in .github/include, and OS_NAME/OS_ARCH are passed
         # explicitly (so the OSInfo-class OS-detection path is skipped) — same as the x86_64 job.
+        # clang-cl (see the job comment) is required: ggml refuses MSVC cl.exe on ARM.
         run: |
-          .github\build.bat -G "Ninja Multi-Config" -DOS_NAME=Windows -DOS_ARCH=aarch64 -DBUILD_TESTING=ON
+          .github\build.bat -G "Ninja Multi-Config" -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DOS_NAME=Windows -DOS_ARCH=aarch64 -DBUILD_TESTING=ON
       - name: Run C++ unit tests
         run: ctest --test-dir llama/build --output-on-failure
       - name: Upload artifacts

@@ -295,7 +295,15 @@ tree — so it ships in the **default** JAR alongside Windows x86-64 / x86 (like
 classifier). No Java change was needed: `OSInfo` already maps a Windows-on-ARM JVM (`os.arch=aarch64`)
 to `Windows/aarch64` (it isn't in `archMapping`, so it falls through `translateArchNameToFolderName`).
 sccache is intentionally omitted (the shared install step pulls the x86_64 sccache zip; not worth an
-arm64 path for one CPU job — `build.bat` just builds uncached).
+arm64 path for one CPU job — `build.bat` just builds uncached). **Compiler: `clang-cl`, not MSVC
+`cl.exe`.** ggml's `ggml-cpu/CMakeLists.txt` aborts with *"MSVC is not supported for ARM, use clang"*
+via `if (MSVC AND NOT CMAKE_C_COMPILER_ID STREQUAL "Clang")`; `clang-cl` (LLVM's MSVC-compatible driver)
+satisfies that guard (compiler id `"Clang"`) while keeping CMake's `MSVC=TRUE`, so the static `/MT` CRT
+block still applies and the generator stays Ninja Multi-Config. The job passes
+`-DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl`; `msvc-dev-cmd` supplies the MSVC
+headers/libs/linker `clang-cl` links against. (Upstream llama.cpp instead cross-compiles arm64 from an
+x64 runner with `vcvarsall amd64_arm64` + a `clang`/`clang++` toolchain file and no arm64 tests; the
+native-runner + `clang-cl` route here keeps the `/MT` CRT and lets `ctest` run on real ARM hardware.)
 
 ## WebUI (llama.cpp Svelte UI) embedding
 
