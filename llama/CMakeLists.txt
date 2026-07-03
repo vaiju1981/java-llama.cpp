@@ -143,7 +143,7 @@ set(LLAMA_BUILD_APP OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
 	llama.cpp
 	GIT_REPOSITORY https://github.com/ggerganov/llama.cpp.git
-	GIT_TAG        b9862
+	GIT_TAG        b9864
 	PATCH_COMMAND  ${CMAKE_COMMAND}
 		-DPATCH_DIR=${CMAKE_CURRENT_SOURCE_DIR}/patches
 		-DLLAMA_SRC=<SOURCE_DIR>
@@ -166,7 +166,7 @@ execute_process(
     COMMAND ${CMAKE_COMMAND}
         -DTTS_SRC=${llama.cpp_SOURCE_DIR}/tools/tts/tts.cpp
         -DOUT_CPP=${JLLAMA_TTS_GEN_CPP}
-        -DLLAMA_TAG=b9862
+        -DLLAMA_TAG=b9864
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate-tts-upstream.cmake
     RESULT_VARIABLE JLLAMA_TTS_GEN_RESULT
 )
