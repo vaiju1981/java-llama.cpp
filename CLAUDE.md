@@ -358,7 +358,13 @@ jobs therefore set `BUILD_JOBS: 2` to bound peak memory.
 **`sccache` → Depot Cache — shared compiler cache.** When `USE_CACHE=true` **and** `sccache`
 plus a cache token are present, `build.sh` adds
 `-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache` and prints
-`sccache --show-stats`. The cache lives in **Depot Cache** over sccache's **WebDAV** backend:
+`sccache --show-stats`. **Per-job cache summary:** when running in CI (`GITHUB_STEP_SUMMARY` set),
+`build.sh`/`build.bat` also parse those stats and append a small `### sccache statistics` table
+(`Cache hits | Requests | Hit rate`) to the job summary — the sccache/Depot analogue of upstream
+llama.cpp's `ccache-action` "CCache Statistics" table, per-job (GitHub does not merge job
+summaries). It is best-effort (skipped silently if the numbers can't be parsed) and only emitted
+when sccache was actually the launcher; local runs (no `GITHUB_STEP_SUMMARY`) are untouched. The
+cache lives in **Depot Cache** over sccache's **WebDAV** backend:
 
 - `SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev`
 - `SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}` — a Depot **organization** token, stored
