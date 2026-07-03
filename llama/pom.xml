@@ -1297,7 +1297,7 @@ SPDX-License-Identifier: MIT
 				Builds the fat jar-with-dependencies uber JAR: the library classes, the
 				default-platform native libs from src/main/resources, and all runtime Java
 				dependencies in one drop-on-classpath JAR, with ServerLauncher as the fat-jar
-				Main-Class (set below), which dispatches on an `open-ai-compat` selector flag: with it, runs
+				Main-Class (set below), which dispatches on an `openai-compat` selector flag: with it, runs
 					OpenAiCompatServer (Java OpenAI API); without it, the default NativeServer (native
 					server, embedded WebUI, all flags forwarded). Both mains stay runnable by class name via `java -cp <jar> …`. Off by
 				default; the CI `package` job activates it so the uber JAR rides along in the
