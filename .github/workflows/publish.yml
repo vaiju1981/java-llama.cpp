@@ -437,6 +437,90 @@ jobs:
           name: Linux-aarch64-libraries
           path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
 
+  build-linux-x86_64-vulkan:
+    name: Build Linux x86_64 Vulkan
+    needs: [startgate, build-webui]
+    # Native ubuntu build (NOT dockcross) — the Vulkan SDK is trivial to apt-install here, and
+    # upstream llama.cpp builds its ubuntu-vulkan artifact the same way. GPU runtime libvulkan.so.1
+    # is supplied by the consumer's driver (nothing bundled). GitHub runners have NO GPU, so this
+    # is a BUILD-ONLY job (no -DBUILD_TESTING/ctest: a Vulkan-linked jllama_test errors enumerating
+    # devices on a GPU-less runner — same rationale as the Windows GPU jobs). GGML_NATIVE=OFF keeps
+    # the artifact portable across x86_64 CPU generations. Trade-off vs the manylinux CPU jar: the
+    # glibc floor rises to the ubuntu-latest baseline (same as the native aarch64 job). build.sh
+    # self-fetches sccache; the probe guards it (a miss just builds uncached).
+    runs-on: ubuntu-latest
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/llama/webui-generated/
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Install Vulkan SDK (headers + loader + glslc shader compiler)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvulkan-dev glslc glslang-tools
+      - name: Build libraries
+        shell: bash
+        run: |
+          mvn --no-transfer-progress -f llama/pom.xml compile
+          .github/build.sh "-DGGML_VULKAN=ON -DGGML_NATIVE=OFF -DOS_NAME=Linux -DOS_ARCH=x86_64"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Linux-x86_64-vulkan
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_vulkan/net/ladenthin/llama/
+          if-no-files-found: error
+
+  build-linux-aarch64-vulkan:
+    name: Build Linux aarch64 Vulkan
+    needs: [startgate, build-webui]
+    # Native ARM64 Vulkan build on GitHub's free arm64 runner (same runner as the aarch64 CPU job).
+    # Build-only (GPU-less runner); GGML_NATIVE=OFF for portability across ARMv8 generations; GCC 14
+    # to match the aarch64 CPU job. Reuses the resources_linux_vulkan tree (arch subdir Linux/aarch64);
+    # the vulkan-linux-aarch64 Maven profile packages only that subtree.
+    runs-on: ubuntu-24.04-arm
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/llama/webui-generated/
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Install toolchain (GCC 14) + Vulkan SDK
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-14 g++-14 libvulkan-dev glslc glslang-tools
+          echo "CC=gcc-14" >> "$GITHUB_ENV"
+          echo "CXX=g++-14" >> "$GITHUB_ENV"
+      - name: Build libraries
+        shell: bash
+        run: |
+          mvn --no-transfer-progress -f llama/pom.xml compile
+          .github/build.sh "-DGGML_VULKAN=ON -DGGML_NATIVE=OFF -DOS_NAME=Linux -DOS_ARCH=aarch64"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Linux-aarch64-vulkan
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_vulkan/net/ladenthin/llama/
+          if-no-files-found: error
+
   crosscompile-android-aarch64:
     name: Cross-Compile Android aarch64
     needs: [startgate, build-webui]
@@ -786,6 +870,42 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: Windows-x86-libraries
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
+
+  build-windows-arm64:
+    name: Build and Test Windows 11 arm64 (Ninja Multi-Config, default)
+    needs: [startgate, build-webui]
+    # Native arm64 build on GitHub's free windows-11-arm runner. Goes into the DEFAULT JAR (no
+    # classifier): OSInfo maps a Windows-on-ARM JVM (os.arch=aarch64) to Windows/aarch64, the same
+    # path CMake emits here, and the `*-libraries` glob in the package/publish jobs merges it into
+    # src/main/resources. sccache is intentionally omitted (the existing install step pulls the
+    # x86_64 sccache zip; an arm64 build would need the aarch64 release — not worth the extra path
+    # for one CPU job, so build.bat just builds uncached when sccache is absent).
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/llama/webui-generated/
+      - name: Set up MSVC developer environment (arm64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: arm64
+      - name: Build libraries
+        shell: cmd
+        # No mvn compile needed: the JNI header (jllama.h) is committed and the native build
+        # uses the bundled JNI headers in .github/include, and OS_NAME/OS_ARCH are passed
+        # explicitly (so the OSInfo-class OS-detection path is skipped) — same as the x86_64 job.
+        run: |
+          .github\build.bat -G "Ninja Multi-Config" -DOS_NAME=Windows -DOS_ARCH=aarch64 -DBUILD_TESTING=ON
+      - name: Run C++ unit tests
+        run: ctest --test-dir llama/build --output-on-failure
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Windows-aarch64-libraries
           path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
 
   # ---------------------------------------------------------------------------
@@ -1521,10 +1641,13 @@ jobs:
     needs:
       - crosscompile-linux-x86_64-cuda
       - crosscompile-linux-aarch64
+      - build-linux-x86_64-vulkan
+      - build-linux-aarch64-vulkan
       - crosscompile-android-aarch64
       - crosscompile-android-aarch64-opencl
       - build-windows-x86_64
       - build-windows-x86
+      - build-windows-arm64
       - build-windows-x86_64-msvc
       - build-windows-x86-msvc
       - build-windows-x86_64-cuda
@@ -1550,6 +1673,16 @@ jobs:
         with:
           name: linux-libraries-cuda
           path: ${{ github.workspace }}/llama/src/main/resources_linux_cuda/net/ladenthin/llama/
+      # Linux Vulkan classifiers (x86_64 + aarch64) share one tree; the two Maven profiles
+      # split it by arch subdir into one single-arch classifier JAR each.
+      - uses: actions/download-artifact@v8
+        with:
+          name: Linux-x86_64-vulkan
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_vulkan/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Linux-aarch64-vulkan
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_vulkan/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
           name: android-libraries-opencl
@@ -1590,7 +1723,7 @@ jobs:
         # Windows classifier JARs: `windows-msvc` (MSVC-built CPU natives) plus the GPU
         # backends `cuda-windows` / `vulkan-windows` / `opencl-windows`. The default JAR's
         # Windows natives are the Ninja `*-libraries` merged into src/main/resources/ above.
-        run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,assembly -Dmaven.test.skip=true -Dgpg.skip=true package
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,assembly -Dmaven.test.skip=true -Dgpg.skip=true package
       - name: Upload JARs
         uses: actions/upload-artifact@v7
         with:
@@ -1666,6 +1799,14 @@ jobs:
           path: ${{ github.workspace }}/llama/src/main/resources_linux_cuda/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
+          name: Linux-x86_64-vulkan
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_vulkan/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Linux-aarch64-vulkan
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_vulkan/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
           name: android-libraries-opencl
           path: ${{ github.workspace }}/llama/src/main/resources_android_opencl/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
@@ -1712,7 +1853,7 @@ jobs:
       # :llama-langchain4j. The `release` profile (GPG + Central Publishing) is inherited
       # from the parent, so every module — including the parent pom — is signed.
       - name: Publish snapshot (reactor - parent + llama + llama-langchain4j)
-        run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows -Dmaven.test.skip=true deploy
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows -Dmaven.test.skip=true deploy
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
@@ -1776,6 +1917,14 @@ jobs:
           path: ${{ github.workspace }}/llama/src/main/resources_linux_cuda/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
         with:
+          name: Linux-x86_64-vulkan
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_vulkan/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Linux-aarch64-vulkan
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_vulkan/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
           name: android-libraries-opencl
           path: ${{ github.workspace }}/llama/src/main/resources_android_opencl/net/ladenthin/llama/
       - uses: actions/download-artifact@v8
@@ -1813,7 +1962,7 @@ jobs:
       # :llama-langchain4j. The `release` profile (GPG + Central Publishing) is inherited
       # from the parent, so every module — including the parent pom — is signed.
       - name: Publish release (reactor - parent + llama + llama-langchain4j)
-        run: mvn --batch-mode --no-transfer-progress -P release,cuda,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows -Dmaven.test.skip=true deploy
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows -Dmaven.test.skip=true deploy
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}

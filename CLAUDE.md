@@ -198,7 +198,8 @@ Wiring (mirrors the CUDA-Linux / OpenCL-Android classifier pattern):
 
 1. **`llama/CMakeLists.txt`** — the `if(GGML_CUDA) … elseif(GGML_VULKAN) … elseif(GGML_OPENCL) … else()`
    chain is **OS-aware**: CUDA → `resources_windows_cuda` on Windows (else `resources_linux_cuda`),
-   Vulkan → `resources_windows_vulkan`, OpenCL → `resources_windows_opencl` on Windows (else
+   Vulkan → `resources_windows_vulkan` on Windows (else `resources_linux_vulkan` — see "Linux Vulkan
+   classifiers" above), OpenCL → `resources_windows_opencl` on Windows (else
    `resources_android_opencl`). The default CPU build (both generators) still emits to the canonical
    `src/main/resources/.../Windows/{x86_64,x86}/`, so the Ninja-vs-MSVC split is purely a
    CI-artifact-name + pom-profile concern (no CMake change for it).
@@ -252,6 +253,49 @@ ctest --test-dir build --output-on-failure
 .github\build.bat -G "Ninja Multi-Config" -DGGML_VULKAN=ON -DOS_NAME=Windows -DOS_ARCH=x86_64
 .github\build_opencl_windows.bat -G "Ninja Multi-Config" -DGGML_OPENCL=ON -DGGML_OPENCL_EMBED_KERNELS=ON -DOS_NAME=Windows -DOS_ARCH=x86_64
 ```
+
+## Linux Vulkan classifiers + Windows arm64 CPU
+
+Three additional artifacts extend the matrix toward upstream llama.cpp's release set. They follow
+the same classifier/resource-tree pattern as CUDA-Linux and Vulkan-Windows.
+
+**Linux Vulkan (`vulkan-linux-x86-64` + `vulkan-linux-aarch64`).** A vendor-neutral GPU jar for
+Linux (NVIDIA / AMD / Intel) with no CUDA toolkit — the intersection of the existing Vulkan-Windows
+and CUDA-Linux wiring. Four places:
+
+1. **`llama/CMakeLists.txt`** — the `elseif(GGML_VULKAN)` branch is now **OS-aware** (mirrors
+   `GGML_CUDA`): Windows → `resources_windows_vulkan`, else → `resources_linux_vulkan`
+   (`.../Linux/${OS_ARCH}/`). One tree holds both arches under `Linux/{x86_64,aarch64}`.
+2. **`.github/workflows/publish.yml`** — `build-linux-x86_64-vulkan` (native `ubuntu-latest`, **not**
+   dockcross — the Vulkan SDK is a trivial apt install and upstream builds ubuntu-vulkan the same way)
+   and `build-linux-aarch64-vulkan` (`ubuntu-24.04-arm` + GCC 14). Both `apt-get install libvulkan-dev
+   glslc glslang-tools`, build `-DGGML_VULKAN=ON -DGGML_NATIVE=OFF`, and are **build-only** (no
+   `ctest`: a Vulkan-linked `jllama_test` errors enumerating devices on a GPU-less runner — same as the
+   Windows GPU jobs). Artifacts `Linux-{x86_64,aarch64}-vulkan` → both downloaded into the **one**
+   `resources_linux_vulkan/` tree by `package`/`publish-*`. Glibc floor rises to the ubuntu baseline
+   (like the aarch64 CPU jar); acceptable for a GPU artifact.
+3. **`llama/pom.xml`** — profiles `vulkan-linux` (classifier `vulkan-linux-x86-64`) and
+   `vulkan-linux-aarch64` (classifier `vulkan-linux-aarch64`). Both read the shared
+   `resources_linux_vulkan` tree but the resource-copy `<includes>` is **arch-scoped**
+   (`net/ladenthin/llama/Linux/{x86_64,aarch64}/**`), so each classifier JAR carries only its own
+   arch (verified: each jar contains exactly one `libjllama.so`). Separate output dirs
+   `_linux_vulkan` / `_linux_vulkan_aarch64` avoid collision. Activated in CI via
+   `-P …,vulkan-linux,vulkan-linux-aarch64,…`.
+4. **`README.md`** — classifier table + dependency snippets.
+
+`src/main/resources_linux_vulkan/` is git-ignored (staged by CI, never committed). GPU runtime
+`libvulkan.so.1` is supplied by the consumer's driver — nothing is bundled (same policy as every GPU
+classifier).
+
+**Windows arm64 CPU (default JAR, no classifier).** `build-windows-arm64` runs natively on GitHub's
+free `windows-11-arm` runner (`ilammy/msvc-dev-cmd` `arch: arm64`, Ninja Multi-Config, `-DOS_ARCH=aarch64`,
+build + `ctest`). It emits to the **canonical** `resources/.../Windows/aarch64/` and uploads
+`Windows-aarch64-libraries`, which the `package`/`publish-*` `*-libraries` glob merges into the default
+tree — so it ships in the **default** JAR alongside Windows x86-64 / x86 (like those, it is not a
+classifier). No Java change was needed: `OSInfo` already maps a Windows-on-ARM JVM (`os.arch=aarch64`)
+to `Windows/aarch64` (it isn't in `archMapping`, so it falls through `translateArchNameToFolderName`).
+sccache is intentionally omitted (the shared install step pulls the x86_64 sccache zip; not worth an
+arm64 path for one CPU job — `build.bat` just builds uncached).
 
 ## WebUI (llama.cpp Svelte UI) embedding
 

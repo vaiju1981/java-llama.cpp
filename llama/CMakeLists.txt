@@ -249,8 +249,10 @@ endif()
 # OS-aware because the same GGML flag is used on more than one platform:
 #   - GGML_CUDA   -> Linux (resources_linux_cuda)   AND Windows (resources_windows_cuda)
 #   - GGML_OPENCL -> Android (resources_android_opencl) AND Windows (resources_windows_opencl)
-#   - GGML_VULKAN -> Windows only (resources_windows_vulkan)
-# The classifier->tree mapping is mirrored by the matching Maven profile in pom.xml.
+#   - GGML_VULKAN -> Windows (resources_windows_vulkan) AND Linux (resources_linux_vulkan)
+# The classifier->tree mapping is mirrored by the matching Maven profile in pom.xml. The Linux
+# Vulkan tree holds both x86_64 and aarch64 under Linux/${OS_ARCH}; two Maven profiles
+# (vulkan-linux / vulkan-linux-aarch64) split it into one single-arch classifier JAR each.
 if(GGML_CUDA)
     if(OS_NAME STREQUAL "Windows")
         set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_windows_cuda/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
@@ -260,8 +262,13 @@ if(GGML_CUDA)
         message(STATUS "GPU (CUDA Linux) build - Installing files to ${JLLAMA_DIR}")
     endif()
 elseif(GGML_VULKAN)
-    set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_windows_vulkan/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
-    message(STATUS "GPU (Vulkan) build - Installing files to ${JLLAMA_DIR}")
+    if(OS_NAME STREQUAL "Windows")
+        set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_windows_vulkan/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
+        message(STATUS "GPU (Vulkan Windows) build - Installing files to ${JLLAMA_DIR}")
+    else()
+        set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_linux_vulkan/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
+        message(STATUS "GPU (Vulkan Linux) build - Installing files to ${JLLAMA_DIR}")
+    endif()
 elseif(GGML_OPENCL)
     if(OS_NAME STREQUAL "Windows")
         set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_windows_opencl/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})

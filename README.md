@@ -171,12 +171,14 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
 
 | Classifier | Backend | Target platform | Runtime requirement |
 |---|---|---|---|
-| _(none)_ | CPU | Linux x86-64 / aarch64, macOS x86-64 / aarch64, Windows x86-64 / x86 (Ninja Multi-Config + MSVC), Android aarch64 (CPU) | A JDK 8+ JVM. **Linux `aarch64` additionally requires glibc ≥ 2.39** (e.g. Ubuntu 24.04+, Debian 13+) — it is built natively on `ubuntu-24.04-arm`, matching upstream llama.cpp's own ARM binaries; older-glibc ARM hosts (Ubuntu 22.04, Debian 12, RHEL 8/9, Amazon Linux 2023) are not supported. Linux x86-64 keeps a glibc 2.17 floor (manylinux2014). |
+| _(none)_ | CPU | Linux x86-64 / aarch64, macOS x86-64 / aarch64, Windows x86-64 / x86 / aarch64 (Ninja Multi-Config + MSVC), Android aarch64 (CPU) | A JDK 8+ JVM. **Linux `aarch64` additionally requires glibc ≥ 2.39** (e.g. Ubuntu 24.04+, Debian 13+) — it is built natively on `ubuntu-24.04-arm`, matching upstream llama.cpp's own ARM binaries; older-glibc ARM hosts (Ubuntu 22.04, Debian 12, RHEL 8/9, Amazon Linux 2023) are not supported. Linux x86-64 keeps a glibc 2.17 floor (manylinux2014). **Windows `aarch64`** (Windows on ARM — Snapdragon X / Surface) is built natively on `windows-11-arm` and ships in the default JAR alongside the x86-64 / x86 natives. |
 | `msvc-windows` | CPU (MSVC / Visual Studio generator) | Windows x86-64 and x86 | None beyond a JDK 8+ JVM. Same CPU backend as the default JAR's Windows natives, but compiled with the Visual Studio generator instead of `Ninja Multi-Config`. Both use the same MSVC toolchain (static `/MT` CRT), so they are functionally equivalent — provided as an alternate-toolchain option. |
 | `cuda13-windows-x86-64` | CUDA 13 | Windows x86-64 with NVIDIA GPU | NVIDIA driver + CUDA 13 Toolkit installed on the host (`cudart64_13.dll`, `cublas64_13.dll`, `cublasLt64_13.dll` resolvable on `PATH`). The runtime libraries are **not bundled** in the JAR; native-library load fails with `UnsatisfiedLinkError` if they are absent. No CPU fallback. |
 | `vulkan-windows-x86-64` | Vulkan | Windows x86-64 with a Vulkan 1.2+ GPU (NVIDIA / AMD / Intel) | A Vulkan runtime (`vulkan-1.dll`), which current GPU drivers install. No Vulkan SDK is needed at runtime. The most portable Windows GPU option (vendor-independent). |
 | `opencl-windows-x86-64` | OpenCL | Windows x86-64 with an OpenCL 2.0+ GPU | A vendor OpenCL ICD (`OpenCL.dll`, installed by the GPU driver). **Note:** the GGML OpenCL backend is Adreno-tuned; on desktop GPUs CUDA or Vulkan are better supported. |
 | `cuda13-linux-x86-64` | CUDA 13 | Linux x86-64 with NVIDIA GPU | NVIDIA driver + CUDA 13 runtime libraries (`libcudart.so.13`, `libcublas.so.13`) installed on the host. The shared library is dynamically linked against them and will fail to `dlopen` if they are absent — there is no automatic fallback to CPU. |
+| `vulkan-linux-x86-64` | Vulkan | Linux x86-64 with a Vulkan 1.2+ GPU (NVIDIA / AMD / Intel) | A Vulkan runtime (`libvulkan.so.1`), which current GPU drivers install. No Vulkan SDK is needed at runtime. The most portable Linux GPU option (vendor-independent, no CUDA toolkit). Built natively on `ubuntu-latest`, so it shares the aarch64 build's higher glibc floor (≈ 2.39). |
+| `vulkan-linux-aarch64` | Vulkan | Linux aarch64 with a Vulkan 1.2+ GPU | A Vulkan runtime (`libvulkan.so.1`) from the device/driver. glibc ≥ 2.39 (built on `ubuntu-24.04-arm`). |
 | `opencl-android-aarch64` | OpenCL (Adreno) | Android aarch64 with Qualcomm Adreno GPU | A device-supplied OpenCL ICD (`libOpenCL.so`). Devices without an ICD (e.g. most non-Snapdragon Android hardware) must use the default CPU JAR. |
 
 ```xml
@@ -217,6 +219,22 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
     <artifactId>llama</artifactId>
     <version>5.0.4</version>
     <classifier>vulkan-windows-x86-64</classifier>
+</dependency>
+
+<!-- Vulkan on Linux x86-64 (NVIDIA/AMD/Intel; libvulkan.so.1 from the driver) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>vulkan-linux-x86-64</classifier>
+</dependency>
+
+<!-- Vulkan on Linux aarch64 (libvulkan.so.1 from the device/driver) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>vulkan-linux-aarch64</classifier>
 </dependency>
 
 <!-- OpenCL on Windows x86-64 (requires a driver-provided OpenCL ICD) -->
