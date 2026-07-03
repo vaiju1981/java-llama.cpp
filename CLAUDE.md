@@ -536,6 +536,13 @@ re-verify the generator the same way you re-verify `patches/`.
 
 ## Upgrading/Downgrading llama.cpp Version
 
+**Runbook (documentation root):** [`docs/upgrade/llama-cpp-version-bump.md`](docs/upgrade/llama-cpp-version-bump.md)
+covers the full bump process end-to-end — picking the target (topmost GitHub release, via the atom
+feed), **chunking by `git diff` byte-size** (bump straight to the target when the diff is < 100 KiB,
+else step through the largest intermediate tag still under the threshold), the
+`.github/scripts/llama-next-version.sh` helper that computes the next reviewable step, and the
+edit/verify/commit loop below. Use it for any non-trivial bump; the steps here are the mechanical core.
+
 To change the llama.cpp version, update the following **three** files (and re-verify `patches/`):
 
 1. **llama/CMakeLists.txt** — the `GIT_TAG` line for llama.cpp: `GIT_TAG        b8831`
