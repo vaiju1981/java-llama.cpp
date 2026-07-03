@@ -1732,6 +1732,25 @@ TEST(ParamsFromJsonCmpl, SimpleFields_RoundTrip) {
     EXPECT_EQ(p.n_predict, 128);
 }
 
+// b9864: per-request sse_ping_interval overrides the server --sse-ping-interval setting; -1 disables
+// pings. Pins that the JSON key emitted by InferenceParameters.withSsePingInterval is honored by the
+// schema (field_num with set_hard_limits(-1, INT32_MAX)).
+TEST(ParamsFromJsonCmpl, SsePingInterval_RoundTrip) {
+    EXPECT_EQ(parse_params({{"sse_ping_interval", 5}}).sse_ping_interval, 5);
+    EXPECT_EQ(parse_params({{"sse_ping_interval", -1}}).sse_ping_interval, -1); // -1 disables pings
+}
+
+TEST(ParamsFromJsonCmpl, SsePingInterval_BelowHardLimit_Throws) {
+    // hard lower bound is -1; anything below throws (wrapped in std::invalid_argument by the schema).
+    EXPECT_THROW(parse_params({{"sse_ping_interval", -2}}), std::invalid_argument);
+}
+
+TEST(ParamsFromJsonCmpl, SsePingInterval_Absent_InheritsServerSetting) {
+    // When omitted from the request, the value inherits params_base.sse_ping_interval (the server setting).
+    common_params defaults;
+    EXPECT_EQ(parse_params({}).sse_ping_interval, defaults.sse_ping_interval);
+}
+
 TEST(ParamsFromJsonCmpl, RepeatLastN_MinusOne_ExpandsToNCtxSlot) {
     const auto p = parse_params({{"repeat_last_n", -1}}, /*n_ctx=*/256);
     EXPECT_EQ(p.sampling.penalty_last_n, 256);
