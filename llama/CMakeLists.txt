@@ -355,6 +355,23 @@ if(NOT ANDROID_ABI AND NOT OS_NAME MATCHES "Android")
     )
 endif()
 
+# Native-server mode (net.ladenthin.llama.server.NativeServer): compile the standalone server
+# entry point (server.cpp's `llama_server`, made embeddable by patches/0006) and its tools helper
+# (server-tools.cpp); jllama's JNI bridge (native_server.cpp) then calls llama_server on a worker
+# thread. This runs the *full* upstream HTTP server — WebUI included, every llama-server flag
+# forwarded — inside libjllama, with no separate llama-server executable. server.cpp and
+# server-tools.cpp both pull in vendor/sheredom/subprocess.h (posix_spawn_*), so they share the
+# non-Android guard used for server-models.cpp above; native_server.cpp links against llama_server
+# and is guarded too. On Android the NativeServer native methods are simply absent (its JNI calls
+# throw UnsatisfiedLinkError) — use OpenAiCompatServer there.
+if(NOT ANDROID_ABI AND NOT OS_NAME MATCHES "Android")
+    target_sources(jllama PRIVATE
+        ${llama.cpp_SOURCE_DIR}/tools/server/server-tools.cpp
+        ${llama.cpp_SOURCE_DIR}/tools/server/server.cpp
+        ${CMAKE_SOURCE_DIR}/src/main/cpp/native_server.cpp
+    )
+endif()
+
 # Phase 2: also compile the upstream HTTP transport (server-http.cpp) and its
 # cpp-httplib backend directly into jllama, so the OpenAI-compatible server can be
 # driven natively from JNI — shipped inside libjllama, with no separate

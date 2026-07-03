@@ -710,6 +710,35 @@ tool calling depends on the model's own tool-calling quality. Pass `--api-key` (
 `OpenAiServerConfig.apiKey(...)`) to require an `Authorization: Bearer` token; the server binds to
 `127.0.0.1` by default.
 
+### Native server with the built-in WebUI (`NativeServer`)
+
+`OpenAiCompatServer` above is a JSON **API** server (its `/` is a 404 — no web page). If you want
+the **full upstream llama.cpp server, including its bundled Svelte WebUI**, use
+`net.ladenthin.llama.server.NativeServer`. It runs the real `llama_server` inside `libjllama` over
+JNI — no separate `llama-server.exe` — and **forwards the raw llama-server arguments verbatim**, so
+every flag works exactly as it does for the standalone binary:
+
+```java
+try (NativeServer server = new NativeServer(
+        "-m", "gpt-oss-20b-UD-Q4_K_XL.gguf",
+        "--host", "127.0.0.1", "--port", "8080",
+        "-c", "65536", "-b", "4096", "-ub", "2048",
+        "--jinja", "-ngl", "0", "-t", "8", "-tb", "16",
+        "-ctk", "q8_0", "-ctv", "q8_0",
+        "--chat-template-kwargs", "{\"reasoning_effort\":\"low\"}",
+        "--parallel", "1").start()) {
+    // Open http://127.0.0.1:8080/ in a browser for the WebUI; the OpenAI API is at /v1/... too.
+    Thread.currentThread().join();
+}
+```
+
+Differences from `OpenAiCompatServer`: it **loads its own model** from the arguments (an independent
+lifecycle, like `llama-server.exe`, not a shared `LlamaModel`), it is **single-instance per
+process**, it serves the **WebUI** (in released jars — local `cmake` builds ship the empty-asset
+stub, so no UI there), and it is **not available on Android** (the upstream server needs
+`posix_spawn`). Readiness: poll `GET /health`. No SSL (plain HTTP — bind localhost or front with a
+TLS proxy).
+
 ### LangChain4j integration
 
 A separate artifact, **`net.ladenthin:llama-langchain4j`**, adapts a `LlamaModel` to

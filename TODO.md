@@ -13,6 +13,36 @@ cross-cutting initiative.
 
 ## Open — jllama-specific
 
+### NativeServer — reuse an already-loaded `LlamaModel` (open, enhancement)
+
+`net.ladenthin.llama.server.NativeServer` (the native-transport server mode that runs the full
+upstream `llama_server` — WebUI included — inside `libjllama` over JNI) currently loads its **own**
+model from the forwarded argv, exactly like running `llama-server.exe`. This is the "independent
+lifecycle" v1: simple, and every llama-server flag is forwarded verbatim.
+
+**Enhancement:** let `NativeServer` optionally attach to an **already-loaded** `LlamaModel`'s
+`server_context` instead of loading a second copy of the weights (saves the RAM/VRAM and load time
+of a duplicate model when a caller already has a `LlamaModel` open). Feasibility notes from the
+initial investigation:
+
+- The upstream HTTP transport (`server_http_context`) and the route bundle
+  (`server_routes routes(params, ctx_server)`) only need a reference to a `server_context`. A
+  `LlamaModel` already owns and drives one (`jllama_context` in `jni_helpers.hpp`), and its JNI
+  methods already post tasks to that context's queue — so a second driver (the HTTP routes) posting
+  to the same queue is plausible; the queue is the synchronization point.
+- The real work is **lifecycle/ownership**: today `llama_server()` owns the whole flow (parse →
+  backend init → `ctx_server.load_model` → `start_loop` on its own thread → cleanup). Reuse would
+  need a *different* entry that skips model loading and the `start_loop`/backend ownership (the
+  existing `LlamaModel` worker already runs the loop), registers the HTTP routes against the shared
+  `server_context`, and starts only `server_http_context`. That is a separate, smaller C++ entry
+  point (not `llama_server`), plus reconciling params (the loaded model's params vs. server params)
+  and ensuring only one thread drives `update_slots`.
+- Logging: `llama_server` calls `common_init()` which routes llama.cpp logging to stderr/file; a
+  reuse path must not clobber the JNI log callback a `LlamaModel` consumer may rely on.
+
+Until then, run `NativeServer` standalone (it owns the process's llama backend + logging while
+running), or use the Java-transport `OpenAiCompatServer` when sharing a `LlamaModel`.
+
 ### PIT gate not hermetic — `value.ContentPart.audioFile(Path)` (open)
 
 The PIT mutation gate reaches 100% **only when the audio test fixture is present**. Without it the

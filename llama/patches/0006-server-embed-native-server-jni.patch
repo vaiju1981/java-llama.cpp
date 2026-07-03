@@ -1,0 +1,67 @@
+diff --git a/tools/server/server.cpp b/tools/server/server.cpp
+index 84c7f0b..5c9fac9 100644
+--- a/tools/server/server.cpp
++++ b/tools/server/server.cpp
+@@ -25,6 +25,28 @@
+ static std::function<void(int)> shutdown_handler;
+ static std::atomic_flag is_terminating = ATOMIC_FLAG_INIT;
+ 
++// [jllama] Embedded-mode support: when llama_server() is hosted inside libjllama and driven over
++// JNI (net.ladenthin.llama.server.NativeServer), it must NOT install process-wide signal handlers
++// (that would hijack the JVM's SIGINT/SIGTERM), and it must be stoppable out-of-band because
++// ctx_server is local to llama_server(). It also parses exactly the forwarded argv rather than
++// re-deriving it from the process command line (which would be java.exe's — the Windows bug the
++// 0001 patch fixes for the embedded path). These symbols are declared in
++// src/main/cpp/native_server_bridge.h and called by native_server.cpp.
++static std::atomic<bool> g_llama_server_embedded{false};
++
++void llama_server_set_embedded(bool embedded) {
++    g_llama_server_embedded.store(embedded);
++}
++
++void llama_server_request_shutdown() {
++    // Mirrors the SIGTERM path: invoke the installed shutdown_handler, which unblocks
++    // ctx_server.start_loop() (single-model) / ctx_http.stop() (router). No-op if the server has
++    // not finished starting (handler not yet installed) — stop after /health reports ready.
++    if (shutdown_handler) {
++        shutdown_handler(SIGTERM);
++    }
++}
++
+ static inline void signal_handler(int signal) {
+     if (is_terminating.test_and_set()) {
+         // in case it hangs, we can force terminate the server by hitting Ctrl+C twice
+@@ -87,7 +109,13 @@ int llama_server(int argc, char ** argv) {
+     // touch it. lifecycle is symmetric, stop_gc() runs in clean_up() before backend free
+     g_stream_sessions.start_gc();
+ 
+-    if (!common_params_parse_main(argc, argv, params, LLAMA_EXAMPLE_SERVER)) {
++    // [jllama] embedded (JNI) callers forward a clean UTF-8 argv, so honor it exactly via
++    // common_params_parse; only the standalone tool needs common_params_parse_main's
++    // process-command-line (GetCommandLineW) UTF-8 recovery.
++    const bool parsed_ok = g_llama_server_embedded.load()
++        ? common_params_parse(argc, argv, params, LLAMA_EXAMPLE_SERVER)
++        : common_params_parse_main(argc, argv, params, LLAMA_EXAMPLE_SERVER);
++    if (!parsed_ok) {
+         return 1;
+     }
+ 
+@@ -412,6 +440,10 @@ int llama_server(int argc, char ** argv) {
+     }
+ 
+     // TODO: refactor in common/console
++    // [jllama] skip installing process-wide signal handlers when embedded in the JVM (they would
++    // hijack the JVM's own SIGINT/SIGTERM). NativeServer stops the embedded server via
++    // llama_server_request_shutdown() instead.
++    if (!g_llama_server_embedded.load()) {
+ #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
+     struct sigaction sigint_action;
+     sigint_action.sa_handler = signal_handler;
+@@ -425,6 +457,7 @@ int llama_server(int argc, char ** argv) {
+     };
+     SetConsoleCtrlHandler(reinterpret_cast<PHANDLER_ROUTINE>(console_ctrl_handler), true);
+ #endif
++    }
+ 
+     SRV_INF("listening on %s\n", ctx_http.listening_address.c_str());
+ 
