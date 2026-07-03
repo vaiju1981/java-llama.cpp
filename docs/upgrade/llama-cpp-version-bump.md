@@ -1,3 +1,9 @@
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+
 # llama.cpp version-bump runbook
 
 This is the **documentation root** for bumping the pinned llama.cpp version. It links the
