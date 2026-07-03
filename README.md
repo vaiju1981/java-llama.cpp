@@ -661,8 +661,12 @@ java -cp target/llama-<version>.jar net.ladenthin.llama.server.OpenAiCompatServe
 ```
 
 Run with `--help` for the full option list (`-m/--model`, `--host`, `-p/--port`, `-c/--ctx-size`,
-`-ngl/--n-gpu-layers`, `-t/--threads`, `--parallel`, `--model-id`, `--api-key`, `--mmproj`,
-`--embedding`, `--reranking`).
+`-b/--batch-size`, `-ub/--ubatch-size`, `-ngl/--n-gpu-layers`, `-t/--threads`, `-tb/--threads-batch`,
+`-ctk/--cache-type-k`, `-ctv/--cache-type-v`, `--jinja`, `--chat-template-kwargs`, `--parallel`,
+`--model-id`, `--api-key`, `--mmproj`, `--embedding`, `--reranking`). The tuning flags mirror
+llama.cpp's server, so an invocation like
+`--jinja --chat-template-kwargs '{"reasoning_effort":"low"}' -ctk q8_0 -ctv q8_0 -b 4096 -ub 2048`
+works directly.
 
 Verify with curl (streaming chat):
 
