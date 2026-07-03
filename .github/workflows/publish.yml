@@ -887,9 +887,14 @@ jobs:
     # clang-cl (LLVM's MSVC-compatible driver) satisfies that guard (its compiler id is "Clang")
     # while still leaving CMake's MSVC=TRUE, so our static /MT CRT block (CMAKE_MSVC_RUNTIME_LIBRARY
     # in CMakeLists.txt) keeps applying and the generator stays Ninja Multi-Config. msvc-dev-cmd
-    # (arm64) supplies the MSVC headers/libs/linker that clang-cl links against. NOTE: clang-cl must
-    # be on PATH (the VS "C++ Clang tools" component / LLVM); if a first CI run reports it missing,
-    # add an LLVM setup step here.
+    # (arm64) supplies the MSVC headers/libs/linker AND the bundled clang-cl / lld-link under
+    # VC\Tools\Llvm\ARM64, so no separate LLVM install is needed.
+    #
+    # GGML_OPENMP=OFF: with clang-cl, ggml links LLVM's OpenMP (libomp.lib -> needs libomp140.aarch64.dll
+    # at runtime), which is NOT on PATH like MSVC's ambient vcomp140.dll on x64 — so gtest_discover_tests
+    # (and any consumer) failed to launch the binary with 0xc0000135 STATUS_DLL_NOT_FOUND. Turning OpenMP
+    # off makes ggml use its own std::thread threadpool, so the arm64 jllama.dll (and the test exe) are
+    # self-contained with no libomp dependency to ship. The x86_64/x86 jobs keep OpenMP (MSVC vcomp).
     runs-on: windows-11-arm
     steps:
       - uses: actions/checkout@v7
@@ -909,7 +914,7 @@ jobs:
         # explicitly (so the OSInfo-class OS-detection path is skipped) — same as the x86_64 job.
         # clang-cl (see the job comment) is required: ggml refuses MSVC cl.exe on ARM.
         run: |
-          .github\build.bat -G "Ninja Multi-Config" -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DOS_NAME=Windows -DOS_ARCH=aarch64 -DBUILD_TESTING=ON
+          .github\build.bat -G "Ninja Multi-Config" -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DGGML_OPENMP=OFF -DOS_NAME=Windows -DOS_ARCH=aarch64 -DBUILD_TESTING=ON
       - name: Run C++ unit tests
         run: ctest --test-dir llama/build --output-on-failure
       - name: Upload artifacts

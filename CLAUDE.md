@@ -301,7 +301,13 @@ via `if (MSVC AND NOT CMAKE_C_COMPILER_ID STREQUAL "Clang")`; `clang-cl` (LLVM's
 satisfies that guard (compiler id `"Clang"`) while keeping CMake's `MSVC=TRUE`, so the static `/MT` CRT
 block still applies and the generator stays Ninja Multi-Config. The job passes
 `-DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl`; `msvc-dev-cmd` supplies the MSVC
-headers/libs/linker `clang-cl` links against. (Upstream llama.cpp instead cross-compiles arm64 from an
+headers/libs/linker **and the bundled clang-cl/lld-link** (`VC\Tools\Llvm\ARM64`), so no separate
+LLVM install is needed. It also passes **`-DGGML_OPENMP=OFF`**: with clang-cl, ggml links LLVM's
+OpenMP (`libomp.lib` → `libomp140.aarch64.dll` at runtime), which — unlike MSVC's ambient
+`vcomp140.dll` on x64 — is not on `PATH`, so the test exe (and any consumer) failed to launch with
+`0xc0000135` (`STATUS_DLL_NOT_FOUND`). Disabling OpenMP makes ggml use its own `std::thread`
+threadpool, leaving the arm64 `jllama.dll` self-contained (the x86_64/x86 jobs keep OpenMP via MSVC
+`vcomp`). (Upstream llama.cpp instead cross-compiles arm64 from an
 x64 runner with `vcvarsall amd64_arm64` + a `clang`/`clang++` toolchain file and no arm64 tests; the
 native-runner + `clang-cl` route here keeps the `/MT` CRT and lets `ctest` run on real ARM hardware.)
 
