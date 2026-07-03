@@ -181,6 +181,44 @@ public final class NativeServer implements AutoCloseable {
     }
 
     /**
+     * Fat-jar entry point (the assembly JAR's {@code Main-Class}): starts the full native llama.cpp
+     * server — WebUI included — forwarding every argument to it verbatim, and blocks until the
+     * server exits or the JVM is asked to shut down (Ctrl-C / SIGTERM), stopping the server cleanly
+     * on the way out.
+     *
+     * <p>This is the default runnable server. The Java-transport {@link OpenAiCompatServer} remains
+     * available via its own {@code main} — run it explicitly with
+     * {@code java -cp <jar> net.ladenthin.llama.server.OpenAiCompatServer …}.</p>
+     *
+     * @param args the llama-server command-line arguments, forwarded verbatim (e.g. {@code -m
+     *             model.gguf --host 127.0.0.1 --port 8080}); pass {@code --help} for the full
+     *             llama-server option list
+     * @throws InterruptedException if interrupted while waiting for the server to exit
+     */
+    public static void main(String[] args) throws InterruptedException {
+        final NativeServer server = new NativeServer(args);
+        final AtomicBoolean stoppedByHook = new AtomicBoolean(false);
+        // Graceful Ctrl-C / SIGTERM: the embedded server installs no signal handlers of its own
+        // (see patches/0006), so the JVM-level shutdown hook is what stops it before exit.
+        Runtime.getRuntime()
+                .addShutdownHook(new Thread(
+                        () -> {
+                            stoppedByHook.set(true);
+                            server.close();
+                        },
+                        "jllama-native-server-shutdown"));
+        server.start();
+        // Keep the JVM alive until the native worker exits — on its own (e.g. a fatal startup/model
+        // error that llama_server has already logged) or because the shutdown hook stopped it.
+        while (server.isRunning()) {
+            Thread.sleep(200L);
+        }
+        if (!stoppedByHook.get()) {
+            server.close();
+        }
+    }
+
+    /**
      * Starts the native server on a worker thread and returns an opaque handle. The argv is
      * forwarded verbatim (with a synthetic {@code argv[0]}).
      */

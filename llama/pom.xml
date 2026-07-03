@@ -1296,8 +1296,10 @@ SPDX-License-Identifier: MIT
 			<!--
 				Builds the fat jar-with-dependencies uber JAR: the library classes, the
 				default-platform native libs from src/main/resources, and all runtime Java
-				dependencies in one drop-on-classpath JAR, runnable via the OpenAiCompatServer
-				Main-Class (set below) to start the OpenAI-compatible HTTP server. Off by
+				dependencies in one drop-on-classpath JAR, with NativeServer as the fat-jar
+				Main-Class (set below) to start the full native llama.cpp server (embedded WebUI,
+					every llama-server flag forwarded); OpenAiCompatServer stays runnable via
+					`java -cp <jar> net.ladenthin.llama.server.OpenAiCompatServer`. Off by
 				default; the CI `package` job activates it so the uber JAR rides along in the
 				`llama-jars` upload-artifact bundle. Documented in CLAUDE.md "Build Commands"
 				as `mvn -P assembly package`.
@@ -1314,7 +1316,7 @@ SPDX-License-Identifier: MIT
 							</descriptorRefs>
 							<archive>
 								<manifest>
-									<mainClass>net.ladenthin.llama.server.OpenAiCompatServer</mainClass>
+									<mainClass>net.ladenthin.llama.server.NativeServer</mainClass>
 								</manifest>
 							</archive>
 						</configuration>

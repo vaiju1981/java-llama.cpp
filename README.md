@@ -107,7 +107,7 @@ Inference of Meta's LLaMA model (and others) in pure C/C++.
 - **Infilling** (fill-in-the-middle) for code models.
 - **Tokenize / detokenize** and **JSON-schema → grammar** conversion.
 - **Raw JSON endpoint handlers** mirroring the upstream llama.cpp HTTP server (`/completions`, `/v1/completions`, `/embeddings`, `/infill`, `/tokenize`, `/detokenize`).
-- **Runnable OpenAI-compatible HTTP server** (`OpenAiCompatServer`, the fat-jar `Main-Class`, streaming SSE, zero extra dependency): `java -jar …-jar-with-dependencies.jar --model model.gguf --port 8080`.
+- **Two runnable HTTP server modes.** The fat jar's default `Main-Class` is `NativeServer` — the full upstream llama.cpp server (embedded **WebUI**, every llama-server flag forwarded) hosted inside `libjllama` over JNI, no separate `llama-server.exe`: `java -jar …-jar-with-dependencies.jar -m model.gguf --port 8080`. The Java-transport, zero-extra-dependency **OpenAI-compatible** server (`OpenAiCompatServer`, streaming SSE) is also available: `java -cp …-jar-with-dependencies.jar net.ladenthin.llama.server.OpenAiCompatServer --model model.gguf --port 8080`.
 - **Model metadata** access (`getModelMeta()`) and **server management** (metrics, slot save/restore, runtime thread reconfiguration).
 - Pre-built native binaries for Linux (x86-64, aarch64), macOS (x86-64, arm64), and Windows (x86-64, x86); CUDA, Metal, and Vulkan supported via local build.
 
@@ -591,7 +591,9 @@ array alone at `GET /slots`. OpenAI responses preserve
 
 `net.ladenthin.llama.server.OpenAiCompatServer` turns a loaded model into a local
 OpenAI-compatible HTTP endpoint using only the JDK's built-in `com.sun.net.httpserver` — no extra
-dependency and no separate server process. It is both embeddable and the fat-jar `Main-Class`. It
+dependency and no separate server process. It is embeddable, and runnable via
+`java -cp <jar> net.ladenthin.llama.server.OpenAiCompatServer …` (the fat jar's default
+`Main-Class` is instead `NativeServer` — see "Native server with the built-in WebUI" below). It
 serves:
 
 | Method &amp; path | Backed by |
@@ -646,16 +648,17 @@ try (LlamaModel model = new LlamaModel(modelParams);
 }
 ```
 
-…or run it standalone. The fat jar built by the `assembly` profile (`mvn -P assembly package`) is
-runnable (its `Main-Class` is `net.ladenthin.llama.server.OpenAiCompatServer`); the plain library jar
-works too via `-cp`:
+…or run it standalone. It has its own `main`, launched by class name via `-cp` (the fat jar's
+default `java -jar` `Main-Class` is `NativeServer` — the native server below — so name
+`OpenAiCompatServer` explicitly to get this Java one):
 
 ```bash
-# fat jar (bundles the native lib + Java deps)
-java -jar target/llama-<version>-jar-with-dependencies.jar \
+# fat jar (bundles the native lib + Java deps) — name the class explicitly
+java -cp target/llama-<version>-jar-with-dependencies.jar \
+    net.ladenthin.llama.server.OpenAiCompatServer \
     --model models/Qwen3-0.6B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 --n-gpu-layers 99
 
-# or the plain jar
+# or the plain library jar
 java -cp target/llama-<version>.jar net.ladenthin.llama.server.OpenAiCompatServer \
   --model models/model.gguf --port 8080 --model-id local-model
 ```
@@ -716,7 +719,17 @@ tool calling depends on the model's own tool-calling quality. Pass `--api-key` (
 the **full upstream llama.cpp server, including its bundled Svelte WebUI**, use
 `net.ladenthin.llama.server.NativeServer`. It runs the real `llama_server` inside `libjllama` over
 JNI — no separate `llama-server.exe` — and **forwards the raw llama-server arguments verbatim**, so
-every flag works exactly as it does for the standalone binary:
+every flag works exactly as it does for the standalone binary. It is the fat jar's default
+`Main-Class`, so `java -jar` just forwards its args to the native server (pass `--help` for the full
+llama-server option list):
+
+```bash
+java -jar target/llama-<version>-jar-with-dependencies.jar \
+    -m models/model.gguf --host 127.0.0.1 --port 8080 -c 65536 --jinja
+# then open http://127.0.0.1:8080/ for the WebUI
+```
+
+Or embed it:
 
 ```java
 try (NativeServer server = new NativeServer(
