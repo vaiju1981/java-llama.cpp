@@ -107,7 +107,7 @@ Inference of Meta's LLaMA model (and others) in pure C/C++.
 - **Infilling** (fill-in-the-middle) for code models.
 - **Tokenize / detokenize** and **JSON-schema → grammar** conversion.
 - **Raw JSON endpoint handlers** mirroring the upstream llama.cpp HTTP server (`/completions`, `/v1/completions`, `/embeddings`, `/infill`, `/tokenize`, `/detokenize`).
-- **Two runnable HTTP server modes.** The fat jar's default `Main-Class` is `NativeServer` — the full upstream llama.cpp server (embedded **WebUI**, every llama-server flag forwarded) hosted inside `libjllama` over JNI, no separate `llama-server.exe`: `java -jar …-jar-with-dependencies.jar -m model.gguf --port 8080`. The Java-transport, zero-extra-dependency **OpenAI-compatible** server (`OpenAiCompatServer`, streaming SSE) is also available: `java -cp …-jar-with-dependencies.jar net.ladenthin.llama.server.OpenAiCompatServer --model model.gguf --port 8080`.
+- **Two runnable HTTP server modes, one fat-jar entry.** The fat jar's `Main-Class` is `ServerLauncher`, which dispatches on the `--open-ai-compat` flag. Without it, `java -jar …-jar-with-dependencies.jar -m model.gguf --port 8080` runs the full upstream llama.cpp server (embedded **WebUI**, every llama-server flag forwarded) hosted inside `libjllama` over JNI — no separate `llama-server.exe`. With it, `java -jar … --open-ai-compat --model model.gguf --port 8080` runs the Java-transport, zero-extra-dependency **OpenAI-compatible** server (`OpenAiCompatServer`, streaming SSE) instead. Both are also runnable directly by class name via `java -cp … net.ladenthin.llama.server.{NativeServer,OpenAiCompatServer}`.
 - **Model metadata** access (`getModelMeta()`) and **server management** (metrics, slot save/restore, runtime thread reconfiguration).
 - Pre-built native binaries for Linux (x86-64, aarch64), macOS (x86-64, arm64), and Windows (x86-64, x86); CUDA, Metal, and Vulkan supported via local build.
 
@@ -648,17 +648,16 @@ try (LlamaModel model = new LlamaModel(modelParams);
 }
 ```
 
-…or run it standalone. It has its own `main`, launched by class name via `-cp` (the fat jar's
-default `java -jar` `Main-Class` is `NativeServer` — the native server below — so name
-`OpenAiCompatServer` explicitly to get this Java one):
+…or run it standalone. The fat jar's `Main-Class` is the `ServerLauncher` dispatcher, so add
+`--open-ai-compat` to select this Java server (the launcher strips that flag and forwards the rest);
+or name the class explicitly via `-cp`:
 
 ```bash
-# fat jar (bundles the native lib + Java deps) — name the class explicitly
-java -cp target/llama-<version>-jar-with-dependencies.jar \
-    net.ladenthin.llama.server.OpenAiCompatServer \
+# fat jar (bundles the native lib + Java deps) — select the Java server with --open-ai-compat
+java -jar target/llama-<version>-jar-with-dependencies.jar --open-ai-compat \
     --model models/Qwen3-0.6B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 --n-gpu-layers 99
 
-# or the plain library jar
+# or name the class explicitly (fat jar or plain library jar)
 java -cp target/llama-<version>.jar net.ladenthin.llama.server.OpenAiCompatServer \
   --model models/model.gguf --port 8080 --model-id local-model
 ```
@@ -719,9 +718,9 @@ tool calling depends on the model's own tool-calling quality. Pass `--api-key` (
 the **full upstream llama.cpp server, including its bundled Svelte WebUI**, use
 `net.ladenthin.llama.server.NativeServer`. It runs the real `llama_server` inside `libjllama` over
 JNI — no separate `llama-server.exe` — and **forwards the raw llama-server arguments verbatim**, so
-every flag works exactly as it does for the standalone binary. It is the fat jar's default
-`Main-Class`, so `java -jar` just forwards its args to the native server (pass `--help` for the full
-llama-server option list):
+every flag works exactly as it does for the standalone binary. The fat jar runs it **by default**
+(when `--open-ai-compat` is absent), forwarding its args to the native server (pass `--help` for the
+full llama-server option list):
 
 ```bash
 java -jar target/llama-<version>-jar-with-dependencies.jar \
