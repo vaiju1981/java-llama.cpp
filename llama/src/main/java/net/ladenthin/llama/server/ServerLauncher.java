@@ -28,8 +28,16 @@ import java.util.List;
  */
 public final class ServerLauncher {
 
-    /** Selector flag: when present, run {@link OpenAiCompatServer} instead of the default {@link NativeServer}. */
-    public static final String OPENAI_COMPAT_FLAG = "--openai-compat";
+    /**
+     * Selector flag: when present, run {@link OpenAiCompatServer} instead of the default
+     * {@link NativeServer}.
+     *
+     * <p>Namespaced with the {@code jllama} prefix (this project's native-library name) so it can
+     * never collide with a current or future llama.cpp / llama-server flag — upstream owns the
+     * {@code --*} space, this launcher owns {@code --jllama-*}. The launcher strips it before
+     * forwarding, so it never reaches {@code llama_server} (which rejects unknown flags).</p>
+     */
+    public static final String OPENAI_COMPAT_FLAG = "--jllama-openai-compat";
 
     private ServerLauncher() {}
 
