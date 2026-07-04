@@ -1346,11 +1346,14 @@ jobs:
       - name: Install Intel OpenVINO (apt repo)
         run: |
           wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/intel-openvino.gpg > /dev/null
-          echo "deb [signed-by=/usr/share/keyrings/intel-openvino.gpg] https://apt.repos.intel.com/openvino/2025 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2025.list
+          echo "deb [signed-by=/usr/share/keyrings/intel-openvino.gpg] https://apt.repos.intel.com/openvino/2026 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2026.list
           sudo apt-get update
-          # libtbb-dev supplies the TBBConfig.cmake that OpenVINOConfig.cmake's find_package(TBB) needs;
-          # ocl-icd-opencl-dev + opencl-headers satisfy ggml-openvino's find_package(OpenCL).
-          sudo apt-get install -y openvino-2025.0.0 libtbb-dev ocl-icd-opencl-dev opencl-headers
+          # OpenVINO 2026.2.1 matches the version llama.cpp's ggml-openvino targets (2025.0.0's
+          # ov::Allocator API mismatched and broke the template compile). libtbb-dev supplies
+          # TBBConfig.cmake; ocl-icd-opencl-dev + opencl-headers + opencl-clhpp-headers (the C++
+          # CL/cl2.hpp) + intel-opencl-icd satisfy ggml-openvino's find_package(OpenCL) — the same
+          # OpenCL package set upstream llama.cpp's ubuntu-openvino job installs.
+          sudo apt-get install -y openvino-2026.2.1 libtbb-dev ocl-icd-opencl-dev opencl-headers opencl-clhpp-headers intel-opencl-icd
       - name: Build libraries
         shell: bash
         run: |
@@ -1379,10 +1382,14 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-      - name: Install Intel OpenVINO (Windows archive)
+      - name: Install OpenCL headers (vcpkg) + Intel OpenVINO 2026.2.1
         shell: pwsh
+        # vcpkg's opencl port ships the full C++ headers incl. CL/cl2.hpp that OpenVINO's
+        # ocl_wrapper.hpp needs (the Khronos OpenCL-Headers dropped cl2.hpp) — same as upstream
+        # llama.cpp's windows-openvino job. OpenVINO 2026.2.1 matches ggml-openvino's target API.
         run: |
-          $url = "https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.0/windows/openvino_toolkit_windows_2025.0.0.17942.1f68be9f594_x86_64.zip"
+          C:\vcpkg\vcpkg install opencl:x64-windows
+          $url = "https://storage.openvinotoolkit.org/repositories/openvino/packages/2026.2.1/windows/openvino_toolkit_windows_2026.2.1.21919.ede283a88e3_x86_64.zip"
           Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\openvino.zip"
           Expand-Archive -Path "$env:RUNNER_TEMP\openvino.zip" -DestinationPath "C:\openvino" -Force
           # The archive extracts into a nested versioned folder; point OpenVINO_DIR at its runtime/cmake.
@@ -1390,10 +1397,9 @@ jobs:
           "OpenVINO_DIR=$root\runtime\cmake" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Build libraries
         shell: cmd
-        # Via build_opencl_windows.bat (not build.bat): it stages the Khronos OpenCL headers +
-        # OpenCL.lib that ggml-openvino's find_package(OpenCL) needs, then delegates to build.bat.
+        # vcpkg toolchain file wires in the OpenCL (incl. cl2.hpp) that ggml-openvino needs.
         run: |
-          .github\build_opencl_windows.bat -G "Ninja Multi-Config" -DGGML_OPENVINO=ON -DOpenVINO_DIR="%OpenVINO_DIR%" -DOS_NAME=Windows -DOS_ARCH=x86_64
+          .github\build.bat -G "Ninja Multi-Config" -DGGML_OPENVINO=ON -DOpenVINO_DIR="%OpenVINO_DIR%" -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake -DOS_NAME=Windows -DOS_ARCH=x86_64
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
