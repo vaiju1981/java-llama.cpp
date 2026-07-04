@@ -8,7 +8,14 @@ project(jllama CXX)
 # Must be set before any FetchContent_MakeAvailable() so that llama.cpp and all
 # other subprojects inherit the same CRT choice (mixing /MT and /MD in a single
 # link is a linker error).
-if(MSVC)
+#
+# EXCEPTION: the Intel oneAPI SYCL and OpenVINO backends must use the DYNAMIC /MD
+# runtime — `icx -fsycl` rejects /MT outright ("invalid argument 'MT' not allowed
+# with '-fsycl'") and the OpenVINO import libraries are built /MD (mixing would be a
+# link error). Those classifiers already require the vendor runtime on the host, so
+# the self-contained-DLL rationale does not apply to them; the CPU + CUDA/Vulkan/OpenCL
+# classifiers keep /MT.
+if(MSVC AND NOT GGML_SYCL AND NOT GGML_OPENVINO)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
 endif()
 

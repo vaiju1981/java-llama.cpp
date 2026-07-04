@@ -1139,9 +1139,14 @@ jobs:
           if-no-files-found: error
 
   build-windows-x86_64-rocm:
-    name: Build Windows 2025 x86_64 ROCm/HIP (AMD)
+    name: Build Windows x86_64 ROCm/HIP (AMD)
     needs: [startgate, build-webui]
-    runs-on: windows-2025-vs2026
+    # windows-2022 (MSVC 14.4x), NOT windows-2025-vs2026 (VS 2026 / MSVC 14.51): ROCm 7.1's
+    # HIP clang headers (__clang_hip_cmath.h) cannot overload the __host__ __device__
+    # isgreater/isless/... that the very new MSVC <cmath> declares via _CLANG_BUILTIN2, so the
+    # device-code compile fails. Upstream llama.cpp builds win-hip on windows-2022 for the same
+    # reason (it drives the HIP SDK's own clang and relies on the older MSVC STL).
+    runs-on: windows-2022
     steps:
       - uses: actions/checkout@v7
       - name: Download shared WebUI assets
@@ -1343,8 +1348,9 @@ jobs:
           wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/intel-openvino.gpg > /dev/null
           echo "deb [signed-by=/usr/share/keyrings/intel-openvino.gpg] https://apt.repos.intel.com/openvino/2025 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2025.list
           sudo apt-get update
-          # libtbb-dev supplies the TBBConfig.cmake that OpenVINOConfig.cmake's find_package(TBB) needs.
-          sudo apt-get install -y openvino-2025.0.0 libtbb-dev
+          # libtbb-dev supplies the TBBConfig.cmake that OpenVINOConfig.cmake's find_package(TBB) needs;
+          # ocl-icd-opencl-dev + opencl-headers satisfy ggml-openvino's find_package(OpenCL).
+          sudo apt-get install -y openvino-2025.0.0 libtbb-dev ocl-icd-opencl-dev opencl-headers
       - name: Build libraries
         shell: bash
         run: |
@@ -1384,8 +1390,10 @@ jobs:
           "OpenVINO_DIR=$root\runtime\cmake" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Build libraries
         shell: cmd
+        # Via build_opencl_windows.bat (not build.bat): it stages the Khronos OpenCL headers +
+        # OpenCL.lib that ggml-openvino's find_package(OpenCL) needs, then delegates to build.bat.
         run: |
-          .github\build.bat -G "Ninja Multi-Config" -DGGML_OPENVINO=ON -DOpenVINO_DIR="%OpenVINO_DIR%" -DOS_NAME=Windows -DOS_ARCH=x86_64
+          .github\build_opencl_windows.bat -G "Ninja Multi-Config" -DGGML_OPENVINO=ON -DOpenVINO_DIR="%OpenVINO_DIR%" -DOS_NAME=Windows -DOS_ARCH=x86_64
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
