@@ -103,6 +103,28 @@ public class OpenAiSseFormatterTest {
         assertThat(root.path("object").asText(), is("list"));
         assertThat(root.path("data").get(0).path("id").asText(), is("gemma-local"));
         assertThat(root.path("data").get(0).path("object").asText(), is("model"));
+        // no ftype supplied -> the field is omitted entirely
+        assertThat(root.path("data").get(0).has("ftype"), is(false));
+    }
+
+    @Test
+    public void modelsJsonIncludesFtypeWhenKnownAndOmitsWhenBlank() throws IOException {
+        JsonNode withFtype = MAPPER.readTree(OpenAiSseFormatter.modelsJson("gemma-local", "Q4_K - Medium"));
+        assertThat(withFtype.path("data").get(0).path("ftype").asText(), is("Q4_K - Medium"));
+
+        // empty and null are treated as "unknown" -> field omitted
+        assertThat(
+                MAPPER.readTree(OpenAiSseFormatter.modelsJson("gemma-local", ""))
+                        .path("data")
+                        .get(0)
+                        .has("ftype"),
+                is(false));
+        assertThat(
+                MAPPER.readTree(OpenAiSseFormatter.modelsJson("gemma-local", null))
+                        .path("data")
+                        .get(0)
+                        .has("ftype"),
+                is(false));
     }
 
     @Test

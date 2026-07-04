@@ -9,6 +9,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import net.ladenthin.llama.args.CacheType;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -206,5 +207,132 @@ public class OpenAiServerCliTest {
         String json =
                 OpenAiServerCli.parse("-m", "models/m.gguf").toModelParameters().toString();
         assertThat(json, containsString("models/m.gguf"));
+    }
+
+    @Test
+    public void tuningFlagsDefaultToSentinels() {
+        OpenAiServerCli.Options options = OpenAiServerCli.parse("-m", "m.gguf");
+        assertThat(options.getBatchSize(), is(0));
+        assertThat(options.getUbatchSize(), is(0));
+        assertThat(options.getThreadsBatch(), is(0));
+        assertThat(options.getCacheTypeK(), is((CacheType) null));
+        assertThat(options.getCacheTypeV(), is((CacheType) null));
+        assertThat(options.isJinja(), is(false));
+        assertThat(options.getChatTemplateKwargs(), is((Object) null));
+    }
+
+    @Test
+    public void tuningShortFlagsParsed() {
+        OpenAiServerCli.Options options = OpenAiServerCli.parse(
+                "-m", "m.gguf", "-b", "4096", "-ub", "2048", "-tb", "16", "-ctk", "q8_0", "-ctv", "q8_0");
+        assertThat(options.getBatchSize(), is(4096));
+        assertThat(options.getUbatchSize(), is(2048));
+        assertThat(options.getThreadsBatch(), is(16));
+        assertThat(options.getCacheTypeK(), is(CacheType.Q8_0));
+        assertThat(options.getCacheTypeV(), is(CacheType.Q8_0));
+    }
+
+    @Test
+    public void tuningLongFlagsParsed() {
+        OpenAiServerCli.Options options = OpenAiServerCli.parse(
+                "-m",
+                "m.gguf",
+                "--batch-size",
+                "512",
+                "--ubatch-size",
+                "256",
+                "--threads-batch",
+                "6",
+                "--cache-type-k",
+                "f16",
+                "--cache-type-v",
+                "q4_0",
+                "--jinja");
+        assertThat(options.getBatchSize(), is(512));
+        assertThat(options.getUbatchSize(), is(256));
+        assertThat(options.getThreadsBatch(), is(6));
+        assertThat(options.getCacheTypeK(), is(CacheType.F16));
+        assertThat(options.getCacheTypeV(), is(CacheType.Q4_0));
+        assertThat(options.isJinja(), is(true));
+    }
+
+    @Test
+    public void cacheTypeIsCaseInsensitive() {
+        OpenAiServerCli.Options options = OpenAiServerCli.parse("-m", "m.gguf", "-ctk", "Q8_0");
+        assertThat(options.getCacheTypeK(), is(CacheType.Q8_0));
+    }
+
+    @Test
+    public void unknownCacheTypeThrows() {
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class, () -> OpenAiServerCli.parse("-m", "m.gguf", "-ctk", "q3_k"));
+        assertThat(ex.getMessage(), containsString("expects one of"));
+        assertThat(ex.getMessage(), containsString("q8_0"));
+        assertThat(ex.getMessage(), containsString("q3_k"));
+    }
+
+    @Test
+    public void chatTemplateKwargsParsedToRawJsonValues() {
+        OpenAiServerCli.Options options = OpenAiServerCli.parse(
+                "-m", "m.gguf", "--chat-template-kwargs", "{\"reasoning_effort\":\"low\",\"enable_thinking\":true}");
+        assertThat(options.getChatTemplateKwargs().get("reasoning_effort"), is("\"low\""));
+        assertThat(options.getChatTemplateKwargs().get("enable_thinking"), is("true"));
+    }
+
+    @Test
+    public void chatTemplateKwargsInvalidJsonThrows() {
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> OpenAiServerCli.parse("-m", "m.gguf", "--chat-template-kwargs", "{not json"));
+        assertThat(ex.getMessage(), containsString("--chat-template-kwargs expects a JSON object"));
+    }
+
+    @Test
+    public void chatTemplateKwargsNonObjectThrows() {
+        IllegalArgumentException ex = assertThrows(
+                IllegalArgumentException.class,
+                () -> OpenAiServerCli.parse("-m", "m.gguf", "--chat-template-kwargs", "\"low\""));
+        assertThat(ex.getMessage(), containsString("--chat-template-kwargs expects a JSON object"));
+    }
+
+    @Test
+    public void toModelParametersCarriesTuningFlags() {
+        String argv = OpenAiServerCli.parse(
+                        "-m",
+                        "m.gguf",
+                        "-b",
+                        "4096",
+                        "-ub",
+                        "2048",
+                        "-tb",
+                        "16",
+                        "-ctk",
+                        "q8_0",
+                        "-ctv",
+                        "q8_0",
+                        "--jinja",
+                        "--chat-template-kwargs",
+                        "{\"reasoning_effort\":\"low\"}")
+                .toModelParameters()
+                .toString();
+        assertThat(argv, containsString("--batch-size 4096"));
+        assertThat(argv, containsString("--ubatch-size 2048"));
+        assertThat(argv, containsString("--threads-batch 16"));
+        assertThat(argv, containsString("--cache-type-k q8_0"));
+        assertThat(argv, containsString("--cache-type-v q8_0"));
+        assertThat(argv, containsString("--jinja"));
+        assertThat(argv, containsString("--chat-template-kwargs"));
+        assertThat(argv, containsString("reasoning_effort"));
+    }
+
+    @Test
+    public void usageMentionsNewTuningFlags() {
+        String usage = OpenAiServerCli.usage();
+        assertThat(usage, containsString("--batch-size"));
+        assertThat(usage, containsString("--ubatch-size"));
+        assertThat(usage, containsString("--threads-batch"));
+        assertThat(usage, containsString("--cache-type-k"));
+        assertThat(usage, containsString("--jinja"));
+        assertThat(usage, containsString("--chat-template-kwargs"));
     }
 }

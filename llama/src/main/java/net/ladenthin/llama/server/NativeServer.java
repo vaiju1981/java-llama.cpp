@@ -5,105 +5,241 @@
 package net.ladenthin.llama.server;
 
 import java.util.Objects;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.ToString;
+import net.ladenthin.llama.loader.LlamaLoader;
 
 /**
- * Scaffold for the <em>native</em> HTTP server bridge — the planned counterpart to
- * {@link OpenAiCompatServer}.
+ * Runs the <em>full</em> upstream llama.cpp HTTP server — including its embedded
+ * <strong>WebUI</strong> — inside {@code libjllama}, driven over JNI, with no separate
+ * {@code llama-server} executable. It is the second of two server modes, the native counterpart to
+ * the Java-transport {@link OpenAiCompatServer}.
  *
- * <p>{@link OpenAiCompatServer} implements the HTTP transport in Java (on the JDK's
- * {@code com.sun.net.httpserver}) and drives the native llama.cpp server <em>core</em> over JNI. This
- * class is instead the entry point for the upstream <em>native</em> HTTP transport that is already
- * compiled into {@code libjllama} (llama.cpp's {@code server-http.cpp} plus its {@code cpp-httplib}
- * backend). That native transport is the only component able to serve the embedded llama.cpp
- * <strong>WebUI</strong> (the {@code ui.cpp}/{@code ui.h} asset table compiled in behind
- * {@code LLAMA_UI_HAS_ASSETS}).</p>
+ * <p>The constructor takes the raw llama-server command-line arguments and forwards them verbatim
+ * to the native entry point ({@code llama_server}), so <em>every</em> llama-server flag is supported
+ * ({@code -m}, {@code -c}, {@code -b}, {@code -ub}, {@code -ngl}, {@code -t}, {@code -tb},
+ * {@code -ctk}, {@code -ctv}, {@code --jinja}, {@code --chat-template-kwargs}, {@code --host},
+ * {@code --port}, {@code --ui}/{@code --no-ui}, …). Unlike {@link OpenAiCompatServer}, no per-flag
+ * Java mapping is involved.</p>
  *
- * <p><strong>Status: scaffold only.</strong> The route registration that upstream performs in
- * {@code server.cpp} (deliberately excluded from this build) is not yet wired to a JNI entry point, so
- * {@link #start()} throws {@link UnsupportedOperationException} for now. This class only fixes the
- * package structure and the public API shape; the native {@code startServer}/{@code stopServer}
- * methods, their C++ implementation, the server lifecycle/threading and WebUI serving are a separate,
- * detailed step (see {@code CLAUDE.md}, "WebUI (llama.cpp Svelte UI) embedding").</p>
+ * <p><strong>Independent lifecycle.</strong> {@code NativeServer} loads its <em>own</em> model from
+ * the forwarded arguments — exactly like running {@code llama-server.exe} — and is unrelated to any
+ * {@code net.ladenthin.llama.LlamaModel} you may also have open. Reusing an already-loaded
+ * {@code LlamaModel}'s context instead of loading a second copy is a possible future enhancement
+ * (see {@code TODO.md}). While the native server runs it owns the process-wide llama backend and
+ * routes llama.cpp logging to stderr/file (llama-server's own logging), not the JNI log callback.</p>
  *
- * <p>It is {@link AutoCloseable} so that, once implemented, callers can drive it with
- * try-with-resources exactly like {@link OpenAiCompatServer}.</p>
+ * <p><strong>Single instance per process.</strong> The upstream server keeps its shutdown state in
+ * file-scope globals, so only one {@code NativeServer} may run at a time; {@link #start()} throws if
+ * another instance is already running.</p>
+ *
+ * <p>Typical use:</p>
+ * <pre>{@code
+ * try (NativeServer server = new NativeServer(
+ *         "-m", "models/model.gguf", "--host", "127.0.0.1", "--port", "8080", "-c", "65536").start()) {
+ *     // Server (and WebUI at http://127.0.0.1:8080/) runs on a native worker thread.
+ *     // Readiness: poll GET /health until it returns {"status":"ok"}.
+ *     Thread.currentThread().join();
+ * }
+ * }</pre>
+ *
+ * <p><strong>Platform note.</strong> The native methods are compiled into {@code libjllama} on all
+ * platforms except Android (the upstream server pulls in {@code posix_spawn_*}, unavailable there);
+ * on Android use {@link OpenAiCompatServer}. No SSL: the embedded server is plain HTTP — bind
+ * localhost or front it with a TLS proxy.</p>
  */
 @ToString
 public final class NativeServer implements AutoCloseable {
 
-    /** Message thrown by {@link #start()} until the native route-wiring lands. */
-    static final String NOT_WIRED_MESSAGE =
-            "NativeServer is a scaffold: the upstream native HTTP routes (server-http.cpp) are "
-                    + "not yet wired to JNI. Use OpenAiCompatServer for now; the native server and "
-                    + "embedded WebUI are a planned step.";
+    /** Guards the process-wide single-instance invariant (upstream uses file-scope globals). */
+    private static final AtomicBoolean RUNNING = new AtomicBoolean(false);
 
-    /** Immutable server configuration (bind host, port, ...) shared with {@link OpenAiCompatServer}. */
-    private final OpenAiServerConfig config;
+    /** Default bind host reported by {@link #getHost()} when {@code --host} is not passed. */
+    private static final String DEFAULT_HOST = "127.0.0.1";
+
+    /** Default port reported by {@link #getPort()} when no port flag is passed. */
+    private static final int DEFAULT_PORT = 8080;
+
+    /** The llama-server argument vector, forwarded verbatim to the native entry point. */
+    private final String[] args;
+
+    /** Native handle (pointer) while running, or {@code 0} when not started / stopped. */
+    private volatile long handle;
 
     /**
-     * Creates a native-server bridge for the given configuration.
+     * Creates a native-server bridge for the given llama-server arguments.
      *
-     * <p>Construction performs no native work and binds no socket; it only captures the configuration.
-     * Call {@link #start()} to launch the server (not implemented yet).</p>
+     * <p>Construction performs no native work and binds no socket; it only captures the arguments.
+     * Call {@link #start()} to launch the server.</p>
      *
-     * @param config the server configuration (host, port, ...); must not be {@code null}
+     * @param args the llama-server command-line arguments (e.g. {@code "-m", "model.gguf",
+     *             "--port", "8080"}); must not be {@code null} and must not contain {@code null}
+     *             elements
      */
-    public NativeServer(OpenAiServerConfig config) {
-        this.config = Objects.requireNonNull(config, "config");
+    public NativeServer(String... args) {
+        Objects.requireNonNull(args, "args");
+        for (final String arg : args) {
+            Objects.requireNonNull(arg, "args element");
+        }
+        this.args = args.clone();
     }
 
     /**
-     * Starts the native HTTP server and begins serving the embedded WebUI.
+     * Starts the native HTTP server (and its embedded WebUI) on a background thread and returns
+     * immediately. The server binds and begins serving {@code GET /health} before the model finishes
+     * loading; poll {@code /health} for readiness.
      *
-     * <p><strong>Not implemented yet</strong> — this is a scaffold. The native route registration and
-     * its JNI binding are a planned step, so this method always throws until then.</p>
-     *
-     * @return this server instance (for fluent / try-with-resources use), once implemented
-     * @throws UnsupportedOperationException always, until the native routes are wired to JNI
+     * @return this server instance (for fluent / try-with-resources use)
+     * @throws IllegalStateException if this instance was already started, or another
+     *                               {@code NativeServer} is already running in this process
      */
-    // Scaffold: start() intentionally always throws for now, but must stay callable (not @DoNotCall)
-    // so the real implementation and its callers/tests keep the same signature.
-    @SuppressWarnings("DoNotCallSuggester")
     public NativeServer start() {
-        throw new UnsupportedOperationException(NOT_WIRED_MESSAGE);
+        if (handle != 0) {
+            throw new IllegalStateException("NativeServer already started");
+        }
+        if (!RUNNING.compareAndSet(false, true)) {
+            throw new IllegalStateException(
+                    "another NativeServer is already running in this process (only one is supported)");
+        }
+        try {
+            // Load libjllama lazily here (not in a static initializer) so construction, argument
+            // parsing and close() stay usable — and unit-testable — without the native library.
+            LlamaLoader.initialize();
+            handle = startNativeServer(args);
+        } catch (final RuntimeException | Error e) {
+            RUNNING.set(false);
+            throw e;
+        }
+        return this;
     }
 
     /**
-     * Reports whether the native server is currently running.
+     * Reports whether the native server worker is currently running.
      *
-     * @return {@code false} — the scaffold never starts a server yet
+     * <p>Note: this becomes {@code true} as soon as the worker thread starts, which is before the
+     * socket is necessarily accepting connections — use {@code GET /health} to detect readiness.</p>
+     *
+     * @return {@code true} if the server has been started and its worker has not yet exited
      */
     public boolean isRunning() {
-        return false;
+        final long h = handle;
+        return h != 0 && isRunningNative(h);
     }
 
     /**
-     * Returns the host the server is configured to bind to.
+     * Returns the bind host parsed from the arguments ({@code --host}), or {@code 127.0.0.1} when
+     * absent. Best-effort convenience for logging; the authoritative value is what the native server
+     * parsed.
      *
      * @return the configured bind host
      */
     public String getHost() {
-        return config.getHost();
+        for (int i = 0; i < args.length - 1; i++) {
+            if ("--host".equals(args[i])) {
+                return args[i + 1];
+            }
+        }
+        return DEFAULT_HOST;
     }
 
     /**
-     * Returns the port the server is configured to bind to.
+     * Returns the port parsed from the arguments ({@code --port} / {@code -p}), or {@code 8080} when
+     * absent or unparseable. Best-effort convenience for logging.
      *
      * @return the configured port
      */
     public int getPort() {
-        return config.getPort();
+        for (int i = 0; i < args.length - 1; i++) {
+            if ("--port".equals(args[i]) || "-p".equals(args[i])) {
+                try {
+                    return Integer.parseInt(args[i + 1].trim());
+                } catch (final NumberFormatException e) {
+                    return DEFAULT_PORT;
+                }
+            }
+        }
+        return DEFAULT_PORT;
     }
 
     /**
-     * Stops the native server if it is running.
-     *
-     * <p>No-op in the scaffold (nothing is ever started), so it is always safe to call, including from
-     * try-with-resources. Real lifecycle teardown is part of the planned native-server implementation.</p>
+     * Stops the native server if it is running and releases the native handle. Blocks until the
+     * server has fully shut down. Safe to call more than once and from try-with-resources even if
+     * {@link #start()} was never called (no-op then).
      */
     @Override
     public void close() {
-        // Nothing is started yet, so there is nothing to release.
+        final long h = handle;
+        if (h == 0) {
+            return;
+        }
+        handle = 0;
+        try {
+            stopNativeServer(h);
+        } finally {
+            RUNNING.set(false);
+        }
     }
+
+    /**
+     * Fat-jar entry point (the assembly JAR's {@code Main-Class}): starts the full native llama.cpp
+     * server — WebUI included — forwarding every argument to it verbatim, and blocks until the
+     * server exits or the JVM is asked to shut down (Ctrl-C / SIGTERM), stopping the server cleanly
+     * on the way out.
+     *
+     * <p>This is the default runnable server. The Java-transport {@link OpenAiCompatServer} remains
+     * available via its own {@code main} — run it explicitly with
+     * {@code java -cp <jar> net.ladenthin.llama.server.OpenAiCompatServer …}.</p>
+     *
+     * @param args the llama-server command-line arguments, forwarded verbatim (e.g. {@code -m
+     *             model.gguf --host 127.0.0.1 --port 8080}); pass {@code --help} for the full
+     *             llama-server option list
+     * @throws InterruptedException if interrupted while waiting for the server to exit
+     */
+    public static void main(String[] args) throws InterruptedException {
+        // Own the server in a try/finally so close() is guaranteed on normal or exceptional exit of
+        // the block (satisfies S2095 via the "close in a finally clause" option — try-with-resources
+        // is not used because the shutdown hook must also call close() explicitly, which javac flags
+        // under -Werror as an "explicit call to close() on an auto-closeable resource"). close() is
+        // idempotent (guards on a zero handle), so the finally and the hook both firing is safe.
+        final NativeServer server = new NativeServer(args);
+        try {
+            // Signalled by the shutdown hook so the main thread wakes immediately on Ctrl-C / SIGTERM
+            // rather than waiting out a poll tick — and so the wait uses a bounded latch await instead
+            // of Thread.sleep (banned by LlamaArchitectureTest.noThreadSleep).
+            final CountDownLatch stopSignal = new CountDownLatch(1);
+            // Graceful Ctrl-C / SIGTERM: the embedded server installs no signal handlers of its own
+            // (see patches/0006), so the JVM-level shutdown hook is what stops it before exit.
+            Runtime.getRuntime()
+                    .addShutdownHook(new Thread(
+                            () -> {
+                                server.close();
+                                stopSignal.countDown();
+                            },
+                            "jllama-native-server-shutdown"));
+            server.start();
+            // Keep the JVM alive until the native worker exits — on its own (e.g. a fatal startup/model
+            // error that llama_server has already logged) or because the shutdown hook stopped it. The
+            // bounded await returns early when the hook fires; on timeout we re-check isRunning() to
+            // catch a self-terminated worker.
+            while (server.isRunning() && !stopSignal.await(200L, TimeUnit.MILLISECONDS)) {
+                // wait for the native worker to exit or the shutdown hook to fire
+            }
+        } finally {
+            server.close();
+        }
+    }
+
+    /**
+     * Starts the native server on a worker thread and returns an opaque handle. The argv is
+     * forwarded verbatim (with a synthetic {@code argv[0]}).
+     */
+    private static native long startNativeServer(String[] args);
+
+    /** Signals shutdown, joins the worker thread, and frees the handle. */
+    private static native void stopNativeServer(long handle);
+
+    /** Whether the worker thread for the given handle is still running. */
+    private static native boolean isRunningNative(long handle);
 }

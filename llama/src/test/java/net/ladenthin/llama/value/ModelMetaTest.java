@@ -81,6 +81,25 @@ public class ModelMetaTest {
     }
 
     @Test
+    public void testGetFtype() throws Exception {
+        ModelMeta meta = parse("{\"vocab_type\":1,\"n_vocab\":32016,\"n_ctx_train\":16384,"
+                + "\"n_embd\":4096,\"n_params\":6738546688,\"size\":2825274880,"
+                + "\"modalities\":{\"vision\":false,\"audio\":false},"
+                + "\"architecture\":\"mistral\",\"name\":\"Mistral-7B-v0.1\",\"ftype\":\"Q4_K - Medium\"}");
+
+        assertThat(meta.getFtype(), is("Q4_K - Medium"));
+    }
+
+    @Test
+    public void testGetFtypeEmptyWhenAbsent() throws Exception {
+        ModelMeta meta = parse("{\"vocab_type\":1,\"n_vocab\":100,\"n_ctx_train\":4096,"
+                + "\"n_embd\":512,\"n_params\":1000000,\"size\":500000,"
+                + "\"modalities\":{\"vision\":false,\"audio\":false}}");
+
+        assertThat(meta.getFtype(), is(""));
+    }
+
+    @Test
     public void testGetArchitectureEmptyWhenAbsent() throws Exception {
         ModelMeta meta = parse("{\"vocab_type\":1,\"n_vocab\":100,\"n_ctx_train\":4096,"
                 + "\"n_embd\":512,\"n_params\":1000000,\"size\":500000,"

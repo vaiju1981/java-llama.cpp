@@ -622,4 +622,95 @@ SPDX-License-Identifier: MIT
         <Method name="~\$default\$.*"/>
     </Match>
 
+    <!--
+        NativeServer (net.ladenthin.llama.server.NativeServer) is the native-transport server-mode
+        entry point: it owns a background worker thread, three native JNI methods and a blocking
+        main(). Its SpotBugs findings are all fb-contrib style artifacts, not defects:
+          - IMC_IMMATURE_CLASS_NO_EQUALS: an identity/lifecycle-managed handle class, not a value
+            type — same rationale as the other server identity classes above.
+          - MDM_THREAD_YIELD: main() polls `while (isRunning()) Thread.sleep(...)` to keep the JVM
+            alive until the native server stops — a legitimate blocking wait in a process entry
+            point, not manual thread scheduling.
+          - UVA_USE_VAR_ARGS: startNativeServer(String[]) is a `native` method; its signature must
+            match the C/JNI side exactly and therefore cannot be varargs.
+          - WEM_WEAK_EXCEPTION_MESSAGING: the two start() guards throw with fixed messages
+            (single-instance-per-process / already-running), which carry no extra state worth
+            formatting — same category as the server request-parser WEM suppressions above.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.server.NativeServer"/>
+        <Or>
+            <Bug pattern="IMC_IMMATURE_CLASS_NO_EQUALS"/>
+            <Bug pattern="MDM_THREAD_YIELD"/>
+            <Bug pattern="UVA_USE_VAR_ARGS"/>
+            <Bug pattern="WEM_WEAK_EXCEPTION_MESSAGING"/>
+        </Or>
+    </Match>
+
+    <!--
+        ServerLauncher.main(String[]) is the fat-jar dispatcher: it forwards to
+        OpenAiCompatServer.main / NativeServer.main, both of which declare `throws Exception` (they
+        block until server shutdown and surface whatever the underlying server throws). Declaring
+        `throws Exception` on the dispatcher mirrors that contract; narrowing it would force the
+        dispatcher to wrap arbitrary checked exceptions for no benefit — same rationale as the
+        ToolHandler.invoke THROWS suppression above.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.server.ServerLauncher"/>
+        <Bug pattern="THROWS_METHOD_THROWS_CLAUSE_BASIC_EXCEPTION"/>
+        <Method name="main"/>
+    </Match>
+
+    <!--
+        OpenAiServerCli additions (the cache-type-k / cache-type-v, jinja and chat-template-kwargs
+        flags plus the extended usage() help). All fb-contrib/findsecbugs artifacts, not defects; scoped
+        to the specific methods that trigger them:
+          - parse(): ENMI_NULL_ENUM_VALUE — `@Nullable CacheType cacheTypeK/V = null`; null is the
+            documented "unset -> use the llama.cpp default" sentinel, explicitly @Nullable and
+            NullAway-checked.
+          - usage(): POTENTIAL_XML_INJECTION / PRMC_POSSIBLY_REDUNDANT_METHOD_CALLS — usage() builds
+            the plain-text console help string, appending the fixed cacheTypeChoices() enum list for
+            the -ctk and -ctv lines. There is no XML anywhere (false positive), and cacheTypeChoices()
+            is a cheap pure helper returning a constant, so calling it twice is harmless.
+          - parseChatTemplateKwargs(): EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS converts Jackson's
+            checked JsonProcessingException into a CLI usage error (cause chained) — the same intended
+            boundary softening already accepted for LlamaModel's JSON methods above; and
+            PSC_PRESIZE_COLLECTIONS on the tiny short-lived LinkedHashMap of CLI kwargs is not
+            worthwhile.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.server.OpenAiServerCli"/>
+        <Bug pattern="ENMI_NULL_ENUM_VALUE"/>
+        <Method name="parse"/>
+    </Match>
+    <Match>
+        <Class name="net.ladenthin.llama.server.OpenAiServerCli"/>
+        <Or>
+            <Bug pattern="POTENTIAL_XML_INJECTION"/>
+            <Bug pattern="PRMC_POSSIBLY_REDUNDANT_METHOD_CALLS"/>
+        </Or>
+        <Method name="usage"/>
+    </Match>
+    <Match>
+        <Class name="net.ladenthin.llama.server.OpenAiServerCli"/>
+        <Or>
+            <Bug pattern="EXS_EXCEPTION_SOFTENING_NO_CONSTRAINTS"/>
+            <Bug pattern="PSC_PRESIZE_COLLECTIONS"/>
+        </Or>
+        <Method name="parseChatTemplateKwargs"/>
+    </Match>
+
+    <!--
+        OpenAiServerCli$Options.getChatTemplateKwargs() returns the chatTemplateKwargs field
+        directly, which fb-contrib flags as EI_EXPOSE_REP. The field only ever holds the
+        Collections.unmodifiableMap(...) returned by parseChatTemplateKwargs (or null when unset),
+        so the getter cannot leak a mutable map — the detector does not track that the stored map is
+        already unmodifiable.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.server.OpenAiServerCli$Options"/>
+        <Bug pattern="EI_EXPOSE_REP"/>
+        <Method name="getChatTemplateKwargs"/>
+    </Match>
+
 </FindBugsFilter>

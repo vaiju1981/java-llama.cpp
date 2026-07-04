@@ -94,8 +94,10 @@ public class LlamaArchitectureTest {
      * intend it. Conceptual tiers (informational): {@code Server} &gt; {@code Api} (root) &gt;
      * {@code Loader} &gt; {@code Json}/{@code Parameters} &gt;
      * {@code Value}/{@code Callback}/{@code Exception}/{@code Args}. The {@code Server} layer is the
-     * optional OpenAI-compatible HTTP entry point; it is the only layer permitted to access the
-     * {@code Api} root.
+     * optional OpenAI-compatible HTTP / native-server entry point; it is the only layer permitted to
+     * access the {@code Api} root, and it also reaches the {@code Loader} ({@code NativeServer}
+     * triggers {@code LlamaLoader.initialize()} before starting the embedded native server) and the
+     * {@code Args} enums ({@code OpenAiServerCli} maps {@code -ctk}/{@code -ctv} to {@code CacheType}).
      */
     @ArchTest
     static final ArchRule layeredArchitecture = layeredArchitecture()
@@ -121,7 +123,7 @@ public class LlamaArchitectureTest {
             .whereLayer("Api")
             .mayOnlyBeAccessedByLayers("Server")
             .whereLayer("Loader")
-            .mayOnlyBeAccessedByLayers("Api")
+            .mayOnlyBeAccessedByLayers("Api", "Server")
             .whereLayer("Json")
             .mayOnlyBeAccessedByLayers("Api")
             .whereLayer("Parameters")
@@ -133,7 +135,7 @@ public class LlamaArchitectureTest {
             .whereLayer("Exception")
             .mayOnlyBeAccessedByLayers("Api", "Loader")
             .whereLayer("Args")
-            .mayOnlyBeAccessedByLayers("Api", "Loader", "Parameters")
+            .mayOnlyBeAccessedByLayers("Api", "Loader", "Parameters", "Server")
             .whereLayer("Server")
             .mayNotBeAccessedByAnyLayer();
 

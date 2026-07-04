@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.22)
 
 project(jllama CXX)
 
@@ -8,7 +8,14 @@ project(jllama CXX)
 # Must be set before any FetchContent_MakeAvailable() so that llama.cpp and all
 # other subprojects inherit the same CRT choice (mixing /MT and /MD in a single
 # link is a linker error).
-if(MSVC)
+#
+# EXCEPTION: the Intel oneAPI SYCL and OpenVINO backends must use the DYNAMIC /MD
+# runtime — `icx -fsycl` rejects /MT outright ("invalid argument 'MT' not allowed
+# with '-fsycl'") and the OpenVINO import libraries are built /MD (mixing would be a
+# link error). Those classifiers already require the vendor runtime on the host, so
+# the self-contained-DLL rationale does not apply to them; the CPU + CUDA/Vulkan/OpenCL
+# classifiers keep /MT.
+if(MSVC AND NOT GGML_SYCL AND NOT GGML_OPENVINO)
     set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>" CACHE STRING "" FORCE)
 endif()
 
@@ -143,7 +150,7 @@ set(LLAMA_BUILD_APP OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
 	llama.cpp
 	GIT_REPOSITORY https://github.com/ggerganov/llama.cpp.git
-	GIT_TAG        b9859
+	GIT_TAG        b9870
 	PATCH_COMMAND  ${CMAKE_COMMAND}
 		-DPATCH_DIR=${CMAKE_CURRENT_SOURCE_DIR}/patches
 		-DLLAMA_SRC=<SOURCE_DIR>
@@ -166,7 +173,7 @@ execute_process(
     COMMAND ${CMAKE_COMMAND}
         -DTTS_SRC=${llama.cpp_SOURCE_DIR}/tools/tts/tts.cpp
         -DOUT_CPP=${JLLAMA_TTS_GEN_CPP}
-        -DLLAMA_TAG=b9859
+        -DLLAMA_TAG=b9870
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate-tts-upstream.cmake
     RESULT_VARIABLE JLLAMA_TTS_GEN_RESULT
 )
@@ -247,10 +254,18 @@ endif()
 # under its own Maven classifier, so it must land in a backend-specific resource
 # root (the default CPU tree stays src/main/resources/). The GPU branches are
 # OS-aware because the same GGML flag is used on more than one platform:
-#   - GGML_CUDA   -> Linux (resources_linux_cuda)   AND Windows (resources_windows_cuda)
-#   - GGML_OPENCL -> Android (resources_android_opencl) AND Windows (resources_windows_opencl)
-#   - GGML_VULKAN -> Windows only (resources_windows_vulkan)
-# The classifier->tree mapping is mirrored by the matching Maven profile in pom.xml.
+#   - GGML_CUDA     -> Linux (resources_linux_cuda)   AND Windows (resources_windows_cuda)
+#   - GGML_OPENCL   -> Android (resources_android_opencl) AND Windows (resources_windows_opencl)
+#   - GGML_VULKAN   -> Windows (resources_windows_vulkan) AND Linux (resources_linux_vulkan)
+#   - GGML_HIP      -> Linux (resources_linux_rocm)    AND Windows (resources_windows_rocm)   [AMD ROCm/HIP]
+#   - GGML_SYCL     -> Windows (resources_windows_sycl) AND Linux (fp16/fp32 split, see below) [Intel oneAPI]
+#   - GGML_OPENVINO -> Linux (resources_linux_openvino) AND Windows (resources_windows_openvino) [Intel OpenVINO]
+# The classifier->tree mapping is mirrored by the matching Maven profile in pom.xml. The Linux
+# Vulkan tree holds both x86_64 and aarch64 under Linux/${OS_ARCH}; two Maven profiles
+# (vulkan-linux / vulkan-linux-aarch64) split it into one single-arch classifier JAR each. The
+# Windows OpenCL tree likewise holds both x86_64 (desktop ICD) and aarch64 (Snapdragon/Adreno),
+# split by the opencl-windows / opencl-windows-aarch64 profiles. Linux SYCL ships two precision
+# variants at the SAME arch, so it is routed to two distinct trees by GGML_SYCL_F16 (fp16 vs fp32).
 if(GGML_CUDA)
     if(OS_NAME STREQUAL "Windows")
         set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_windows_cuda/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
@@ -260,8 +275,13 @@ if(GGML_CUDA)
         message(STATUS "GPU (CUDA Linux) build - Installing files to ${JLLAMA_DIR}")
     endif()
 elseif(GGML_VULKAN)
-    set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_windows_vulkan/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
-    message(STATUS "GPU (Vulkan) build - Installing files to ${JLLAMA_DIR}")
+    if(OS_NAME STREQUAL "Windows")
+        set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_windows_vulkan/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
+        message(STATUS "GPU (Vulkan Windows) build - Installing files to ${JLLAMA_DIR}")
+    else()
+        set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_linux_vulkan/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
+        message(STATUS "GPU (Vulkan Linux) build - Installing files to ${JLLAMA_DIR}")
+    endif()
 elseif(GGML_OPENCL)
     if(OS_NAME STREQUAL "Windows")
         set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_windows_opencl/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
@@ -269,6 +289,33 @@ elseif(GGML_OPENCL)
     else()
         set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_android_opencl/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
         message(STATUS "GPU (OpenCL Android) build - Installing files to ${JLLAMA_DIR}")
+    endif()
+elseif(GGML_HIP)
+    if(OS_NAME STREQUAL "Windows")
+        set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_windows_rocm/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
+        message(STATUS "GPU (ROCm/HIP Windows) build - Installing files to ${JLLAMA_DIR}")
+    else()
+        set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_linux_rocm/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
+        message(STATUS "GPU (ROCm/HIP Linux) build - Installing files to ${JLLAMA_DIR}")
+    endif()
+elseif(GGML_SYCL)
+    if(OS_NAME STREQUAL "Windows")
+        set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_windows_sycl/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
+        message(STATUS "GPU (SYCL Windows) build - Installing files to ${JLLAMA_DIR}")
+    elseif(GGML_SYCL_F16)
+        set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_linux_sycl_fp16/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
+        message(STATUS "GPU (SYCL Linux fp16) build - Installing files to ${JLLAMA_DIR}")
+    else()
+        set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_linux_sycl_fp32/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
+        message(STATUS "GPU (SYCL Linux fp32) build - Installing files to ${JLLAMA_DIR}")
+    endif()
+elseif(GGML_OPENVINO)
+    if(OS_NAME STREQUAL "Windows")
+        set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_windows_openvino/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
+        message(STATUS "GPU (OpenVINO Windows) build - Installing files to ${JLLAMA_DIR}")
+    else()
+        set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources_linux_openvino/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
+        message(STATUS "GPU (OpenVINO Linux) build - Installing files to ${JLLAMA_DIR}")
     endif()
 else()
     set(JLLAMA_DIR ${CMAKE_SOURCE_DIR}/src/main/resources/net/ladenthin/llama/${OS_NAME}/${OS_ARCH})
@@ -352,6 +399,23 @@ target_sources(jllama PRIVATE
 if(NOT ANDROID_ABI AND NOT OS_NAME MATCHES "Android")
     target_sources(jllama PRIVATE
         ${llama.cpp_SOURCE_DIR}/tools/server/server-models.cpp
+    )
+endif()
+
+# Native-server mode (net.ladenthin.llama.server.NativeServer): compile the standalone server
+# entry point (server.cpp's `llama_server`, made embeddable by patches/0006) and its tools helper
+# (server-tools.cpp); jllama's JNI bridge (native_server.cpp) then calls llama_server on a worker
+# thread. This runs the *full* upstream HTTP server — WebUI included, every llama-server flag
+# forwarded — inside libjllama, with no separate llama-server executable. server.cpp and
+# server-tools.cpp both pull in vendor/sheredom/subprocess.h (posix_spawn_*), so they share the
+# non-Android guard used for server-models.cpp above; native_server.cpp links against llama_server
+# and is guarded too. On Android the NativeServer native methods are simply absent (its JNI calls
+# throw UnsatisfiedLinkError) — use OpenAiCompatServer there.
+if(NOT ANDROID_ABI AND NOT OS_NAME MATCHES "Android")
+    target_sources(jllama PRIVATE
+        ${llama.cpp_SOURCE_DIR}/tools/server/server-tools.cpp
+        ${llama.cpp_SOURCE_DIR}/tools/server/server.cpp
+        ${CMAKE_SOURCE_DIR}/src/main/cpp/native_server.cpp
     )
 endif()
 

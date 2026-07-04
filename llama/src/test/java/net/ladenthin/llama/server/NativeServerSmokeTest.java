@@ -5,44 +5,61 @@
 package net.ladenthin.llama.server;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
 
 /**
- * Model-free smoke test for the {@link NativeServer} scaffold: it must construct without any native
- * work, expose its configured host/port, never report itself running, throw a clear
- * {@link UnsupportedOperationException} from {@link NativeServer#start()} until the native routes are
- * wired, and be a safe no-op {@link AutoCloseable}. No model and no {@code libjllama} required.
+ * Model-free, library-free unit tests for {@link NativeServer}'s pure-Java surface: it must
+ * construct without any native work (libjllama is loaded lazily in {@link NativeServer#start()},
+ * not in a static initializer), best-effort parse host/port from the forwarded arguments, report
+ * itself not running before {@code start()}, and be a safe no-op {@link AutoCloseable} when never
+ * started. Actually starting the native server is exercised by CI / manual runs with a real model.
  */
 public class NativeServerSmokeTest {
 
-    private static OpenAiServerConfig config() {
-        return OpenAiServerConfig.builder().host("127.0.0.1").port(1234).build();
-    }
-
     @Test
-    public void exposesConfiguredHostAndPortWithoutStarting() {
-        NativeServer server = new NativeServer(config());
-        assertThat(server.getHost(), is("127.0.0.1"));
+    public void parsesHostAndPortFromArgs() {
+        NativeServer server = new NativeServer("-m", "m.gguf", "--host", "0.0.0.0", "--port", "1234");
+        assertThat(server.getHost(), is("0.0.0.0"));
         assertThat(server.getPort(), is(1234));
         assertThat(server.isRunning(), is(false));
     }
 
     @Test
-    public void startThrowsUntilNativeRoutesAreWired() {
-        NativeServer server = new NativeServer(config());
-        UnsupportedOperationException ex = assertThrows(UnsupportedOperationException.class, server::start);
-        assertThat(ex.getMessage(), containsString("not yet wired"));
-        assertThat(server.isRunning(), is(false));
+    public void shortPortFlagParsed() {
+        NativeServer server = new NativeServer("-m", "m.gguf", "-p", "9099");
+        assertThat(server.getPort(), is(9099));
     }
 
     @Test
-    public void closeIsSafeNoOpEvenViaTryWithResources() {
-        try (NativeServer server = new NativeServer(config())) {
+    public void defaultsWhenFlagsAbsent() {
+        NativeServer server = new NativeServer("-m", "m.gguf");
+        assertThat(server.getHost(), is("127.0.0.1"));
+        assertThat(server.getPort(), is(8080));
+    }
+
+    @Test
+    public void nonIntegerPortFallsBackToDefault() {
+        NativeServer server = new NativeServer("-m", "m.gguf", "--port", "abc");
+        assertThat(server.getPort(), is(8080));
+    }
+
+    @Test
+    public void closeBeforeStartIsSafeNoOpViaTryWithResources() {
+        try (NativeServer server = new NativeServer("-m", "m.gguf")) {
             assertThat(server.isRunning(), is(false));
         }
+    }
+
+    @Test
+    public void nullArgsRejected() {
+        assertThrows(NullPointerException.class, () -> new NativeServer((String[]) null));
+    }
+
+    @Test
+    public void nullArgElementRejected() {
+        assertThrows(NullPointerException.class, () -> new NativeServer("-m", null));
     }
 }

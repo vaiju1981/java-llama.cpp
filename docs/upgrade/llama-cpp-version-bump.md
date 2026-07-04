@@ -1,0 +1,138 @@
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+
+# llama.cpp version-bump runbook
+
+This is the **documentation root** for bumping the pinned llama.cpp version. It links the
+mechanical edit steps in [`../../CLAUDE.md`](../../CLAUDE.md#upgradingdowngrading-llamacpp-version)
+together with a repeatable **target-selection + chunking** strategy so a bump never lands an
+unreviewably large diff in one step.
+
+The current pin lives in `llama/CMakeLists.txt` as `GIT_TAG b<nnnn>`. llama.cpp tags **every**
+master commit as `b<nnnn>`, but only a subset get GitHub *Releases*.
+
+---
+
+## TL;DR
+
+```bash
+# From the repo root. Prints the next reviewable step (b<cur> -> b<next>) and its compare/.patch URLs.
+.github/scripts/llama-next-version.sh                 # target = latest RELEASE (atom feed)
+.github/scripts/llama-next-version.sh b9900           # target = an explicit tag
+```
+
+Then apply the printed `b<cur> -> b<next>` step per [§ Applying a bump](#applying-a-bump) and re-run
+the script to walk the next chunk, until it prints **"reaches the latest release — final chunk"**.
+
+---
+
+## 1. Pick the target (topmost release)
+
+The **target candidate is the topmost release** on
+<https://github.com/ggml-org/llama.cpp/releases>. Read it from the release **atom feed**, which is
+reachable from restricted sandboxes where the ggml-org REST API is blocked:
+
+```
+https://github.com/ggml-org/llama.cpp/releases.atom
+```
+
+The first `<entry>`'s `releases/tag/b<nnnn>` is the latest release. `llama-next-version.sh` does this
+for you; if the feed is rate-limited (repeated unauthenticated fetches can return empty), open the
+releases page in a browser and pass the tag explicitly: `llama-next-version.sh b<nnnn>`.
+
+> **Why releases, not just the newest `b<nnnn>` tag:** releases are the versions upstream deems
+> shippable; an arbitrary master commit tag may be mid-refactor. Intermediate **chunk** steps
+> (below) are allowed to land on non-release tags — they are transient waypoints, not the target.
+
+## 2. Chunk by diff **byte-size**, not commit count
+
+The step size is governed by the **size of `git diff` between the pinned tag and the target**, not by
+how many commits separate them:
+
+- If `git diff b<cur> b<target>` is **< 100 KiB**, bump straight to the target in one step.
+- If it is **≥ 100 KiB**, pick an **intermediate** `b<nnnn>` tag whose diff from the current pin is the
+  largest still **under** the threshold, bump to that first, then repeat. Each step stays a small,
+  reviewable patch.
+
+The threshold is a knob (`LLAMA_BUMP_MAX_DIFF_KB`, default `100`). This is a heuristic: diff size grows
+monotonically enough with the tag number that the helper binary-searches the intermediate tags safely.
+
+> **`tools/ui` (the WebUI) dominates the full diff** and is *auto-followed* — CI rebuilds the matching
+> Svelte UI from the pinned `GIT_TAG`, so it needs no per-bump source review. To size the diff on the
+> code you actually review, set `LLAMA_BUMP_EXCLUDE_WEBUI=1` (the helper prints both figures regardless).
+
+### The helper: `.github/scripts/llama-next-version.sh`
+
+It only **reads** — a cached blobless mirror clone of llama.cpp plus `llama/CMakeLists.txt`; it never
+edits the repo. It prints the chosen `b<cur> -> b<next>` step, its full and WebUI-excluded diff size,
+the commit count, and the `compare` / `.patch` URLs. Environment:
+
+| Var | Default | Meaning |
+|---|---|---|
+| `LLAMA_BUMP_MAX_DIFF_KB` | `100` | Per-step diff-size threshold, in KiB. |
+| `LLAMA_BUMP_EXCLUDE_WEBUI` | `0` | `1` = size the diff **excluding** `tools/ui`. |
+| `LLAMA_BUMP_CACHE` | `~/.cache/jllama-llamacpp-mirror` | Mirror-clone location (cloned once, then fetched). |
+
+Worked example — pin `b9859`, latest release `b9866` (full diff 133 KiB ≥ 100 KiB, so it chunks):
+
+```
+$ .github/scripts/llama-next-version.sh b9866
+current pin    : b9859
+latest release : b9866
+threshold      : 100 KiB per step (full diff)
+
+next step      : b9859 -> b9862
+  diff size    : 45 KiB full  /  ...  KiB excluding tools/ui (auto-followed WebUI)
+  commits      : 3
+  progress     : intermediate chunk — re-run this script after the bump for the next one
+  review diff  : https://github.com/ggml-org/llama.cpp/compare/b9859...b9862
+  raw .patch   : https://github.com/ggml-org/llama.cpp/compare/b9859...b9862.patch
+```
+
+## 3. Review the chunk's diff
+
+Fetch the printed `compare/...patch` URL (or open the `compare` page). Walk it against the
+**priority-ordered API-compatibility review list** in
+[`../../CLAUDE.md`](../../CLAUDE.md#files-to-check-for-api-compatibility) — the 8 header rows that have
+historically caused breaks (`common.h`, `chat.h`, `speculative.h`, `mtmd.h`, `llama-cpp.h`, `arg.h`,
+`llama.h`, `download.h`), plus the project `CMakeLists.txt` for renamed link targets. Note any new
+API surface worth wiring through the Java layer (e.g. a new completion param or model-metadata getter).
+
+---
+
+## Applying a bump
+
+Once you have the `b<cur> -> b<next>` step, apply it exactly as
+[`CLAUDE.md § Upgrading/Downgrading`](../../CLAUDE.md#upgradingdowngrading-llamacpp-version) describes.
+Concretely:
+
+1. **Edit the pin — three files:**
+   - `llama/CMakeLists.txt` — the `GIT_TAG b<cur>` line **and** the `-DLLAMA_TAG=b<cur>` used by the
+     WebUI/TTS extraction (both must move together).
+   - `README.md` — the llama.cpp badge and link (version appears twice).
+   - `CLAUDE.md` — the "Current llama.cpp pinned version" line (and any build-example `b<nnnn>`).
+2. **Re-verify `patches/`** — a clean configure re-runs the fail-loud `PATCH_COMMAND`, so every patch
+   `0001`–`0006` must still apply. Use a **fresh** build dir (a stale one re-applies over an
+   already-patched tree and reports a false "does not apply"):
+   ```bash
+   cd llama && mvn -q compile          # generates the OSInfo class CMake's OS-detection needs
+   rm -rf build && cmake -B build       # fail-loud: aborts here if any patch no longer applies
+   ```
+   If a patch no longer applies, refresh its diff against the new source and recommit it.
+3. **Append the history rows** — add a pair of rows to
+   [`../history/llama-cpp-breaking-changes.md`](../history/llama-cpp-breaking-changes.md) covering the
+   `b<cur> -> b<next>` range (what broke / what was new; "no source change" is a valid row).
+4. **Commit + push** on the working branch (do not open a new PR if one already tracks the branch):
+   ```bash
+   git add llama/CMakeLists.txt README.md CLAUDE.md docs/history/llama-cpp-breaking-changes.md
+   git commit -m "Upgrade llama.cpp from b<cur> to b<next>"
+   git push -u origin <your-branch>
+   ```
+5. **Re-run the helper** for the next chunk. Repeat until it reports the **final chunk** (target
+   reached).
+
+CI builds every native classifier from the new pin; the full model-backed Java + C++ suites gate the
+result. A build failure at the configure step almost always means a patch needs refreshing (step 2).

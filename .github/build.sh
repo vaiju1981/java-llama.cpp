@@ -160,5 +160,26 @@ rm -f "$build_log"
 # crashing sccache (or the mid-build retry disabled it), re-invoking it here would just repeat
 # the crash output (harmless but noisy).
 if [ -n "$LAUNCH" ] && command -v sccache >/dev/null 2>&1; then
-  sccache --show-stats || true
+  sccache_stats="$(sccache --show-stats 2>/dev/null || true)"
+  printf '%s\n' "$sccache_stats"
+  # KISS per-job cache summary in the GitHub Actions job summary (like upstream llama.cpp's
+  # ccache-action table). Parse the text stats: the top-level "Compile requests" line is the
+  # total and the top-level "Cache hits" line is the hits (the per-language "Cache hits (C/C++)"
+  # line has "(" after the label, so the digit-anchored regex skips it). Only runs in CI
+  # (GITHUB_STEP_SUMMARY set); local runs are untouched. Best-effort — skips silently if the two
+  # numbers can't be parsed or there were no requests.
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -n "$sccache_stats" ]; then
+    sccache_req="$(printf '%s\n' "$sccache_stats" | awk '/^Compile requests[[:space:]]+[0-9]/{print $NF; exit}')"
+    sccache_hits="$(printf '%s\n' "$sccache_stats" | awk '/^Cache hits[[:space:]]+[0-9]/{print $NF; exit}')"
+    if [ -n "$sccache_req" ] && [ -n "$sccache_hits" ] && [ "$sccache_req" -gt 0 ] 2>/dev/null; then
+      sccache_rate="$(awk "BEGIN{printf \"%.1f\", ($sccache_hits/$sccache_req)*100}")"
+      {
+        echo "### sccache statistics"
+        echo ""
+        echo "| Cache hits | Requests | Hit rate |"
+        echo "|------------|----------|----------|"
+        echo "| ${sccache_hits} | ${sccache_req} | ${sccache_rate}% |"
+      } >> "$GITHUB_STEP_SUMMARY"
+    fi
+  fi
 fi

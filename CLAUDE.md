@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9859**
+Current llama.cpp pinned version: **b9870**
 
 ## Upgrading CUDA Version
 
@@ -198,7 +198,8 @@ Wiring (mirrors the CUDA-Linux / OpenCL-Android classifier pattern):
 
 1. **`llama/CMakeLists.txt`** — the `if(GGML_CUDA) … elseif(GGML_VULKAN) … elseif(GGML_OPENCL) … else()`
    chain is **OS-aware**: CUDA → `resources_windows_cuda` on Windows (else `resources_linux_cuda`),
-   Vulkan → `resources_windows_vulkan`, OpenCL → `resources_windows_opencl` on Windows (else
+   Vulkan → `resources_windows_vulkan` on Windows (else `resources_linux_vulkan` — see "Linux Vulkan
+   classifiers" above), OpenCL → `resources_windows_opencl` on Windows (else
    `resources_android_opencl`). The default CPU build (both generators) still emits to the canonical
    `src/main/resources/.../Windows/{x86_64,x86}/`, so the Ninja-vs-MSVC split is purely a
    CI-artifact-name + pom-profile concern (no CMake change for it).
@@ -253,6 +254,95 @@ ctest --test-dir build --output-on-failure
 .github\build_opencl_windows.bat -G "Ninja Multi-Config" -DGGML_OPENCL=ON -DGGML_OPENCL_EMBED_KERNELS=ON -DOS_NAME=Windows -DOS_ARCH=x86_64
 ```
 
+## Linux Vulkan classifiers + Windows arm64 CPU
+
+Three additional artifacts extend the matrix toward upstream llama.cpp's release set. They follow
+the same classifier/resource-tree pattern as CUDA-Linux and Vulkan-Windows.
+
+**Linux Vulkan (`vulkan-linux-x86-64` + `vulkan-linux-aarch64`).** A vendor-neutral GPU jar for
+Linux (NVIDIA / AMD / Intel) with no CUDA toolkit — the intersection of the existing Vulkan-Windows
+and CUDA-Linux wiring. Four places:
+
+1. **`llama/CMakeLists.txt`** — the `elseif(GGML_VULKAN)` branch is now **OS-aware** (mirrors
+   `GGML_CUDA`): Windows → `resources_windows_vulkan`, else → `resources_linux_vulkan`
+   (`.../Linux/${OS_ARCH}/`). One tree holds both arches under `Linux/{x86_64,aarch64}`.
+2. **`.github/workflows/publish.yml`** — `build-linux-x86_64-vulkan` (native `ubuntu-latest`, **not**
+   dockcross — the Vulkan SDK is a trivial apt install and upstream builds ubuntu-vulkan the same way)
+   and `build-linux-aarch64-vulkan` (`ubuntu-24.04-arm` + GCC 14). Both `apt-get install libvulkan-dev
+   glslc glslang-tools`, build `-DGGML_VULKAN=ON -DGGML_NATIVE=OFF`, and are **build-only** (no
+   `ctest`: a Vulkan-linked `jllama_test` errors enumerating devices on a GPU-less runner — same as the
+   Windows GPU jobs). Artifacts `Linux-{x86_64,aarch64}-vulkan` → both downloaded into the **one**
+   `resources_linux_vulkan/` tree by `package`/`publish-*`. Glibc floor rises to the ubuntu baseline
+   (like the aarch64 CPU jar); acceptable for a GPU artifact.
+3. **`llama/pom.xml`** — profiles `vulkan-linux` (classifier `vulkan-linux-x86-64`) and
+   `vulkan-linux-aarch64` (classifier `vulkan-linux-aarch64`). Both read the shared
+   `resources_linux_vulkan` tree but the resource-copy `<includes>` is **arch-scoped**
+   (`net/ladenthin/llama/Linux/{x86_64,aarch64}/**`), so each classifier JAR carries only its own
+   arch (verified: each jar contains exactly one `libjllama.so`). Separate output dirs
+   `_linux_vulkan` / `_linux_vulkan_aarch64` avoid collision. Activated in CI via
+   `-P …,vulkan-linux,vulkan-linux-aarch64,…`.
+4. **`README.md`** — classifier table + dependency snippets.
+
+`src/main/resources_linux_vulkan/` is git-ignored (staged by CI, never committed). GPU runtime
+`libvulkan.so.1` is supplied by the consumer's driver — nothing is bundled (same policy as every GPU
+classifier).
+
+**Windows arm64 CPU (default JAR, no classifier).** `build-windows-arm64` runs natively on GitHub's
+free `windows-11-arm` runner (`ilammy/msvc-dev-cmd` `arch: arm64`, Ninja Multi-Config, `-DOS_ARCH=aarch64`,
+build + `ctest`). It emits to the **canonical** `resources/.../Windows/aarch64/` and uploads
+`Windows-aarch64-libraries`, which the `package`/`publish-*` `*-libraries` glob merges into the default
+tree — so it ships in the **default** JAR alongside Windows x86-64 / x86 (like those, it is not a
+classifier). No Java change was needed: `OSInfo` already maps a Windows-on-ARM JVM (`os.arch=aarch64`)
+to `Windows/aarch64` (it isn't in `archMapping`, so it falls through `translateArchNameToFolderName`).
+sccache is intentionally omitted (the shared install step pulls the x86_64 sccache zip; not worth an
+arm64 path for one CPU job — `build.bat` just builds uncached). **Compiler: `clang-cl`, not MSVC
+`cl.exe`.** ggml's `ggml-cpu/CMakeLists.txt` aborts with *"MSVC is not supported for ARM, use clang"*
+via `if (MSVC AND NOT CMAKE_C_COMPILER_ID STREQUAL "Clang")`; `clang-cl` (LLVM's MSVC-compatible driver)
+satisfies that guard (compiler id `"Clang"`) while keeping CMake's `MSVC=TRUE`, so the static `/MT` CRT
+block still applies and the generator stays Ninja Multi-Config. The job passes
+`-DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl`; `msvc-dev-cmd` supplies the MSVC
+headers/libs/linker **and the bundled clang-cl/lld-link** (`VC\Tools\Llvm\ARM64`), so no separate
+LLVM install is needed. It also passes **`-DGGML_OPENMP=OFF`**: with clang-cl, ggml links LLVM's
+OpenMP (`libomp.lib` → `libomp140.aarch64.dll` at runtime), which — unlike MSVC's ambient
+`vcomp140.dll` on x64 — is not on `PATH`, so the test exe (and any consumer) failed to launch with
+`0xc0000135` (`STATUS_DLL_NOT_FOUND`). Disabling OpenMP makes ggml use its own `std::thread`
+threadpool, leaving the arm64 `jllama.dll` self-contained (the x86_64/x86 jobs keep OpenMP via MSVC
+`vcomp`). (Upstream llama.cpp instead cross-compiles arm64 from an
+x64 runner with `vcvarsall amd64_arm64` + a `clang`/`clang++` toolchain file and no arm64 tests; the
+native-runner + `clang-cl` route here keeps the `/MT` CRT and lets `ctest` run on real ARM hardware.)
+
+## Additional GPU-backend classifiers (ROCm/HIP, SYCL, Win-arm64 OpenCL, OpenVINO)
+
+Eight further GPU classifiers extend the matrix toward upstream llama.cpp's full release set. They
+follow the **exact same 5-place wiring** as the CUDA/Vulkan classifiers (no special cases — KISS): a
+`CMakeLists.txt` backend branch, a `publish.yml` build job (in `package.needs`, **fail-loud** — a
+broken build reds the pipeline, same policy as every GPU job), a `pom.xml` classifier profile, a
+`README.md` row, and a git-ignored `resources_*` tree. All are **build-only** (GitHub runners have no
+matching GPU) and bundle **no** vendor runtime.
+
+| Classifier | GGML flag(s) | Job runner / toolchain | Tree |
+|---|---|---|---|
+| `rocm-linux-x86-64` | `GGML_HIP=ON -DAMDGPU_TARGETS=…` | `ubuntu-latest` + ROCm apt repo (`/opt/rocm/llvm/bin/clang`) | `resources_linux_rocm` |
+| `rocm-windows-x86-64` | `GGML_HIP=ON` | `windows-2025-vs2026` + AMD HIP SDK | `resources_windows_rocm` |
+| `sycl-fp16-linux-x86-64` | `GGML_SYCL=ON -DGGML_SYCL_F16=ON` (`icx`/`icpx`) | `ubuntu-latest` + Intel oneAPI apt | `resources_linux_sycl_fp16` |
+| `sycl-fp32-linux-x86-64` | `GGML_SYCL=ON` (`icx`/`icpx`) | `ubuntu-latest` + Intel oneAPI apt | `resources_linux_sycl_fp32` |
+| `sycl-windows-x86-64` | `GGML_SYCL=ON` (`icx`) | `windows-2025-vs2026` + oneAPI installer | `resources_windows_sycl` |
+| `opencl-windows-aarch64` | `GGML_OPENCL=ON …ADRENO_KERNELS=ON` (clang-cl, `GGML_OPENMP=OFF`) | `windows-11-arm` (arm64 CPU job's toolchain) | `resources_windows_opencl` (arch subdir `aarch64`) |
+| `openvino-linux-x86-64` | `GGML_OPENVINO=ON` | `ubuntu-latest` + OpenVINO apt | `resources_linux_openvino` |
+| `openvino-windows-x86-64` | `GGML_OPENVINO=ON` | `windows-2025-vs2026` + OpenVINO archive | `resources_windows_openvino` |
+
+Two routing notes mirror existing precedent: **Linux SYCL** ships two precision variants at the *same*
+arch, so `CMakeLists.txt` routes them to two *distinct* trees by `GGML_SYCL_F16` (fp16 vs fp32).
+**Windows OpenCL** now holds both `x86_64` (desktop ICD) and `aarch64` (Snapdragon/Adreno) in the one
+`resources_windows_opencl` tree, split by the `opencl-windows` / `opencl-windows-aarch64` profiles'
+arch-scoped `<includes>` — exactly like the `vulkan-linux` / `vulkan-linux-aarch64` split.
+
+The vendor toolchain install steps in `publish.yml` are **first-pass** (apt repos / vendor installers
+pinned to a specific version): if a URL/version 404s in CI, the job fails loud and the step is adjusted
+— the failure is intentional signal, not a regression to hide behind `continue-on-error`.
+`src/main/resources_{linux_rocm,windows_rocm,linux_sycl_fp16,linux_sycl_fp32,windows_sycl,linux_openvino,windows_openvino}/`
+are all git-ignored (staged by CI, never committed).
+
 ## WebUI (llama.cpp Svelte UI) embedding
 
 The llama.cpp WebUI is **built once in CI and shared to every native build**, then
@@ -286,7 +376,7 @@ needs no extra step here, `build-webui` re-reads the tag and rebuilds the matchi
 ships no UI):
 ```bash
 # needs node/npm + network; embed.cpp is plain C++17 (no npm)
-git clone --depth 1 --branch b9859 https://github.com/ggml-org/llama.cpp /tmp/lc
+git clone --depth 1 --branch b9870 https://github.com/ggml-org/llama.cpp /tmp/lc
 ( cd /tmp/lc/tools/ui && npm ci && npm run build \
   && ( cd dist && find . -type f -not -path './_gzip/*' \
        | while read -r f; do mkdir -p "_gzip/$(dirname "$f")"; gzip -9 -c "$f" > "_gzip/$f"; done ) \
@@ -314,13 +404,19 @@ jobs therefore set `BUILD_JOBS: 2` to bound peak memory.
 **`sccache` → Depot Cache — shared compiler cache.** When `USE_CACHE=true` **and** `sccache`
 plus a cache token are present, `build.sh` adds
 `-DCMAKE_C_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache` and prints
-`sccache --show-stats`. The cache lives in **Depot Cache** over sccache's **WebDAV** backend:
+`sccache --show-stats`. **Per-job cache summary:** when running in CI (`GITHUB_STEP_SUMMARY` set),
+`build.sh`/`build.bat` also parse those stats and append a small `### sccache statistics` table
+(`Cache hits | Requests | Hit rate`) to the job summary — the sccache/Depot analogue of upstream
+llama.cpp's `ccache-action` "CCache Statistics" table, per-job (GitHub does not merge job
+summaries). It is best-effort (skipped silently if the numbers can't be parsed) and only emitted
+when sccache was actually the launcher; local runs (no `GITHUB_STEP_SUMMARY`) are untouched. The
+cache lives in **Depot Cache** over sccache's **WebDAV** backend:
 
 - `SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev`
 - `SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}` — a Depot **organization** token, stored
   as the repo secret **`DEPOT_TOKEN`**.
 
-Because `sccache` is **content-addressed** and llama.cpp is pinned (`GIT_TAG b9859`), the
+Because `sccache` is **content-addressed** and llama.cpp is pinned (`GIT_TAG b9870`), the
 ~280 upstream object files are byte-identical every run, so a warm cache recompiles only the
 *changed* files. Depot's cache is **shared across all branches** (unlike GitHub's
 per-branch `actions/cache`), so every branch builds incrementally; a `b<nnnn>` version bump
@@ -432,6 +528,8 @@ Current patches:
 | `0002-server-preserve-caller-load-progress-callback.patch` | Load-progress-callback regression introduced in llama.cpp **b9789**: `server_context::load_model` (`tools/server/server-context.cpp`) now **unconditionally** installs the server's own load-progress reporter on `params_base.load_progress_callback` immediately before `common_init_from_params`, clobbering any callback the embedding caller already set. libjllama's `LoadProgressCallback` feature wires `common_params.load_progress_callback` to a JNI trampoline *before* calling `load_model`, so the bump silently killed it — `LoadProgressCallbackTest` saw zero progress updates and the abort-on-`false` path never threw. The patch guards the assignment with `if (params_base.load_progress_callback == nullptr)`, so the server installs its own reporter **only when the caller hasn't** — a caller-supplied callback survives and fires during load. Standalone `llama-server` (no caller callback, so the field is null) is unaffected. Same JNI-vs-standalone divergence class as `0001`. |
 | `0003-pr22393-server-add-slot-prompt-similarity-getter-setter.patch` | **Upstream-PR carry** of [ggml-org/llama.cpp#22393](https://github.com/ggml-org/llama.cpp/pull/22393) ("server : add slot_prompt_similarity getter/setter") while it is still open upstream. Purely additive: adds `server_context::get_slot_prompt_similarity()` / `set_slot_prompt_similarity(float)` (`tools/server/server-context.{cpp,h}`) so an embedding/JNI caller can query and tune the slot-selection threshold at runtime without reloading the model. Verbatim copy of the PR — drop it once a pinned `b<nnnn>` includes the change. |
 | `0004-pr23116-server-per-request-reasoning-budget-tokens.patch` | **Upstream-PR carry** of [ggml-org/llama.cpp#23116](https://github.com/ggml-org/llama.cpp/pull/23116) ("server: honour per-request reasoning_budget_tokens in chat completions"), motivated by java-llama.cpp#140, while it is still open upstream. `oaicompat_chat_params_parse` (`tools/server/server-common.cpp`) only read the Anthropic `thinking_budget_tokens` alias and always wrote the server-level `reasoning_budget_message`, so a per-request `reasoning_budget_tokens` / `reasoning_budget_message` on a chat-completions request was ignored. The patch reads both overrides **before** the generic copy loop (precedence: `reasoning_budget_tokens` > `thinking_budget_tokens` alias > server default) and threads the per-request message through. Carries the upstream `tests/test-chat.cpp` additions verbatim so the patch is submittable as-is; like `0001`'s test/call-site flips they are **applied-but-not-compiled** here (`LLAMA_BUILD_TESTS` is OFF for the FetchContent subproject). Drop it once a pinned `b<nnnn>` includes the change. |
+| `0005-server-recurrent-near-prompt-end-checkpoints.patch` | **Multi-turn tool-calling perf fix for recurrent/hybrid models (e.g. Granite-4)**, upstream-submittable. In `server_context::update_slots` (`tools/server/server-context.cpp`) the near-prompt-end context checkpoints are gated by `checkpoint_min_step` (default 8192 tokens). An agentic conversation that appends only assistant/tool messages never produces a new user-message checkpoint (`is_user_start`/`is_last_user_message` match `COMMON_CHAT_ROLE_USER` only), so after turn 1 no new checkpoint is ever created and — because recurrent state can only roll back to a checkpoint — **every turn re-prefills the whole conversation tail** (measured on a synthetic granitehybrid model: prefilled tokens grew 901 → 1544 → 2187 → 2830 → 3473 over turns 2–6). The patch (1) exempts near-prompt-end checkpoints from the min-step spacing when the memory can only roll back via checkpoints (`ctx_tgt_seq_rm_type` is `FULL` or `RS` — SWA-only models are unaffected), and (2) skips creating a checkpoint whose position equals the newest one (the last-user-message checkpoint was re-created identically on every turn, flooding the 32-entry list). After the patch each turn restores the previous turn's near-end checkpoint and prefill is constant (~new-turn-sized; 647 tokens/turn in the same measurement, ≈5.4× less prefill at turn 6 and growing with conversation length). Validated output-identical (`temperature=0`) vs. unpatched. Complements — not duplicates — open upstream PRs #24035/#24899/#24891 (they fix checkpoint *invalidation/retention*; this fixes checkpoint *starvation*). Drop once upstream solves agentic checkpoint placement (e.g. a merged role-boundary checkpointing design, cf. #21885 / #22826 discussion). |
+| `0006-server-embed-native-server-jni.patch` | **Makes `server.cpp`'s `llama_server` embeddable in the JVM** so the `NativeServer` JNI bridge can run the full upstream HTTP server (WebUI included) inside `libjllama` — see "Two server modes" below. b9870 already exposes `int llama_server(int, char**)` (non-static; no `main` in the file), so the patch only adds embedded-mode support: (1) a `g_llama_server_embedded` flag + `llama_server_set_embedded()` / `llama_server_request_shutdown()` (declared in the committed `src/main/cpp/native_server_bridge.h`); (2) skips installing the process-wide SIGINT/SIGTERM handlers when embedded (they would hijack the JVM's); (3) in embedded mode parses the **forwarded** argv via `common_params_parse` instead of `common_params_parse_main` (whose `GetCommandLineW` recovery would pick up `java.exe`'s command line — the same Windows class of bug `0001` fixes). `llama_server_request_shutdown()` mirrors the SIGTERM path (invokes the installed `shutdown_handler` → `ctx_server.terminate()` unblocks `start_loop()`), giving JNI an out-of-band stop since `ctx_server` is loop-local. Applies **after `0001`** (which flips this call site to `common_params_parse_main`), so its context is the post-`0001` tree; regenerate against `0001`+source on a bump. Only touches `tools/server/server.cpp`. |
 
 ## OuteTTS build-time extraction (`cmake/generate-tts-upstream.cmake`)
 
@@ -469,6 +567,13 @@ matching and the **link fails**. Either way a silent divergence is impossible. O
 re-verify the generator the same way you re-verify `patches/`.
 
 ## Upgrading/Downgrading llama.cpp Version
+
+**Runbook (documentation root):** [`docs/upgrade/llama-cpp-version-bump.md`](docs/upgrade/llama-cpp-version-bump.md)
+covers the full bump process end-to-end — picking the target (topmost GitHub release, via the atom
+feed), **chunking by `git diff` byte-size** (bump straight to the target when the diff is < 100 KiB,
+else step through the largest intermediate tag still under the threshold), the
+`.github/scripts/llama-next-version.sh` helper that computes the next reviewable step, and the
+edit/verify/commit loop below. Use it for any non-trivial bump; the steps here are the mechanical core.
 
 To change the llama.cpp version, update the following **three** files (and re-verify `patches/`):
 
@@ -834,7 +939,7 @@ If the local check passes (`BUILD SUCCESS`), the `mvn package` job in
 - `LlamaLoader` — Extracts the platform-specific native library from the JAR to a temp directory, or finds it on `java.library.path`.
 - `OSInfo` — Detects OS and architecture for library resolution.
 - **`server` package — OpenAI-compatible HTTP endpoint (a single implementation).**
-  - `server.OpenAiCompatServer` — built only on the JDK's `com.sun.net.httpserver` (no new dependency), both embeddable and the fat-jar `Main-Class`. Serves `POST /v1/chat/completions` (streaming via SSE + non-streaming), `POST /v1/completions`, `POST /v1/embeddings`, `POST /v1/rerank`, `POST /infill`, `GET /v1/models` and `GET /health` (every route is also reachable without the `/v1` prefix), so editors that speak the OpenAI protocol (e.g. VS Code Copilot "Custom Endpoint", Cline, Roo Code, Continue) can drive a local model. Streaming chat uses the native OAI chunk path (`LlamaModel.streamChatCompletion` → `requestChatCompletionStream` / `receiveChatCompletionChunk` + the C++ `wrap_stream_chunk` helper), preserving `delta.tool_calls`; completions/embeddings/infill forward verbatim to the matching `LlamaModel.handle*`; rerank reshapes `handleRerank` into the OAI `results`/`data` shape. The chat mapper forwards `stream_options` and `response_format` and defaults `cache_prompt=true`; a CORS `Filter` answers `OPTIONS` preflights; `OpenAiSseFormatter.ensureUsageCachedTokens` guarantees `usage.prompt_tokens_details.cached_tokens` on the streamed usage chunk (Copilot crash fix, microsoft/vscode #273482). **Agentic tool-calling is the primary target**; a C++ guard (`test_server.cpp`) pins `tool_calls.function.arguments` as a JSON string (llama.cpp #20198).
+  - `server.OpenAiCompatServer` — built only on the JDK's `com.sun.net.httpserver` (no new dependency), embeddable and runnable via `java -cp <jar> net.ladenthin.llama.server.OpenAiCompatServer …` (the fat-jar default `Main-Class` is now `NativeServer` — see "Two server modes"). Serves `POST /v1/chat/completions` (streaming via SSE + non-streaming), `POST /v1/completions`, `POST /v1/embeddings`, `POST /v1/rerank`, `POST /infill`, `GET /v1/models` and `GET /health` (every route is also reachable without the `/v1` prefix), so editors that speak the OpenAI protocol (e.g. VS Code Copilot "Custom Endpoint", Cline, Roo Code, Continue) can drive a local model. Streaming chat uses the native OAI chunk path (`LlamaModel.streamChatCompletion` → `requestChatCompletionStream` / `receiveChatCompletionChunk` + the C++ `wrap_stream_chunk` helper), preserving `delta.tool_calls`; completions/embeddings/infill forward verbatim to the matching `LlamaModel.handle*`; rerank reshapes `handleRerank` into the OAI `results`/`data` shape. The chat mapper forwards `stream_options` and `response_format` and defaults `cache_prompt=true`; a CORS `Filter` answers `OPTIONS` preflights; `OpenAiSseFormatter.ensureUsageCachedTokens` guarantees `usage.prompt_tokens_details.cached_tokens` on the streamed usage chunk (Copilot crash fix, microsoft/vscode #273482). **Agentic tool-calling is the primary target**; a C++ guard (`test_server.cpp`) pins `tool_calls.function.arguments` as a JSON string (llama.cpp #20198).
   - **Alternative protocol surfaces** (pure translation over the OpenAI chat core — no second inference path; each reconstructs streamed tool calls via `ToolCallDeltaAccumulator`): **Ollama-native** (`GET /api/version`, `/api/tags`, `POST /api/show`, `/api/chat` with NDJSON streaming, `/api/generate` prompt-completion/FIM — `OllamaApiSupport`; `/api/show` advertises tools/insert/vision capabilities + context length for Copilot's Ollama provider), **Anthropic Messages** (`POST /v1/messages`, SSE event stream — `AnthropicApiSupport` + `AnthropicStreamTranslator`), and **OpenAI Responses** (`POST /v1/responses`, SSE event stream — `ResponsesApiSupport` + `ResponsesStreamTranslator`). The llama.cpp-native `GET /props` (context length + `modalities`) is served via `OpenAiSseFormatter.propsJson` for autocomplete clients that size their context from it.
   - Supporting classes: `OpenAiServerConfig` (builder; optional bearer auth; binds `127.0.0.1`; `corsAllowOrigin`; `supportsVision`), `OpenAiServerCli` (testable CLI arg parser → `ModelParameters` + `OpenAiServerConfig`; flags incl. `--mmproj`/`--embedding`/`--reranking`), `OpenAiRequestMapper` (OAI chat request → `InferenceParameters`), `OpenAiSseFormatter` (SSE/models/error JSON + usage normalization), `OaiRerankSupport` (pure rerank request/response shaping), and the model-free test seam `OpenAiBackend`/`ChunkSink` + `LlamaModelBackend`. The streaming envelope is parsed by `json.ChatStreamChunkParser`.
   - The `server` package is a dedicated top layer in the ArchUnit `layeredArchitecture` rule (the only layer allowed to access the root `Api`); `noInternalJdkImports` carries an explicit exception for the supported `com.sun.net.httpserver` (the exported `jdk.httpserver` module, which `module-info.java` `requires`). See README "OpenAI-compatible HTTP server".
@@ -845,7 +950,14 @@ If the local check passes (`BUILD SUCCESS`), the `mvn package` job in
 - `json_helpers.hpp` — Pure JSON transformation helpers (no JNI, no llama state). Independently unit-testable.
 - `jni_helpers.hpp` — JNI bridge helpers (handle management + server orchestration). Includes `json_helpers.hpp`.
 - Uses `nlohmann/json` for JSON deserialization of parameters.
-- The upstream server library (`server-context.cpp`, `server-queue.cpp`, `server-task.cpp`, `server-schema.cpp`, `server-models.cpp`, and — since b9829 — `server-stream.cpp`) is compiled directly into `jllama` via CMake — there is no hand-ported `server.hpp` fork. **`server-stream.cpp` is mandatory, not optional:** it defines the resumable-streaming SSE replay buffer (`g_stream_sessions`, `stream_session_attach_pipe`, `stream_aware_should_stop`, `stream_conv_id_from_headers`, the `stream_pipe_*` types) that `server-context.cpp` / `server-http.cpp` / `server-models.cpp` now `#include "server-stream.h"` and call, so omitting it fails the link with undefined references. It is platform-neutral (threads + std mutex/condvar, no `subprocess.h`/`posix_spawn_*`), so it builds on Android too and sits outside the `server-models.cpp` Android guard. `jllama` wires its own JNI routes and never calls `g_stream_sessions.start_gc()` (only the excluded standalone `server.cpp` `main()` does), so its GC thread stays dormant. **Phase 2:** the upstream HTTP transport (`tools/server/server-http.cpp`) and its `cpp-httplib` backend (`vendor/cpp-httplib/httplib.cpp`) are now compiled into `jllama` too, so the OpenAI-compatible server can be driven natively from JNI *inside* `libjllama` — no separate `llama-server` executable (a JNI shared library loads anywhere a JVM runs, which a standalone binary does not). `server-http.cpp` does `#include "ui.h"` (the WebUI asset table that `tools/ui`/`llama-ui` normally generates); since the Svelte WebUI is not shipped, `src/main/cpp/webui_stub/ui.h` supplies the upstream **empty-asset** interface and leaves `LLAMA_UI_HAS_ASSETS` undefined (all static-asset-serving blocks compile out). `<cpp-httplib/httplib.h>` already resolves via `llama-common`'s `vendor/` include dir (same nlohmann/json 3.12.0 as the FetchContent copy). No SSL: `CPPHTTPLIB_OPENSSL_SUPPORT` is left undefined (plain-HTTP; bind localhost / front with a TLS proxy). Only `server.cpp` (the standalone `main()` + route wiring) remains excluded — wiring the routes to JNI is the next step.
+- The upstream server library (`server-context.cpp`, `server-queue.cpp`, `server-task.cpp`, `server-schema.cpp`, `server-models.cpp`, and — since b9829 — `server-stream.cpp`) is compiled directly into `jllama` via CMake — there is no hand-ported `server.hpp` fork. **`server-stream.cpp` is mandatory, not optional:** it defines the resumable-streaming SSE replay buffer (`g_stream_sessions`, `stream_session_attach_pipe`, `stream_aware_should_stop`, `stream_conv_id_from_headers`, the `stream_pipe_*` types) that `server-context.cpp` / `server-http.cpp` / `server-models.cpp` now `#include "server-stream.h"` and call, so omitting it fails the link with undefined references. It is platform-neutral (threads + std mutex/condvar, no `subprocess.h`/`posix_spawn_*`), so it builds on Android too and sits outside the `server-models.cpp` Android guard. `jllama` wires its own JNI routes and never calls `g_stream_sessions.start_gc()` (only the excluded standalone `server.cpp` `main()` does), so its GC thread stays dormant. **Phase 2:** the upstream HTTP transport (`tools/server/server-http.cpp`) and its `cpp-httplib` backend (`vendor/cpp-httplib/httplib.cpp`) are now compiled into `jllama` too, so the OpenAI-compatible server can be driven natively from JNI *inside* `libjllama` — no separate `llama-server` executable (a JNI shared library loads anywhere a JVM runs, which a standalone binary does not). `server-http.cpp` does `#include "ui.h"` (the WebUI asset table that `tools/ui`/`llama-ui` normally generates); since the Svelte WebUI is not shipped, `src/main/cpp/webui_stub/ui.h` supplies the upstream **empty-asset** interface and leaves `LLAMA_UI_HAS_ASSETS` undefined (all static-asset-serving blocks compile out). `<cpp-httplib/httplib.h>` already resolves via `llama-common`'s `vendor/` include dir (same nlohmann/json 3.12.0 as the FetchContent copy). No SSL: `CPPHTTPLIB_OPENSSL_SUPPORT` is left undefined (plain-HTTP; bind localhost / front with a TLS proxy). **`server.cpp` is now compiled in too** (on non-Android — it and `server-tools.cpp` pull in `subprocess.h`/`posix_spawn_*`, so they share `server-models.cpp`'s Android guard): b9870 exposes its entry as `int llama_server(int, char**)` (no `main` in the file), and `patches/0006` makes it embeddable (no process signal handlers, forwarded-argv parse, out-of-band shutdown). The `NativeServer` JNI bridge (`src/main/cpp/native_server.cpp`) calls `llama_server` on a worker thread, so the **full** upstream server — WebUI and all — runs inside `libjllama`. See "Two server modes" below.
+
+### Two server modes (`OpenAiCompatServer` vs `NativeServer`)
+
+The library exposes **two** ways to serve a model over HTTP, on two different transports. The fat jar's `Main-Class` is `server.ServerLauncher`, a tiny dispatcher: it runs `OpenAiCompatServer` when `--jllama-openai-compat` is present (that marker is stripped, the rest forwarded) and the default `NativeServer` otherwise. Both mains are also runnable directly by class name via `java -cp`. The two modes:
+
+1. **`server.OpenAiCompatServer` (Java transport).** OpenAI/Ollama/Anthropic-compatible JSON API on the JDK's `com.sun.net.httpserver`, driving the compiled server *core* over JNI. Embeddable, no extra dependency, and it can share/reuse a `LlamaModel`. It serves **no** static assets — its `/` route is a 404, so **no WebUI**. It has its own `main` (run via `java -cp <jar> net.ladenthin.llama.server.OpenAiCompatServer …`); its CLI (`OpenAiServerCli`) maps a curated flag subset (`-m/-c/-b/-ub/-ngl/-t/-tb/-ctk/-ctv/--jinja/--chat-template-kwargs/--host/--port/--parallel/--mmproj/--api-key/--embedding/--reranking`).
+2. **`server.NativeServer` (native transport) — the default fat-jar server (when `--jllama-openai-compat` is absent).** Runs the **full upstream `llama_server`** (via `patches/0006` + `native_server.cpp`) inside `libjllama`, forwarding the raw llama-server argv verbatim — so **every** llama-server flag works and the **embedded WebUI is served** (when the assets are compiled in; CI's released jars have them, local `cmake` builds use the empty-asset stub). It is an **independent lifecycle** (loads its own model from the argv, like `llama-server.exe`; owns the process's llama backend + stderr logging while running), **single-instance per process** (upstream keeps shutdown state in file-scope globals), and **not available on Android** (the `subprocess.h` guard). Reusing an already-loaded `LlamaModel`'s context is a documented TODO. `libjllama` loading anywhere a JVM runs is what makes this "no separate `llama-server.exe`" possible.
 
 ### Native Helper Architecture
 
@@ -955,6 +1067,24 @@ Wiring (mirrors the macOS native jobs, not the dockcross jobs):
 - Branch protection: if a required check pinned the old name "Cross-Compile Linux aarch64 (LTS)",
   repoint it to "Build and Test Linux aarch64".
 
+### Linux s390x: big-endian cross-build + qemu test gate
+
+`build-linux-s390x` extends the default JAR to **IBM Z (s390x, big-endian)** — the one target whose
+byte order differs from every other platform. It **cross-compiles** with the GCC s390x toolchain
+(`g++-s390x-linux-gnu`, native x86 speed — no emulated build) and then runs the **full C++ unit suite
+under `qemu-user`** (`CMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-s390x-static`, `QEMU_LD_PREFIX=/usr/s390x-linux-gnu`).
+That `ctest` run is a **real big-endian correctness gate** for the byte-order-sensitive surface — the
+little-endian WAV writer (`tts_wav.hpp`), the JSON/token/embedding transforms, and the JNI helpers —
+which is where an endian bug in *our* code could hide. Model-backed **Java** tests are deliberately
+**not** run under emulation (a JVM + GGUF inference under `qemu-user` is slow and flaky); the Java↔JNI
+boundary uses host-native array copies (endian-transparent), so the C++ gate covers the actual risk.
+`-DGGML_OPENMP=OFF` sidesteps cross-libgomp issues (ggml uses its own `std::thread` pool). s390x is a
+CPU platform like aarch64, so it ships in the **default** JAR (`Linux-s390x-libraries` merges via the
+`*-libraries` glob; `OSInfo` maps `os.arch=s390x` → `Linux/s390x`) — no classifier, no pom profile.
+**Fail-loud** and in `package.needs` like every other build. (Upstream llama.cpp already supports s390x
+— it ships `ubuntu-s390x` with GGUF big-endian handling — so the native inference path is upstream's
+concern; this job validates only *our* layer's endian-safety.)
+
 ## Testing
 
 ### Java tests
@@ -1017,17 +1147,17 @@ ctest --test-dir build --output-on-failure -R "ResultsToJson"
 | File | Tests | Scope |
 |------|-------|-------|
 | `src/test/cpp/test_utils.cpp` | 156 | Upstream helpers: `server_tokens`, `server_grammar_trigger`, `gen_tool_call_id`, `json_value`, `json_get_nested_values`, UTF-8 helpers, `format_response_rerank`, `format_embeddings_response_oaicompat`, `oaicompat_completion_params_parse`, `oaicompat_chat_params_parse`, `are_lora_equal`, `strip_flag_from_argv`, `token_piece_value`, `json_is_array_and_contains_numbers`, `format_oai_sse`, `format_oai_resp_sse`, `format_anthropic_sse` |
-| `src/test/cpp/test_server.cpp` | 194 | Upstream result types: `result_timings`, `task_params::to_json()` (incl. `dry_sequence_breakers`, `preserved_tokens`, `timings_per_token`), `completion_token_output`, `server_task_result_cmpl_partial` (non-oaicompat + `to_json_oaicompat` + logprobs + `to_json_oaicompat_chat` + `to_json_anthropic` + dispatcher), `server_task_result_cmpl_final` (non-oaicompat + `to_json_oaicompat` + `to_json_oaicompat_chat` + `to_json_oaicompat_chat_stream` + `to_json_anthropic` + `to_json_anthropic_stream` + tool_calls + dispatcher), `server_task_result_embd`, `server_task_result_rerank`, `server_task_result_metrics`, `server_task_result_slot_save_load`, `server_task_result_slot_erase`, `server_task_result_apply_lora`, `server_task_result_error`, `format_error_response`, `server_task::need_sampling()`, `server_task::n_tokens()`, `server_schema::eval_llama_cmpl_schema()` (parsing pipeline + grammar routing + error paths + per-request `dry_*` field round-trips), `response_fields` projection |
+| `src/test/cpp/test_server.cpp` | 197 | Upstream result types: `result_timings`, `task_params::to_json()` (incl. `dry_sequence_breakers`, `preserved_tokens`, `timings_per_token`), `completion_token_output`, `server_task_result_cmpl_partial` (non-oaicompat + `to_json_oaicompat` + logprobs + `to_json_oaicompat_chat` + `to_json_anthropic` + dispatcher), `server_task_result_cmpl_final` (non-oaicompat + `to_json_oaicompat` + `to_json_oaicompat_chat` + `to_json_oaicompat_chat_stream` + `to_json_anthropic` + `to_json_anthropic_stream` + tool_calls + dispatcher), `server_task_result_embd`, `server_task_result_rerank`, `server_task_result_metrics`, `server_task_result_slot_save_load`, `server_task_result_slot_erase`, `server_task_result_apply_lora`, `server_task_result_error`, `format_error_response`, `server_task::need_sampling()`, `server_task::n_tokens()`, `server_schema::eval_llama_cmpl_schema()` (parsing pipeline + grammar routing + error paths + per-request `dry_*` and `sse_ping_interval` field round-trips incl. hard-limit + server-default inheritance), `response_fields` projection |
 | `src/test/cpp/test_json_helpers.cpp` | 47 | All functions in `json_helpers.hpp`: `get_result_error_message`, `results_to_json`, `rerank_results_to_json`, `parse_encoding_format`, `extract_embedding_prompt`, `is_infill_request`, `parse_slot_prompt_similarity`, `parse_positive_int_config`, `wrap_stream_chunk` |
 | `src/test/cpp/test_log_helpers.cpp` | 13 | All functions in `log_helpers.hpp`: `log_level_name`, `format_log_as_json` |
 | `src/test/cpp/test_jni_helpers.cpp` | 47 | All functions in `jni_helpers.hpp` using a zero-filled `JNINativeInterface_` mock |
 | `src/test/cpp/test_tts_wav.cpp` | 2 | The in-memory WAV writer `pcm_to_wav16_bytes` in `tts_wav.hpp` (WAV header/payload + little-endian clamping). The OuteTTS DSP it pairs with is derived from upstream `tts.cpp` and covered end-to-end by the Java `TtsIntegrationTest`, not unit-tested here. |
 
-**Current total: 459 tests (all passing).**
+**Current total: 462 tests (all passing).**
 
 #### Upstream source location (in CMake build tree)
 
-llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9859`.
+llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9870`.
 
 **GoogleTest** is a separate `BUILD_TESTING`-only FetchContent (`GIT_TAG v1.17.0`), used solely
 by the `jllama_test` C++ unit-test binary — not by the shipped library, and not coupled to the

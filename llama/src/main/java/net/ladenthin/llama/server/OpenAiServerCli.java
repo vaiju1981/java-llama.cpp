@@ -4,8 +4,15 @@
 
 package net.ladenthin.llama.server;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import net.ladenthin.llama.args.CacheType;
 import net.ladenthin.llama.parameters.ModelParameters;
 import org.jspecify.annotations.Nullable;
 
@@ -19,8 +26,11 @@ import org.jspecify.annotations.Nullable;
  * via {@link #isHelpRequested(String[])} so callers can print help without it being treated as an error.
  *
  * <p>Flags mirror llama.cpp's own server where they overlap ({@code -m}, {@code -p}, {@code -c},
- * {@code -ngl}, {@code -t}); a few legacy spellings are accepted as aliases so earlier documented
- * invocations keep working.
+ * {@code -b}, {@code -ub}, {@code -ngl}, {@code -t}, {@code -tb}, {@code -ctk}, {@code -ctv},
+ * {@code --jinja}, {@code --chat-template-kwargs}); a few legacy spellings are accepted as aliases so
+ * earlier documented invocations keep working. The {@code --chat-template-kwargs} JSON is parsed here
+ * (the only JSON this otherwise dependency-light parser touches) so a malformed object fails fast with
+ * usage text rather than at native model load.
  */
 public final class OpenAiServerCli {
 
@@ -65,7 +75,14 @@ public final class OpenAiServerCli {
         int ctxSize = 0;
         int gpuLayers = 0;
         int threads = 0;
+        int threadsBatch = 0;
         int parallel = 0;
+        int batchSize = 0;
+        int ubatchSize = 0;
+        @Nullable CacheType cacheTypeK = null;
+        @Nullable CacheType cacheTypeV = null;
+        boolean jinja = false;
+        @Nullable Map<String, String> chatTemplateKwargs = null;
         boolean embedding = false;
         boolean reranking = false;
 
@@ -96,6 +113,32 @@ public final class OpenAiServerCli {
                 case "-t":
                 case "--threads":
                     threads = intValue(args, ++i, arg);
+                    break;
+                case "-tb":
+                case "--threads-batch":
+                    threadsBatch = intValue(args, ++i, arg);
+                    break;
+                case "-b":
+                case "--batch-size":
+                    batchSize = intValue(args, ++i, arg);
+                    break;
+                case "-ub":
+                case "--ubatch-size":
+                    ubatchSize = intValue(args, ++i, arg);
+                    break;
+                case "-ctk":
+                case "--cache-type-k":
+                    cacheTypeK = cacheTypeValue(args, ++i, arg);
+                    break;
+                case "-ctv":
+                case "--cache-type-v":
+                    cacheTypeV = cacheTypeValue(args, ++i, arg);
+                    break;
+                case "--jinja":
+                    jinja = true;
+                    break;
+                case "--chat-template-kwargs":
+                    chatTemplateKwargs = parseChatTemplateKwargs(nextValue(args, ++i, arg), arg);
                     break;
                 case "--parallel":
                     parallel = intValue(args, ++i, arg);
@@ -131,7 +174,24 @@ public final class OpenAiServerCli {
             throw error("Missing required argument: -m/--model <path-to-gguf>");
         }
         return new Options(
-                host, port, modelPath, modelId, apiKey, mmproj, ctxSize, gpuLayers, threads, parallel, embedding,
+                host,
+                port,
+                modelPath,
+                modelId,
+                apiKey,
+                mmproj,
+                ctxSize,
+                gpuLayers,
+                threads,
+                threadsBatch,
+                parallel,
+                batchSize,
+                ubatchSize,
+                cacheTypeK,
+                cacheTypeV,
+                jinja,
+                chatTemplateKwargs,
+                embedding,
                 reranking);
     }
 
@@ -155,8 +215,16 @@ public final class OpenAiServerCli {
                 "  --host <host>              Interface to bind (default: " + DEFAULT_HOST + ")",
                 "  -p,  --port <port>         TCP port to listen on (default: " + DEFAULT_PORT + ")",
                 "  -c,  --ctx-size <n>        Context window size (default: llama.cpp default)",
+                "  -b,  --batch-size <n>      Logical (prompt) batch size (default: llama.cpp default)",
+                "  -ub, --ubatch-size <n>     Physical (micro) batch size (default: llama.cpp default)",
                 "  -ngl,--n-gpu-layers <n>    Layers to offload to GPU (default: 0 = CPU only)",
                 "  -t,  --threads <n>         Inference thread count (default: llama.cpp default)",
+                "  -tb, --threads-batch <n>   Thread count for batch/prompt processing (default: same as -t)",
+                "  -ctk,--cache-type-k <t>    KV cache K quantization: " + cacheTypeChoices() + " (default: f16)",
+                "  -ctv,--cache-type-v <t>    KV cache V quantization: " + cacheTypeChoices() + " (default: f16)",
+                "  --jinja                    Use the model's Jinja chat template",
+                "  --chat-template-kwargs <j> JSON object of chat-template variables (requires --jinja),",
+                "                             e.g. {\"reasoning_effort\":\"low\"}",
                 "  --parallel <n>             Parallel inference slots (default: llama.cpp default)",
                 "  --model-id <name>          Model id reported by /v1/models (default: file name)",
                 "  --api-key <key>            Require an 'Authorization: Bearer <key>' header",
@@ -191,6 +259,53 @@ public final class OpenAiServerCli {
         }
     }
 
+    /** Reusable parser for the {@code --chat-template-kwargs} JSON object; no state, thread-safe. */
+    private static final ObjectMapper CHAT_TEMPLATE_KWARGS_MAPPER = new ObjectMapper();
+
+    private static CacheType cacheTypeValue(String[] args, int valueIndex, String flag) {
+        final String raw = nextValue(args, valueIndex, flag).trim();
+        for (final CacheType type : CacheType.values()) {
+            if (type.getArgValue().equalsIgnoreCase(raw)) {
+                return type;
+            }
+        }
+        throw error(flag + " expects one of " + cacheTypeChoices() + ", got: " + raw);
+    }
+
+    private static String cacheTypeChoices() {
+        final StringBuilder sb = new StringBuilder();
+        for (final CacheType type : CacheType.values()) {
+            if (sb.length() > 0) {
+                sb.append(", ");
+            }
+            sb.append(type.getArgValue());
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Parse a {@code --chat-template-kwargs} JSON object into the raw-per-value map that
+     * {@link ModelParameters#setChatTemplateKwargs(Map)} expects: each entry's value is kept as its
+     * raw JSON text (a string stays quoted, a boolean/number stays bare), so the object is
+     * reconstructed verbatim for the native flag. Insertion order is preserved.
+     */
+    private static Map<String, String> parseChatTemplateKwargs(String json, String flag) {
+        final JsonNode root;
+        try {
+            root = CHAT_TEMPLATE_KWARGS_MAPPER.readTree(json);
+        } catch (JsonProcessingException e) {
+            throw error(flag + " expects a JSON object (e.g. {\"reasoning_effort\":\"low\"}), got: " + json, e);
+        }
+        if (root == null || !root.isObject()) {
+            throw error(flag + " expects a JSON object (e.g. {\"reasoning_effort\":\"low\"}), got: " + json);
+        }
+        final Map<String, String> kwargs = new LinkedHashMap<>();
+        for (final Map.Entry<String, JsonNode> field : root.properties()) {
+            kwargs.put(field.getKey(), field.getValue().toString());
+        }
+        return Collections.unmodifiableMap(kwargs);
+    }
+
     private static IllegalArgumentException error(String message) {
         return error(message, null);
     }
@@ -200,10 +315,12 @@ public final class OpenAiServerCli {
     }
 
     /**
-     * Immutable, parsed launcher options. {@code ctxSize}, {@code threads} and {@code parallel} use
-     * {@code 0} as a sentinel meaning "leave the llama.cpp default" — they are only applied to
-     * {@link ModelParameters} when positive. {@code gpuLayers} is always applied (its own default of
-     * {@code 0} already means CPU-only).
+     * Immutable, parsed launcher options. The integer tuning knobs — {@code ctxSize},
+     * {@code threads}, {@code threadsBatch}, {@code parallel}, {@code batchSize} and
+     * {@code ubatchSize} — use {@code 0} as a sentinel meaning "leave the llama.cpp default", and are
+     * only applied to {@link ModelParameters} when positive. {@code cacheTypeK}/{@code cacheTypeV}
+     * and {@code chatTemplateKwargs} use {@code null} as the same "leave the default" sentinel.
+     * {@code gpuLayers} is always applied (its own default of {@code 0} already means CPU-only).
      */
     public static final class Options {
 
@@ -216,7 +333,14 @@ public final class OpenAiServerCli {
         private final int ctxSize;
         private final int gpuLayers;
         private final int threads;
+        private final int threadsBatch;
         private final int parallel;
+        private final int batchSize;
+        private final int ubatchSize;
+        private final @Nullable CacheType cacheTypeK;
+        private final @Nullable CacheType cacheTypeV;
+        private final boolean jinja;
+        private final @Nullable Map<String, String> chatTemplateKwargs;
         private final boolean embedding;
         private final boolean reranking;
 
@@ -230,7 +354,14 @@ public final class OpenAiServerCli {
                 int ctxSize,
                 int gpuLayers,
                 int threads,
+                int threadsBatch,
                 int parallel,
+                int batchSize,
+                int ubatchSize,
+                @Nullable CacheType cacheTypeK,
+                @Nullable CacheType cacheTypeV,
+                boolean jinja,
+                @Nullable Map<String, String> chatTemplateKwargs,
                 boolean embedding,
                 boolean reranking) {
             this.host = host;
@@ -242,7 +373,14 @@ public final class OpenAiServerCli {
             this.ctxSize = ctxSize;
             this.gpuLayers = gpuLayers;
             this.threads = threads;
+            this.threadsBatch = threadsBatch;
             this.parallel = parallel;
+            this.batchSize = batchSize;
+            this.ubatchSize = ubatchSize;
+            this.cacheTypeK = cacheTypeK;
+            this.cacheTypeV = cacheTypeV;
+            this.jinja = jinja;
+            this.chatTemplateKwargs = chatTemplateKwargs;
             this.embedding = embedding;
             this.reranking = reranking;
         }
@@ -342,6 +480,72 @@ public final class OpenAiServerCli {
         }
 
         /**
+         * The batch/prompt-processing thread count, or {@code 0} for the llama.cpp default (same as
+         * {@link #getThreads()}).
+         *
+         * @return the batch thread count
+         */
+        public int getThreadsBatch() {
+            return threadsBatch;
+        }
+
+        /**
+         * The logical (prompt) batch size, or {@code 0} for the llama.cpp default.
+         *
+         * @return the batch size
+         */
+        public int getBatchSize() {
+            return batchSize;
+        }
+
+        /**
+         * The physical (micro) batch size, or {@code 0} for the llama.cpp default.
+         *
+         * @return the micro-batch size
+         */
+        public int getUbatchSize() {
+            return ubatchSize;
+        }
+
+        /**
+         * The KV cache K quantization type, or {@code null} for the llama.cpp default.
+         *
+         * @return the K cache type, or {@code null} when unset
+         */
+        public @Nullable CacheType getCacheTypeK() {
+            return cacheTypeK;
+        }
+
+        /**
+         * The KV cache V quantization type, or {@code null} for the llama.cpp default.
+         *
+         * @return the V cache type, or {@code null} when unset
+         */
+        public @Nullable CacheType getCacheTypeV() {
+            return cacheTypeV;
+        }
+
+        /**
+         * Whether the model's Jinja chat template is enabled.
+         *
+         * @return {@code true} if {@code --jinja} was requested
+         */
+        public boolean isJinja() {
+            return jinja;
+        }
+
+        /**
+         * The parsed {@code --chat-template-kwargs} as a raw-per-value map (see
+         * {@link ModelParameters#setChatTemplateKwargs(Map)}), or {@code null} when unset. The map is
+         * unmodifiable.
+         *
+         * @return the chat-template variables, or {@code null} when unset
+         */
+        public @Nullable Map<String, String> getChatTemplateKwargs() {
+            return chatTemplateKwargs;
+        }
+
+        /**
          * Whether to load the model in embedding mode.
          *
          * @return {@code true} if embedding mode is requested
@@ -376,8 +580,29 @@ public final class OpenAiServerCli {
             if (threads > 0) {
                 params.setThreads(threads);
             }
+            if (threadsBatch > 0) {
+                params.setThreadsBatch(threadsBatch);
+            }
             if (parallel > 0) {
                 params.setParallel(parallel);
+            }
+            if (batchSize > 0) {
+                params.setBatchSize(batchSize);
+            }
+            if (ubatchSize > 0) {
+                params.setUbatchSize(ubatchSize);
+            }
+            if (cacheTypeK != null) {
+                params.setCacheTypeK(cacheTypeK);
+            }
+            if (cacheTypeV != null) {
+                params.setCacheTypeV(cacheTypeV);
+            }
+            if (jinja) {
+                params.enableJinja();
+            }
+            if (chatTemplateKwargs != null) {
+                params.setChatTemplateKwargs(chatTemplateKwargs);
             }
             if (embedding) {
                 params.enableEmbedding();
@@ -395,7 +620,7 @@ public final class OpenAiServerCli {
          * @return the server configuration
          */
         public OpenAiServerConfig toServerConfig() {
-            return toServerConfig(mmproj != null);
+            return toServerConfig(mmproj != null, "");
         }
 
         /**
@@ -407,11 +632,25 @@ public final class OpenAiServerCli {
          * @return the server configuration
          */
         public OpenAiServerConfig toServerConfig(boolean supportsVision) {
+            return toServerConfig(supportsVision, "");
+        }
+
+        /**
+         * Build the server configuration with capability + metadata values obtained from the loaded
+         * model. This overload lets the standalone launcher advertise the model's quantization file
+         * type in {@code /v1/models} alongside the vision capability.
+         *
+         * @param supportsVision whether the loaded model reports usable vision input
+         * @param modelFtype the model's file-type (quantization) label, or {@code ""} if unknown
+         * @return the server configuration
+         */
+        public OpenAiServerConfig toServerConfig(boolean supportsVision, String modelFtype) {
             final OpenAiServerConfig.Builder builder = OpenAiServerConfig.builder()
                     .host(host)
                     .port(port)
                     .modelId(getModelId())
-                    .supportsVision(supportsVision);
+                    .supportsVision(supportsVision)
+                    .modelFtype(modelFtype);
             if (apiKey != null) {
                 builder.apiKey(apiKey);
             }

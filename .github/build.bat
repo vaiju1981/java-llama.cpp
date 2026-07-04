@@ -60,6 +60,28 @@ REM was wired in as the launcher.
 if defined LAUNCH (
     echo build.bat: sccache --show-stats
     sccache --show-stats
+    REM KISS per-job cache summary in the GitHub Actions job summary (like upstream llama.cpp's
+    REM ccache-action table). Parse the text stats: the top-level "Compile requests" line is the
+    REM total and the top-level "Cache hits" line is the hits (the per-language "Cache hits (C/C++)"
+    REM line has "(" after the label, so the digit-anchored findstr regex skips it). Only in CI
+    REM (GITHUB_STEP_SUMMARY set); local runs are untouched. Best-effort -- skipped if the two
+    REM numbers can't be parsed or there were no requests. Integer math with rounding to one decimal.
+    if defined GITHUB_STEP_SUMMARY (
+        set "SCC_REQ="
+        set "SCC_HITS="
+        for /f "tokens=3" %%a in ('sccache --show-stats 2^>nul ^| findstr /r /c:"^Compile requests  *[0-9]"') do set "SCC_REQ=%%a"
+        for /f "tokens=3" %%a in ('sccache --show-stats 2^>nul ^| findstr /r /c:"^Cache hits  *[0-9]"') do set "SCC_HITS=%%a"
+        if defined SCC_REQ if defined SCC_HITS if !SCC_REQ! gtr 0 (
+            set /a SCC_RATE10=^(!SCC_HITS! * 1000 + !SCC_REQ! / 2^) / !SCC_REQ!
+            set /a SCC_WHOLE=!SCC_RATE10! / 10
+            set /a SCC_DEC=!SCC_RATE10! %% 10
+            >>"%GITHUB_STEP_SUMMARY%" echo ### sccache statistics
+            >>"%GITHUB_STEP_SUMMARY%" echo.
+            >>"%GITHUB_STEP_SUMMARY%" echo ^| Cache hits ^| Requests ^| Hit rate ^|
+            >>"%GITHUB_STEP_SUMMARY%" echo ^|------------^|----------^|----------^|
+            >>"%GITHUB_STEP_SUMMARY%" echo ^| !SCC_HITS! ^| !SCC_REQ! ^| !SCC_WHOLE!.!SCC_DEC!%% ^|
+        )
+    )
 )
 
 REM Propagate a build failure as a non-zero exit (a prior bug let a failed `cmake

@@ -7,7 +7,7 @@
 **Build:**  
 ![Java 8+](https://img.shields.io/badge/Java-8%2B-informational)  
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Android-lightgrey)  
-[![llama.cpp b9859](https://img.shields.io/badge/llama.cpp-%23b9859-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9859)  
+[![llama.cpp b9870](https://img.shields.io/badge/llama.cpp-%23b9870-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9870)  
 [![JPMS](https://img.shields.io/badge/JPMS-modular%20JAR-25A162)](https://openjdk.org/projects/jigsaw/)  
 ![JUnit](https://img.shields.io/badge/tested%20with-JUnit6-25A162)  
 [![JSpecify](https://img.shields.io/badge/JSpecify-1.0.0%20%40NullMarked-25A162)](https://jspecify.dev)  
@@ -107,7 +107,7 @@ Inference of Meta's LLaMA model (and others) in pure C/C++.
 - **Infilling** (fill-in-the-middle) for code models.
 - **Tokenize / detokenize** and **JSON-schema → grammar** conversion.
 - **Raw JSON endpoint handlers** mirroring the upstream llama.cpp HTTP server (`/completions`, `/v1/completions`, `/embeddings`, `/infill`, `/tokenize`, `/detokenize`).
-- **Runnable OpenAI-compatible HTTP server** (`OpenAiCompatServer`, the fat-jar `Main-Class`, streaming SSE, zero extra dependency): `java -jar …-jar-with-dependencies.jar --model model.gguf --port 8080`.
+- **Two runnable HTTP server modes, one fat-jar entry.** The fat jar's `Main-Class` is `ServerLauncher`, which dispatches on the `--jllama-openai-compat` flag. Without it, `java -jar …-jar-with-dependencies.jar -m model.gguf --port 8080` runs the full upstream llama.cpp server (embedded **WebUI**, every llama-server flag forwarded) hosted inside `libjllama` over JNI — no separate `llama-server.exe`. With it, `java -jar … --jllama-openai-compat --model model.gguf --port 8080` runs the Java-transport, zero-extra-dependency **OpenAI-compatible** server (`OpenAiCompatServer`, streaming SSE) instead. Both are also runnable directly by class name via `java -cp … net.ladenthin.llama.server.{NativeServer,OpenAiCompatServer}`.
 - **Model metadata** access (`getModelMeta()`) and **server management** (metrics, slot save/restore, runtime thread reconfiguration).
 - Pre-built native binaries for Linux (x86-64, aarch64), macOS (x86-64, arm64), and Windows (x86-64, x86); CUDA, Metal, and Vulkan supported via local build.
 
@@ -164,20 +164,40 @@ If any of these match your platform, you can include the Maven dependency and ge
 
 The Maven coordinate `net.ladenthin:llama` publishes one default JAR (CPU-only;
 its Windows natives are built with the Ninja Multi-Config + MSVC toolchain) plus
-optional JARs selected via a Maven `<classifier>`: three Windows GPU builds
-(CUDA / Vulkan / OpenCL), the Linux CUDA and Android OpenCL builds, and an
-alternate-toolchain MSVC Windows CPU build. Pick at most one GPU/accelerator
-classifier — those are mutually exclusive — and optionally a CPU Windows build.
+optional JARs selected via a Maven `<classifier>`: NVIDIA CUDA (Linux / Windows),
+Vulkan (Linux x86-64 / aarch64, Windows), AMD ROCm/HIP (Linux / Windows), Intel
+SYCL (Linux fp16 / fp32, Windows) and OpenVINO (Linux / Windows) GPU builds, OpenCL
+(Android Adreno, Windows x86-64 / Snapdragon-arm64), and an alternate-toolchain MSVC
+Windows CPU build. Pick at most one GPU/accelerator classifier — those are mutually
+exclusive — and optionally a CPU Windows build.
 
 | Classifier | Backend | Target platform | Runtime requirement |
 |---|---|---|---|
-| _(none)_ | CPU | Linux x86-64 / aarch64, macOS x86-64 / aarch64, Windows x86-64 / x86 (Ninja Multi-Config + MSVC), Android aarch64 (CPU) | A JDK 8+ JVM. **Linux `aarch64` additionally requires glibc ≥ 2.39** (e.g. Ubuntu 24.04+, Debian 13+) — it is built natively on `ubuntu-24.04-arm`, matching upstream llama.cpp's own ARM binaries; older-glibc ARM hosts (Ubuntu 22.04, Debian 12, RHEL 8/9, Amazon Linux 2023) are not supported. Linux x86-64 keeps a glibc 2.17 floor (manylinux2014). |
+| _(none)_ | CPU | Linux x86-64 / aarch64 / s390x, macOS x86-64 / aarch64, Windows x86-64 / x86 / aarch64 (Ninja Multi-Config + MSVC), Android aarch64 (CPU) | A JDK 8+ JVM. **Linux `aarch64` additionally requires glibc ≥ 2.39** (e.g. Ubuntu 24.04+, Debian 13+) — it is built natively on `ubuntu-24.04-arm`, matching upstream llama.cpp's own ARM binaries; older-glibc ARM hosts (Ubuntu 22.04, Debian 12, RHEL 8/9, Amazon Linux 2023) are not supported. Linux x86-64 keeps a glibc 2.17 floor (manylinux2014). **Windows `aarch64`** (Windows on ARM — Snapdragon X / Surface) is built natively on `windows-11-arm` and ships in the default JAR alongside the x86-64 / x86 natives. |
 | `msvc-windows` | CPU (MSVC / Visual Studio generator) | Windows x86-64 and x86 | None beyond a JDK 8+ JVM. Same CPU backend as the default JAR's Windows natives, but compiled with the Visual Studio generator instead of `Ninja Multi-Config`. Both use the same MSVC toolchain (static `/MT` CRT), so they are functionally equivalent — provided as an alternate-toolchain option. |
 | `cuda13-windows-x86-64` | CUDA 13 | Windows x86-64 with NVIDIA GPU | NVIDIA driver + CUDA 13 Toolkit installed on the host (`cudart64_13.dll`, `cublas64_13.dll`, `cublasLt64_13.dll` resolvable on `PATH`). The runtime libraries are **not bundled** in the JAR; native-library load fails with `UnsatisfiedLinkError` if they are absent. No CPU fallback. |
 | `vulkan-windows-x86-64` | Vulkan | Windows x86-64 with a Vulkan 1.2+ GPU (NVIDIA / AMD / Intel) | A Vulkan runtime (`vulkan-1.dll`), which current GPU drivers install. No Vulkan SDK is needed at runtime. The most portable Windows GPU option (vendor-independent). |
 | `opencl-windows-x86-64` | OpenCL | Windows x86-64 with an OpenCL 2.0+ GPU | A vendor OpenCL ICD (`OpenCL.dll`, installed by the GPU driver). **Note:** the GGML OpenCL backend is Adreno-tuned; on desktop GPUs CUDA or Vulkan are better supported. |
 | `cuda13-linux-x86-64` | CUDA 13 | Linux x86-64 with NVIDIA GPU | NVIDIA driver + CUDA 13 runtime libraries (`libcudart.so.13`, `libcublas.so.13`) installed on the host. The shared library is dynamically linked against them and will fail to `dlopen` if they are absent — there is no automatic fallback to CPU. |
+| `vulkan-linux-x86-64` | Vulkan | Linux x86-64 with a Vulkan 1.2+ GPU (NVIDIA / AMD / Intel) | A Vulkan runtime (`libvulkan.so.1`), which current GPU drivers install. No Vulkan SDK is needed at runtime. The most portable Linux GPU option (vendor-independent, no CUDA toolkit). Built natively on `ubuntu-latest`, so it shares the aarch64 build's higher glibc floor (≈ 2.39). |
+| `vulkan-linux-aarch64` | Vulkan | Linux aarch64 with a Vulkan 1.2+ GPU | A Vulkan runtime (`libvulkan.so.1`) from the device/driver. glibc ≥ 2.39 (built on `ubuntu-24.04-arm`). |
 | `opencl-android-aarch64` | OpenCL (Adreno) | Android aarch64 with Qualcomm Adreno GPU | A device-supplied OpenCL ICD (`libOpenCL.so`). Devices without an ICD (e.g. most non-Snapdragon Android hardware) must use the default CPU JAR. |
+| `rocm-linux-x86-64` | ROCm / HIP | Linux x86-64 with AMD GPU | An installed AMD ROCm runtime (`libamdhip64.so`, `librocblas.so`, `libhipblas.so`) on the host. Not bundled; native load fails without it. No CPU fallback. |
+| `rocm-windows-x86-64` | ROCm / HIP | Windows x86-64 with AMD GPU | The AMD HIP SDK runtime DLLs (`amdhip64.dll`, `rocblas.dll`, `hipblas.dll`) on `PATH`. Not bundled. No CPU fallback. |
+| `sycl-fp16-linux-x86-64` | SYCL (Intel oneAPI, fp16) | Linux x86-64 with Intel GPU (Arc / iGPU) | An installed Intel oneAPI / Level-Zero runtime. fp16 accumulation (faster, slightly lower precision). Not bundled. |
+| `sycl-fp32-linux-x86-64` | SYCL (Intel oneAPI, fp32) | Linux x86-64 with Intel GPU (Arc / iGPU) | An installed Intel oneAPI / Level-Zero runtime. fp32 accumulation (higher precision). Not bundled. |
+| `sycl-windows-x86-64` | SYCL (Intel oneAPI) | Windows x86-64 with Intel GPU (Arc / iGPU) | The Intel oneAPI / Level-Zero runtime DLLs on `PATH`. Not bundled. |
+| `opencl-windows-aarch64` | OpenCL (Adreno) | Windows-on-ARM aarch64 (Snapdragon X) with Adreno GPU | A device-supplied OpenCL ICD (`OpenCL.dll`, from the Adreno driver). Not bundled. |
+| `openvino-linux-x86-64` | OpenVINO | Linux x86-64 (Intel GPU / NPU / CPU) | An installed Intel OpenVINO runtime. Not bundled. |
+| `openvino-windows-x86-64` | OpenVINO | Windows x86-64 (Intel GPU / NPU / CPU) | The Intel OpenVINO runtime DLLs on `PATH`. Not bundled. |
+
+> [!NOTE]
+> The AMD (`rocm-*`), Intel SYCL (`sycl-*`), Windows-on-ARM OpenCL
+> (`opencl-windows-aarch64`) and Intel OpenVINO (`openvino-*`) classifiers are
+> newly added GPU backends. Like the other GPU classifiers they are validated
+> **build-only** in CI (GitHub runners have no matching GPU), so end-to-end
+> inference is verified locally / on self-hosted hardware. As with every GPU JAR,
+> the vendor runtime is supplied by the consumer's driver/toolkit and is not bundled.
 
 ```xml
 <!-- CPU (default) -->
@@ -219,6 +239,22 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
     <classifier>vulkan-windows-x86-64</classifier>
 </dependency>
 
+<!-- Vulkan on Linux x86-64 (NVIDIA/AMD/Intel; libvulkan.so.1 from the driver) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>vulkan-linux-x86-64</classifier>
+</dependency>
+
+<!-- Vulkan on Linux aarch64 (libvulkan.so.1 from the device/driver) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>vulkan-linux-aarch64</classifier>
+</dependency>
+
 <!-- OpenCL on Windows x86-64 (requires a driver-provided OpenCL ICD) -->
 <dependency>
     <groupId>net.ladenthin</groupId>
@@ -233,6 +269,70 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
     <artifactId>llama</artifactId>
     <version>5.0.4</version>
     <classifier>msvc-windows</classifier>
+</dependency>
+
+<!-- ROCm/HIP on Linux x86-64 (requires an AMD ROCm runtime on the host) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>rocm-linux-x86-64</classifier>
+</dependency>
+
+<!-- ROCm/HIP on Windows x86-64 (requires the AMD HIP SDK runtime on the host) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>rocm-windows-x86-64</classifier>
+</dependency>
+
+<!-- SYCL (Intel oneAPI, fp16) on Linux x86-64 (requires the oneAPI/Level-Zero runtime) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>sycl-fp16-linux-x86-64</classifier>
+</dependency>
+
+<!-- SYCL (Intel oneAPI, fp32) on Linux x86-64 (requires the oneAPI/Level-Zero runtime) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>sycl-fp32-linux-x86-64</classifier>
+</dependency>
+
+<!-- SYCL (Intel oneAPI) on Windows x86-64 (requires the oneAPI/Level-Zero runtime) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>sycl-windows-x86-64</classifier>
+</dependency>
+
+<!-- OpenCL/Adreno on Windows-on-ARM aarch64 (Snapdragon X; device-provided OpenCL ICD) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>opencl-windows-aarch64</classifier>
+</dependency>
+
+<!-- OpenVINO on Linux x86-64 (requires the Intel OpenVINO runtime on the host) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>openvino-linux-x86-64</classifier>
+</dependency>
+
+<!-- OpenVINO on Windows x86-64 (requires the Intel OpenVINO runtime on the host) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>openvino-windows-x86-64</classifier>
 </dependency>
 ```
 
@@ -591,7 +691,9 @@ array alone at `GET /slots`. OpenAI responses preserve
 
 `net.ladenthin.llama.server.OpenAiCompatServer` turns a loaded model into a local
 OpenAI-compatible HTTP endpoint using only the JDK's built-in `com.sun.net.httpserver` — no extra
-dependency and no separate server process. It is both embeddable and the fat-jar `Main-Class`. It
+dependency and no separate server process. It is embeddable, and runnable via
+`java -cp <jar> net.ladenthin.llama.server.OpenAiCompatServer …` (the fat jar's default
+`Main-Class` is instead `NativeServer` — see "Native server with the built-in WebUI" below). It
 serves:
 
 | Method &amp; path | Backed by |
@@ -646,23 +748,27 @@ try (LlamaModel model = new LlamaModel(modelParams);
 }
 ```
 
-…or run it standalone. The fat jar built by the `assembly` profile (`mvn -P assembly package`) is
-runnable (its `Main-Class` is `net.ladenthin.llama.server.OpenAiCompatServer`); the plain library jar
-works too via `-cp`:
+…or run it standalone. The fat jar's `Main-Class` is the `ServerLauncher` dispatcher, so add
+`--jllama-openai-compat` to select this Java server (the launcher strips that flag and forwards the rest);
+or name the class explicitly via `-cp`:
 
 ```bash
-# fat jar (bundles the native lib + Java deps)
-java -jar target/llama-<version>-jar-with-dependencies.jar \
+# fat jar (bundles the native lib + Java deps) — select the Java server with --jllama-openai-compat
+java -jar target/llama-<version>-jar-with-dependencies.jar --jllama-openai-compat \
     --model models/Qwen3-0.6B-Q4_K_M.gguf --host 0.0.0.0 --port 8080 --n-gpu-layers 99
 
-# or the plain jar
+# or name the class explicitly (fat jar or plain library jar)
 java -cp target/llama-<version>.jar net.ladenthin.llama.server.OpenAiCompatServer \
   --model models/model.gguf --port 8080 --model-id local-model
 ```
 
 Run with `--help` for the full option list (`-m/--model`, `--host`, `-p/--port`, `-c/--ctx-size`,
-`-ngl/--n-gpu-layers`, `-t/--threads`, `--parallel`, `--model-id`, `--api-key`, `--mmproj`,
-`--embedding`, `--reranking`).
+`-b/--batch-size`, `-ub/--ubatch-size`, `-ngl/--n-gpu-layers`, `-t/--threads`, `-tb/--threads-batch`,
+`-ctk/--cache-type-k`, `-ctv/--cache-type-v`, `--jinja`, `--chat-template-kwargs`, `--parallel`,
+`--model-id`, `--api-key`, `--mmproj`, `--embedding`, `--reranking`). The tuning flags mirror
+llama.cpp's server, so an invocation like
+`--jinja --chat-template-kwargs '{"reasoning_effort":"low"}' -ctk q8_0 -ctv q8_0 -b 4096 -ub 2048`
+works directly.
 
 Verify with curl (streaming chat):
 
@@ -705,6 +811,45 @@ heartbeats so a long prompt prefill does not trip the client's stream-inactivity
 tool calling depends on the model's own tool-calling quality. Pass `--api-key` (or
 `OpenAiServerConfig.apiKey(...)`) to require an `Authorization: Bearer` token; the server binds to
 `127.0.0.1` by default.
+
+### Native server with the built-in WebUI (`NativeServer`)
+
+`OpenAiCompatServer` above is a JSON **API** server (its `/` is a 404 — no web page). If you want
+the **full upstream llama.cpp server, including its bundled Svelte WebUI**, use
+`net.ladenthin.llama.server.NativeServer`. It runs the real `llama_server` inside `libjllama` over
+JNI — no separate `llama-server.exe` — and **forwards the raw llama-server arguments verbatim**, so
+every flag works exactly as it does for the standalone binary. The fat jar runs it **by default**
+(when `--jllama-openai-compat` is absent), forwarding its args to the native server (pass `--help` for the
+full llama-server option list):
+
+```bash
+java -jar target/llama-<version>-jar-with-dependencies.jar \
+    -m models/model.gguf --host 127.0.0.1 --port 8080 -c 65536 --jinja
+# then open http://127.0.0.1:8080/ for the WebUI
+```
+
+Or embed it:
+
+```java
+try (NativeServer server = new NativeServer(
+        "-m", "gpt-oss-20b-UD-Q4_K_XL.gguf",
+        "--host", "127.0.0.1", "--port", "8080",
+        "-c", "65536", "-b", "4096", "-ub", "2048",
+        "--jinja", "-ngl", "0", "-t", "8", "-tb", "16",
+        "-ctk", "q8_0", "-ctv", "q8_0",
+        "--chat-template-kwargs", "{\"reasoning_effort\":\"low\"}",
+        "--parallel", "1").start()) {
+    // Open http://127.0.0.1:8080/ in a browser for the WebUI; the OpenAI API is at /v1/... too.
+    Thread.currentThread().join();
+}
+```
+
+Differences from `OpenAiCompatServer`: it **loads its own model** from the arguments (an independent
+lifecycle, like `llama-server.exe`, not a shared `LlamaModel`), it is **single-instance per
+process**, it serves the **WebUI** (in released jars — local `cmake` builds ship the empty-asset
+stub, so no UI there), and it is **not available on Android** (the upstream server needs
+`posix_spawn`). Readiness: poll `GET /health`. No SSL (plain HTTP — bind localhost or front with a
+TLS proxy).
 
 ### LangChain4j integration
 

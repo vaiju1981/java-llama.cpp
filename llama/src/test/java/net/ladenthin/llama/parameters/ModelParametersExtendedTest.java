@@ -891,6 +891,18 @@ public class ModelParametersExtendedTest {
         assertThat(p.parameters.get("--slot-prompt-similarity"), is("0.8"));
     }
 
+    @Test
+    public void testSetCtxCheckpoints() {
+        ModelParameters p = new ModelParameters().setCtxCheckpoints(8);
+        assertThat(p.parameters.get("--ctx-checkpoints"), is("8"));
+    }
+
+    @Test
+    public void testSetCheckpointMinStep() {
+        ModelParameters p = new ModelParameters().setCheckpointMinStep(0);
+        assertThat(p.parameters.get("--checkpoint-min-step"), is("0"));
+    }
+
     // -------------------------------------------------------------------------
     // Override KV
     // -------------------------------------------------------------------------

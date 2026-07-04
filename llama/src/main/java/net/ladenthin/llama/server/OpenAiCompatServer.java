@@ -748,7 +748,7 @@ public final class OpenAiCompatServer implements AutoCloseable {
                 sendError(exchange, HTTP_UNAUTHORIZED, ERROR_TYPE_REQUEST, "Missing or invalid API key");
                 return;
             }
-            sendJson(exchange, HTTP_OK, OpenAiSseFormatter.modelsJson(config.getModelId()));
+            sendJson(exchange, HTTP_OK, OpenAiSseFormatter.modelsJson(config.getModelId(), config.getModelFtype()));
         } finally {
             exchange.close();
         }
@@ -1064,7 +1064,7 @@ public final class OpenAiCompatServer implements AutoCloseable {
                         "jllama-openai-shutdown"));
 
         try (LlamaModel model = new LlamaModel(options.toModelParameters())) {
-            OpenAiServerConfig config = options.toServerConfig(model.supportsVision());
+            OpenAiServerConfig config = options.toServerConfig(model.supportsVision(), model.getModelFtype());
             try (OpenAiCompatServer server = new OpenAiCompatServer(model, config)) {
                 server.start();
                 printReady(config, server.getPort());

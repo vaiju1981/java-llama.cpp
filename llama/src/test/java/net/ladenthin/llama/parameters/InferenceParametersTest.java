@@ -74,6 +74,36 @@ public class InferenceParametersTest {
     }
 
     @Test
+    public void testSetSsePingInterval() {
+        InferenceParameters params = new InferenceParameters("").withSsePingInterval(1);
+        assertThat(params.parameters.get("sse_ping_interval"), is("1"));
+        // -1 disables pings and must be accepted (the schema's hard lower bound is -1).
+        assertThat(
+                InferenceParameters.empty().withSsePingInterval(-1).parameters.get("sse_ping_interval"), is("-1"));
+    }
+
+    @Test
+    public void testAdditionalCompletionScalarsFromB9864Audit() {
+        // Plain scalars honored by eval_llama_cmpl_schema but previously not surfaced as withers.
+        assertThat(
+                InferenceParameters.empty().withXtcProbability(0.5f).parameters.get("xtc_probability"), is("0.5"));
+        assertThat(InferenceParameters.empty().withXtcThreshold(0.1f).parameters.get("xtc_threshold"), is("0.1"));
+        assertThat(InferenceParameters.empty().withNDiscard(64).parameters.get("n_discard"), is("64"));
+        assertThat(InferenceParameters.empty().withNIndent(4).parameters.get("n_indent"), is("4"));
+        assertThat(
+                InferenceParameters.empty().withTMaxPredictMs(2000).parameters.get("t_max_predict_ms"), is("2000"));
+        assertThat(
+                InferenceParameters.empty()
+                        .withPostSamplingProbs(true)
+                        .parameters
+                        .get("post_sampling_probs"),
+                is("true"));
+        assertThat(
+                InferenceParameters.empty().withTimingsPerToken(true).parameters.get("timings_per_token"), is("true"));
+        assertThat(InferenceParameters.empty().withReturnTokens(true).parameters.get("return_tokens"), is("true"));
+    }
+
+    @Test
     public void testSetCacheReuse() {
         InferenceParameters params = InferenceParameters.empty().withCacheReuse(256);
         assertThat(params.parameters.get("n_cache_reuse"), is("256"));

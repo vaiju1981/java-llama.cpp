@@ -55,6 +55,7 @@ public final class OpenAiServerConfig {
     private final String corsAllowOrigin;
     private final boolean supportsVision;
     private final int maxRequestBodyBytes;
+    private final String modelFtype;
 
     private OpenAiServerConfig(Builder builder) {
         this.host = builder.host;
@@ -67,6 +68,7 @@ public final class OpenAiServerConfig {
         this.corsAllowOrigin = builder.corsAllowOrigin;
         this.supportsVision = builder.supportsVision;
         this.maxRequestBodyBytes = builder.maxRequestBodyBytes;
+        this.modelFtype = builder.modelFtype;
     }
 
     /**
@@ -170,6 +172,17 @@ public final class OpenAiServerConfig {
     }
 
     /**
+     * The served model's file type (quantization) as a human-readable string, e.g. {@code "Q8_0"}
+     * or {@code "Q4_K - Medium"}, advertised in the {@code GET /v1/models} {@code data[].ftype} field
+     * (matching the upstream llama.cpp server). Empty when unknown.
+     *
+     * @return the quantization file-type label, or {@code ""} if unknown
+     */
+    public String getModelFtype() {
+        return modelFtype;
+    }
+
+    /**
      * Whether bearer-token authentication is enabled (an API key is configured).
      *
      * @return {@code true} if requests must present a matching bearer token
@@ -217,6 +230,7 @@ public final class OpenAiServerConfig {
         private String corsAllowOrigin = DEFAULT_CORS_ALLOW_ORIGIN;
         private boolean supportsVision;
         private int maxRequestBodyBytes = DEFAULT_MAX_REQUEST_BODY_BYTES;
+        private String modelFtype = "";
 
         private Builder() {}
 
@@ -316,6 +330,18 @@ public final class OpenAiServerConfig {
          */
         public Builder supportsVision(boolean supportsVision) {
             this.supportsVision = supportsVision;
+            return this;
+        }
+
+        /**
+         * Sets the served model's file type (quantization) label to advertise in {@code /v1/models}.
+         *
+         * @param modelFtype the quantization file-type label (e.g. {@code "Q4_K - Medium"}); {@code null}
+         *     is treated as empty (unknown)
+         * @return this builder
+         */
+        public Builder modelFtype(@Nullable String modelFtype) {
+            this.modelFtype = modelFtype == null ? "" : modelFtype;
             return this;
         }
 

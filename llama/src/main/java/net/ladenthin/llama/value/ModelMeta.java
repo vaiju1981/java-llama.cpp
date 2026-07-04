@@ -130,6 +130,18 @@ public final class ModelMeta {
     }
 
     /**
+     * The model file type (quantization) as a human-readable string, e.g. {@code "Q8_0"} or
+     * {@code "Q4_K - Medium"}, from the GGUF {@code general.file_type} the model was loaded with
+     * (llama.cpp {@code llama_ftype_name}). A guessed type is prefixed with {@code "(guessed) "}.
+     * Returns an empty string if the native layer does not report it (older native builds).
+     *
+     * @return the quantization file-type label, or {@code ""} if absent
+     */
+    public String getFtype() {
+        return node.path("ftype").asText("");
+    }
+
+    /**
      * The model's resolved default chat template (Jinja), from GGUF
      * {@code tokenizer.chat_template} metadata.
      *

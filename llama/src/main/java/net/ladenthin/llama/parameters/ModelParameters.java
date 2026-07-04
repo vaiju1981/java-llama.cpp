@@ -1143,6 +1143,42 @@ public final class ModelParameters extends CliParameters {
     }
 
     /**
+     * Set the maximum number of context checkpoints kept per slot (default: 32; 0 disables
+     * checkpointing).
+     *
+     * <p>Context checkpoints let the server roll a slot back to an earlier state instead of
+     * re-processing the whole prompt when a follow-up request diverges from the cached tokens.
+     * They are essential for models that cannot truncate their state to an arbitrary position:
+     * recurrent/hybrid architectures (e.g. Granite-4, Mamba, Jamba) and SWA models. Each
+     * checkpoint costs host memory proportional to the model's recurrent/SWA state size, so
+     * lower this value on memory-constrained machines or raise it for very long multi-turn
+     * (agentic tool-calling) sessions.</p>
+     *
+     * @param ctxCheckpoints the maximum number of context checkpoints per slot
+     * @return this builder
+     */
+    public ModelParameters setCtxCheckpoints(int ctxCheckpoints) {
+        return putScalar("--ctx-checkpoints", ctxCheckpoints);
+    }
+
+    /**
+     * Set the minimum spacing between context checkpoints in tokens (default: 8192; 0 = no
+     * minimum).
+     *
+     * <p>Smaller values create checkpoints more often, improving prompt-cache reuse for
+     * multi-turn conversations at the cost of more host memory (bounded by
+     * {@link #setCtxCheckpoints(int)}). This matters most for recurrent/hybrid models
+     * (e.g. Granite-4), whose state can only be rolled back to a checkpoint — with sparse
+     * checkpoints a follow-up request may have to re-process most of the conversation.</p>
+     *
+     * @param checkpointMinStep the minimum number of tokens between two checkpoints (must not be negative)
+     * @return this builder
+     */
+    public ModelParameters setCheckpointMinStep(int checkpointMinStep) {
+        return putScalar("--checkpoint-min-step", checkpointMinStep);
+    }
+
+    /**
      * Load LoRA adapters without applying them (apply later via POST /lora-adapters).
      *
      * @return this builder

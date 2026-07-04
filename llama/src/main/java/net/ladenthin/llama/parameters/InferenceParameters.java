@@ -61,6 +61,7 @@ public final class InferenceParameters extends JsonParameters {
     private static final String PARAM_CACHE_REUSE = "n_cache_reuse";
     private static final String PARAM_SLOT_ID = "id_slot";
     private static final String PARAM_STREAM_OPTIONS = "stream_options";
+    private static final String PARAM_SSE_PING_INTERVAL = "sse_ping_interval";
     private static final String PARAM_RESPONSE_FORMAT = "response_format";
     private static final String PARAM_N_PREDICT = "n_predict";
     private static final String PARAM_TOP_K = "top_k";
@@ -108,6 +109,16 @@ public final class InferenceParameters extends JsonParameters {
     private static final String PARAM_DRY_ALLOWED_LENGTH = "dry_allowed_length";
     private static final String PARAM_DRY_PENALTY_LAST_N = "dry_penalty_last_n";
     private static final String PARAM_DRY_SEQUENCE_BREAKERS = "dry_sequence_breakers";
+    // Additional completion-schema fields honored by the native parser (eval_llama_cmpl_schema)
+    // but previously not surfaced as withers. All plain scalars.
+    private static final String PARAM_XTC_PROBABILITY = "xtc_probability";
+    private static final String PARAM_XTC_THRESHOLD = "xtc_threshold";
+    private static final String PARAM_N_DISCARD = "n_discard";
+    private static final String PARAM_N_INDENT = "n_indent";
+    private static final String PARAM_T_MAX_PREDICT_MS = "t_max_predict_ms";
+    private static final String PARAM_POST_SAMPLING_PROBS = "post_sampling_probs";
+    private static final String PARAM_TIMINGS_PER_TOKEN = "timings_per_token";
+    private static final String PARAM_RETURN_TOKENS = "return_tokens";
 
     private static final InferenceParameters EMPTY = new InferenceParameters();
 
@@ -867,5 +878,114 @@ public final class InferenceParameters extends JsonParameters {
      */
     public InferenceParameters withStream(boolean stream) {
         return withScalar(PARAM_STREAM, stream);
+    }
+
+    /**
+     * Returns a new request with the SSE ping interval replaced (llama.cpp {@code sse_ping_interval},
+     * added upstream in b9864). In {@code stream} mode the server emits an SSE comment ping every
+     * {@code seconds} while the stream stays silent (e.g. during long prompt processing), keeping the
+     * connection observable; this per-request value overrides the server's {@code --sse-ping-interval}
+     * setting. Use {@code -1} to disable pings. Default: the server setting (30&nbsp;s upstream).
+     *
+     * @param seconds interval in seconds between SSE comment pings, or {@code -1} to disable
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withSsePingInterval(int seconds) {
+        return withScalar(PARAM_SSE_PING_INTERVAL, seconds);
+    }
+
+    /**
+     * Returns a new request with the XTC (Exclude Top Choices) sampler probability replaced
+     * ({@code xtc_probability}, default 0.0 = disabled). At each step, with this probability the
+     * sampler removes all but the least-likely of the tokens above {@link #withXtcThreshold(float)},
+     * flattening over-confident distributions.
+     *
+     * @param xtcProbability the XTC trigger probability in {@code [0, 1]} (0 disables XTC)
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withXtcProbability(float xtcProbability) {
+        return withScalar(PARAM_XTC_PROBABILITY, xtcProbability);
+    }
+
+    /**
+     * Returns a new request with the XTC sampler threshold replaced ({@code xtc_threshold},
+     * default 0.1). Only tokens whose probability is at least this value are eligible for XTC removal.
+     *
+     * @param xtcThreshold the minimum token probability considered by XTC
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withXtcThreshold(float xtcThreshold) {
+        return withScalar(PARAM_XTC_THRESHOLD, xtcThreshold);
+    }
+
+    /**
+     * Returns a new request with the number of tokens discarded on a context shift replaced
+     * ({@code n_discard}, default 0 = discard half of {@code n_ctx - n_keep}). When the context fills,
+     * the oldest {@code n_discard} tokens after the kept prefix are dropped to make room.
+     *
+     * @param nDiscard tokens to discard on context shift (0 = half)
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withNDiscard(int nDiscard) {
+        return withScalar(PARAM_N_DISCARD, nDiscard);
+    }
+
+    /**
+     * Returns a new request with the infill indentation hint replaced ({@code n_indent}, default 0).
+     * Used with {@link #withInputPrefix(String)} / {@link #withInputSuffix(String)}: generated infill
+     * lines are required to be indented at least this many columns, which helps code models keep block
+     * structure.
+     *
+     * @param nIndent minimum indentation (columns) for infilled lines
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withNIndent(int nIndent) {
+        return withScalar(PARAM_N_INDENT, nIndent);
+    }
+
+    /**
+     * Returns a new request with a wall-clock generation-time budget replaced ({@code t_max_predict_ms},
+     * default -1 = no limit). Generation stops once it has run for this many milliseconds, regardless of
+     * {@link #withNPredict(int)} — useful as an agentic/interactive latency guard.
+     *
+     * @param tMaxPredictMs maximum generation time in milliseconds (-1 = no limit)
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withTMaxPredictMs(int tMaxPredictMs) {
+        return withScalar(PARAM_T_MAX_PREDICT_MS, tMaxPredictMs);
+    }
+
+    /**
+     * Returns a new request toggling post-sampling token probabilities ({@code post_sampling_probs},
+     * default false). When true, the {@code n_probs} probabilities are reported <em>after</em> the full
+     * sampling chain is applied rather than from the raw logits.
+     *
+     * @param postSamplingProbs whether to report probabilities after sampling
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withPostSamplingProbs(boolean postSamplingProbs) {
+        return withScalar(PARAM_POST_SAMPLING_PROBS, postSamplingProbs);
+    }
+
+    /**
+     * Returns a new request toggling per-token timing telemetry ({@code timings_per_token},
+     * default false). When true, streamed responses carry per-token timing information.
+     *
+     * @param timingsPerToken whether to include per-token timings
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withTimingsPerToken(boolean timingsPerToken) {
+        return withScalar(PARAM_TIMINGS_PER_TOKEN, timingsPerToken);
+    }
+
+    /**
+     * Returns a new request toggling raw token-id output ({@code return_tokens}, default false).
+     * When true, the response includes the generated token ids alongside the decoded text.
+     *
+     * @param returnTokens whether to include raw token ids in the response
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withReturnTokens(boolean returnTokens) {
+        return withScalar(PARAM_RETURN_TOKENS, returnTokens);
     }
 }
