@@ -1087,6 +1087,302 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
+  # Additional GPU-backend classifiers (fail-loud, same wiring as the CUDA/Vulkan/
+  # OpenCL jobs): AMD ROCm/HIP, Intel SYCL (oneAPI), Windows-on-ARM OpenCL (Adreno),
+  # Intel OpenVINO. All BUILD-ONLY (GitHub runners have no AMD/Intel/Adreno GPU, and
+  # no ctest — a GPU-linked jllama_test can't enumerate a device). GPU runtime libs
+  # are NOT bundled — the consumer's driver/toolkit supplies them. CMakeLists.txt
+  # routes each backend to its own src/main/resources_* tree; the matching Maven
+  # profile turns it into a classifier JAR. Toolchain install steps are first-pass —
+  # if a vendor URL/version 404s in CI, adjust it (the failure is intentional signal).
+  # ---------------------------------------------------------------------------
+
+  build-linux-x86_64-rocm:
+    name: Build Linux x86_64 ROCm/HIP (AMD)
+    needs: [startgate, build-webui]
+    runs-on: ubuntu-latest
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/llama/webui-generated/
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Install ROCm/HIP (AMD apt repo)
+        run: |
+          sudo mkdir --parents --mode=0755 /etc/apt/keyrings
+          wget -qO- https://repo.radeon.com/rocm/rocm.gpg.key | gpg --dearmor | sudo tee /etc/apt/keyrings/rocm.gpg > /dev/null
+          echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/rocm.gpg] https://repo.radeon.com/rocm/apt/6.3.4 noble main" | sudo tee /etc/apt/sources.list.d/rocm.list
+          printf 'Package: *\nPin: release o=repo.radeon.com\nPin-Priority: 600\n' | sudo tee /etc/apt/preferences.d/rocm-pin-600
+          sudo apt-get update
+          sudo apt-get install -y rocm-hip-sdk rocblas-dev hipblas-dev
+          echo "/opt/rocm/bin" >> "$GITHUB_PATH"
+          echo "ROCM_PATH=/opt/rocm" >> "$GITHUB_ENV"
+      - name: Build libraries
+        shell: bash
+        run: |
+          mvn --no-transfer-progress -f llama/pom.xml compile
+          .github/build.sh "-DGGML_HIP=ON -DAMDGPU_TARGETS=gfx900;gfx906;gfx908;gfx90a;gfx1030;gfx1100;gfx1101;gfx1102 -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ -DGGML_NATIVE=OFF -DOS_NAME=Linux -DOS_ARCH=x86_64"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Linux-x86_64-rocm
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_rocm/net/ladenthin/llama/
+          if-no-files-found: error
+
+  build-windows-x86_64-rocm:
+    name: Build Windows 2025 x86_64 ROCm/HIP (AMD)
+    needs: [startgate, build-webui]
+    runs-on: windows-2025-vs2026
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/llama/webui-generated/
+      - name: Set up MSVC developer environment (x64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Install AMD HIP SDK for Windows
+        shell: pwsh
+        run: |
+          $url = "https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q4-Win10-Win11-For-HIP.exe"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\hip-sdk.exe"
+          Start-Process -FilePath "$env:RUNNER_TEMP\hip-sdk.exe" -ArgumentList "-install" -Wait
+          "HIP_PATH=C:\Program Files\AMD\ROCm\6.2\" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "C:\Program Files\AMD\ROCm\6.2\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Build libraries
+        shell: cmd
+        run: |
+          .github\build.bat -G "Ninja Multi-Config" -DGGML_HIP=ON -DAMDGPU_TARGETS=gfx1030;gfx1100;gfx1101;gfx1102 -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang -DOS_NAME=Windows -DOS_ARCH=x86_64
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Windows-x86_64-rocm
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_rocm/net/ladenthin/llama/
+          if-no-files-found: error
+
+  build-linux-x86_64-sycl-fp16:
+    name: Build Linux x86_64 SYCL fp16 (Intel oneAPI)
+    needs: [startgate, build-webui]
+    runs-on: ubuntu-latest
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/llama/webui-generated/
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Install Intel oneAPI (DPC++ + MKL)
+        run: |
+          wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          sudo apt-get update
+          sudo apt-get install -y intel-oneapi-compiler-dpcpp-cpp intel-oneapi-mkl-devel
+      - name: Build libraries
+        shell: bash
+        run: |
+          source /opt/intel/oneapi/setvars.sh
+          mvn --no-transfer-progress -f llama/pom.xml compile
+          .github/build.sh "-DGGML_SYCL=ON -DGGML_SYCL_F16=ON -DCMAKE_C_COMPILER=icx -DCMAKE_CXX_COMPILER=icpx -DGGML_NATIVE=OFF -DOS_NAME=Linux -DOS_ARCH=x86_64"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Linux-x86_64-sycl-fp16
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_sycl_fp16/net/ladenthin/llama/
+          if-no-files-found: error
+
+  build-linux-x86_64-sycl-fp32:
+    name: Build Linux x86_64 SYCL fp32 (Intel oneAPI)
+    needs: [startgate, build-webui]
+    runs-on: ubuntu-latest
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/llama/webui-generated/
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Install Intel oneAPI (DPC++ + MKL)
+        run: |
+          wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/oneapi all main" | sudo tee /etc/apt/sources.list.d/oneAPI.list
+          sudo apt-get update
+          sudo apt-get install -y intel-oneapi-compiler-dpcpp-cpp intel-oneapi-mkl-devel
+      - name: Build libraries
+        shell: bash
+        run: |
+          source /opt/intel/oneapi/setvars.sh
+          mvn --no-transfer-progress -f llama/pom.xml compile
+          .github/build.sh "-DGGML_SYCL=ON -DCMAKE_C_COMPILER=icx -DCMAKE_CXX_COMPILER=icpx -DGGML_NATIVE=OFF -DOS_NAME=Linux -DOS_ARCH=x86_64"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Linux-x86_64-sycl-fp32
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_sycl_fp32/net/ladenthin/llama/
+          if-no-files-found: error
+
+  build-windows-x86_64-sycl:
+    name: Build Windows 2025 x86_64 SYCL (Intel oneAPI)
+    needs: [startgate, build-webui]
+    runs-on: windows-2025-vs2026
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/llama/webui-generated/
+      - name: Set up MSVC developer environment (x64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Install Intel oneAPI (Windows, DPC++ compiler)
+        shell: cmd
+        run: |
+          curl -fSL -o "%RUNNER_TEMP%\oneapi.exe" "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/9a98af19-1c68-46ce-9fdd-e249240c7c42/intel-oneapi-base-toolkit-2025.0.1.47_offline.exe"
+          "%RUNNER_TEMP%\oneapi.exe" -s -a --silent --eula accept --components intel.oneapi.win.dpcpp-compiler:intel.oneapi.win.mkl.devel
+      - name: Build libraries
+        shell: cmd
+        run: |
+          call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
+          .github\build.bat -G "Ninja Multi-Config" -DGGML_SYCL=ON -DCMAKE_C_COMPILER=icx -DCMAKE_CXX_COMPILER=icx -DOS_NAME=Windows -DOS_ARCH=x86_64
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Windows-x86_64-sycl
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_sycl/net/ladenthin/llama/
+          if-no-files-found: error
+
+  build-windows-arm64-opencl:
+    name: Build Windows 11 arm64 OpenCL (Adreno)
+    needs: [startgate, build-webui]
+    # Windows-on-ARM OpenCL (Snapdragon X / Adreno). Same clang-cl + GGML_OPENMP=OFF
+    # toolchain as the arm64 CPU job (ggml refuses MSVC cl.exe on ARM). Reuses the
+    # resources_windows_opencl tree under Windows/aarch64; the opencl-windows-aarch64
+    # Maven profile packages only that subtree. build_opencl_windows.bat stages the
+    # OpenCL headers + ICD loader before delegating to build.bat.
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/llama/webui-generated/
+      - name: Set up MSVC developer environment (arm64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: arm64
+      - name: Build libraries
+        shell: cmd
+        run: |
+          .github\build_opencl_windows.bat -G "Ninja Multi-Config" -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DGGML_OPENMP=OFF -DGGML_OPENCL=ON -DGGML_OPENCL_EMBED_KERNELS=ON -DGGML_OPENCL_USE_ADRENO_KERNELS=ON -DOS_NAME=Windows -DOS_ARCH=aarch64
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Windows-aarch64-opencl
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_opencl/net/ladenthin/llama/
+          if-no-files-found: error
+
+  build-linux-x86_64-openvino:
+    name: Build Linux x86_64 OpenVINO (Intel)
+    needs: [startgate, build-webui]
+    runs-on: ubuntu-latest
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/llama/webui-generated/
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Install Intel OpenVINO (apt repo)
+        run: |
+          wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/intel-openvino.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/intel-openvino.gpg] https://apt.repos.intel.com/openvino/2025 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2025.list
+          sudo apt-get update
+          sudo apt-get install -y openvino-2025.0.0
+      - name: Build libraries
+        shell: bash
+        run: |
+          source /opt/intel/openvino/setupvars.sh || true
+          mvn --no-transfer-progress -f llama/pom.xml compile
+          .github/build.sh "-DGGML_OPENVINO=ON -DGGML_NATIVE=OFF -DOS_NAME=Linux -DOS_ARCH=x86_64"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Linux-x86_64-openvino
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_openvino/net/ladenthin/llama/
+          if-no-files-found: error
+
+  build-windows-x86_64-openvino:
+    name: Build Windows 2025 x86_64 OpenVINO (Intel)
+    needs: [startgate, build-webui]
+    runs-on: windows-2025-vs2026
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/llama/webui-generated/
+      - name: Set up MSVC developer environment (x64)
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+      - name: Install Intel OpenVINO (Windows archive)
+        shell: pwsh
+        run: |
+          $url = "https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.0/windows/openvino_toolkit_windows_2025.0.0.17942.1f68be9f594_x86_64.zip"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\openvino.zip"
+          Expand-Archive -Path "$env:RUNNER_TEMP\openvino.zip" -DestinationPath "C:\openvino" -Force
+          "OpenVINO_DIR=C:\openvino\runtime\cmake" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Build libraries
+        shell: cmd
+        run: |
+          .github\build.bat -G "Ninja Multi-Config" -DGGML_OPENVINO=ON -DOS_NAME=Windows -DOS_ARCH=x86_64
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Windows-x86_64-openvino
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_openvino/net/ladenthin/llama/
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
   # CI-only jobs — no release artifact, purely for test coverage
   # ---------------------------------------------------------------------------
 
@@ -1668,6 +1964,14 @@ jobs:
       - build-windows-x86_64-cuda
       - build-windows-x86_64-vulkan
       - build-windows-x86_64-opencl
+      - build-linux-x86_64-rocm
+      - build-windows-x86_64-rocm
+      - build-linux-x86_64-sycl-fp16
+      - build-linux-x86_64-sycl-fp32
+      - build-windows-x86_64-sycl
+      - build-windows-arm64-opencl
+      - build-linux-x86_64-openvino
+      - build-windows-x86_64-openvino
       - test-cpp-linux-x86_64
       - build-macos-arm64-metal-15
       - test-java-linux-x86_64
@@ -1725,6 +2029,38 @@ jobs:
         with:
           name: Windows-x86_64-opencl
           path: ${{ github.workspace }}/llama/src/main/resources_windows_opencl/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Linux-x86_64-rocm
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_rocm/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-rocm
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_rocm/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Linux-x86_64-sycl-fp16
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_sycl_fp16/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Linux-x86_64-sycl-fp32
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_sycl_fp32/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-sycl
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_sycl/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-aarch64-opencl
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_opencl/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Linux-x86_64-openvino
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_openvino/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-openvino
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_openvino/net/ladenthin/llama/
       - uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
@@ -1738,7 +2074,7 @@ jobs:
         # Windows classifier JARs: `windows-msvc` (MSVC-built CPU natives) plus the GPU
         # backends `cuda-windows` / `vulkan-windows` / `opencl-windows`. The default JAR's
         # Windows natives are the Ninja `*-libraries` merged into src/main/resources/ above.
-        run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,assembly -Dmaven.test.skip=true -Dgpg.skip=true package
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,rocm-linux,rocm-windows,sycl-fp16-linux,sycl-fp32-linux,sycl-windows,opencl-windows-aarch64,openvino-linux,openvino-windows,assembly -Dmaven.test.skip=true -Dgpg.skip=true package
       - name: Upload JARs
         uses: actions/upload-artifact@v7
         with:
@@ -1844,6 +2180,38 @@ jobs:
         with:
           name: Windows-x86_64-opencl
           path: ${{ github.workspace }}/llama/src/main/resources_windows_opencl/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Linux-x86_64-rocm
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_rocm/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-rocm
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_rocm/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Linux-x86_64-sycl-fp16
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_sycl_fp16/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Linux-x86_64-sycl-fp32
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_sycl_fp32/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-sycl
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_sycl/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-aarch64-opencl
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_opencl/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Linux-x86_64-openvino
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_openvino/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-openvino
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_openvino/net/ladenthin/llama/
       - name: Set up Maven Central Repository
         uses: actions/setup-java@v5
         with:
@@ -1868,7 +2236,7 @@ jobs:
       # :llama-langchain4j. The `release` profile (GPG + Central Publishing) is inherited
       # from the parent, so every module — including the parent pom — is signed.
       - name: Publish snapshot (reactor - parent + llama + llama-langchain4j)
-        run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows -Dmaven.test.skip=true deploy
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,rocm-linux,rocm-windows,sycl-fp16-linux,sycl-fp32-linux,sycl-windows,opencl-windows-aarch64,openvino-linux,openvino-windows -Dmaven.test.skip=true deploy
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
@@ -1962,6 +2330,38 @@ jobs:
         with:
           name: Windows-x86_64-opencl
           path: ${{ github.workspace }}/llama/src/main/resources_windows_opencl/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Linux-x86_64-rocm
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_rocm/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-rocm
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_rocm/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Linux-x86_64-sycl-fp16
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_sycl_fp16/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Linux-x86_64-sycl-fp32
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_sycl_fp32/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-sycl
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_sycl/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-aarch64-opencl
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_opencl/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Linux-x86_64-openvino
+          path: ${{ github.workspace }}/llama/src/main/resources_linux_openvino/net/ladenthin/llama/
+      - uses: actions/download-artifact@v8
+        with:
+          name: Windows-x86_64-openvino
+          path: ${{ github.workspace }}/llama/src/main/resources_windows_openvino/net/ladenthin/llama/
       - name: Set up Maven Central Repository
         uses: actions/setup-java@v5
         with:
@@ -1977,7 +2377,7 @@ jobs:
       # :llama-langchain4j. The `release` profile (GPG + Central Publishing) is inherited
       # from the parent, so every module — including the parent pom — is signed.
       - name: Publish release (reactor - parent + llama + llama-langchain4j)
-        run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows -Dmaven.test.skip=true deploy
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,rocm-linux,rocm-windows,sycl-fp16-linux,sycl-fp32-linux,sycl-windows,opencl-windows-aarch64,openvino-linux,openvino-windows -Dmaven.test.skip=true deploy
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}

@@ -311,6 +311,38 @@ threadpool, leaving the arm64 `jllama.dll` self-contained (the x86_64/x86 jobs k
 x64 runner with `vcvarsall amd64_arm64` + a `clang`/`clang++` toolchain file and no arm64 tests; the
 native-runner + `clang-cl` route here keeps the `/MT` CRT and lets `ctest` run on real ARM hardware.)
 
+## Additional GPU-backend classifiers (ROCm/HIP, SYCL, Win-arm64 OpenCL, OpenVINO)
+
+Eight further GPU classifiers extend the matrix toward upstream llama.cpp's full release set. They
+follow the **exact same 5-place wiring** as the CUDA/Vulkan classifiers (no special cases — KISS): a
+`CMakeLists.txt` backend branch, a `publish.yml` build job (in `package.needs`, **fail-loud** — a
+broken build reds the pipeline, same policy as every GPU job), a `pom.xml` classifier profile, a
+`README.md` row, and a git-ignored `resources_*` tree. All are **build-only** (GitHub runners have no
+matching GPU) and bundle **no** vendor runtime.
+
+| Classifier | GGML flag(s) | Job runner / toolchain | Tree |
+|---|---|---|---|
+| `rocm-linux-x86-64` | `GGML_HIP=ON -DAMDGPU_TARGETS=…` | `ubuntu-latest` + ROCm apt repo (`/opt/rocm/llvm/bin/clang`) | `resources_linux_rocm` |
+| `rocm-windows-x86-64` | `GGML_HIP=ON` | `windows-2025-vs2026` + AMD HIP SDK | `resources_windows_rocm` |
+| `sycl-fp16-linux-x86-64` | `GGML_SYCL=ON -DGGML_SYCL_F16=ON` (`icx`/`icpx`) | `ubuntu-latest` + Intel oneAPI apt | `resources_linux_sycl_fp16` |
+| `sycl-fp32-linux-x86-64` | `GGML_SYCL=ON` (`icx`/`icpx`) | `ubuntu-latest` + Intel oneAPI apt | `resources_linux_sycl_fp32` |
+| `sycl-windows-x86-64` | `GGML_SYCL=ON` (`icx`) | `windows-2025-vs2026` + oneAPI installer | `resources_windows_sycl` |
+| `opencl-windows-aarch64` | `GGML_OPENCL=ON …ADRENO_KERNELS=ON` (clang-cl, `GGML_OPENMP=OFF`) | `windows-11-arm` (arm64 CPU job's toolchain) | `resources_windows_opencl` (arch subdir `aarch64`) |
+| `openvino-linux-x86-64` | `GGML_OPENVINO=ON` | `ubuntu-latest` + OpenVINO apt | `resources_linux_openvino` |
+| `openvino-windows-x86-64` | `GGML_OPENVINO=ON` | `windows-2025-vs2026` + OpenVINO archive | `resources_windows_openvino` |
+
+Two routing notes mirror existing precedent: **Linux SYCL** ships two precision variants at the *same*
+arch, so `CMakeLists.txt` routes them to two *distinct* trees by `GGML_SYCL_F16` (fp16 vs fp32).
+**Windows OpenCL** now holds both `x86_64` (desktop ICD) and `aarch64` (Snapdragon/Adreno) in the one
+`resources_windows_opencl` tree, split by the `opencl-windows` / `opencl-windows-aarch64` profiles'
+arch-scoped `<includes>` — exactly like the `vulkan-linux` / `vulkan-linux-aarch64` split.
+
+The vendor toolchain install steps in `publish.yml` are **first-pass** (apt repos / vendor installers
+pinned to a specific version): if a URL/version 404s in CI, the job fails loud and the step is adjusted
+— the failure is intentional signal, not a regression to hide behind `continue-on-error`.
+`src/main/resources_{linux_rocm,windows_rocm,linux_sycl_fp16,linux_sycl_fp32,windows_sycl,linux_openvino,windows_openvino}/`
+are all git-ignored (staged by CI, never committed).
+
 ## WebUI (llama.cpp Svelte UI) embedding
 
 The llama.cpp WebUI is **built once in CI and shared to every native build**, then

@@ -47,6 +47,13 @@ llama/src/main/resources_windows_msvc/
 llama/src/main/resources_windows_cuda/
 llama/src/main/resources_windows_vulkan/
 llama/src/main/resources_windows_opencl/
+llama/src/main/resources_linux_rocm/
+llama/src/main/resources_windows_rocm/
+llama/src/main/resources_linux_sycl_fp16/
+llama/src/main/resources_linux_sycl_fp32/
+llama/src/main/resources_windows_sycl/
+llama/src/main/resources_linux_openvino/
+llama/src/main/resources_windows_openvino/
 llama/src/main/resources/**/*.so
 llama/src/main/resources/**/*.dylib
 llama/src/main/resources/**/*.dll

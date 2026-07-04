@@ -164,10 +164,12 @@ If any of these match your platform, you can include the Maven dependency and ge
 
 The Maven coordinate `net.ladenthin:llama` publishes one default JAR (CPU-only;
 its Windows natives are built with the Ninja Multi-Config + MSVC toolchain) plus
-optional JARs selected via a Maven `<classifier>`: three Windows GPU builds
-(CUDA / Vulkan / OpenCL), the Linux CUDA and Android OpenCL builds, and an
-alternate-toolchain MSVC Windows CPU build. Pick at most one GPU/accelerator
-classifier — those are mutually exclusive — and optionally a CPU Windows build.
+optional JARs selected via a Maven `<classifier>`: NVIDIA CUDA (Linux / Windows),
+Vulkan (Linux x86-64 / aarch64, Windows), AMD ROCm/HIP (Linux / Windows), Intel
+SYCL (Linux fp16 / fp32, Windows) and OpenVINO (Linux / Windows) GPU builds, OpenCL
+(Android Adreno, Windows x86-64 / Snapdragon-arm64), and an alternate-toolchain MSVC
+Windows CPU build. Pick at most one GPU/accelerator classifier — those are mutually
+exclusive — and optionally a CPU Windows build.
 
 | Classifier | Backend | Target platform | Runtime requirement |
 |---|---|---|---|
@@ -180,6 +182,22 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
 | `vulkan-linux-x86-64` | Vulkan | Linux x86-64 with a Vulkan 1.2+ GPU (NVIDIA / AMD / Intel) | A Vulkan runtime (`libvulkan.so.1`), which current GPU drivers install. No Vulkan SDK is needed at runtime. The most portable Linux GPU option (vendor-independent, no CUDA toolkit). Built natively on `ubuntu-latest`, so it shares the aarch64 build's higher glibc floor (≈ 2.39). |
 | `vulkan-linux-aarch64` | Vulkan | Linux aarch64 with a Vulkan 1.2+ GPU | A Vulkan runtime (`libvulkan.so.1`) from the device/driver. glibc ≥ 2.39 (built on `ubuntu-24.04-arm`). |
 | `opencl-android-aarch64` | OpenCL (Adreno) | Android aarch64 with Qualcomm Adreno GPU | A device-supplied OpenCL ICD (`libOpenCL.so`). Devices without an ICD (e.g. most non-Snapdragon Android hardware) must use the default CPU JAR. |
+| `rocm-linux-x86-64` | ROCm / HIP | Linux x86-64 with AMD GPU | An installed AMD ROCm runtime (`libamdhip64.so`, `librocblas.so`, `libhipblas.so`) on the host. Not bundled; native load fails without it. No CPU fallback. |
+| `rocm-windows-x86-64` | ROCm / HIP | Windows x86-64 with AMD GPU | The AMD HIP SDK runtime DLLs (`amdhip64.dll`, `rocblas.dll`, `hipblas.dll`) on `PATH`. Not bundled. No CPU fallback. |
+| `sycl-fp16-linux-x86-64` | SYCL (Intel oneAPI, fp16) | Linux x86-64 with Intel GPU (Arc / iGPU) | An installed Intel oneAPI / Level-Zero runtime. fp16 accumulation (faster, slightly lower precision). Not bundled. |
+| `sycl-fp32-linux-x86-64` | SYCL (Intel oneAPI, fp32) | Linux x86-64 with Intel GPU (Arc / iGPU) | An installed Intel oneAPI / Level-Zero runtime. fp32 accumulation (higher precision). Not bundled. |
+| `sycl-windows-x86-64` | SYCL (Intel oneAPI) | Windows x86-64 with Intel GPU (Arc / iGPU) | The Intel oneAPI / Level-Zero runtime DLLs on `PATH`. Not bundled. |
+| `opencl-windows-aarch64` | OpenCL (Adreno) | Windows-on-ARM aarch64 (Snapdragon X) with Adreno GPU | A device-supplied OpenCL ICD (`OpenCL.dll`, from the Adreno driver). Not bundled. |
+| `openvino-linux-x86-64` | OpenVINO | Linux x86-64 (Intel GPU / NPU / CPU) | An installed Intel OpenVINO runtime. Not bundled. |
+| `openvino-windows-x86-64` | OpenVINO | Windows x86-64 (Intel GPU / NPU / CPU) | The Intel OpenVINO runtime DLLs on `PATH`. Not bundled. |
+
+> [!NOTE]
+> The AMD (`rocm-*`), Intel SYCL (`sycl-*`), Windows-on-ARM OpenCL
+> (`opencl-windows-aarch64`) and Intel OpenVINO (`openvino-*`) classifiers are
+> newly added GPU backends. Like the other GPU classifiers they are validated
+> **build-only** in CI (GitHub runners have no matching GPU), so end-to-end
+> inference is verified locally / on self-hosted hardware. As with every GPU JAR,
+> the vendor runtime is supplied by the consumer's driver/toolkit and is not bundled.
 
 ```xml
 <!-- CPU (default) -->
@@ -251,6 +269,70 @@ classifier — those are mutually exclusive — and optionally a CPU Windows bui
     <artifactId>llama</artifactId>
     <version>5.0.4</version>
     <classifier>msvc-windows</classifier>
+</dependency>
+
+<!-- ROCm/HIP on Linux x86-64 (requires an AMD ROCm runtime on the host) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>rocm-linux-x86-64</classifier>
+</dependency>
+
+<!-- ROCm/HIP on Windows x86-64 (requires the AMD HIP SDK runtime on the host) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>rocm-windows-x86-64</classifier>
+</dependency>
+
+<!-- SYCL (Intel oneAPI, fp16) on Linux x86-64 (requires the oneAPI/Level-Zero runtime) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>sycl-fp16-linux-x86-64</classifier>
+</dependency>
+
+<!-- SYCL (Intel oneAPI, fp32) on Linux x86-64 (requires the oneAPI/Level-Zero runtime) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>sycl-fp32-linux-x86-64</classifier>
+</dependency>
+
+<!-- SYCL (Intel oneAPI) on Windows x86-64 (requires the oneAPI/Level-Zero runtime) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>sycl-windows-x86-64</classifier>
+</dependency>
+
+<!-- OpenCL/Adreno on Windows-on-ARM aarch64 (Snapdragon X; device-provided OpenCL ICD) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>opencl-windows-aarch64</classifier>
+</dependency>
+
+<!-- OpenVINO on Linux x86-64 (requires the Intel OpenVINO runtime on the host) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>openvino-linux-x86-64</classifier>
+</dependency>
+
+<!-- OpenVINO on Windows x86-64 (requires the Intel OpenVINO runtime on the host) -->
+<dependency>
+    <groupId>net.ladenthin</groupId>
+    <artifactId>llama</artifactId>
+    <version>5.0.4</version>
+    <classifier>openvino-windows-x86-64</classifier>
 </dependency>
 ```
 
