@@ -1155,16 +1155,21 @@ jobs:
           arch: x64
       - name: Install AMD HIP SDK for Windows
         shell: pwsh
+        # Mirrors upstream llama.cpp's windows-hip release job: HIP SDK 26.Q1, then
+        # resolve HIP_PATH from the installed ROCm dir and point the compilers +
+        # CMAKE_PREFIX_PATH at it so ggml-hip's find_package(hip) resolves.
         run: |
-          $url = "https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-24.Q4-Win10-Win11-For-HIP.exe"
-          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\hip-sdk.exe"
-          Start-Process -FilePath "$env:RUNNER_TEMP\hip-sdk.exe" -ArgumentList "-install" -Wait
-          "HIP_PATH=C:\Program Files\AMD\ROCm\6.2\" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "C:\Program Files\AMD\ROCm\6.2\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+          $url = "https://download.amd.com/developer/eula/rocm-hub/AMD-Software-PRO-Edition-26.Q1-Win11-For-HIP.exe"
+          Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\rocm-install.exe"
+          $proc = Start-Process "$env:RUNNER_TEMP\rocm-install.exe" -ArgumentList '-install' -NoNewWindow -PassThru -Wait
+          if ($proc.ExitCode -ne 0) { Write-Error "HIP SDK install failed with exit code $($proc.ExitCode)"; exit 1 }
+          $hip = $(Resolve-Path 'C:\Program Files\AMD\ROCm\*\bin\clang.exe' | Split-Path | Split-Path)
+          "HIP_PATH=$hip" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "$hip\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
       - name: Build libraries
         shell: cmd
         run: |
-          .github\build.bat -G "Ninja Multi-Config" -DGGML_HIP=ON -DAMDGPU_TARGETS=gfx1030;gfx1100;gfx1101;gfx1102 -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang -DOS_NAME=Windows -DOS_ARCH=x86_64
+          .github\build.bat -G "Ninja Multi-Config" -DGGML_HIP=ON -DGPU_TARGETS=gfx1030;gfx1100;gfx1101;gfx1102 -DCMAKE_PREFIX_PATH="%HIP_PATH%" -DCMAKE_C_COMPILER="%HIP_PATH%\bin\clang.exe" -DCMAKE_CXX_COMPILER="%HIP_PATH%\bin\clang++.exe" -DOS_NAME=Windows -DOS_ARCH=x86_64
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -1263,16 +1268,19 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
-      - name: Install Intel oneAPI (Windows, DPC++ compiler)
+      - name: Install Intel oneAPI (DPC++ + MKL + oneDNN + TBB)
         shell: cmd
+        # Mirrors upstream llama.cpp's windows-sycl release job: extract the offline
+        # installer, then run its bootstrapper with the DPC++/MKL/oneDNN/TBB components.
         run: |
-          curl -fSL -o "%RUNNER_TEMP%\oneapi.exe" "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/9a98af19-1c68-46ce-9fdd-e249240c7c42/intel-oneapi-base-toolkit-2025.0.1.47_offline.exe"
-          "%RUNNER_TEMP%\oneapi.exe" -s -a --silent --eula accept --components intel.oneapi.win.dpcpp-compiler:intel.oneapi.win.mkl.devel
+          curl -fSL -o "%RUNNER_TEMP%\oneapi.exe" "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/b60765d1-2b85-4e85-86b6-cb0e9563a699/intel-deep-learning-essentials-2025.3.3.18_offline.exe"
+          "%RUNNER_TEMP%\oneapi.exe" -s -x -f "%RUNNER_TEMP%\oneapi_extracted" --log "%RUNNER_TEMP%\extract.log"
+          "%RUNNER_TEMP%\oneapi_extracted\bootstrapper.exe" -s --action install --components=intel.oneapi.win.cpp-dpcpp-common:intel.oneapi.win.mkl.devel:intel.oneapi.win.dnnl:intel.oneapi.win.tbb.devel --eula=accept -p=NEED_VS2022_INTEGRATION=0 --log-dir="%RUNNER_TEMP%"
       - name: Build libraries
         shell: cmd
         run: |
-          call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat"
-          .github\build.bat -G "Ninja Multi-Config" -DGGML_SYCL=ON -DCMAKE_C_COMPILER=icx -DCMAKE_CXX_COMPILER=icx -DOS_NAME=Windows -DOS_ARCH=x86_64
+          call "C:\Program Files (x86)\Intel\oneAPI\setvars.bat" intel64 --force
+          .github\build.bat -G "Ninja Multi-Config" -DGGML_SYCL=ON -DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=icx -DOS_NAME=Windows -DOS_ARCH=x86_64
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
@@ -1335,7 +1343,8 @@ jobs:
           wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/intel-openvino.gpg > /dev/null
           echo "deb [signed-by=/usr/share/keyrings/intel-openvino.gpg] https://apt.repos.intel.com/openvino/2025 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2025.list
           sudo apt-get update
-          sudo apt-get install -y openvino-2025.0.0
+          # libtbb-dev supplies the TBBConfig.cmake that OpenVINOConfig.cmake's find_package(TBB) needs.
+          sudo apt-get install -y openvino-2025.0.0 libtbb-dev
       - name: Build libraries
         shell: bash
         run: |
@@ -1370,11 +1379,13 @@ jobs:
           $url = "https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.0/windows/openvino_toolkit_windows_2025.0.0.17942.1f68be9f594_x86_64.zip"
           Invoke-WebRequest -Uri $url -OutFile "$env:RUNNER_TEMP\openvino.zip"
           Expand-Archive -Path "$env:RUNNER_TEMP\openvino.zip" -DestinationPath "C:\openvino" -Force
-          "OpenVINO_DIR=C:\openvino\runtime\cmake" | Out-File -FilePath $env:GITHUB_ENV -Append
+          # The archive extracts into a nested versioned folder; point OpenVINO_DIR at its runtime/cmake.
+          $root = (Get-ChildItem "C:\openvino" -Directory | Select-Object -First 1).FullName
+          "OpenVINO_DIR=$root\runtime\cmake" | Out-File -FilePath $env:GITHUB_ENV -Append
       - name: Build libraries
         shell: cmd
         run: |
-          .github\build.bat -G "Ninja Multi-Config" -DGGML_OPENVINO=ON -DOS_NAME=Windows -DOS_ARCH=x86_64
+          .github\build.bat -G "Ninja Multi-Config" -DGGML_OPENVINO=ON -DOpenVINO_DIR="%OpenVINO_DIR%" -DOS_NAME=Windows -DOS_ARCH=x86_64
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
