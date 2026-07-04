@@ -1343,23 +1343,24 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
-      - name: Install Intel OpenVINO (apt repo)
+      - name: Install OpenCL dev + Intel OpenVINO 2026.2.1 (archive)
         run: |
-          wget -qO- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/intel-openvino.gpg > /dev/null
-          echo "deb [signed-by=/usr/share/keyrings/intel-openvino.gpg] https://apt.repos.intel.com/openvino/2026 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2026.list
+          # Intel's OpenVINO APT repo only publishes up to ~2025 (the /openvino/2026 path 404s), and
+          # 2025.x has the older ov::Allocator API that breaks ggml-openvino's template compile. So use
+          # the ARCHIVE for 2026.2.1 — exactly what upstream llama.cpp's linux-setup-openvino action does.
+          # OpenCL headers (incl. the C++ CL/cl2.hpp via opencl-clhpp-headers) come from Ubuntu's own repos.
           sudo apt-get update
-          # OpenVINO 2026.2.1 matches the version llama.cpp's ggml-openvino targets (2025.0.0's
-          # ov::Allocator API mismatched and broke the template compile). libtbb-dev supplies
-          # TBBConfig.cmake; ocl-icd-opencl-dev + opencl-headers + opencl-clhpp-headers (the C++
-          # CL/cl2.hpp) + intel-opencl-icd satisfy ggml-openvino's find_package(OpenCL) — the same
-          # OpenCL package set upstream llama.cpp's ubuntu-openvino job installs.
-          sudo apt-get install -y openvino-2026.2.1 libtbb-dev ocl-icd-opencl-dev opencl-headers opencl-clhpp-headers intel-opencl-icd
+          sudo apt-get install -y ocl-icd-opencl-dev opencl-headers opencl-clhpp-headers intel-opencl-icd
+          url="https://storage.openvinotoolkit.org/repositories/openvino/packages/2026.2.1/linux/openvino_toolkit_ubuntu24_2026.2.1.21919.ede283a88e3_x86_64.tgz"
+          sudo mkdir -p /opt/intel/openvino
+          curl -fSL "$url" | sudo tar -xz --strip-components=1 -C /opt/intel/openvino
+          echo "OpenVINO_DIR=/opt/intel/openvino/runtime/cmake" >> "$GITHUB_ENV"
       - name: Build libraries
         shell: bash
         run: |
           source /opt/intel/openvino/setupvars.sh || true
           mvn --no-transfer-progress -f llama/pom.xml compile
-          .github/build.sh "-DGGML_OPENVINO=ON -DGGML_NATIVE=OFF -DOS_NAME=Linux -DOS_ARCH=x86_64"
+          .github/build.sh "-DGGML_OPENVINO=ON -DOpenVINO_DIR=$OpenVINO_DIR -DGGML_NATIVE=OFF -DOS_NAME=Linux -DOS_ARCH=x86_64"
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
