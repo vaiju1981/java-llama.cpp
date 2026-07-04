@@ -199,140 +199,26 @@ exclusive — and optionally a CPU Windows build.
 > inference is verified locally / on self-hosted hardware. As with every GPU JAR,
 > the vendor runtime is supplied by the consumer's driver/toolkit and is not bundled.
 
+For the default CPU JAR, omit the `<classifier>`. For a GPU/accelerator or
+alternate-CPU build, add the `<classifier>` for your platform from the table
+above — the backend, target platform and runtime requirement are all listed
+there. Pick **at most one** classifier (they are mutually exclusive):
+
 ```xml
-<!-- CPU (default) -->
+<!-- Default (CPU) — no classifier -->
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
     <version>5.0.5</version>
 </dependency>
 
-<!-- CUDA on Linux x86-64 (requires CUDA 13 runtime on the host) -->
+<!-- GPU / accelerator or alternate-CPU build: add the <classifier> from the
+     table above. Example shown — CUDA 13 on Linux x86-64. -->
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
     <version>5.0.5</version>
     <classifier>cuda13-linux-x86-64</classifier>
-</dependency>
-
-<!-- OpenCL/Adreno on Android (requires device-provided OpenCL ICD) -->
-<dependency>
-    <groupId>net.ladenthin</groupId>
-    <artifactId>llama</artifactId>
-    <version>5.0.5</version>
-    <classifier>opencl-android-aarch64</classifier>
-</dependency>
-
-<!-- CUDA on Windows x86-64 (requires CUDA 13 Toolkit on the host) -->
-<dependency>
-    <groupId>net.ladenthin</groupId>
-    <artifactId>llama</artifactId>
-    <version>5.0.5</version>
-    <classifier>cuda13-windows-x86-64</classifier>
-</dependency>
-
-<!-- Vulkan on Windows x86-64 (NVIDIA/AMD/Intel; vulkan-1.dll from the driver) -->
-<dependency>
-    <groupId>net.ladenthin</groupId>
-    <artifactId>llama</artifactId>
-    <version>5.0.5</version>
-    <classifier>vulkan-windows-x86-64</classifier>
-</dependency>
-
-<!-- Vulkan on Linux x86-64 (NVIDIA/AMD/Intel; libvulkan.so.1 from the driver) -->
-<dependency>
-    <groupId>net.ladenthin</groupId>
-    <artifactId>llama</artifactId>
-    <version>5.0.5</version>
-    <classifier>vulkan-linux-x86-64</classifier>
-</dependency>
-
-<!-- Vulkan on Linux aarch64 (libvulkan.so.1 from the device/driver) -->
-<dependency>
-    <groupId>net.ladenthin</groupId>
-    <artifactId>llama</artifactId>
-    <version>5.0.5</version>
-    <classifier>vulkan-linux-aarch64</classifier>
-</dependency>
-
-<!-- OpenCL on Windows x86-64 (requires a driver-provided OpenCL ICD) -->
-<dependency>
-    <groupId>net.ladenthin</groupId>
-    <artifactId>llama</artifactId>
-    <version>5.0.5</version>
-    <classifier>opencl-windows-x86-64</classifier>
-</dependency>
-
-<!-- Windows CPU natives built with the MSVC / Visual Studio generator -->
-<dependency>
-    <groupId>net.ladenthin</groupId>
-    <artifactId>llama</artifactId>
-    <version>5.0.5</version>
-    <classifier>msvc-windows</classifier>
-</dependency>
-
-<!-- ROCm/HIP on Linux x86-64 (requires an AMD ROCm runtime on the host) -->
-<dependency>
-    <groupId>net.ladenthin</groupId>
-    <artifactId>llama</artifactId>
-    <version>5.0.5</version>
-    <classifier>rocm-linux-x86-64</classifier>
-</dependency>
-
-<!-- ROCm/HIP on Windows x86-64 (requires the AMD HIP SDK runtime on the host) -->
-<dependency>
-    <groupId>net.ladenthin</groupId>
-    <artifactId>llama</artifactId>
-    <version>5.0.5</version>
-    <classifier>rocm-windows-x86-64</classifier>
-</dependency>
-
-<!-- SYCL (Intel oneAPI, fp16) on Linux x86-64 (requires the oneAPI/Level-Zero runtime) -->
-<dependency>
-    <groupId>net.ladenthin</groupId>
-    <artifactId>llama</artifactId>
-    <version>5.0.5</version>
-    <classifier>sycl-fp16-linux-x86-64</classifier>
-</dependency>
-
-<!-- SYCL (Intel oneAPI, fp32) on Linux x86-64 (requires the oneAPI/Level-Zero runtime) -->
-<dependency>
-    <groupId>net.ladenthin</groupId>
-    <artifactId>llama</artifactId>
-    <version>5.0.5</version>
-    <classifier>sycl-fp32-linux-x86-64</classifier>
-</dependency>
-
-<!-- SYCL (Intel oneAPI) on Windows x86-64 (requires the oneAPI/Level-Zero runtime) -->
-<dependency>
-    <groupId>net.ladenthin</groupId>
-    <artifactId>llama</artifactId>
-    <version>5.0.5</version>
-    <classifier>sycl-windows-x86-64</classifier>
-</dependency>
-
-<!-- OpenCL/Adreno on Windows-on-ARM aarch64 (Snapdragon X; device-provided OpenCL ICD) -->
-<dependency>
-    <groupId>net.ladenthin</groupId>
-    <artifactId>llama</artifactId>
-    <version>5.0.5</version>
-    <classifier>opencl-windows-aarch64</classifier>
-</dependency>
-
-<!-- OpenVINO on Linux x86-64 (requires the Intel OpenVINO runtime on the host) -->
-<dependency>
-    <groupId>net.ladenthin</groupId>
-    <artifactId>llama</artifactId>
-    <version>5.0.5</version>
-    <classifier>openvino-linux-x86-64</classifier>
-</dependency>
-
-<!-- OpenVINO on Windows x86-64 (requires the Intel OpenVINO runtime on the host) -->
-<dependency>
-    <groupId>net.ladenthin</groupId>
-    <artifactId>llama</artifactId>
-    <version>5.0.5</version>
-    <classifier>openvino-windows-x86-64</classifier>
 </dependency>
 ```
 

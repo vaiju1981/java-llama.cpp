@@ -1392,8 +1392,24 @@ versioning** here), so a version change must be applied to **all three poms in l
 The safe way is `mvn -q versions:set -DnewVersion=X.Y.Z -DgenerateBackupPoms=false` from the repo
 root (it updates the parent and every child `<parent>` reference at once). Changing only the root
 `<version>` leaves the children pointing at a non-existent parent and **fails the reactor build**
-(`Could not find artifact net.ladenthin:llama-parent:pom:X.Y.Z`). The README version examples and
-badge still need the usual manual update. (If single-source ergonomics are wanted, the Maven
+(`Could not find artifact net.ladenthin:llama-parent:pom:X.Y.Z`).
+
+`versions:set` only rewrites the **poms**. The **two README files** that carry hardcoded
+release-version dependency snippets must be bumped **manually and in the same commit** — miss either
+and the published docs point consumers at the previous release. (The `llama-langchain4j/README.md`
+snippet was exactly the one forgotten on the `5.0.4 → 5.0.5` bump; it is listed here so it is not
+missed again.)
+
+- **`README.md`** (root) — the install snippet, the two classifier-example snippets (default + the
+  `<classifier>` template), and the `llama-langchain4j` snippet. The Maven Central **badge**
+  auto-pulls the latest released version, so leave it. The **`-SNAPSHOT` line** in the "Snapshot
+  builds" section documents the snapshot channel — set it to the *next* dev version, not the release.
+  (The per-classifier snippets were **deduplicated** to a single canonical + template pair, so the
+  release version now appears in only ~4 spots here, not ~20 — the runtime details live once in the
+  classifier table.)
+- **`llama-langchain4j/README.md`** — its own `<dependency>` snippet.
+
+(If single-source ergonomics are wanted, the Maven
 CI-friendly `${revision}` property + `flatten-maven-plugin` would let a bump touch only the root —
 that plugin is not configured today, so do not rely on "root only".)
 
