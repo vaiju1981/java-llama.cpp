@@ -198,31 +198,35 @@ public final class NativeServer implements AutoCloseable {
      * @throws InterruptedException if interrupted while waiting for the server to exit
      */
     public static void main(String[] args) throws InterruptedException {
+        // Own the server in a try/finally so close() is guaranteed on normal or exceptional exit of
+        // the block (satisfies S2095 via the "close in a finally clause" option — try-with-resources
+        // is not used because the shutdown hook must also call close() explicitly, which javac flags
+        // under -Werror as an "explicit call to close() on an auto-closeable resource"). close() is
+        // idempotent (guards on a zero handle), so the finally and the hook both firing is safe.
         final NativeServer server = new NativeServer(args);
-        final AtomicBoolean stoppedByHook = new AtomicBoolean(false);
-        // Signalled by the shutdown hook so the main thread wakes immediately on Ctrl-C / SIGTERM
-        // rather than waiting out a poll tick — and so the wait uses a bounded latch await instead of
-        // Thread.sleep (banned by LlamaArchitectureTest.noThreadSleep).
-        final CountDownLatch stopSignal = new CountDownLatch(1);
-        // Graceful Ctrl-C / SIGTERM: the embedded server installs no signal handlers of its own
-        // (see patches/0006), so the JVM-level shutdown hook is what stops it before exit.
-        Runtime.getRuntime()
-                .addShutdownHook(new Thread(
-                        () -> {
-                            stoppedByHook.set(true);
-                            server.close();
-                            stopSignal.countDown();
-                        },
-                        "jllama-native-server-shutdown"));
-        server.start();
-        // Keep the JVM alive until the native worker exits — on its own (e.g. a fatal startup/model
-        // error that llama_server has already logged) or because the shutdown hook stopped it. The
-        // bounded await returns early when the hook fires; on timeout we re-check isRunning() to catch
-        // a self-terminated worker.
-        while (server.isRunning() && !stopSignal.await(200L, TimeUnit.MILLISECONDS)) {
-            // wait for the native worker to exit or the shutdown hook to fire
-        }
-        if (!stoppedByHook.get()) {
+        try {
+            // Signalled by the shutdown hook so the main thread wakes immediately on Ctrl-C / SIGTERM
+            // rather than waiting out a poll tick — and so the wait uses a bounded latch await instead
+            // of Thread.sleep (banned by LlamaArchitectureTest.noThreadSleep).
+            final CountDownLatch stopSignal = new CountDownLatch(1);
+            // Graceful Ctrl-C / SIGTERM: the embedded server installs no signal handlers of its own
+            // (see patches/0006), so the JVM-level shutdown hook is what stops it before exit.
+            Runtime.getRuntime()
+                    .addShutdownHook(new Thread(
+                            () -> {
+                                server.close();
+                                stopSignal.countDown();
+                            },
+                            "jllama-native-server-shutdown"));
+            server.start();
+            // Keep the JVM alive until the native worker exits — on its own (e.g. a fatal startup/model
+            // error that llama_server has already logged) or because the shutdown hook stopped it. The
+            // bounded await returns early when the hook fires; on timeout we re-check isRunning() to
+            // catch a self-terminated worker.
+            while (server.isRunning() && !stopSignal.await(200L, TimeUnit.MILLISECONDS)) {
+                // wait for the native worker to exit or the shutdown hook to fire
+            }
+        } finally {
             server.close();
         }
     }
