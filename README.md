@@ -119,7 +119,7 @@ Access this library via Maven (released versions on Maven Central):
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
 </dependency>
 ```
 
@@ -204,14 +204,14 @@ exclusive — and optionally a CPU Windows build.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
 </dependency>
 
 <!-- CUDA on Linux x86-64 (requires CUDA 13 runtime on the host) -->
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
     <classifier>cuda13-linux-x86-64</classifier>
 </dependency>
 
@@ -219,7 +219,7 @@ exclusive — and optionally a CPU Windows build.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
     <classifier>opencl-android-aarch64</classifier>
 </dependency>
 
@@ -227,7 +227,7 @@ exclusive — and optionally a CPU Windows build.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
     <classifier>cuda13-windows-x86-64</classifier>
 </dependency>
 
@@ -235,7 +235,7 @@ exclusive — and optionally a CPU Windows build.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
     <classifier>vulkan-windows-x86-64</classifier>
 </dependency>
 
@@ -243,7 +243,7 @@ exclusive — and optionally a CPU Windows build.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
     <classifier>vulkan-linux-x86-64</classifier>
 </dependency>
 
@@ -251,7 +251,7 @@ exclusive — and optionally a CPU Windows build.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
     <classifier>vulkan-linux-aarch64</classifier>
 </dependency>
 
@@ -259,7 +259,7 @@ exclusive — and optionally a CPU Windows build.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
     <classifier>opencl-windows-x86-64</classifier>
 </dependency>
 
@@ -267,7 +267,7 @@ exclusive — and optionally a CPU Windows build.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
     <classifier>msvc-windows</classifier>
 </dependency>
 
@@ -275,7 +275,7 @@ exclusive — and optionally a CPU Windows build.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
     <classifier>rocm-linux-x86-64</classifier>
 </dependency>
 
@@ -283,7 +283,7 @@ exclusive — and optionally a CPU Windows build.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
     <classifier>rocm-windows-x86-64</classifier>
 </dependency>
 
@@ -291,7 +291,7 @@ exclusive — and optionally a CPU Windows build.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
     <classifier>sycl-fp16-linux-x86-64</classifier>
 </dependency>
 
@@ -299,7 +299,7 @@ exclusive — and optionally a CPU Windows build.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
     <classifier>sycl-fp32-linux-x86-64</classifier>
 </dependency>
 
@@ -307,7 +307,7 @@ exclusive — and optionally a CPU Windows build.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
     <classifier>sycl-windows-x86-64</classifier>
 </dependency>
 
@@ -315,7 +315,7 @@ exclusive — and optionally a CPU Windows build.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
     <classifier>opencl-windows-aarch64</classifier>
 </dependency>
 
@@ -323,7 +323,7 @@ exclusive — and optionally a CPU Windows build.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
     <classifier>openvino-linux-x86-64</classifier>
 </dependency>
 
@@ -331,7 +331,7 @@ exclusive — and optionally a CPU Windows build.
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
     <classifier>openvino-windows-x86-64</classifier>
 </dependency>
 ```
@@ -864,7 +864,7 @@ forcing that floor on every core consumer. It ships and versions in lockstep wit
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama-langchain4j</artifactId>
-    <version>5.0.4</version>
+    <version>5.0.5</version>
 </dependency>
 ```
 
