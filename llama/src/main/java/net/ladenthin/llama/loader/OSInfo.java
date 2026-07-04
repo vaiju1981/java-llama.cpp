@@ -114,6 +114,8 @@ public class OSInfo {
     public static final String PPC64 = "ppc64";
     /** Folder name for 64-bit RISC-V. */
     public static final String RISCV64 = "riscv64";
+    /** Folder name for 64-bit IBM Z (s390x, big-endian). */
+    public static final String S390X = "s390x";
 
     static {
         // x86 mappings
@@ -155,6 +157,8 @@ public class OSInfo {
         archMapping.put("ppc64le", PPC64);
 
         archMapping.put(RISCV64, RISCV64);
+
+        archMapping.put(S390X, S390X);
     }
 
     /**

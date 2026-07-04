@@ -437,6 +437,53 @@ jobs:
           name: Linux-aarch64-libraries
           path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
 
+  build-linux-s390x:
+    name: Build and Test Linux s390x (big-endian, qemu)
+    needs: [startgate, build-webui]
+    # Cross-compile for IBM Z (s390x, BIG-ENDIAN) with the GCC cross toolchain, then run the full
+    # C++ unit suite under qemu-user — a real big-endian correctness gate for our helpers and
+    # serializers (esp. the little-endian WAV writer, JSON/token/embedding transforms). The BUILD
+    # is native speed (x86 cross-gcc); only the tiny test binary is emulated. s390x is a DEFAULT-jar
+    # CPU platform (like aarch64), so the artifact merges via the `*-libraries` glob (no classifier /
+    # pom profile). Model-backed Java tests are NOT run under emulation (a JVM + GGUF inference under
+    # qemu-user is slow/flaky); the C++ gate covers the actual byte-order risk since the Java<->JNI
+    # boundary uses host-native array copies. GGML_OPENMP=OFF avoids cross-libgomp issues (ggml uses
+    # its own std::thread pool). CMAKE_CROSSCOMPILING_EMULATOR makes ctest run the s390x exe via qemu;
+    # QEMU_LD_PREFIX lets the emulated binary find the s390x sysroot libs.
+    runs-on: ubuntu-latest
+    env:
+      QEMU_LD_PREFIX: /usr/s390x-linux-gnu
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/llama/webui-generated/
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Install s390x cross toolchain + qemu-user
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-s390x-linux-gnu g++-s390x-linux-gnu qemu-user-static
+      - name: Build libraries (cross-compile s390x)
+        shell: bash
+        run: |
+          mvn --no-transfer-progress -f llama/pom.xml compile
+          .github/build.sh "-DGGML_NATIVE=OFF -DGGML_OPENMP=OFF -DBUILD_TESTING=ON -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=s390x -DCMAKE_C_COMPILER=s390x-linux-gnu-gcc -DCMAKE_CXX_COMPILER=s390x-linux-gnu-g++ -DCMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-s390x-static -DOS_NAME=Linux -DOS_ARCH=s390x"
+      - name: Run C++ unit tests under qemu-s390x (big-endian gate)
+        run: ctest --test-dir llama/build --output-on-failure
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Linux-s390x-libraries
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
+
   build-linux-x86_64-vulkan:
     name: Build Linux x86_64 Vulkan
     needs: [startgate, build-webui]
@@ -1978,6 +2025,7 @@ jobs:
     needs:
       - crosscompile-linux-x86_64-cuda
       - crosscompile-linux-aarch64
+      - build-linux-s390x
       - build-linux-x86_64-vulkan
       - build-linux-aarch64-vulkan
       - crosscompile-android-aarch64

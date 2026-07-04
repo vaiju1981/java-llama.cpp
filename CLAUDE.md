@@ -1067,6 +1067,24 @@ Wiring (mirrors the macOS native jobs, not the dockcross jobs):
 - Branch protection: if a required check pinned the old name "Cross-Compile Linux aarch64 (LTS)",
   repoint it to "Build and Test Linux aarch64".
 
+### Linux s390x: big-endian cross-build + qemu test gate
+
+`build-linux-s390x` extends the default JAR to **IBM Z (s390x, big-endian)** — the one target whose
+byte order differs from every other platform. It **cross-compiles** with the GCC s390x toolchain
+(`g++-s390x-linux-gnu`, native x86 speed — no emulated build) and then runs the **full C++ unit suite
+under `qemu-user`** (`CMAKE_CROSSCOMPILING_EMULATOR=/usr/bin/qemu-s390x-static`, `QEMU_LD_PREFIX=/usr/s390x-linux-gnu`).
+That `ctest` run is a **real big-endian correctness gate** for the byte-order-sensitive surface — the
+little-endian WAV writer (`tts_wav.hpp`), the JSON/token/embedding transforms, and the JNI helpers —
+which is where an endian bug in *our* code could hide. Model-backed **Java** tests are deliberately
+**not** run under emulation (a JVM + GGUF inference under `qemu-user` is slow and flaky); the Java↔JNI
+boundary uses host-native array copies (endian-transparent), so the C++ gate covers the actual risk.
+`-DGGML_OPENMP=OFF` sidesteps cross-libgomp issues (ggml uses its own `std::thread` pool). s390x is a
+CPU platform like aarch64, so it ships in the **default** JAR (`Linux-s390x-libraries` merges via the
+`*-libraries` glob; `OSInfo` maps `os.arch=s390x` → `Linux/s390x`) — no classifier, no pom profile.
+**Fail-loud** and in `package.needs` like every other build. (Upstream llama.cpp already supports s390x
+— it ships `ubuntu-s390x` with GGUF big-endian handling — so the native inference path is upstream's
+concern; this job validates only *our* layer's endian-safety.)
+
 ## Testing
 
 ### Java tests
