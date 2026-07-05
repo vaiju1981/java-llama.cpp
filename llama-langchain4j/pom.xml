@@ -12,7 +12,7 @@ SPDX-License-Identifier: MIT
 	<parent>
 		<groupId>net.ladenthin</groupId>
 		<artifactId>llama-parent</artifactId>
-		<version>5.0.5</version>
+		<version>5.0.6-SNAPSHOT</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
