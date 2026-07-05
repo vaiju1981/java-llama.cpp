@@ -20,6 +20,7 @@ path = [
     "docs/history/CHAT_INTEGRATION_SUMMARY.md",
     "docs/history/REFACTORING.md",
     "llama/src/test/resources/images/README.md",
+    "llama/src/test/resources/audios/README.md",
     ".github/PULL_REQUEST_TEMPLATE.md",
     ".github/ISSUE_TEMPLATE/bug_report.md",
     ".github/ISSUE_TEMPLATE/feature_request.md",
@@ -87,6 +88,13 @@ SPDX-License-Identifier = "MIT"
 # Test image (binary, cannot carry inline SPDX)
 [[annotations]]
 path = "llama/src/test/resources/images/test-image.jpg"
+SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
+SPDX-License-Identifier = "MIT"
+
+# Test audio clip recorded by the project author; granted under MIT for this
+# project (see llama/src/test/resources/audios/README.md).
+[[annotations]]
+path = "llama/src/test/resources/audios/sample.wav"
 SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
 SPDX-License-Identifier = "MIT"
 

@@ -34,10 +34,12 @@ import org.junit.jupiter.api.Timeout;
  *       compiled-in {@code mtmd} audio pipeline.</li>
  * </ul>
  *
- * <p>Self-skips when any of the three system properties
- * ({@link TestConstants#PROP_AUDIO_MODEL_PATH} / {@link TestConstants#PROP_AUDIO_MMPROJ_PATH} /
- * {@link TestConstants#PROP_AUDIO_PATH}) is unset or its file is missing, so it runs only in CI or on a
- * dev machine where the (large) audio model and a clip have been staged.
+ * <p>The audio prompt defaults to the committed clip
+ * {@link TestConstants#DEFAULT_AUDIO_INPUT_PATH} (override via
+ * {@link TestConstants#PROP_AUDIO_PATH}). Self-skips when the model/mmproj properties
+ * ({@link TestConstants#PROP_AUDIO_MODEL_PATH} / {@link TestConstants#PROP_AUDIO_MMPROJ_PATH}) are
+ * unset or any referenced file is missing, so it runs only where the (large) audio model has been
+ * staged.
  */
 public class AudioInputIntegrationTest {
 
@@ -48,7 +50,7 @@ public class AudioInputIntegrationTest {
     public static void setup() {
         String modelPath = System.getProperty(TestConstants.PROP_AUDIO_MODEL_PATH);
         String mmprojPath = System.getProperty(TestConstants.PROP_AUDIO_MMPROJ_PATH);
-        audioPath = System.getProperty(TestConstants.PROP_AUDIO_PATH);
+        audioPath = System.getProperty(TestConstants.PROP_AUDIO_PATH, TestConstants.DEFAULT_AUDIO_INPUT_PATH);
 
         Assumptions.assumeTrue(
                 modelPath != null && !modelPath.isEmpty(),
@@ -56,9 +58,6 @@ public class AudioInputIntegrationTest {
         Assumptions.assumeTrue(
                 mmprojPath != null && !mmprojPath.isEmpty(),
                 "Audio mmproj path not set (-D" + TestConstants.PROP_AUDIO_MMPROJ_PATH + "=...)");
-        Assumptions.assumeTrue(
-                audioPath != null && !audioPath.isEmpty(),
-                "Audio clip path not set (-D" + TestConstants.PROP_AUDIO_PATH + "=...)");
         Assumptions.assumeTrue(new File(modelPath).exists(), "Audio model file missing: " + modelPath);
         Assumptions.assumeTrue(new File(mmprojPath).exists(), "Audio mmproj file missing: " + mmprojPath);
         Assumptions.assumeTrue(new File(audioPath).exists(), "Audio clip missing: " + audioPath);

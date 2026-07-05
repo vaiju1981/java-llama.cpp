@@ -778,7 +778,7 @@ the README. The summary below covers only the optional-model bindings:
 | `net.ladenthin.llama.vision.image` | `MultimodalIntegrationTest` | committed default `src/test/resources/images/test-image.jpg`; override to any png/jpeg/webp/gif on disk |
 | `net.ladenthin.llama.audio.model` | `AudioInputIntegrationTest` (llama.cpp discussion #13759) | audio-input model GGUF, e.g. `ultravox-v0_5-llama-3_2-1b.gguf` |
 | `net.ladenthin.llama.audio.mmproj` | `AudioInputIntegrationTest` | matching audio mmproj/encoder, e.g. `mmproj-ultravox-v0_5-llama-3_2-1b-f16.gguf` |
-| `net.ladenthin.llama.audio.input` | `AudioInputIntegrationTest` | a `.wav`/`.mp3` clip on disk (no committed default — audio is not committed) |
+| `net.ladenthin.llama.audio.input` | `AudioInputIntegrationTest` | committed default `src/test/resources/audios/sample.wav`; override to any `.wav`/`.mp3` on disk |
 | `net.ladenthin.llama.tts.ttc.model` | `TtsIntegrationTest` | OuteTTS text-to-codes model, e.g. `OuteTTS-0.2-500M-Q4_K_M.gguf` |
 | `net.ladenthin.llama.tts.vocoder.model` | `TtsIntegrationTest` | matching codes-to-speech vocoder, e.g. `WavTokenizer-Large-75-F16.gguf` |
 
@@ -797,7 +797,7 @@ mvn test -Dtest=MultimodalIntegrationTest \
 mvn test -Dtest=AudioInputIntegrationTest \
          -Dnet.ladenthin.llama.audio.model=models/ultravox-v0_5-llama-3_2-1b.gguf \
          -Dnet.ladenthin.llama.audio.mmproj=models/mmproj-ultravox-v0_5-llama-3_2-1b-f16.gguf \
-         -Dnet.ladenthin.llama.audio.input=/path/to/speech.wav
+         -Dnet.ladenthin.llama.audio.input=/path/to/speech.wav   # optional: defaults to the committed src/test/resources/audios/sample.wav
 mvn test -Dtest=TtsIntegrationTest \
          -Dnet.ladenthin.llama.tts.ttc.model=models/OuteTTS-0.2-500M-Q4_K_M.gguf \
          -Dnet.ladenthin.llama.tts.vocoder.model=models/WavTokenizer-Large-75-F16.gguf
@@ -1109,7 +1109,8 @@ properties set, so `LlamaEmbeddingsTest`, `MultimodalIntegrationTest`, and `TtsI
 **run on every platform** rather than self-skipping. `validate-models.{sh,bat}` treats all of
 these as **required** (a missing model hard-fails the job before tests run, so a download
 regression can never silently downgrade to a skip). The only model still self-skipping is the
-audio-input model (`AudioInputIntegrationTest`) — it has no committed clip and no CI download.
+audio-input model (`AudioInputIntegrationTest`) — the prompt clip is committed
+(`src/test/resources/audios/sample.wav`) but the audio model + mmproj have no CI download.
 The shared GGUF cache (`actions/cache`, key `gguf-models-v1`, path `models/`) holds the full set
 and is populated **once, upfront** by a dedicated **`download-models`** job (`needs: startgate`):
 it is the single place the ~5 GB set is fetched from HuggingFace (the ten `curl` steps + the
@@ -1553,9 +1554,9 @@ AGP/Android Studio consumption). **On-device runtime IS now CI-covered** via
 `test-android-emulator`: a KVM-accelerated x86_64 emulator (API 30) runs the fixture's
 `connectedDebugAndroidTest` — `System.loadLibrary` from the AAR's `jni/x86_64`, on-device
 `GgufInspector`, and real native inference against the adb-pushed cached draft model
-(AMD-Llama-135m). The job is **validation-only** (not in the publish needs graphs) until it has
-proven flake-free — emulator boot is the flakiest CI machinery; promote it to a release gate
-after a stable streak. arm64 kernels + the Adreno/OpenCL flavor remain out of emulator scope —
+(AMD-Llama-135m). The job is a **release gate** (in both
+publish `needs:` graphs) since PR #298, after running flake-free through the PR's validation
+cycle. arm64 kernels + the Adreno/OpenCL flavor remain out of emulator scope —
 the planned example app covers those on hardware.
 Both publish jobs `need` these jobs (fail-loud release gating) and publish the AARs via Gradle:
 snapshots to the Central snapshots repo (`publishAllPublicationsToCentralSnapshotsRepository`),

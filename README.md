@@ -313,7 +313,7 @@ Every `net.ladenthin.llama.*` system property recognised by the library, deep-sc
 | `net.ladenthin.llama.vision.image` | `llama/src/test/resources/images/test-image.jpg` (a CC-BY-4.0 / MIT-granted photo committed to the repo) | test | `MultimodalIntegrationTest` | Visual prompt image. Any png/jpeg/webp/gif works; the extension drives MIME detection. |
 | `net.ladenthin.llama.audio.model` | unset (test self-skips) | test | `AudioInputIntegrationTest` (llama.cpp discussion #13759) | Path to an audio-input model GGUF (e.g. Ultravox, Qwen2.5-Omni). |
 | `net.ladenthin.llama.audio.mmproj` | unset (test self-skips) | test | `AudioInputIntegrationTest` | Matching audio mmproj (encoder) GGUF. |
-| `net.ladenthin.llama.audio.input` | unset (test self-skips) | test | `AudioInputIntegrationTest` | `.wav`/`.mp3` audio prompt clip; the extension drives format detection. |
+| `net.ladenthin.llama.audio.input` | `src/test/resources/audios/sample.wav` (committed) | test | `AudioInputIntegrationTest` | `.wav`/`.mp3` audio prompt clip; the extension drives format detection. |
 | `net.ladenthin.llama.tts.ttc.model` | unset (test self-skips) | test | `TtsIntegrationTest` | Path to the OuteTTS text-to-codes GGUF. CI default is `OuteTTS-0.2-500M-Q4_K_M.gguf`. |
 | `net.ladenthin.llama.tts.vocoder.model` | unset (test self-skips) | test | `TtsIntegrationTest` | Path to the matching codes-to-speech vocoder GGUF. CI default is `WavTokenizer-Large-75-F16.gguf`. |
 

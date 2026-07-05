@@ -829,10 +829,11 @@ jobs:
   # to mavenLocal, adb-pushes the already-cached tiny draft model, and runs the
   # consumer fixture's connectedDebugAndroidTest — System.loadLibrary from the APK,
   # pure-Java GgufInspector on-device, and real native inference on Android/bionic.
-  # VALIDATION-ONLY for now (not in the publish needs graphs): emulator boot is the
-  # flakiest class of CI machinery, so it must prove itself stable before it gates
-  # releases (same staged policy the sccache rollout used). The structural AAR
-  # checks + AGP R8 consumer build in package-android-aar remain the release gates.
+  # RELEASE GATE (in both publish needs graphs) since PR #298: the job ran
+  # flake-free through the PR's validation cycle (boot ~30 s, on-device inference
+  # green), so a broken on-device runtime now blocks publishing — same fail-loud
+  # policy as every native artifact job. If emulator-boot flakiness ever appears,
+  # re-run the job first; demote it from the needs graphs only as a last resort.
   # ---------------------------------------------------------------------------
 
   test-android-emulator:
@@ -2469,7 +2470,7 @@ jobs:
 
   publish-snapshot:
     name: Publish Snapshot to Central
-    needs: [check-snapshot, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, package-android-aar, code-style, test-java-llama-langchain4j, test-java-llama-kotlin]
+    needs: [check-snapshot, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, package-android-aar, test-android-emulator, code-style, test-java-llama-langchain4j, test-java-llama-kotlin]
     if: needs.check-snapshot.result == 'success' && inputs.publish_to_central
     runs-on: ubuntu-latest
     environment: maven-central
@@ -2644,7 +2645,7 @@ jobs:
   publish-release:
     name: Publish Release to Central
     if: needs.check-tag.result == 'success' && inputs.publish_to_central
-    needs: [check-tag, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, package-android-aar, code-style, test-java-llama-langchain4j, test-java-llama-kotlin]
+    needs: [check-tag, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, package-android-aar, test-android-emulator, code-style, test-java-llama-langchain4j, test-java-llama-kotlin]
     runs-on: ubuntu-latest
     environment: maven-central
     permissions:
