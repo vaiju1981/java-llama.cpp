@@ -58,6 +58,7 @@ SPDX-License-Identifier: MIT
 	<modules>
 		<module>llama</module>
 		<module>llama-langchain4j</module>
+		<module>llama-kotlin</module>
 	</modules>
 
 	<profiles>

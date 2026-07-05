@@ -1364,21 +1364,31 @@ keeping it clear of the JPMS module-mode javadoc trap that bit BAF. **Before rai
 javadoc source level to ≥ 9, read**
 [`../workspace/policies/jpms-module-descriptor.md`](../workspace/policies/jpms-module-descriptor.md).
 
-## Repository layout — Maven reactor (`llama/` + `llama-langchain4j/`)
+## Repository layout — Maven reactor (`llama/` + `llama-langchain4j/` + `llama-kotlin/`) + the `llama-android/` Gradle build
 
 The repo root is a thin **aggregator/parent POM** (`net.ladenthin:llama-parent`,
-`packaging=pom`) with two modules:
+`packaging=pom`) with three modules:
 
 - **`llama/`** — the native JNI core (`net.ladenthin:llama`). *All the core sources and build
   files live here now:* `llama/src/`, `llama/CMakeLists.txt`, `llama/cmake/`, `llama/patches/`,
   `llama/pom.xml`, `llama/spotbugs-exclude.xml`, `llama/lombok.config`, `llama/.clang-format`.
   Its published coordinates are unchanged (`net.ladenthin:llama`), so consumers are unaffected.
 - **`llama-langchain4j/`** — the LangChain4j adapters (see below).
+- **`llama-kotlin/`** — the Kotlin coroutines façade (see "Android AAR + Kotlin façade" below).
 
-Both modules inherit the single `<version>` from the parent, so they **ship in lockstep by
+All modules inherit the single `<version>` from the parent, so they **ship in lockstep by
 construction** (no CI guard needed). The parent also holds the shared `release` profile (GPG +
-Central Publishing), so one reactor `mvn -P release deploy` signs and publishes all three
-artifacts (`llama-parent` pom, `llama`, `llama-langchain4j`) at the same version.
+Central Publishing), so one reactor `mvn -P release deploy` signs and publishes all four
+Maven artifacts (`llama-parent` pom, `llama`, `llama-langchain4j`, `llama-kotlin`) at the same
+version.
+
+**`llama-android/` is deliberately NOT a reactor module** but a standalone plain-Gradle build
+(no AGP, no Android SDK needed to build): Maven cannot produce or deploy an artifact with
+`<packaging>aar</packaging>` (the only android-maven-plugin is dead), while Gradle's built-in
+`maven-publish` can. It stays version-locked anyway — `llama-android/build.gradle.kts` parses
+the version and the mirrored dependency versions out of the Maven poms at configure time, so
+`mvn versions:set` remains the single bump point (no Gradle-side edit on a bump). See
+"Android AAR + Kotlin façade" below.
 
 **Consequences for build commands:** the core's cmake/native build runs *in `llama/`*.
 `.github/build.sh` / `build.bat` `cd` into `llama/` themselves (relative to the script), so CI
@@ -1392,11 +1402,15 @@ file shows `cmake -B build` / `src/main/...` / `mvn compile` at the root, read i
 **Version bump:** the child modules declare **no `<version>` of their own** — their *project*
 version is inherited from the parent. But each child still hardcodes the parent version inside its
 `<parent><version>` pointer (Maven requires a literal there — there is **no `${revision}`/CI-friendly
-versioning** here), so a version change must be applied to **all three poms in lockstep**:
+versioning** here), so a version change must be applied to **all four poms in lockstep**:
 
 - `pom.xml` (root) — `<version>`
 - `llama/pom.xml` — `<parent><version>`
 - `llama-langchain4j/pom.xml` — `<parent><version>`
+- `llama-kotlin/pom.xml` — `<parent><version>`
+
+(`llama-android/` needs **no** edit — its Gradle build reads the root pom's version at
+configure time.)
 
 The safe way is `mvn -q versions:set -DnewVersion=X.Y.Z -DgenerateBackupPoms=false` from the repo
 root (it updates the parent and every child `<parent>` reference at once). Changing only the root
@@ -1417,6 +1431,9 @@ missed again.)
   release version now appears in only ~4 spots here, not ~20 — the runtime details live once in the
   classifier table.)
 - **`llama-langchain4j/README.md`** — its own `<dependency>` snippet.
+- **`llama-android/README.md`** and **`llama-kotlin/README.md`** — their Gradle dependency
+  snippets, plus the `llama-android`/`llama-kotlin` snippets in the root README's
+  "Importing in Android" section.
 
 (If single-source ergonomics are wanted, the Maven
 CI-friendly `${revision}` property + `flatten-maven-plugin` would let a bump touch only the root —
@@ -1474,6 +1491,49 @@ user input (`ImageContent`/`AudioContent` → `ContentPart` array-form content; 
 **Open follow-ups** (documented in `llama-langchain4j/README.md`): streaming tool calls
 (`JllamaStreamingChatModel` fails fast with `UnsupportedFeatureException` when tools are
 requested) and per-token thinking-stream events.
+
+## Android AAR + Kotlin façade (`llama-android/` + `llama-kotlin/`)
+
+Two consumable Android-facing artifacts, replacing the submodule/NDK source-integration flow as
+the recommended path (README "Importing in Android", Option 1):
+
+- **`net.ladenthin:llama-android`** / **`llama-android-opencl`** — AARs (`<packaging>aar</packaging>`)
+  carrying the core classes + the CI-built `arm64-v8a` `libjllama.so` under `jni/`, a
+  `minSdkVersion 28` manifest (AGP enforces the floor on consumers), and consumer R8/ProGuard
+  rules (`consumer-proguard.txt` → `proguard.txt` in the AAR; keeps `net.ladenthin.llama.**` for
+  the JNI `FindClass`/Jackson reflection surface). The AAR's `classes.jar` is the
+  **byte-identical Maven-built core jar** minus the desktop/Android native resource trees
+  (~70 MB APK bloat otherwise) and `module-info.class` (D8 rejects it); on Android `LlamaLoader`
+  resolves via `System.loadLibrary("jllama")`, which finds the AAR-installed `.so` — no loader
+  change was needed. Built by the **standalone plain-Gradle build** in `llama-android/`
+  (see "Repository layout" for why it is not a Maven module); the POM mirrors the core's
+  compile-scope deps (jackson/slf4j-api/jspecify/checker-qual, versions parsed from
+  `llama/pom.xml` — deliberately NOT logback, which is the JVM-only runtime binding).
+- **`net.ladenthin:llama-kotlin`** — Maven reactor module; pure-Kotlin (2.2, jvmTarget 1.8)
+  coroutines façade: `generateFlow`/`generateChatFlow` (cold `Flow`, source closed on
+  completion/error/cancellation) and `completeSuspend`/`chatSuspend`/`chatCompleteTextSuspend`/
+  `embedSuspend` (`completeSuspend` wires coroutine cancellation into the cooperative
+  `CancellationToken`). The core dep is **provided-scope** so Android consumers pair it with the
+  AAR instead of transitively pulling the fat desktop JAR. 6 model-free unit tests fake the
+  `Iterable & AutoCloseable` seam (`closeableIterableFlow`/`withCancellationToken` internals).
+
+**16 KB page-size invariant (Google Play, Android 15+ targets):** `llama/CMakeLists.txt` pins
+`-Wl,-z,max-page-size=16384` in the Android guard block, and the `package-android-aar` CI job
+asserts every LOAD segment of the shipped `.so` is 16384-aligned via `readelf` — a dockcross
+toolchain bump cannot silently regress Play compatibility.
+
+**CI (`publish.yml`):** `test-java-llama-kotlin` (model-free unit tests);
+`package-android-aar` (needs both Android native jobs) builds the core jar, stages the natives,
+assembles both AARs, validates structure (entries, minSdk, classes.jar content, 16 KB alignment),
+publishes to mavenLocal, and runs the **AGP consumer smoke test** — the minimal app fixture in
+`.github/android-consumer-test/` resolves the AAR from mavenLocal and runs a full R8
+`assembleRelease` on the runner's preinstalled Android SDK (this is what actually validates
+AGP/Android Studio consumption; GitHub emulators are x86_64-only while the `.so` is arm64-only,
+so on-device inference is out of CI scope — the planned example app covers it on hardware).
+Both publish jobs `need` these jobs (fail-loud release gating) and publish the AARs via Gradle:
+snapshots to the Central snapshots repo (`publishAllPublicationsToCentralSnapshotsRepository`),
+releases as a signed Central Portal bundle upload (staging repo → zip → Publisher API).
+`llama-kotlin` rides the normal reactor `mvn -P release deploy`.
 
 ## Open TODOs
 

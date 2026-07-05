@@ -909,6 +909,16 @@ Flowable<LlamaOutput> tokens = Flowable.using(
 ```
 
 #### Kotlin Flow (Android / coroutines)
+
+Ready-made: the optional [`net.ladenthin:llama-kotlin`](llama-kotlin/README.md) artifact ships
+`generateFlow`/`generateChatFlow` extensions (close-on-cancellation included) plus `suspend`
+wrappers whose coroutine cancellation is wired to the binding's cooperative `CancellationToken`:
+
+```kotlin
+model.generateChatFlow(params).flowOn(Dispatchers.IO).collect { print(it.text) }
+```
+
+Hand-rolled equivalent (no extra dependency):
 ```kotlin
 fun llama(model: LlamaModel, params: InferenceParameters) = flow {
     model.generate(params).use { iterable ->
@@ -971,7 +981,33 @@ The `LogLevel` enum values passed to the callback correspond to the native llama
 > **Minimum Android version: API 28 (Android 9.0 Pie).** Devices running
 > Android 8.1 (API 27) or earlier are not supported.
 
-You can use this library in Android project.
+### Option 1 (recommended): the `llama-android` AAR from Maven Central
+
+One dependency line in Android Studio — no submodule, no NDK build, no manual ProGuard rules:
+
+```kotlin
+dependencies {
+    implementation("net.ladenthin:llama-android:5.0.6")
+    // or, for Qualcomm Adreno GPUs (device must provide an OpenCL ICD):
+    // implementation("net.ladenthin:llama-android-opencl:5.0.6")
+
+    // optional Kotlin coroutines facade (Flow streaming + suspend wrappers):
+    implementation("net.ladenthin:llama-kotlin:5.0.6")
+}
+```
+
+The AAR carries the full `net.ladenthin:llama` Java API, the CI-built `arm64-v8a`
+native library (16 KB page-size compliant), consumer R8/ProGuard rules (applied
+automatically), and a manifest `minSdkVersion 28` that AGP enforces against your app.
+Do **not** also depend on the desktop `net.ladenthin:llama` JAR in the same app — the AAR
+already contains those classes, and the JAR would drag ~70 MB of desktop natives into your
+APK. See [`llama-android/README.md`](llama-android/README.md) and
+[`llama-kotlin/README.md`](llama-kotlin/README.md) for details.
+
+### Option 2 (advanced): build from source inside your app
+
+Use this only if you need to patch the native layer or build for an ABI this project does
+not ship.
 1. Add java-llama.cpp as a submodule in your an droid `app` project directory
 ```shell
 git submodule add https://github.com/bernardladenthin/java-llama.cpp 
@@ -1033,7 +1069,7 @@ keep class net.ladenthin.llama.** { *; }
 Forward-looking ideas being tracked for this fork:
 
 - **Adopt feature ideas from the Kotlin Llama Stack client.** Candidates (multimodal image input, typed chat messages, async API, batch inference, typed usage/timings) are inventoried with effort estimates in [`docs/feature-investigation-llama-stack-client-kotlin.md`](docs/feature-investigation-llama-stack-client-kotlin.md), derived from [`ogx-ai/llama-stack-client-kotlin`](https://github.com/ogx-ai/llama-stack-client-kotlin).
-- **Ship a directly Android-capable artifact.** Building on the existing [Importing in Android](#importing-in-android) flow and the `opencl-android-aarch64` classifier (see [Choosing the right classifier](#choosing-the-right-classifier)), the goal is a first-class Android Maven artifact — including a typed image-input helper for VLMs such as Qwen2.5-VL — so downstream Android projects can drop their dependency on [`ogx-ai/llama-stack-client-kotlin`](https://github.com/ogx-ai/llama-stack-client-kotlin) entirely.
+- **Ship a directly Android-capable artifact — DONE.** `net.ladenthin:llama-android` / `llama-android-opencl` (AAR, arm64-v8a, minSdk 28, consumer ProGuard rules, 16 KB page-size compliant) plus the optional `net.ladenthin:llama-kotlin` coroutines façade ship from this repo — see [Importing in Android](#importing-in-android). Typed image input for VLMs is covered by `ContentPart.imageBytes(...)` / `imageFile(...)` (see the multimodal section), so downstream Android projects can drop their dependency on [`ogx-ai/llama-stack-client-kotlin`](https://github.com/ogx-ai/llama-stack-client-kotlin) entirely. A dedicated example app remains a follow-up.
 - **Resolve all upstream `kherud/java-llama.cpp` open issues.** All 37 open issues at fork time are catalogued with per-issue verdicts in [`docs/history/49be664_open_issues.md`](docs/history/49be664_open_issues.md); fixes land in this fork as they are completed. Vision inputs (issues [#103](docs/history/49be664_open_issues.md#103--vlm-support--image-input-for-multimodal-models) and [#34](docs/history/49be664_open_issues.md#34--support-multimodal-inputs)) are now wired end to end through blocking, typed, streaming, and OpenAI-compatible request surfaces.
 
 ## Troubleshooting

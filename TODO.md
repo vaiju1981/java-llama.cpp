@@ -500,6 +500,19 @@ Feel free to contribute fixes — PRs welcome.
 
 ### Android distribution: AAR + Kotlin-friendly API + sample app
 
+- **DONE (2026-07-05): AAR + Kotlin façade shipped.** `net.ladenthin:llama-android` /
+  `llama-android-opencl` (AARs from the standalone plain-Gradle build in `llama-android/` —
+  hand-rolled AAR layout was chosen over `com.android.library` so no AGP/SDK is needed to
+  build and the classes stay byte-identical to the Maven core jar) and the
+  `net.ladenthin:llama-kotlin` reactor module (Flow adapters + suspend wrappers with
+  CancellationToken-wired cancellation). CI: `package-android-aar` validates structure +
+  16 KB alignment and runs an AGP R8 consumer build from mavenLocal
+  (`.github/android-consumer-test/`); publish jobs ship snapshots/releases via Gradle.
+  See CLAUDE.md "Android AAR + Kotlin façade". **Remaining from this section:** the sample
+  app (`examples/android-sample/` — separate follow-up; will also provide the on-device
+  inference validation CI cannot do, since GitHub emulators are x86_64 and the lib is
+  arm64-only), and multi-ABI (`x86_64` Android would additionally unlock emulator-based CI).
+
 - **Publish a proper Android AAR alongside the existing JAR-with-resources packaging.** Today java-llama.cpp already cross-compiles the Android arm64 native lib in two flavours (CPU-only, bundled into the main JAR; OpenCL/Adreno under classifier `opencl-android-aarch64`), but both ship as plain Maven JARs that bury `libjllama.so` under `net/ladenthin/llama/Linux-Android/aarch64/`. Android/Gradle consumers expect an `.aar` with an `AndroidManifest.xml`, the native lib under `jni/arm64-v8a/`, and Maven coordinates like `net.ladenthin:llama-android:<version>@aar`. This is the format the [LLaMAndroid](https://github.com/Rattlyy/LLaMAndroid) integration referenced elsewhere in this file has to work around manually. Investigate using `com.android.library` via Gradle in a sibling module, or hand-rolling the AAR layout from the Maven build. Coordinate ABI coverage with any future armv7-a / x86_64 work so the AAR can declare multiple `jniLibs/<abi>/` entries when those land.
 
 - **Provide a Kotlin-friendly façade + Android sample app.** The pure-Java `LlamaIterable` / `LlamaModel` API works on Android today (LLaMAndroid wraps it in a Kotlin `flow {}` block), but a small first-party Kotlin module — coroutine `Flow<LlamaOutput>` adapters, `suspend` variants of the blocking calls, idiomatic `use {}` resource handling — would lower the integration cost meaningfully and serve as the canonical reference for downstream consumers. Pair it with a minimal sample app (single `Activity`, model picker, streaming text view) under e.g. `examples/android-sample/` so the AAR has an exercised end-to-end path in CI. Treat LLaMAndroid as the prior-art baseline; reuse patterns that already work there.

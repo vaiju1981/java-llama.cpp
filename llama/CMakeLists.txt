@@ -85,6 +85,13 @@ endif()
 # toolchain keeps working.
 if(ANDROID OR ANDROID_ABI OR OS_NAME MATCHES "Android" OR CMAKE_CXX_COMPILER MATCHES "android")
     add_compile_definitions(__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)
+    # 16 KB page-size compliance (Google Play requirement for apps targeting
+    # Android 15+): every LOAD segment of the shipped .so must be aligned to a
+    # multiple of 16384. The dockcross cross-linker currently emits 0x4000
+    # alignment by default, but that is a toolchain default, not a guarantee —
+    # pin it explicitly so a toolchain image bump cannot silently regress Play
+    # compatibility. CI asserts the resulting alignment with readelf.
+    add_link_options(-Wl,-z,max-page-size=16384)
 endif()
 
 set(LLAMA_BUILD_COMMON ON)

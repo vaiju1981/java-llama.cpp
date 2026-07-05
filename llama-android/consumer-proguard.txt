@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+#
+# Consumer R8/ProGuard rules — shipped as proguard.txt inside the AAR, so AGP
+# applies them to every consuming app automatically (no manual rule copying,
+# unlike the source-integration flow documented in the core README).
+
+# The native layer resolves classes, fields, and methods by name:
+# JNI_OnLoad calls FindClass/GetMethodID/GetFieldID on net.ladenthin.llama
+# types (LlamaModel, exception.LlamaException, value.LogLevel, args.LogFormat,
+# callback.LoadProgressCallback, ...), and Jackson reflects over the parameter
+# and response POJOs. Keep the whole binding.
+-keep class net.ladenthin.llama.** { *; }
+
+# Native method names must survive for JNI registration.
+-keepclasseswithmembernames class * {
+    native <methods>;
+}
+
+# Jackson databind needs generic signatures and annotations at runtime.
+-keepattributes Signature,InnerClasses,EnclosingMethod,*Annotation*
+-dontwarn com.fasterxml.jackson.databind.**
+
+# JVM-only optional integrations referenced from the core classes but absent
+# (and unused) on Android.
+-dontwarn org.slf4j.**

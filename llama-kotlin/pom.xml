@@ -1,0 +1,202 @@
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+
+	<parent>
+		<groupId>net.ladenthin</groupId>
+		<artifactId>llama-parent</artifactId>
+		<version>5.0.6-SNAPSHOT</version>
+		<relativePath>../pom.xml</relativePath>
+	</parent>
+
+	<artifactId>llama-kotlin</artifactId>
+	<packaging>jar</packaging>
+
+	<name>${project.groupId}:${project.artifactId}</name>
+	<description>Kotlin coroutines facade for java-llama.cpp: Flow-based token
+		streaming and suspend wrappers (with coroutine-cancellation wired to the
+		binding's cooperative CancellationToken) over the net.ladenthin:llama JNI
+		API. Pure Kotlin/JVM - works on desktop JVMs and on Android (pair it with
+		net.ladenthin:llama or net.ladenthin:llama-android respectively).</description>
+	<url>https://github.com/bernardladenthin/java-llama.cpp</url>
+
+	<licenses>
+		<license>
+			<name>MIT License</name>
+			<url>https://www.opensource.org/licenses/mit-license.php</url>
+			<distribution>repo</distribution>
+		</license>
+	</licenses>
+
+	<developers>
+		<developer>
+			<name>Bernard Ladenthin</name>
+			<organizationUrl>https://github.com/bernardladenthin</organizationUrl>
+		</developer>
+	</developers>
+
+	<scm>
+		<connection>scm:git:https://github.com/bernardladenthin/java-llama.cpp.git</connection>
+		<developerConnection>scm:git:https://github.com/bernardladenthin/java-llama.cpp.git</developerConnection>
+		<url>https://github.com/bernardladenthin/java-llama.cpp/tree/main</url>
+	</scm>
+
+	<distributionManagement>
+		<snapshotRepository>
+			<id>central</id>
+			<url>https://central.sonatype.com/repository/maven-snapshots/</url>
+		</snapshotRepository>
+	</distributionManagement>
+
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<!-- One minor behind the latest stable Kotlin on purpose: Kotlin consumers can
+		     read metadata at most one minor version ahead of their own compiler, so
+		     compiling with 2.2.x keeps this artifact consumable from Kotlin 2.1+
+		     projects (typical Android Studio installs) instead of forcing 2.2+. -->
+		<kotlin.version>2.2.21</kotlin.version>
+		<kotlinx.coroutines.version>1.11.0</kotlinx.coroutines.version>
+		<junit.version>6.1.1</junit.version>
+		<hamcrest.version>3.0</hamcrest.version>
+		<surefire.version>3.5.6</surefire.version>
+		<source.plugin.version>3.4.0</source.plugin.version>
+		<jar.plugin.version>3.4.1</jar.plugin.version>
+	</properties>
+
+	<dependencies>
+		<!-- The JNI binding this module wraps. PROVIDED on purpose: the consumer picks
+		     the runtime flavor - net.ladenthin:llama on desktop JVMs, or the
+		     net.ladenthin:llama-android AAR on Android (which repackages the same
+		     classes; a transitive dependency on the fat desktop JAR would drag ~70 MB
+		     of desktop natives into every APK). -->
+		<dependency>
+			<groupId>net.ladenthin</groupId>
+			<artifactId>llama</artifactId>
+			<version>${project.version}</version>
+			<scope>provided</scope>
+		</dependency>
+
+		<dependency>
+			<groupId>org.jetbrains.kotlin</groupId>
+			<artifactId>kotlin-stdlib</artifactId>
+			<version>${kotlin.version}</version>
+		</dependency>
+		<dependency>
+			<groupId>org.jetbrains.kotlinx</groupId>
+			<artifactId>kotlinx-coroutines-core</artifactId>
+			<version>${kotlinx.coroutines.version}</version>
+		</dependency>
+
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter</artifactId>
+			<version>${junit.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.hamcrest</groupId>
+			<artifactId>hamcrest</artifactId>
+			<version>${hamcrest.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.jetbrains.kotlinx</groupId>
+			<artifactId>kotlinx-coroutines-test</artifactId>
+			<version>${kotlinx.coroutines.version}</version>
+			<scope>test</scope>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<!-- Kotlin-only module: point the standard source roots at the Kotlin trees
+		     (the documented kotlin-maven-plugin setup; without this the compile
+		     executions silently find zero sources). -->
+		<sourceDirectory>${project.basedir}/src/main/kotlin</sourceDirectory>
+		<testSourceDirectory>${project.basedir}/src/test/kotlin</testSourceDirectory>
+		<plugins>
+			<plugin>
+				<groupId>org.jetbrains.kotlin</groupId>
+				<artifactId>kotlin-maven-plugin</artifactId>
+				<version>${kotlin.version}</version>
+				<configuration>
+					<!-- Match the core's bytecode floor so the facade runs anywhere the
+					     binding does (Java 8 JVMs and Android API 28+ via D8). -->
+					<jvmTarget>1.8</jvmTarget>
+				</configuration>
+				<executions>
+					<execution>
+						<id>compile</id>
+						<goals>
+							<goal>compile</goal>
+						</goals>
+					</execution>
+					<execution>
+						<id>test-compile</id>
+						<goals>
+							<goal>test-compile</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>${surefire.version}</version>
+			</plugin>
+
+			<!-- -sources.jar (Maven Central requirement). kotlin-maven-plugin registers
+			     src/main/kotlin as a compile source root, so jar-no-fork picks it up. -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-source-plugin</artifactId>
+				<version>${source.plugin.version}</version>
+				<executions>
+					<execution>
+						<id>attach-sources</id>
+						<goals>
+							<goal>jar-no-fork</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<!-- -javadoc.jar (Maven Central requirement). This module has no Java
+			     sources, so maven-javadoc-plugin would produce nothing; instead a
+			     placeholder jar (pointing at the KDoc in -sources.jar and the core
+			     artifact's javadoc) is attached with the javadoc classifier - the
+			     established practice for Kotlin-on-Maven artifacts without Dokka. -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-jar-plugin</artifactId>
+				<version>${jar.plugin.version}</version>
+				<executions>
+					<execution>
+						<id>javadoc-placeholder-jar</id>
+						<phase>package</phase>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+						<configuration>
+							<classifier>javadoc</classifier>
+							<classesDirectory>${project.basedir}/src/javadoc-placeholder</classesDirectory>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+		</plugins>
+	</build>
+
+	<!--
+		No `release` profile here: GPG signing + Central Publishing are inherited from the
+		parent pom (../pom.xml), so a single reactor `mvn -P release deploy` signs and
+		publishes this module alongside the core.
+	-->
+</project>
