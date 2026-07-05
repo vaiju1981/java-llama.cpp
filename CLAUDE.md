@@ -1352,9 +1352,11 @@ See [`../workspace/policies/ci-test-diagnostics.md`](../workspace/policies/ci-te
 ## PIT Mutation Testing
 
 See [`../workspace/policies/pit-mutation-testing.md`](../workspace/policies/pit-mutation-testing.md).
-Run PIT with the lifecycle prefix — `mvn test-compile org.pitest:pitest-maven:mutationCoverage`.
-Repo-specific gotcha: the gate reaches 100% only with the audio fixture present — without it
-`value.ContentPart.audioFile(Path)` is uncovered (98%); see policy §4 and `TODO.md`.
+Run PIT with the lifecycle prefix — `mvn test-compile org.pitest:pitest-maven:mutationCoverage`
+(from the repo root add `-f llama/pom.xml`). The gate is **hermetic** — no model or audio fixture
+needed: `ContentPartTest`'s `@TempDir` tests cover `value.ContentPart.audioFile(Path)` (verified
+295/295, 0 NO_COVERAGE in a fixture-less sandbox; the former audio-fixture gotcha is resolved,
+see `TODO.md`).
 
 ## JPMS Module Descriptor
 

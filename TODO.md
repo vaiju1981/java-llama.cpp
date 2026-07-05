@@ -92,18 +92,17 @@ server); `RouterModeIntegrationTest` now drives discovery/load/readiness through
 against a real router. Layered-architecture rule updated (Server may access Json); RouterModel is
 inside the PIT 100% gate (274/274).
 
-### PIT gate not hermetic — `value.ContentPart.audioFile(Path)` (open)
+### PIT gate not hermetic — `value.ContentPart.audioFile(Path)` (RESOLVED — hermetic since the reactor move)
 
-The PIT mutation gate reaches 100% **only when the audio test fixture is present**. Without it the
-run is **98%**: 4 `NO_COVERAGE` mutants in `value.ContentPart.audioFile(Path)` (the null file-name
-guard, the `.wav`/`.mp3` extension dispatch, and `Files.readAllBytes`). The only test that exercises
-that method is `AudioInputIntegrationTest`, which is model-/fixture-gated and self-skips (`Assume`)
-when no audio clip is supplied (`net.ladenthin.llama.audio.input` — no committed default). So any
-environment lacking the clip (e.g. a network-restricted sandbox) reds the gate. Fix: add a hermetic
-temp-file unit test for `audioFile(Path)` — write a few bytes to a `@TempDir` `*.wav` / `*.mp3` and
-assert the format dispatch — mirroring the existing `imageFile(Path)` temp-file tests (PNG/JPG/GIF/
-WEBP), which already make the image path hermetic. See
-[`../workspace/policies/pit-mutation-testing.md`](../workspace/policies/pit-mutation-testing.md) §4.
+**Resolved.** `ContentPartTest` carries hermetic `@TempDir` tests for `audioFile(Path)`
+(`audioFileDetectsWavFromExtension` incl. case-insensitive `.WAV`, `audioFileDetectsMp3FromExtension`,
+`audioFileRejectsUnknownExtension`) — the exact fix this entry proposed, mirroring the `imageFile(Path)`
+temp-file tests. Verified 2026-07-05 in a fixture-less, network-restricted sandbox:
+`mvn -f llama/pom.xml test-compile org.pitest:pitest-maven:mutationCoverage` → **295/295 killed (100%),
+0 NO_COVERAGE**. No committed audio fixture is needed for the PIT gate. (Unrelated and still true: the
+model-backed `AudioInputIntegrationTest` self-skips without a real speech clip
+(`net.ladenthin.llama.audio.input`) — supplying one is an optional test-coverage improvement, not a PIT
+concern.)
 
 ### Code audit — pre-existing correctness / safety findings (RESOLVED — PRs #258 + #260)
 
