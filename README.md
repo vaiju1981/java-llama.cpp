@@ -1106,10 +1106,19 @@ The system's updated C++ runtime will be used instead, resolving the crash.
 
 **Bindings / wrappers**
 
-- [LLaMAndroid](https://github.com/Rattlyy/LLaMAndroid/tree/main/app) — Android app demonstrating usage of llama.cpp bindings.
-- [llama-stack-client-kotlin](https://github.com/ogx-ai/llama-stack-client-kotlin) — Kotlin client for the Llama Stack API.
-- [llama.cpp-android-tutorial](https://github.com/JackZeng0208/llama.cpp-android-tutorial) — Step-by-step tutorial for running llama.cpp on Android.
+- [kherud/java-llama.cpp](https://github.com/kherud/java-llama.cpp) — the upstream Java binding this project was forked from (see the note at the top of this README); development continues independently here, with the fork-time upstream issues catalogued in [`docs/history/49be664_open_issues.md`](docs/history/49be664_open_issues.md).
 - [llamacpp4j](https://github.com/sebicom/llamacpp4j) — alternative Java/JNI binding to llama.cpp (SWIG-generated facade); pre-GGUF, dormant since 2023 but historically the other Java JNI option.
+- [llama-cpp-python](https://github.com/abetlen/llama-cpp-python) — the Python llama.cpp binding; the de-facto feature benchmark among llama.cpp bindings (server mode, multimodal, speculative decoding).
+- [LLamaSharp](https://github.com/SciSharp/LLamaSharp) — C#/.NET llama.cpp binding with per-backend runtime packages (CPU/CUDA/Vulkan/Metal), the .NET analogue of this project's classifier matrix.
+- [node-llama-cpp](https://github.com/withcatai/node-llama-cpp) — Node.js/TypeScript llama.cpp binding (prebuilt binaries, JSON-schema-constrained output, function calling).
+- [LLaMAndroid](https://github.com/Rattlyy/LLaMAndroid/tree/main/app) — Android app demonstrating usage of llama.cpp bindings.
+- [llama-stack-client-kotlin](https://github.com/ogx-ai/llama-stack-client-kotlin) — Kotlin client for the Llama Stack API with an ExecuTorch-backed local-inference path (the [`llama-android`](llama-android/) AAR + [`llama-kotlin`](llama-kotlin/) façade cover the same on-device ground natively).
+- [llama.cpp-android-tutorial](https://github.com/JackZeng0208/llama.cpp-android-tutorial) — Step-by-step tutorial for running llama.cpp on Android.
+
+**Other local inference stacks (no llama.cpp JVM binding)**
+
+- [Ollama](https://github.com/ollama/ollama) — llama.cpp-based local model runner with its own HTTP API and model registry. This project's OpenAI-compatible server implements the Ollama-native API surface (`/api/version`, `/api/tags`, `/api/show`, `/api/chat`, `/api/generate`), so Ollama-speaking clients (e.g. VS Code Copilot's Ollama provider) work against an in-process jllama model.
+- [ExecuTorch](https://github.com/pytorch/executorch) — PyTorch's on-device inference runtime (`.pte` models, XNNPACK/NPU delegates); the engine behind `llama-stack-client-kotlin`'s local mode and the main non-llama.cpp alternative for Android on-device inference (GGUF is not supported there — different model format ecosystem).
 
 **Pure-Java single-model inference (no JNI / no llama.cpp)** — Alfonso² Peterssen's `*.java` family of standalone, dependency-free Java inference runtimes, one per model architecture. Useful when JNI is unavailable (e.g. some sandboxes / GraalVM native-image scenarios) or when you want a single jar with no native side at all. Different design point from this project, which prioritises GGUF compatibility and llama.cpp performance via JNI.
 
