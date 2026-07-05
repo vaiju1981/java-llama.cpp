@@ -12,12 +12,23 @@
 // is_terminating state in file-scope globals, so a second concurrent llama_server() would clobber
 // them. NativeServer enforces this on the Java side.
 
+// Upstream server headers must precede jni_helpers.hpp (include order rule, see CLAUDE.md);
+// they provide server_context so the attach path can reach a LlamaModel's jllama_context.
+#include "server-context.h"
+#include "server-queue.h"
+#include "server-task.h"
+#include "server-common.h"
+#include "server-chat.h"
+#include "utils.hpp"
+#include "jni_helpers.hpp"
+
 #include "native_server_bridge.h"
 
 #include <jni.h>
 
 #include <atomic>
 #include <chrono>
+#include <cstdlib>
 #include <string>
 #include <thread>
 #include <vector>
@@ -35,14 +46,10 @@ struct native_server {
     int exit_code = -1;
 };
 
-} // namespace
-
-extern "C" {
-
-JNIEXPORT jlong JNICALL Java_net_ladenthin_llama_server_NativeServer_startNativeServer(JNIEnv *env, jclass,
-                                                                                       jobjectArray jargs) {
-    auto *srv = new native_server();
-
+// Copies the forwarded Java argv into srv->args/argv with a synthetic argv[0]. The argv pointers
+// reference the std::string storage in `args`, which is filled once (with reserve) and never
+// mutated afterwards, so the pointers stay valid for the worker's lifetime.
+void fill_native_server_args(JNIEnv *env, jobjectArray jargs, native_server *srv) {
     const jsize n = (jargs != nullptr) ? env->GetArrayLength(jargs) : 0;
     srv->args.reserve(static_cast<size_t>(n) + 1);
     srv->args.emplace_back("llama-server"); // argv[0]
@@ -64,6 +71,25 @@ JNIEXPORT jlong JNICALL Java_net_ladenthin_llama_server_NativeServer_startNative
     for (auto &arg : srv->args) {
         srv->argv.push_back(const_cast<char *>(arg.c_str()));
     }
+}
+
+// Throws net.ladenthin.llama.exception.LlamaException with the given message (best-effort: if the
+// class cannot be resolved the pending NoClassDefFoundError is surfaced instead).
+void throw_llama_exception(JNIEnv *env, const char *message) {
+    jclass exception_class = env->FindClass("net/ladenthin/llama/exception/LlamaException");
+    if (exception_class != nullptr) {
+        env->ThrowNew(exception_class, message);
+    }
+}
+
+} // namespace
+
+extern "C" {
+
+JNIEXPORT jlong JNICALL Java_net_ladenthin_llama_server_NativeServer_startNativeServer(JNIEnv *env, jclass,
+                                                                                       jobjectArray jargs) {
+    auto *srv = new native_server();
+    fill_native_server_args(env, jargs, srv);
 
     // Embedded mode: no process signal handlers, honor the forwarded argv (see patches/0006).
     llama_server_set_embedded(true);
@@ -102,6 +128,66 @@ JNIEXPORT jboolean JNICALL Java_net_ladenthin_llama_server_NativeServer_isRunnin
                                                                                         jlong handle) {
     auto *srv = reinterpret_cast<native_server *>(handle);
     return (srv != nullptr && !srv->finished.load()) ? JNI_TRUE : JNI_FALSE;
+}
+
+JNIEXPORT jlong JNICALL Java_net_ladenthin_llama_server_NativeServer_startAttachedNativeServer(JNIEnv *env, jclass,
+                                                                                               jobject jmodel,
+                                                                                               jobjectArray jargs) {
+    if (jmodel == nullptr) {
+        throw_llama_exception(env, "model must not be null");
+        return 0;
+    }
+    // Read the LlamaModel's native context handle directly (the same "ctx" long field jllama.cpp
+    // caches in JNI_OnLoad; this TU resolves it itself to stay decoupled from those globals).
+    jclass model_class = env->GetObjectClass(jmodel);
+    jfieldID ctx_field = env->GetFieldID(model_class, "ctx", "J");
+    if (ctx_field == nullptr) {
+        return 0; // NoSuchFieldError already pending
+    }
+    const jlong model_handle = env->GetLongField(jmodel, ctx_field);
+    if (model_handle == 0) {
+        throw_llama_exception(env, "model is not loaded (or already closed)");
+        return 0;
+    }
+    auto *jctx = reinterpret_cast<jllama_context *>(model_handle); // NOLINT(*-no-int-to-ptr)
+
+    auto *srv = new native_server();
+    fill_native_server_args(env, jargs, srv);
+
+    // The attach entry always parses the forwarded argv; set the embedded flag anyway so any
+    // shared embedded-mode behavior in server.cpp stays consistent with startNativeServer.
+    llama_server_set_embedded(true);
+
+    server_context *ctx_server = &jctx->server;
+    srv->worker = std::thread([srv, ctx_server]() {
+        srv->exit_code = llama_server_attach(static_cast<int>(srv->argv.size()), srv->argv.data(), *ctx_server);
+        srv->finished.store(true);
+    });
+
+    return reinterpret_cast<jlong>(srv);
+}
+
+JNIEXPORT void JNICALL Java_net_ladenthin_llama_server_NativeServer_setWorkerCommandNative(JNIEnv *env, jclass,
+                                                                                           jstring jcommand) {
+    // Sets/clears LLAMA_SERVER_WORKER_CMD in the process environment, which the router-mode
+    // model manager (server-models.cpp, patches/0008) reads when spawning worker instances.
+    std::string value;
+    if (jcommand != nullptr) {
+        const char *chars = env->GetStringUTFChars(jcommand, nullptr);
+        if (chars != nullptr) {
+            value = chars;
+            env->ReleaseStringUTFChars(jcommand, chars);
+        }
+    }
+#if defined(_WIN32)
+    _putenv_s("LLAMA_SERVER_WORKER_CMD", value.c_str()); // empty value removes the variable
+#else
+    if (value.empty()) {
+        unsetenv("LLAMA_SERVER_WORKER_CMD");
+    } else {
+        setenv("LLAMA_SERVER_WORKER_CMD", value.c_str(), 1);
+    }
+#endif
 }
 
 } // extern "C"

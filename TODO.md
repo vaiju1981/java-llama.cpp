@@ -13,7 +13,22 @@ cross-cutting initiative.
 
 ## Open — jllama-specific
 
-### NativeServer — reuse an already-loaded `LlamaModel` (open, enhancement)
+### NativeServer — reuse an already-loaded `LlamaModel` (DONE — attach mode via patch 0007)
+
+**Shipped 2026-07-05** as `NativeServer(LlamaModel, String...)` *attach mode*:
+`patches/0007-server-attach-http-frontend.patch` extracts the upstream route table into a shared
+`llama_server_register_common_routes(...)` and adds `llama_server_attach(argc, argv,
+server_context&)`, which starts only the HTTP frontend (+ stream-session GC) against the
+LlamaModel's own `server_context` — exactly the design sketched below: the queue is the
+synchronization point, no second model load, no second `start_loop`, no `common_init()` (the JNI
+log callback survives), and shutdown goes through the shared `llama_server_request_shutdown()`
+path (`ctx_http.stop()` only — never `ctx_server.terminate()`; the caller owns model + backend).
+JNI: `native_server.cpp` `startAttachedNativeServer` (resolves the model's `ctx` handle itself).
+Contract: close the server before the model. Validated by `NativeServerAttachIntegrationTest`
+(HTTP health/props/completion/chat + concurrent direct JNI calls on the same model). The original
+feasibility notes are kept below for context.
+
+**Original notes (historical):**
 
 `net.ladenthin.llama.server.NativeServer` (the native-transport server mode that runs the full
 upstream `llama_server` — WebUI included — inside `libjllama` over JNI) currently loads its **own**
@@ -465,6 +480,22 @@ Feel free to contribute fixes — PRs welcome.
     - **Typed batch embeddings** — `LlamaModel.embed(Collection<String>)` → `List<float[]>` over the
       OAI array-input path of `handleEmbeddings` (`json.EmbeddingResponseParser`, index-ordered).
       Requested by upstream kherud users and unserved there.
+  - **DONE (2026-07-05, second batch):**
+    - **In-JVM router mode** (multi-model management through `NativeServer`): the upstream router
+      spawns each model worker by re-executing its own binary — inside a JVM that is `java`, so
+      embedded router workers could never start.
+      `patches/0008-server-models-worker-cmd-override.patch` adds the `LLAMA_SERVER_WORKER_CMD`
+      env override (whitespace-split, replaces only the worker-binary token), exposed as
+      `NativeServer.setWorkerCommand(String...)`; each worker then runs as a fresh JVM executing
+      the classic single-model `NativeServer`. Validated by `RouterModeIntegrationTest`
+      (Linux CI: `--models-dir` listing → `POST /models/load` → worker-JVM spawn → proxied chat
+      completion). This closes the old "Multi-model registry" follow-up for the native surface.
+    - **In-JVM GGUF quantization** (backlog item 15): `LlamaQuantizer.quantize(in, out,
+      QuantizationType[, threads, allowRequantize])` over `llama_model_quantize`
+      (LLamaSharp `LLamaQuantizer` / llama-cpp-python precedent). PIT-complete
+      `args.QuantizationType` (llama_ftype b9870 mapping) + `QuantizerIntegrationTest`
+      (re-quantize the 135M draft model → load + complete; refusal without `allowRequantize`;
+      missing-input error path).
   - **Remaining first-batch items:** jbang example.
 
 ### Android distribution: AAR + Kotlin-friendly API + sample app

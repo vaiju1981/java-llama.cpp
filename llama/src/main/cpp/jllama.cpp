@@ -1483,6 +1483,31 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_setLoraAdaptersJso
     return dispatch_one_shot_task(env, ctx_server, std::move(task));
 }
 
+JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaQuantizer_quantizeNative(JNIEnv *env, jclass, jstring jinput,
+                                                                              jstring joutput, jint ftype, jint nthread,
+                                                                              jboolean allowRequantize) {
+    try {
+        const std::string input_path = parse_jstring(env, jinput);
+        const std::string output_path = parse_jstring(env, joutput);
+        // Idempotent; intentionally never paired with llama_backend_free here — a LlamaModel
+        // loaded in the same JVM shares the backend and must not have it freed underneath it.
+        llama_backend_init();
+        llama_model_quantize_params qparams = llama_model_quantize_default_params();
+        qparams.ftype = static_cast<llama_ftype>(ftype);
+        qparams.nthread = nthread;
+        qparams.allow_requantize = (allowRequantize == JNI_TRUE);
+        const uint32_t rc = llama_model_quantize(input_path.c_str(), output_path.c_str(), &qparams);
+        if (rc != 0) {
+            const std::string msg = "Quantization of '" + input_path + "' failed with code " + std::to_string(rc);
+            env->ThrowNew(c_llama_error, msg.c_str());
+        }
+    } catch (const std::exception &e) {
+        env->ThrowNew(c_llama_error, e.what());
+    } catch (...) {
+        env->ThrowNew(c_llama_error, "Unknown C++ exception during quantization");
+    }
+}
+
 JNIEXPORT jboolean JNICALL Java_net_ladenthin_llama_LlamaModel_configureParallelInference(JNIEnv *env, jobject obj,
                                                                                           jstring jconfig) {
     REQUIRE_SERVER_CONTEXT(JNI_FALSE);

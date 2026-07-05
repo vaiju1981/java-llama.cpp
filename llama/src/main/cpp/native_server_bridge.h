@@ -17,6 +17,16 @@
 //    re-deriving it from the process command line) and can be stopped out-of-band (the SIGTERM
 //    path) since its server_context is local to llama_server().
 
-int  llama_server(int argc, char ** argv);
+//  - llama_server_attach: added by patches/0007-server-attach-http-frontend.patch. Attaches the
+//    upstream HTTP frontend (route table + WebUI + resumable streaming) to an ALREADY-LOADED
+//    server_context owned by a LlamaModel — no second model load, no start_loop; the LlamaModel's
+//    worker keeps driving the context and the HTTP routes post tasks to its queue. Blocks until
+//    llama_server_request_shutdown() (shared shutdown path with llama_server, so the
+//    single-instance-per-process rule covers both entry points).
+
+struct server_context;
+
+int llama_server(int argc, char **argv);
+int llama_server_attach(int argc, char **argv, server_context &ctx_server);
 void llama_server_set_embedded(bool embedded);
 void llama_server_request_shutdown();

@@ -105,6 +105,7 @@ Inference of Meta's LLaMA model (and others) in pure C/C++.
 - **Embeddings** (single and native-batched via `embed(Collection<String>)`) and **reranking** for retrieval pipelines.
 - **Runtime LoRA adapter control** — list the loaded adapters and change their scales at runtime without reloading the model (`getLoraAdapters()` / `setLoraAdapters(Map)`), the typed counterpart of the upstream `GET`/`POST /lora-adapters` endpoints.
 - **Text-to-speech** (`TextToSpeech`) over the two-model OuteTTS + WavTokenizer pipeline, returning WAV audio.
+- **In-JVM GGUF quantization** (`LlamaQuantizer`) over llama.cpp's `llama_model_quantize` — convert a GGUF to another quantization scheme without shelling out to `llama-quantize`.
 - **Infilling** (fill-in-the-middle) for code models.
 - **Tokenize / detokenize** and **JSON-schema → grammar** conversion.
 - **Raw JSON endpoint handlers** mirroring the upstream llama.cpp HTTP server (`/completions`, `/v1/completions`, `/embeddings`, `/infill`, `/tokenize`, `/detokenize`).
@@ -569,6 +570,18 @@ Compatible GGUFs (the CI test defaults): OuteTTS
 [`OuteTTS-0.2-500M-GGUF`](https://huggingface.co/second-state/OuteTTS-0.2-500M-GGUF) +
 [`WavTokenizer`](https://huggingface.co/ggml-org/WavTokenizer).
 
+### GGUF Quantization
+
+`LlamaQuantizer` converts a GGUF to another quantization scheme in-process (llama.cpp's
+`llama_model_quantize` — the `llama-quantize` tool without the separate binary):
+
+```java
+LlamaQuantizer.quantize("model-f16.gguf", "model-q4_k_m.gguf", QuantizationType.Q4_K_M);
+// Re-quantizing an already-quantized GGUF degrades quality and must be opted into:
+LlamaQuantizer.quantize("model-q8_0.gguf", "model-q4_0.gguf", QuantizationType.Q4_0,
+        /* threads */ 0, /* allowRequantize */ true);
+```
+
 ### Raw JSON Endpoints
 
 For direct access to the upstream llama.cpp server API, the following methods take a JSON request and return
@@ -754,12 +767,52 @@ try (NativeServer server = new NativeServer(
 }
 ```
 
-Differences from `OpenAiCompatServer`: it **loads its own model** from the arguments (an independent
-lifecycle, like `llama-server.exe`, not a shared `LlamaModel`), it is **single-instance per
+Differences from `OpenAiCompatServer`: with the classic constructor it **loads its own model** from
+the arguments (an independent lifecycle, like `llama-server.exe`), it is **single-instance per
 process**, it serves the **WebUI** (in released jars — local `cmake` builds ship the empty-asset
 stub, so no UI there), and it is **not available on Android** (the upstream server needs
 `posix_spawn`). Readiness: poll `GET /health`. No SSL (plain HTTP — bind localhost or front with a
 TLS proxy).
+
+#### Attach mode — serve an already-loaded `LlamaModel`
+
+`NativeServer` can also **attach** the full upstream HTTP frontend (routes, WebUI, resumable
+streaming) to a `LlamaModel` you already loaded — one copy of the weights, shared between direct
+JNI calls and HTTP:
+
+```java
+try (LlamaModel model = new LlamaModel(new ModelParameters().setModel("models/model.gguf"));
+     NativeServer server = new NativeServer(model, "--host", "127.0.0.1", "--port", "8080").start()) {
+    // HTTP (incl. WebUI in released jars) and direct Java calls share the same loaded model.
+    String direct = model.complete(new InferenceParameters("2+2=").withNPredict(4));
+    Thread.currentThread().join();
+}
+```
+
+In attach mode the arguments carry only the HTTP-side flags (`--host`, `--port`, `--api-key`, …;
+no `-m`), the server reports healthy immediately (the model is already loaded), and the **caller
+keeps ownership of the model** — close the server before the model, never the other way around.
+
+#### Router mode — multi-model management
+
+Started **without** a model argument, the upstream server runs in **router mode**: it lists models
+from `--models-dir`, loads/unloads them on demand (`GET /models`, `POST /models/load`,
+`POST /models/unload`, per-request `"model"` selection) and serves each model from a **worker
+subprocess**. Upstream spawns workers by re-executing its own binary — inside a JVM that binary is
+`java`, so before starting an embedded router you must point the worker spawn at this library's
+bootstrap:
+
+```java
+String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
+NativeServer.setWorkerCommand(javaBin, "-cp", System.getProperty("java.class.path"),
+        "net.ladenthin.llama.server.NativeServer");
+try (NativeServer router = new NativeServer(
+        "--host", "127.0.0.1", "--port", "8080", "--models-dir", "models").start()) {
+    Thread.currentThread().join(); // each loaded model runs as a fresh worker JVM
+}
+```
+
+Worker-command tokens may not contain whitespace (the value is whitespace-split natively).
 
 ### LangChain4j integration
 

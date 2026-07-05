@@ -1,0 +1,32 @@
+--- a/tools/server/server-models.cpp
++++ b/tools/server/server-models.cpp
+@@ -215,6 +215,29 @@
+     if (app_cmd != nullptr && app_cmd[0] != '\0' && !bin_path.empty()) {
+         args.insert(args.begin() + 1, app_cmd);
+     }
++
++    // [jllama] Allow overriding the worker command entirely via LLAMA_SERVER_WORKER_CMD
++    // (whitespace-split; individual tokens cannot contain spaces). The router spawns each model
++    // instance by re-executing its own binary (get_server_exec_path() == /proc/self/exe and
++    // friends) — but when llama_server runs EMBEDDED in a host process (e.g. a JVM driving it
++    // through a JNI library), that binary is the host (java), not a llama-server. The override
++    // lets such hosts relaunch workers through their own bootstrap, e.g.
++    // LLAMA_SERVER_WORKER_CMD="/usr/bin/java -cp app.jar net.ladenthin.llama.server.NativeServer".
++    // Only the leading binary-path token of the rendered args is replaced; everything the router
++    // computed (host, port, alias, model args) is preserved.
++    const char * worker_cmd = std::getenv("LLAMA_SERVER_WORKER_CMD");
++    if (worker_cmd != nullptr && worker_cmd[0] != '\0' && !args.empty()) {
++        std::vector<std::string> cmd_tokens;
++        std::istringstream cmd_stream((std::string(worker_cmd)));
++        std::string token;
++        while (cmd_stream >> token) {
++            cmd_tokens.push_back(token);
++        }
++        if (!cmd_tokens.empty()) {
++            args.erase(args.begin());
++            args.insert(args.begin(), cmd_tokens.begin(), cmd_tokens.end());
++        }
++    }
+ }
+ 
+ void server_model_meta::update_caps() {

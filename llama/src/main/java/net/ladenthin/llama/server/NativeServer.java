@@ -9,7 +9,9 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import lombok.ToString;
+import net.ladenthin.llama.LlamaModel;
 import net.ladenthin.llama.loader.LlamaLoader;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Runs the <em>full</em> upstream llama.cpp HTTP server — including its embedded
@@ -24,12 +26,28 @@ import net.ladenthin.llama.loader.LlamaLoader;
  * {@code --port}, {@code --ui}/{@code --no-ui}, …). Unlike {@link OpenAiCompatServer}, no per-flag
  * Java mapping is involved.</p>
  *
- * <p><strong>Independent lifecycle.</strong> {@code NativeServer} loads its <em>own</em> model from
- * the forwarded arguments — exactly like running {@code llama-server.exe} — and is unrelated to any
- * {@code net.ladenthin.llama.LlamaModel} you may also have open. Reusing an already-loaded
- * {@code LlamaModel}'s context instead of loading a second copy is a possible future enhancement
- * (see {@code TODO.md}). While the native server runs it owns the process-wide llama backend and
- * routes llama.cpp logging to stderr/file (llama-server's own logging), not the JNI log callback.</p>
+ * <p><strong>Two lifecycles.</strong> The classic constructor ({@link #NativeServer(String...)})
+ * loads its <em>own</em> model from the forwarded arguments — exactly like running
+ * {@code llama-server.exe} — and is unrelated to any {@link LlamaModel} you may also have open;
+ * while it runs it owns the process-wide llama backend and routes llama.cpp logging to
+ * stderr/file (llama-server's own logging), not the JNI log callback. The <em>attach</em>
+ * constructor ({@link #NativeServer(LlamaModel, String...)}) instead serves an
+ * <strong>already-loaded</strong> {@code LlamaModel} — no second copy of the weights, no second
+ * model load: the model's own worker thread keeps driving inference and the HTTP routes post
+ * tasks to its queue. In attach mode the arguments carry only the HTTP-side flags
+ * ({@code --host}, {@code --port}, {@code --api-key}, …; no {@code -m}), and the caller keeps
+ * full ownership of the model: <strong>do not {@code close()} the model while the server is
+ * attached</strong> — stop the server first (server before model, like unwinding
+ * try-with-resources).</p>
+ *
+ * <p><strong>Router mode.</strong> Starting without any model argument puts the upstream server
+ * in router mode ({@code --models-dir}, {@code GET/POST /models}, per-request model selection).
+ * The router serves each model from a <em>worker subprocess</em> that upstream spawns by
+ * re-executing its own binary — which, inside a JVM, is {@code java}, not a llama-server. Set
+ * {@link #setWorkerCommand(String...)} before starting a router so workers relaunch through this
+ * library instead, e.g. {@code setWorkerCommand(javaBin, "-cp", classpath,
+ * "net.ladenthin.llama.server.NativeServer")} — each worker is then a fresh JVM running the
+ * classic single-model {@code NativeServer}.</p>
  *
  * <p><strong>Single instance per process.</strong> The upstream server keeps its shutdown state in
  * file-scope globals, so only one {@code NativeServer} may run at a time; {@link #start()} throws if
@@ -65,6 +83,14 @@ public final class NativeServer implements AutoCloseable {
     /** The llama-server argument vector, forwarded verbatim to the native entry point. */
     private final String[] args;
 
+    /**
+     * The already-loaded model this server attaches to, or {@code null} for the classic
+     * standalone lifecycle (the server loads its own model from {@link #args}). Excluded from
+     * {@code toString} — rendering it would dump the model's own identity block on every log line.
+     */
+    @ToString.Exclude
+    private final @Nullable LlamaModel attachedModel;
+
     /** Native handle (pointer) while running, or {@code 0} when not started / stopped. */
     private volatile long handle;
 
@@ -84,6 +110,37 @@ public final class NativeServer implements AutoCloseable {
             Objects.requireNonNull(arg, "args element");
         }
         this.args = args.clone();
+        this.attachedModel = null;
+    }
+
+    /**
+     * Creates a native-server bridge that <em>attaches</em> the full upstream HTTP frontend —
+     * route table, WebUI, resumable streaming — to an already-loaded {@link LlamaModel}, instead
+     * of loading a second copy of the weights.
+     *
+     * <p>The arguments carry only the HTTP-side llama-server flags ({@code --host},
+     * {@code --port}, {@code --api-key}, {@code --slots}, …); no model argument is needed or
+     * used. Because the model is already loaded, the server reports ready on {@code GET /health}
+     * as soon as the socket is up.</p>
+     *
+     * <p><strong>Lifecycle contract:</strong> the caller keeps full ownership of {@code model}.
+     * The model must stay open for as long as the server runs — close the server first, then the
+     * model. Closing the model while attached leaves the HTTP routes pointing at freed native
+     * state.</p>
+     *
+     * @param model the loaded model whose native server context this server should serve; must
+     *              not be {@code null} and must not be closed while the server runs
+     * @param args  the HTTP-side llama-server arguments (e.g. {@code "--host", "127.0.0.1",
+     *              "--port", "8080"}); must not be {@code null} or contain {@code null} elements
+     */
+    public NativeServer(LlamaModel model, String... args) {
+        Objects.requireNonNull(model, "model");
+        Objects.requireNonNull(args, "args");
+        for (final String arg : args) {
+            Objects.requireNonNull(arg, "args element");
+        }
+        this.args = args.clone();
+        this.attachedModel = model;
     }
 
     /**
@@ -107,7 +164,7 @@ public final class NativeServer implements AutoCloseable {
             // Load libjllama lazily here (not in a static initializer) so construction, argument
             // parsing and close() stay usable — and unit-testable — without the native library.
             LlamaLoader.initialize();
-            handle = startNativeServer(args);
+            handle = attachedModel != null ? startAttachedNativeServer(attachedModel, args) : startNativeServer(args);
         } catch (final RuntimeException | Error e) {
             RUNNING.set(false);
             throw e;
@@ -232,10 +289,62 @@ public final class NativeServer implements AutoCloseable {
     }
 
     /**
+     * Sets (or clears) the router-mode <em>worker command</em> for this process — the command
+     * line prefix used to spawn each model-worker subprocess when this server runs in router
+     * mode. By default the upstream router re-executes its own binary, which inside a JVM is
+     * {@code java} itself and cannot serve a model; point it at this library's bootstrap instead:
+     *
+     * <pre>{@code
+     * String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
+     * NativeServer.setWorkerCommand(javaBin, "-cp", System.getProperty("java.class.path"),
+     *         "net.ladenthin.llama.server.NativeServer");
+     * }</pre>
+     *
+     * <p>The tokens are stored in the process environment ({@code LLAMA_SERVER_WORKER_CMD},
+     * whitespace-joined) and read by the native router when it spawns a worker; the router's
+     * computed worker arguments ({@code --host}, {@code --port}, alias, model flags) are appended
+     * after them. Because the variable is whitespace-split natively, <strong>no token may contain
+     * whitespace</strong> (e.g. a classpath with spaces is unsupported).</p>
+     *
+     * <p>Calling with no tokens clears the override (workers re-exec the process binary again,
+     * the upstream default).</p>
+     *
+     * @param command the worker command tokens, e.g. {@code "java", "-cp", "app.jar",
+     *                "net.ladenthin.llama.server.NativeServer"}; empty clears the override
+     * @throws IllegalArgumentException if a token is null, empty, or contains whitespace
+     */
+    public static void setWorkerCommand(String... command) {
+        Objects.requireNonNull(command, "command");
+        StringBuilder joined = new StringBuilder();
+        for (final String token : command) {
+            if (token == null || token.isEmpty() || token.matches(".*\\s.*")) {
+                throw new IllegalArgumentException(
+                        "worker command tokens must be non-empty and must not contain whitespace, got: " + token);
+            }
+            if (joined.length() > 0) {
+                joined.append(' ');
+            }
+            joined.append(token);
+        }
+        LlamaLoader.initialize();
+        setWorkerCommandNative(joined.length() == 0 ? null : joined.toString());
+    }
+
+    /**
      * Starts the native server on a worker thread and returns an opaque handle. The argv is
      * forwarded verbatim (with a synthetic {@code argv[0]}).
      */
     private static native long startNativeServer(String[] args);
+
+    /**
+     * Starts the attach-mode server (HTTP frontend over the given model's native server context)
+     * on a worker thread and returns an opaque handle compatible with
+     * {@link #stopNativeServer(long)} / {@link #isRunningNative(long)}.
+     */
+    private static native long startAttachedNativeServer(LlamaModel model, String[] args);
+
+    /** Sets/clears the {@code LLAMA_SERVER_WORKER_CMD} process environment variable. */
+    private static native void setWorkerCommandNative(@Nullable String command);
 
     /** Signals shutdown, joins the worker thread, and frees the handle. */
     private static native void stopNativeServer(long handle);
