@@ -58,6 +58,18 @@ initial investigation:
 Until then, run `NativeServer` standalone (it owns the process's llama backend + logging while
 running), or use the Java-transport `OpenAiCompatServer` when sharing a `LlamaModel`.
 
+### Typed router API (DONE — RouterClient)
+
+**DONE (2026-07-05).** `server.RouterClient` + `value.RouterModel` (+ nested `Status` enum) +
+`json.RouterModelsResponseParser` wrap the router-mode model-management endpoints
+(`GET /models`, `POST /models/load`, `POST /models/unload`) with typed list/find/load/unload and
+`awaitModelLoaded(id, timeout)` (poll-until-LOADED with fail-fast on the router's
+`status.failed`/`exit_code` worker-death marker and on unknown ids). 25 model-free unit tests
+(`RouterModelTest`, `RouterModelsResponseParserTest`, `RouterClientTest` against a stub HTTP
+server); `RouterModeIntegrationTest` now drives discovery/load/readiness through the client
+against a real router. Layered-architecture rule updated (Server may access Json); RouterModel is
+inside the PIT 100% gate (274/274).
+
 ### PIT gate not hermetic — `value.ContentPart.audioFile(Path)` (open)
 
 The PIT mutation gate reaches 100% **only when the audio test fixture is present**. Without it the

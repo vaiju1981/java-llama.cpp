@@ -726,4 +726,17 @@ SPDX-License-Identifier: MIT
         <Method name="getChatTemplateKwargs"/>
     </Match>
 
+    <!--
+        RouterClient is an HTTP client for the router-mode model-management endpoints; the
+        target URL is composed from the host/port the DEVELOPER passes to the constructor
+        (typically 127.0.0.1 + the port of the in-JVM NativeServer), never from request-time
+        or user-controlled input. findsecbugs' URLCONNECTION_SSRF_FD flags every
+        URL-from-variable HttpURLConnection; there is no server-side request forwarding here
+        for an attacker to influence.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.server.RouterClient"/>
+        <Bug pattern="URLCONNECTION_SSRF_FD"/>
+    </Match>
+
 </FindBugsFilter>

@@ -814,6 +814,24 @@ try (NativeServer router = new NativeServer(
 
 Worker-command tokens may not contain whitespace (the value is whitespace-split natively).
 
+**Typed model management (`RouterClient`).** Instead of hand-rolling HTTP+JSON against the
+management endpoints, use `server.RouterClient` — a plain-HTTP typed client (works against the
+embedded router above or any external `llama-server` router):
+
+```java
+RouterClient client = new RouterClient(8080);
+List<RouterModel> models = client.listModels();          // GET /models, typed status per entry
+client.loadModel("Qwen3-0.6B-Q4_K_M");                   // POST /models/load (non-blocking)
+client.awaitModelLoaded("Qwen3-0.6B-Q4_K_M", 240_000L);  // poll until LOADED; fails fast if the
+                                                         // worker died (exit code in the message)
+client.unloadModel("Qwen3-0.6B-Q4_K_M");                 // POST /models/unload
+```
+
+`RouterModel` carries the identifier, the lifecycle status
+(`UNLOADED`/`LOADING`/`LOADED`/`SLEEPING`/`DOWNLOADING`/`DOWNLOADED`), and the router's
+failed-worker marker. Chat requests then select a model per request via the standard
+`"model"` field on `POST /v1/chat/completions`.
+
 ### LangChain4j integration
 
 A separate artifact, **`net.ladenthin:llama-langchain4j`**, adapts a `LlamaModel` to

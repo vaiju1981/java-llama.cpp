@@ -9,17 +9,17 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.junit.jupiter.api.Assertions.fail;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.File;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Locale;
 import net.ladenthin.llama.ClaudeGenerated;
 import net.ladenthin.llama.TestConstants;
+import net.ladenthin.llama.value.RouterModel;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
@@ -42,8 +42,6 @@ import org.junit.jupiter.api.io.TempDir;
                 + "explicit /models/load spawning a worker JVM through setWorkerCommand, and a "
                 + "chat completion proxied to that worker.")
 public class RouterModeIntegrationTest extends OpenAiServerTestSupport {
-
-    private static final ObjectMapper MAPPER = new ObjectMapper();
 
     /** Generous ceiling for worker-JVM spawn + model load on a cold CI runner. */
     private static final long MODEL_READY_TIMEOUT_MILLIS = 240_000L;
@@ -97,8 +95,14 @@ public class RouterModeIntegrationTest extends OpenAiServerTestSupport {
                 .start();
         awaitHttp("/health", 30_000L);
 
-        modelName = discoverModelName();
-        loadModelAndAwaitReady();
+        // Model discovery + load + readiness go through the typed RouterClient, so this
+        // integration test exercises it end to end against a real router (the wire-shape
+        // details are unit-tested model-free in RouterClientTest against a stub server).
+        RouterClient client = new RouterClient(port);
+        modelName = discoverModelName(client);
+        client.loadModel(modelName);
+        RouterModel loaded = client.awaitModelLoaded(modelName, MODEL_READY_TIMEOUT_MILLIS);
+        assertThat(loaded.getStatus(), is(RouterModel.Status.LOADED));
     }
 
     @AfterAll
@@ -131,49 +135,16 @@ public class RouterModeIntegrationTest extends OpenAiServerTestSupport {
         fail("router did not answer " + path + " within " + timeoutMillis + "ms" + (last != null ? ": " + last : ""));
     }
 
-    /** Finds the entry for the symlinked GGUF in GET /models and returns its model identifier. */
-    private static String discoverModelName() throws Exception {
-        Response models = new RouterModeIntegrationTest().get(port, "/models", "");
-        assertThat(models.body, models.code, is(200));
-        JsonNode root = MAPPER.readTree(models.body);
-        JsonNode data = root.has("data") ? root.get("data") : root.path("models");
-        for (JsonNode entry : data) {
-            String id = entry.path("id").asText(entry.path("name").asText(""));
-            if (id.contains("Qwen3")) {
-                return id;
+    /** Finds the entry for the symlinked GGUF in the typed model list and returns its identifier. */
+    private static String discoverModelName(RouterClient client) throws Exception {
+        List<RouterModel> models = client.listModels();
+        for (RouterModel model : models) {
+            if (model.getId().contains("Qwen3")) {
+                return model.getId();
             }
         }
-        fail("GET /models did not list the symlinked model: " + models.body);
+        fail("GET /models did not list the symlinked model: " + models);
         return ""; // unreachable
-    }
-
-    private static void loadModelAndAwaitReady() throws Exception {
-        Response load =
-                new RouterModeIntegrationTest().post(port, "/models/load", "{\"model\":\"" + modelName + "\"}", "");
-        assertThat(load.body, load.code, is(200));
-
-        long deadline = System.currentTimeMillis() + MODEL_READY_TIMEOUT_MILLIS;
-        String lastBody = "";
-        while (System.currentTimeMillis() < deadline) {
-            Response models = new RouterModeIntegrationTest().get(port, "/models", "");
-            lastBody = models.body;
-            JsonNode root = MAPPER.readTree(models.body);
-            JsonNode data = root.has("data") ? root.get("data") : root.path("models");
-            for (JsonNode entry : data) {
-                String id = entry.path("id").asText(entry.path("name").asText(""));
-                if (id.equals(modelName)) {
-                    // Router entries carry {"status": {"value": "unloaded|loading|loaded|..."}}
-                    // (server-models.h server_model_status_to_string).
-                    String status = entry.path("status").path("value").asText("");
-                    if ("loaded".equals(status)) {
-                        return;
-                    }
-                }
-            }
-            Thread.sleep(2_000L);
-        }
-        fail("model '" + modelName + "' did not become ready within " + MODEL_READY_TIMEOUT_MILLIS
-                + "ms; last GET /models: " + lastBody);
     }
 
     @Test

@@ -124,8 +124,10 @@ public class LlamaArchitectureTest {
             .mayOnlyBeAccessedByLayers("Server")
             .whereLayer("Loader")
             .mayOnlyBeAccessedByLayers("Api", "Server")
+            // Server: RouterClient parses the router GET /models wire format via
+            // json.RouterModelsResponseParser (a pure transform, tested model-free).
             .whereLayer("Json")
-            .mayOnlyBeAccessedByLayers("Api")
+            .mayOnlyBeAccessedByLayers("Api", "Server")
             .whereLayer("Parameters")
             .mayOnlyBeAccessedByLayers("Api", "Loader", "Server")
             .whereLayer("Value")
