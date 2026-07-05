@@ -593,6 +593,53 @@ a JSON response, matching the HTTP server's contract:
 Server state is exposed via `getMetrics()`, `eraseSlot(int)`, `saveSlot(int, String)`,
 `restoreSlot(int, String)`, and `getModelMeta()`.
 
+### Conversation checkpoints: rewind + fork (`Session`)
+
+A `Session` can be snapshotted and branched — the KV-cache slot state and the transcript move
+together, so native state and history can never drift apart:
+
+```java
+try (Session session = new Session(model, 0, "You are terse.")) {
+    session.send("My name is Alice.");
+    SessionCheckpoint cp = session.checkpoint("checkpoints/turn1.bin");
+
+    session.send("Tell me a joke.");
+    session.rewind(cp);                     // undo everything after the checkpoint
+    session.send("Tell me a story instead."); // retry from the branch point
+
+    // Branch into a second slot (model loaded with setParallel(2)+):
+    try (Session forked = session.fork(1, "checkpoints/branch.bin")) {
+        forked.send("Answer as a pirate.");   // both sessions continue independently
+    }
+}
+```
+
+Checkpoint files are caller-managed (KV dumps grow with context usage) and both operations are
+rejected while a stream is in progress. For plain transformer models a rewind is also achievable
+cheaply by resending a truncated history with `cache_prompt` (prefix reuse); checkpoints make the
+branch point exact and are the only reliable rollback for recurrent/hybrid models (e.g.
+Granite-4), whose state cannot be recomputed from a prefix.
+
+### GGUF metadata inspection (no model load)
+
+`GgufInspector` reads a GGUF's header and key/value table **without loading the model** — pure
+Java, no native library, cost independent of file size (parsing stops before the tensor data).
+Useful for model pickers and download validators:
+
+```java
+GgufMetadata meta = GgufInspector.read(Paths.get("models/Qwen3-0.6B-Q4_K_M.gguf"));
+meta.getArchitecture();   // Optional[qwen3]
+meta.getModelName();      // Optional[Qwen3 0.6B]
+meta.getParameterCount(); // OptionalLong[751632384]
+meta.getContextLength();  // OptionalLong[40960]  (<arch>.context_length)
+meta.getFileType();       // OptionalLong[15]     (llama_ftype, cf. QuantizationType)
+meta.getChatTemplate();   // Optional[{{- ... }}]
+meta.getEntries();        // full decoded key/value table
+```
+
+Supports GGUF v2/v3, little- and big-endian (auto-detected), and fails loud on v1/corrupt files.
+For metadata of an already-loaded model use `getModelMeta()` instead.
+
 ### Prompt and KV Cache Reuse
 
 Prompt-prefix reuse is enabled by default in llama.cpp and can be controlled per request with

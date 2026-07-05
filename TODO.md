@@ -58,6 +58,28 @@ initial investigation:
 Until then, run `NativeServer` standalone (it owns the process's llama backend + logging while
 running), or use the Java-transport `OpenAiCompatServer` when sharing a `LlamaModel`.
 
+### GGUF metadata inspector (DONE — GgufInspector)
+
+**DONE (2026-07-05).** `GgufInspector` (root) + `value.GgufMetadata`: pure-Java GGUF v2/v3
+header + key/value reader (LE + BE auto-detect, fail-loud on v1/corrupt/truncated, sanity
+caps, stops before tensor data) with typed accessors (architecture, name, parameter count,
+context length via `<arch>.context_length`, `general.file_type`, chat template) — inspects a
+model WITHOUT loading it (complements the loaded-model `getModelMeta()`). 21 model-free tests
+against in-memory generated fixtures + a gated real-file check; GgufMetadata in the PIT 100%
+gate.
+
+### Session fork/rewind (DONE — SessionCheckpoint)
+
+**DONE (2026-07-05).** `Session.checkpoint(filepath)` → `value.SessionCheckpoint` (slot
+KV-save file + transcript-turn snapshot, caller-managed file), `Session.rewind(checkpoint)`
+(atomic restore of KV state + transcript under the session lock), `Session.fork(newSlotId,
+filepath)` (independent branch on another slot, same system message/customizer; needs
+`setParallel(2)+`). All three rejected mid-stream (same guard as save/restore). Plumbing:
+`ChatTranscript.turnsSnapshot()/resetTurns(...)`, `SessionState.turnsSnapshot()/
+restoreTurns(...)/getSystemMessage()`. Model-free tests for the bookkeeping + streaming
+guards; `SessionForkRewindIntegrationTest` (gated) covers rewind-continue, independent fork,
+and the own-slot guard against a real model.
+
 ### Typed router API (DONE — RouterClient)
 
 **DONE (2026-07-05).** `server.RouterClient` + `value.RouterModel` (+ nested `Status` enum) +

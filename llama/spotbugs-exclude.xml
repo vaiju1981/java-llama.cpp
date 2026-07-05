@@ -739,4 +739,32 @@ SPDX-License-Identifier: MIT
         <Bug pattern="URLCONNECTION_SSRF_FD"/>
     </Match>
 
+    <!--
+        GgufInspector.read: the "same method called redundantly" finding is the stateful
+        sequential reader (each Reader.u64() consumes the next 8 bytes of the stream —
+        tensor count then kv count are two different values by design). The "unrelated
+        return values" finding is the GGUF tagged-value decoder: readValue() returns
+        Long/Double/Boolean/String/List by the wire type tag — heterogeneous Object
+        returns ARE the decoded format (the typed accessors on GgufMetadata re-narrow).
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.GgufInspector"/>
+        <Or>
+            <Bug pattern="PRMC_POSSIBLY_REDUNDANT_METHOD_CALLS"/>
+            <Bug pattern="URV_UNRELATED_RETURN_VALUES"/>
+        </Or>
+    </Match>
+
+    <!--
+        SessionCheckpoint's constructor takes List (not Collection) on purpose: transcript
+        turns are ORDER-SIGNIFICANT (user/assistant alternation), and List documents that
+        contract at the API boundary. Same rationale as the ChatMessage public constructor's
+        List parameter suppression.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.value.SessionCheckpoint"/>
+        <Bug pattern="OCP_OVERLY_CONCRETE_COLLECTION_PARAMETER"/>
+        <Method name="&lt;init&gt;"/>
+    </Match>
+
 </FindBugsFilter>

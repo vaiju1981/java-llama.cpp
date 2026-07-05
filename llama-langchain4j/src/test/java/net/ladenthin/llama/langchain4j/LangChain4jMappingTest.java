@@ -199,6 +199,28 @@ class LangChain4jMappingTest {
     }
 
     @Test
+    void streamingParametersCarryToolsAndToolChoice() {
+        ChatRequest request = ChatRequest.builder()
+                .messages(UserMessage.from("weather?"))
+                .toolSpecifications(ToolSpecification.builder()
+                        .name("get_weather")
+                        .parameters(JsonObjectSchema.builder()
+                                .addProperty("city", new JsonStringSchema())
+                                .build())
+                        .build())
+                .toolChoice(ToolChoice.REQUIRED)
+                .build();
+
+        String json = LangChain4jMapping.toStreamingParameters(request).toString();
+
+        // The streaming blob must carry the same tools wiring the blocking path applies.
+        assertThat(json, containsString("\"tools\""));
+        assertThat(json, containsString("get_weather"));
+        assertThat(json, containsString("\"tool_choice\""));
+        assertThat(json, containsString("required"));
+    }
+
+    @Test
     void mapsToolChoiceEnumToOaiStrings() {
         assertThat(LangChain4jMapping.toToolChoiceString(ToolChoice.AUTO), is("auto"));
         assertThat(LangChain4jMapping.toToolChoiceString(ToolChoice.REQUIRED), is("required"));

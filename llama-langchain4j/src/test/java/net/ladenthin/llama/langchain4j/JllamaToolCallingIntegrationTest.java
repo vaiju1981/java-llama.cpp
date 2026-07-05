@@ -96,6 +96,50 @@ class JllamaToolCallingIntegrationTest {
     }
 
     @Test
+    void streamedRequiredToolCallComesBackAsToolExecutionRequest() throws Exception {
+        JllamaStreamingChatModel streaming = new JllamaStreamingChatModel(model);
+        java.util.concurrent.CompletableFuture<ChatResponse> done = new java.util.concurrent.CompletableFuture<>();
+
+        streaming.chat(
+                ChatRequest.builder()
+                        .messages(UserMessage.from("Report success using the test tool."))
+                        .toolSpecifications(dev.langchain4j.agent.tool.ToolSpecification.builder()
+                                .name("test")
+                                .description("Report success")
+                                .parameters(JsonObjectSchema.builder()
+                                        .addProperty("success", new JsonBooleanSchema())
+                                        .required("success")
+                                        .build())
+                                .build())
+                        .toolChoice(ToolChoice.REQUIRED)
+                        .maxOutputTokens(512)
+                        .temperature(0.0)
+                        .build(),
+                new dev.langchain4j.model.chat.response.StreamingChatResponseHandler() {
+                    @Override
+                    public void onPartialResponse(String partialResponse) {}
+
+                    @Override
+                    public void onCompleteResponse(ChatResponse completeResponse) {
+                        done.complete(completeResponse);
+                    }
+
+                    @Override
+                    public void onError(Throwable error) {
+                        done.completeExceptionally(error);
+                    }
+                });
+
+        ChatResponse response = done.get(120, java.util.concurrent.TimeUnit.SECONDS);
+        assertThat(response.aiMessage().hasToolExecutionRequests(), is(true));
+        ToolExecutionRequest request =
+                response.aiMessage().toolExecutionRequests().get(0);
+        assertThat(request.name(), is("test"));
+        assertThat(MAPPER.readTree(request.arguments()).has("success"), is(true));
+        assertThat(response.finishReason(), is(FinishReason.TOOL_EXECUTION));
+    }
+
+    @Test
     void jsonSchemaResponseFormatYieldsConformingJson() throws Exception {
         JllamaChatModel chat = new JllamaChatModel(model);
 

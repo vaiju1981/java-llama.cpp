@@ -10,6 +10,7 @@ import lombok.ToString;
 import net.ladenthin.llama.parameters.InferenceParameters;
 import net.ladenthin.llama.value.ChatMessage;
 import net.ladenthin.llama.value.Pair;
+import net.ladenthin.llama.value.SessionCheckpoint;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -185,6 +186,79 @@ public final class Session implements AutoCloseable {
      */
     public List<ChatMessage> getMessages() {
         return state.snapshot();
+    }
+
+    /**
+     * Capture a point-in-time snapshot of this conversation: the slot's KV-cache state is
+     * saved to {@code filepath} (native slot-save) and paired with the transcript turns
+     * committed so far. The returned checkpoint can later be passed to
+     * {@link #rewind(SessionCheckpoint)} — undoing every turn after this point — or used as
+     * the branch point for {@link #fork(int, String)}.
+     * <p>
+     * The checkpoint file's lifecycle is caller-managed (same as {@link #save(String)});
+     * KV dumps grow with context usage. Rejected while a stream is in progress.
+     * </p>
+     *
+     * @param filepath destination file for the slot KV state
+     * @return the checkpoint pairing that file with the transcript snapshot
+     * @throws IllegalStateException if a stream is in progress
+     */
+    public SessionCheckpoint checkpoint(String filepath) {
+        return state.runWhenNotStreaming("checkpoint", () -> {
+            model.saveSlot(slotId, filepath);
+            return new SessionCheckpoint(filepath, state.turnsSnapshot());
+        });
+    }
+
+    /**
+     * Rewind this conversation to a {@link #checkpoint(String)}: the slot's KV cache is
+     * restored from the checkpoint file and the in-memory transcript is reset to the
+     * checkpointed turns, atomically — native state and transcript cannot drift apart.
+     * Turns sent after the checkpoint are discarded; the conversation continues from the
+     * checkpointed point (e.g. to retry a turn with different wording or sampling).
+     *
+     * @param checkpoint a checkpoint previously taken on a session of the same model
+     *     (typically this one)
+     * @throws IllegalStateException if a stream is in progress
+     */
+    public void rewind(SessionCheckpoint checkpoint) {
+        state.runWhenNotStreaming("rewind", () -> {
+            model.restoreSlot(slotId, checkpoint.getFilepath());
+            state.restoreTurns(checkpoint.getTurns());
+            return null;
+        });
+    }
+
+    /**
+     * Fork this conversation into a new {@link Session} on another slot: the current slot
+     * state is checkpointed to {@code filepath} and restored into {@code newSlotId}, and the
+     * new session starts with a copy of this session's transcript (and the same system
+     * message and parameter customizer). Both sessions then continue independently —
+     * A/B-answering the same conversation, speculative side-branches, etc.
+     * <p>
+     * {@code newSlotId} must be a different slot served by the same model — load the model
+     * with {@link net.ladenthin.llama.parameters.ModelParameters#setParallel(int)} &ge; 2 to have one available. The
+     * checkpoint file's lifecycle is caller-managed and may be deleted once the fork returns.
+     * </p>
+     *
+     * @param newSlotId the slot the forked session is bound to (must differ from this session's)
+     * @param filepath scratch file used to transfer the slot KV state
+     * @return the forked session, positioned at this session's current state
+     * @throws IllegalArgumentException if {@code newSlotId} equals this session's slot id
+     * @throws IllegalStateException if a stream is in progress
+     */
+    public Session fork(int newSlotId, String filepath) {
+        if (newSlotId == slotId) {
+            throw new IllegalArgumentException(
+                    "fork target slot must differ from the session's own slot " + slotId + ", was " + newSlotId);
+        }
+        return state.runWhenNotStreaming("fork", () -> {
+            model.saveSlot(slotId, filepath);
+            model.restoreSlot(newSlotId, filepath);
+            Session forked = new Session(model, newSlotId, state.getSystemMessage(), paramsCustomizer);
+            forked.state.restoreTurns(state.turnsSnapshot());
+            return forked;
+        });
     }
 
     /** Erase the bound slot's KV cache. Does not modify the in-memory transcript. */

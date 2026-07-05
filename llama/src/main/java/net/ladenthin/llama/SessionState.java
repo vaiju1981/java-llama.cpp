@@ -189,6 +189,44 @@ public final class SessionState {
         }
     }
 
+    /**
+     * Return a fresh copy of the committed (role, text) turns for checkpointing. Rejected
+     * while a stream is in progress: the pending user turn is already committed at that
+     * point, so a mid-stream snapshot would capture a dangling half-round.
+     *
+     * @return a fresh copy of the committed turns, in order
+     * @throws IllegalStateException if a stream is in progress
+     */
+    public List<Pair<String, String>> turnsSnapshot() {
+        synchronized (lock) {
+            requireNotStreaming("checkpoint");
+            return transcript.turnsSnapshot();
+        }
+    }
+
+    /**
+     * Replace the transcript's committed turns with a checkpointed snapshot, for
+     * rewinding. Rejected while a stream is in progress.
+     *
+     * @param turns the (role, text) turns to restore, in order
+     * @throws IllegalStateException if a stream is in progress
+     */
+    public void restoreTurns(List<Pair<String, String>> turns) {
+        synchronized (lock) {
+            requireNotStreaming("rewind");
+            transcript.resetTurns(turns);
+        }
+    }
+
+    /**
+     * System-message accessor (fixed at construction).
+     *
+     * @return the system prompt, or {@code null} when none was configured
+     */
+    public @Nullable String getSystemMessage() {
+        return transcript.getSystemMessage();
+    }
+
     private void requireNotStreaming(String operation) {
         if (streamingActive) {
             throw new IllegalStateException("stream in progress on slot " + slotId

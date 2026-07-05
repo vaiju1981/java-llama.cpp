@@ -84,15 +84,24 @@ final class LangChain4jMapping {
     }
 
     /**
-     * Build the streaming inference parameters (messages JSON + sampling) for {@code generateChat}.
-     * Shares {@link #toJllamaRequest(ChatRequest)} so blocking and streaming stay in lockstep. Tool
-     * specifications are <em>not</em> carried into the streaming blob — the streaming adapter
-     * rejects tool requests up front (see {@code JllamaStreamingChatModel}).
+     * Build the streaming inference parameters (messages JSON + tools + sampling) for
+     * {@code streamChatCompletion}. Shares {@link #toJllamaRequest(ChatRequest)} so blocking and
+     * streaming stay in lockstep: tool specifications, the {@code toolChoice} hint, JSON
+     * {@code responseFormat}, and the sampling parameters all ride along — the same wiring
+     * {@code LlamaModel.chat} applies on the blocking path.
      */
     static InferenceParameters toStreamingParameters(ChatRequest request) {
         net.ladenthin.llama.parameters.ChatRequest jllama = toJllamaRequest(request);
         InferenceParameters params =
                 InferenceParameters.empty().withMessagesJson(jllama.buildMessagesJson());
+        java.util.Optional<String> toolsJson = jllama.buildToolsJson();
+        if (toolsJson.isPresent()) {
+            params = params.withToolsJson(toolsJson.get()).withUseChatTemplate(true);
+            java.util.Optional<String> toolChoice = jllama.getToolChoice();
+            if (toolChoice.isPresent()) {
+                params = params.withToolChoice(toolChoice.get());
+            }
+        }
         return jllama.applyCustomizer(params);
     }
 

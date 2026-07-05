@@ -1488,9 +1488,12 @@ via the module's own `JsonSchemaElementSerializer` — langchain4j's serializer 
 `$defs`/`#/$defs/…` conventions; tool-call turns round-trip in both directions),
 `response_format`/JSON mode (`json_object` + `json_schema` structured output), and multimodal
 user input (`ImageContent`/`AudioContent` → `ContentPart` array-form content; needs `--mmproj`).
-**Open follow-ups** (documented in `llama-langchain4j/README.md`): streaming tool calls
-(`JllamaStreamingChatModel` fails fast with `UnsupportedFeatureException` when tools are
-requested) and per-token thinking-stream events.
+Streaming (since 5.0.6, second pass): `JllamaStreamingChatModel` now streams over the native
+OAI chunk path via the module's `StreamingChunkAssembler` — streamed tool calls
+(`onPartialToolCall`/`onCompleteToolCall` + `toolExecutionRequests()` on the final response),
+per-token thinking events (`onPartialThinking` + `AiMessage.thinking()`), real finish reason and
+token usage. **Open follow-up** (documented in `llama-langchain4j/README.md`): `modelName()` is
+ignored (one model per adapter).
 
 ## Android AAR + Kotlin façade (`llama-android/` + `llama-kotlin/`)
 

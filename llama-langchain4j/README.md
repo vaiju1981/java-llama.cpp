@@ -18,7 +18,7 @@ pull langchain4j (or its Java 17 floor) transitively.
 | Class | langchain4j interface | java-llama.cpp call |
 |-------|-----------------------|---------------------|
 | `JllamaChatModel` | `ChatModel` | `LlamaModel.chat(...)` |
-| `JllamaStreamingChatModel` | `StreamingChatModel` | `LlamaModel.generateChat(...)` (token streaming) |
+| `JllamaStreamingChatModel` | `StreamingChatModel` | `LlamaModel.streamChatCompletion(...)` (OAI chunk streaming: text, thinking, tool calls) |
 | `JllamaEmbeddingModel` | `EmbeddingModel` | `LlamaModel.embed(...)` |
 | `JllamaScoringModel` | `ScoringModel` (re-ranking) | `LlamaModel.handleRerank(...)` |
 
@@ -124,17 +124,15 @@ jina-reranker models the core test jobs already download) — the
 - **Sampling parameters:** `temperature`, `topP`, `topK`, `maxOutputTokens`, `frequencyPenalty`,
   `presencePenalty`, `stopSequences`.
 
-The non-streaming chat response carries the model's real finish reason
-(`stop`/`length`/`tool_calls`) and token usage; the streaming completion carries assembled text
-(no per-token usage).
+- **Streaming tool calls + thinking events.** `JllamaStreamingChatModel` streams over the
+  native OpenAI chunk path: `delta.tool_calls` fragments surface as `onPartialToolCall` /
+  `onCompleteToolCall` events and land on the final response as
+  `AiMessage.toolExecutionRequests()` (finish reason `TOOL_EXECUTION`); reasoning deltas surface
+  as `onPartialThinking` and as `AiMessage.thinking()`; both the blocking and the streamed
+  final response carry the model's real finish reason and token usage.
 
 ## Not mapped yet
 
-- **Streaming tool calls.** `JllamaStreamingChatModel` rejects a request with
-  `toolSpecifications()` up front (`UnsupportedFeatureException`) instead of streaming un-parsed
-  text — reconstructing `tool_calls` deltas into `ToolExecutionRequest`s over the token stream is
-  the planned follow-up. Use `JllamaChatModel` (blocking) for tool calls.
-- **Per-token thinking stream events.** Streaming forwards plain text via `onPartialResponse`.
 - **`modelName()`** is ignored since one model is bound per adapter.
 
 Requires Java 17+ (langchain4j 1.x baseline). Targets `langchain4j-core` 1.17.1.

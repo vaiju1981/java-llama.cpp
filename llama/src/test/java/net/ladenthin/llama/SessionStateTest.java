@@ -132,4 +132,50 @@ public class SessionStateTest {
 
         assertThat(ran[0], is(true));
     }
+
+    @Test
+    public void turnsSnapshot_andRestoreTurns_roundTrip() {
+        SessionState state = new SessionState(0, "sys");
+        state.send("a", (systemMessage, wireMessages) -> "b");
+        java.util.List<net.ladenthin.llama.value.Pair<String, String>> checkpoint = state.turnsSnapshot();
+        state.send("c", (systemMessage, wireMessages) -> "d");
+        assertThat(state.snapshot().size(), is(5)); // system + 2 rounds
+
+        state.restoreTurns(checkpoint);
+
+        assertThat(roles(state.snapshot()), contains("system", "user", "assistant"));
+        assertThat(state.snapshot().get(1).getContent(), is("a"));
+    }
+
+    @Test
+    public void turnsSnapshot_rejectedWhileStreaming() {
+        SessionState state = new SessionState(0, null);
+        state.beginStream("q", (systemMessage, wireMessages) -> "HANDLE");
+
+        IllegalStateException thrown =
+                org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, state::turnsSnapshot);
+
+        assertThat(thrown.getMessage().contains("checkpoint"), is(true));
+        state.commitStreamedReply("r");
+        assertThat(state.turnsSnapshot().size(), is(2)); // usable again after commit
+    }
+
+    @Test
+    public void restoreTurns_rejectedWhileStreaming() {
+        SessionState state = new SessionState(0, null);
+        state.beginStream("q", (systemMessage, wireMessages) -> "HANDLE");
+
+        IllegalStateException thrown = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class,
+                () -> state.restoreTurns(
+                        java.util.Collections.<net.ladenthin.llama.value.Pair<String, String>>emptyList()));
+
+        assertThat(thrown.getMessage().contains("rewind"), is(true));
+    }
+
+    @Test
+    public void getSystemMessage_exposesConstructionValue() {
+        assertThat(new SessionState(0, "sys").getSystemMessage(), is("sys"));
+        assertThat(new SessionState(0, null).getSystemMessage(), is((String) null));
+    }
 }
