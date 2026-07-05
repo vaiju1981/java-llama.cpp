@@ -7,7 +7,7 @@
 **Build:**  
 ![Java 8+](https://img.shields.io/badge/Java-8%2B-informational)  
 ![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS%20%7C%20Windows%20%7C%20Android-lightgrey)  
-[![llama.cpp b9870](https://img.shields.io/badge/llama.cpp-%23b9870-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9870)  
+[![llama.cpp b9878](https://img.shields.io/badge/llama.cpp-%23b9878-informational)](https://github.com/ggml-org/llama.cpp/releases/tag/b9878)  
 [![JPMS](https://img.shields.io/badge/JPMS-modular%20JAR-25A162)](https://openjdk.org/projects/jigsaw/)  
 ![JUnit](https://img.shields.io/badge/tested%20with-JUnit6-25A162)  
 [![JSpecify](https://img.shields.io/badge/JSpecify-1.0.0%20%40NullMarked-25A162)](https://jspecify.dev)  
@@ -102,8 +102,10 @@ Inference of Meta's LLaMA model (and others) in pure C/C++.
 
 - Text completion (blocking and streaming) with full control over sampling parameters.
 - OpenAI-compatible **chat completion** with automatic chat-template application, including streaming and tool/function calling support via the upstream server.
-- **Embeddings** and **reranking** for retrieval pipelines.
+- **Embeddings** (single and native-batched via `embed(Collection<String>)`) and **reranking** for retrieval pipelines.
+- **Runtime LoRA adapter control** — list the loaded adapters and change their scales at runtime without reloading the model (`getLoraAdapters()` / `setLoraAdapters(Map)`), the typed counterpart of the upstream `GET`/`POST /lora-adapters` endpoints.
 - **Text-to-speech** (`TextToSpeech`) over the two-model OuteTTS + WavTokenizer pipeline, returning WAV audio.
+- **In-JVM GGUF quantization** (`LlamaQuantizer`) over llama.cpp's `llama_model_quantize` — convert a GGUF to another quantization scheme without shelling out to `llama-quantize`.
 - **Infilling** (fill-in-the-middle) for code models.
 - **Tokenize / detokenize** and **JSON-schema → grammar** conversion.
 - **Raw JSON endpoint handlers** mirroring the upstream llama.cpp HTTP server (`/completions`, `/v1/completions`, `/embeddings`, `/infill`, `/tokenize`, `/detokenize`).
@@ -173,7 +175,7 @@ exclusive — and optionally a CPU Windows build.
 
 | Classifier | Backend | Target platform | Runtime requirement |
 |---|---|---|---|
-| _(none)_ | CPU | Linux x86-64 / aarch64 / s390x, macOS x86-64 / aarch64, Windows x86-64 / x86 / aarch64 (Ninja Multi-Config + MSVC), Android aarch64 (CPU) | A JDK 8+ JVM. **Linux `aarch64` additionally requires glibc ≥ 2.39** (e.g. Ubuntu 24.04+, Debian 13+) — it is built natively on `ubuntu-24.04-arm`, matching upstream llama.cpp's own ARM binaries; older-glibc ARM hosts (Ubuntu 22.04, Debian 12, RHEL 8/9, Amazon Linux 2023) are not supported. Linux x86-64 keeps a glibc 2.17 floor (manylinux2014). **Windows `aarch64`** (Windows on ARM — Snapdragon X / Surface) is built natively on `windows-11-arm` and ships in the default JAR alongside the x86-64 / x86 natives. |
+| _(none)_ | CPU | Linux x86-64 / aarch64 / s390x, macOS x86-64 / aarch64, Windows x86-64 / x86 / aarch64 (Ninja Multi-Config + MSVC), Android aarch64 + x86-64 (CPU) | A JDK 8+ JVM. **Linux `aarch64` additionally requires glibc ≥ 2.39** (e.g. Ubuntu 24.04+, Debian 13+) — it is built natively on `ubuntu-24.04-arm`, matching upstream llama.cpp's own ARM binaries; older-glibc ARM hosts (Ubuntu 22.04, Debian 12, RHEL 8/9, Amazon Linux 2023) are not supported. Linux x86-64 keeps a glibc 2.17 floor (manylinux2014). **Windows `aarch64`** (Windows on ARM — Snapdragon X / Surface) is built natively on `windows-11-arm` and ships in the default JAR alongside the x86-64 / x86 natives. |
 | `msvc-windows` | CPU (MSVC / Visual Studio generator) | Windows x86-64 and x86 | None beyond a JDK 8+ JVM. Same CPU backend as the default JAR's Windows natives, but compiled with the Visual Studio generator instead of `Ninja Multi-Config`. Both use the same MSVC toolchain (static `/MT` CRT), so they are functionally equivalent — provided as an alternate-toolchain option. |
 | `cuda13-windows-x86-64` | CUDA 13 | Windows x86-64 with NVIDIA GPU | NVIDIA driver + CUDA 13 Toolkit installed on the host (`cudart64_13.dll`, `cublas64_13.dll`, `cublasLt64_13.dll` resolvable on `PATH`). The runtime libraries are **not bundled** in the JAR; native-library load fails with `UnsatisfiedLinkError` if they are absent. No CPU fallback. |
 | `vulkan-windows-x86-64` | Vulkan | Windows x86-64 with a Vulkan 1.2+ GPU (NVIDIA / AMD / Intel) | A Vulkan runtime (`vulkan-1.dll`), which current GPU drivers install. No Vulkan SDK is needed at runtime. The most portable Windows GPU option (vendor-independent). |
@@ -238,8 +240,10 @@ there. Pick **at most one** classifier (they are mutually exclusive):
 
 > [!NOTE]
 > Android `armeabi-v7a` (32-bit ARM) is **not** published. Only 64-bit
-> `aarch64` Android binaries are shipped, both as the CPU-only default JAR
-> and as `opencl-android-aarch64`. 32-bit Android devices are unsupported
+> Android binaries are shipped: `aarch64` (devices) and `x86_64`
+> (emulators, Chromebooks, x86-64 Android hardware) in the CPU-only default
+> JAR and the `llama-android` AAR, plus `aarch64` as
+> `opencl-android-aarch64`. 32-bit Android devices are unsupported
 > by the released artifacts; building from source via the
 > `.github/dockcross/dockcross-android-arm` toolchain is possible but not
 > wired into CI.
@@ -309,7 +313,7 @@ Every `net.ladenthin.llama.*` system property recognised by the library, deep-sc
 | `net.ladenthin.llama.vision.image` | `llama/src/test/resources/images/test-image.jpg` (a CC-BY-4.0 / MIT-granted photo committed to the repo) | test | `MultimodalIntegrationTest` | Visual prompt image. Any png/jpeg/webp/gif works; the extension drives MIME detection. |
 | `net.ladenthin.llama.audio.model` | unset (test self-skips) | test | `AudioInputIntegrationTest` (llama.cpp discussion #13759) | Path to an audio-input model GGUF (e.g. Ultravox, Qwen2.5-Omni). |
 | `net.ladenthin.llama.audio.mmproj` | unset (test self-skips) | test | `AudioInputIntegrationTest` | Matching audio mmproj (encoder) GGUF. |
-| `net.ladenthin.llama.audio.input` | unset (test self-skips) | test | `AudioInputIntegrationTest` | `.wav`/`.mp3` audio prompt clip; the extension drives format detection. |
+| `net.ladenthin.llama.audio.input` | `src/test/resources/audios/sample.wav` (committed) | test | `AudioInputIntegrationTest` | `.wav`/`.mp3` audio prompt clip; the extension drives format detection. |
 | `net.ladenthin.llama.tts.ttc.model` | unset (test self-skips) | test | `TtsIntegrationTest` | Path to the OuteTTS text-to-codes GGUF. CI default is `OuteTTS-0.2-500M-Q4_K_M.gguf`. |
 | `net.ladenthin.llama.tts.vocoder.model` | unset (test self-skips) | test | `TtsIntegrationTest` | Path to the matching codes-to-speech vocoder GGUF. CI default is `WavTokenizer-Large-75-F16.gguf`. |
 
@@ -516,8 +520,31 @@ ModelParameters modelParams = new ModelParameters()
         .enableEmbedding();
 try (LlamaModel model = new LlamaModel(modelParams)) {
     float[] embedding = model.embed("Embed this sentence");
+    // Batch form: one native dispatch for many inputs, results in request order.
+    List<float[]> embeddings = model.embed(Arrays.asList("First sentence", "Second sentence"));
 }
 ```
+
+### Runtime LoRA adapter control
+
+Adapters loaded at model-load time (`addLoraAdapter(...)` / `addLoraScaledAdapter(...)`, optionally
+`setLoraInitWithoutApply()` to start disabled) can be listed and re-scaled at runtime without
+reloading the model — the typed counterpart of the upstream `GET`/`POST /lora-adapters` endpoints:
+
+```java
+ModelParameters modelParams = new ModelParameters()
+        .setModel("models/base.gguf")
+        .addLoraScaledAdapter("models/adapter.gguf", 1.0f);
+try (LlamaModel model = new LlamaModel(modelParams)) {
+    List<LoraAdapter> adapters = model.getLoraAdapters();      // [{id=0, path=..., scale=1.0}]
+    model.setLoraAdapter(0, 0.5f);                             // re-scale at runtime
+    model.setLoraAdapters(Collections.emptyMap());             // disable all adapters
+}
+```
+
+Per the upstream contract, a scale update lists the adapters to keep active — any adapter missing
+from the map is set to scale `0` (disabled). The native side clears affected KV caches when the
+effective adapter set changes.
 
 ### Text-to-Speech
 
@@ -545,6 +572,18 @@ Compatible GGUFs (the CI test defaults): OuteTTS
 [`OuteTTS-0.2-500M-GGUF`](https://huggingface.co/second-state/OuteTTS-0.2-500M-GGUF) +
 [`WavTokenizer`](https://huggingface.co/ggml-org/WavTokenizer).
 
+### GGUF Quantization
+
+`LlamaQuantizer` converts a GGUF to another quantization scheme in-process (llama.cpp's
+`llama_model_quantize` — the `llama-quantize` tool without the separate binary):
+
+```java
+LlamaQuantizer.quantize("model-f16.gguf", "model-q4_k_m.gguf", QuantizationType.Q4_K_M);
+// Re-quantizing an already-quantized GGUF degrades quality and must be opted into:
+LlamaQuantizer.quantize("model-q8_0.gguf", "model-q4_0.gguf", QuantizationType.Q4_0,
+        /* threads */ 0, /* allowRequantize */ true);
+```
+
 ### Raw JSON Endpoints
 
 For direct access to the upstream llama.cpp server API, the following methods take a JSON request and return
@@ -555,6 +594,53 @@ a JSON response, matching the HTTP server's contract:
 
 Server state is exposed via `getMetrics()`, `eraseSlot(int)`, `saveSlot(int, String)`,
 `restoreSlot(int, String)`, and `getModelMeta()`.
+
+### Conversation checkpoints: rewind + fork (`Session`)
+
+A `Session` can be snapshotted and branched — the KV-cache slot state and the transcript move
+together, so native state and history can never drift apart:
+
+```java
+try (Session session = new Session(model, 0, "You are terse.")) {
+    session.send("My name is Alice.");
+    SessionCheckpoint cp = session.checkpoint("checkpoints/turn1.bin");
+
+    session.send("Tell me a joke.");
+    session.rewind(cp);                     // undo everything after the checkpoint
+    session.send("Tell me a story instead."); // retry from the branch point
+
+    // Branch into a second slot (model loaded with setParallel(2)+):
+    try (Session forked = session.fork(1, "checkpoints/branch.bin")) {
+        forked.send("Answer as a pirate.");   // both sessions continue independently
+    }
+}
+```
+
+Checkpoint files are caller-managed (KV dumps grow with context usage) and both operations are
+rejected while a stream is in progress. For plain transformer models a rewind is also achievable
+cheaply by resending a truncated history with `cache_prompt` (prefix reuse); checkpoints make the
+branch point exact and are the only reliable rollback for recurrent/hybrid models (e.g.
+Granite-4), whose state cannot be recomputed from a prefix.
+
+### GGUF metadata inspection (no model load)
+
+`GgufInspector` reads a GGUF's header and key/value table **without loading the model** — pure
+Java, no native library, cost independent of file size (parsing stops before the tensor data).
+Useful for model pickers and download validators:
+
+```java
+GgufMetadata meta = GgufInspector.read(Paths.get("models/Qwen3-0.6B-Q4_K_M.gguf"));
+meta.getArchitecture();   // Optional[qwen3]
+meta.getModelName();      // Optional[Qwen3 0.6B]
+meta.getParameterCount(); // OptionalLong[751632384]
+meta.getContextLength();  // OptionalLong[40960]  (<arch>.context_length)
+meta.getFileType();       // OptionalLong[15]     (llama_ftype, cf. QuantizationType)
+meta.getChatTemplate();   // Optional[{{- ... }}]
+meta.getEntries();        // full decoded key/value table
+```
+
+Supports GGUF v2/v3, little- and big-endian (auto-detected), and fails loud on v1/corrupt files.
+For metadata of an already-loaded model use `getModelMeta()` instead.
 
 ### Prompt and KV Cache Reuse
 
@@ -730,12 +816,70 @@ try (NativeServer server = new NativeServer(
 }
 ```
 
-Differences from `OpenAiCompatServer`: it **loads its own model** from the arguments (an independent
-lifecycle, like `llama-server.exe`, not a shared `LlamaModel`), it is **single-instance per
+Differences from `OpenAiCompatServer`: with the classic constructor it **loads its own model** from
+the arguments (an independent lifecycle, like `llama-server.exe`), it is **single-instance per
 process**, it serves the **WebUI** (in released jars — local `cmake` builds ship the empty-asset
 stub, so no UI there), and it is **not available on Android** (the upstream server needs
 `posix_spawn`). Readiness: poll `GET /health`. No SSL (plain HTTP — bind localhost or front with a
 TLS proxy).
+
+#### Attach mode — serve an already-loaded `LlamaModel`
+
+`NativeServer` can also **attach** the full upstream HTTP frontend (routes, WebUI, resumable
+streaming) to a `LlamaModel` you already loaded — one copy of the weights, shared between direct
+JNI calls and HTTP:
+
+```java
+try (LlamaModel model = new LlamaModel(new ModelParameters().setModel("models/model.gguf"));
+     NativeServer server = new NativeServer(model, "--host", "127.0.0.1", "--port", "8080").start()) {
+    // HTTP (incl. WebUI in released jars) and direct Java calls share the same loaded model.
+    String direct = model.complete(new InferenceParameters("2+2=").withNPredict(4));
+    Thread.currentThread().join();
+}
+```
+
+In attach mode the arguments carry only the HTTP-side flags (`--host`, `--port`, `--api-key`, …;
+no `-m`), the server reports healthy immediately (the model is already loaded), and the **caller
+keeps ownership of the model** — close the server before the model, never the other way around.
+
+#### Router mode — multi-model management
+
+Started **without** a model argument, the upstream server runs in **router mode**: it lists models
+from `--models-dir`, loads/unloads them on demand (`GET /models`, `POST /models/load`,
+`POST /models/unload`, per-request `"model"` selection) and serves each model from a **worker
+subprocess**. Upstream spawns workers by re-executing its own binary — inside a JVM that binary is
+`java`, so before starting an embedded router you must point the worker spawn at this library's
+bootstrap:
+
+```java
+String javaBin = System.getProperty("java.home") + File.separator + "bin" + File.separator + "java";
+NativeServer.setWorkerCommand(javaBin, "-cp", System.getProperty("java.class.path"),
+        "net.ladenthin.llama.server.NativeServer");
+try (NativeServer router = new NativeServer(
+        "--host", "127.0.0.1", "--port", "8080", "--models-dir", "models").start()) {
+    Thread.currentThread().join(); // each loaded model runs as a fresh worker JVM
+}
+```
+
+Worker-command tokens may not contain whitespace (the value is whitespace-split natively).
+
+**Typed model management (`RouterClient`).** Instead of hand-rolling HTTP+JSON against the
+management endpoints, use `server.RouterClient` — a plain-HTTP typed client (works against the
+embedded router above or any external `llama-server` router):
+
+```java
+RouterClient client = new RouterClient(8080);
+List<RouterModel> models = client.listModels();          // GET /models, typed status per entry
+client.loadModel("Qwen3-0.6B-Q4_K_M");                   // POST /models/load (non-blocking)
+client.awaitModelLoaded("Qwen3-0.6B-Q4_K_M", 240_000L);  // poll until LOADED; fails fast if the
+                                                         // worker died (exit code in the message)
+client.unloadModel("Qwen3-0.6B-Q4_K_M");                 // POST /models/unload
+```
+
+`RouterModel` carries the identifier, the lifecycle status
+(`UNLOADED`/`LOADING`/`LOADED`/`SLEEPING`/`DOWNLOADING`/`DOWNLOADED`), and the router's
+failed-worker marker. Chat requests then select a model per request via the standard
+`"model"` field on `POST /v1/chat/completions`.
 
 ### LangChain4j integration
 
@@ -832,6 +976,16 @@ Flowable<LlamaOutput> tokens = Flowable.using(
 ```
 
 #### Kotlin Flow (Android / coroutines)
+
+Ready-made: the optional [`net.ladenthin:llama-kotlin`](llama-kotlin/README.md) artifact ships
+`generateFlow`/`generateChatFlow` extensions (close-on-cancellation included) plus `suspend`
+wrappers whose coroutine cancellation is wired to the binding's cooperative `CancellationToken`:
+
+```kotlin
+model.generateChatFlow(params).flowOn(Dispatchers.IO).collect { print(it.text) }
+```
+
+Hand-rolled equivalent (no extra dependency):
 ```kotlin
 fun llama(model: LlamaModel, params: InferenceParameters) = flow {
     model.generate(params).use { iterable ->
@@ -894,7 +1048,36 @@ The `LogLevel` enum values passed to the callback correspond to the native llama
 > **Minimum Android version: API 28 (Android 9.0 Pie).** Devices running
 > Android 8.1 (API 27) or earlier are not supported.
 
-You can use this library in Android project.
+### Option 1 (recommended): the `llama-android` AAR from Maven Central
+
+One dependency line in Android Studio — no submodule, no NDK build, no manual ProGuard rules:
+
+```kotlin
+dependencies {
+    implementation("net.ladenthin:llama-android:5.0.6")
+    // or, for Qualcomm Adreno GPUs (device must provide an OpenCL ICD):
+    // implementation("net.ladenthin:llama-android-opencl:5.0.6")
+
+    // optional Kotlin coroutines facade (Flow streaming + suspend wrappers):
+    implementation("net.ladenthin:llama-kotlin:5.0.6")
+}
+```
+
+The AAR carries the full `net.ladenthin:llama` Java API, the CI-built native libraries for
+`arm64-v8a` (devices) **and** `x86_64` (Android Studio emulator, Chromebooks — app bundles
+split per ABI so phones download only arm64), both 16 KB page-size compliant, consumer
+R8/ProGuard rules (applied automatically), and a manifest `minSdkVersion 28` that AGP
+enforces against your app. CI boots an x86_64 emulator and runs real on-device inference
+against every AAR build.
+Do **not** also depend on the desktop `net.ladenthin:llama` JAR in the same app — the AAR
+already contains those classes, and the JAR would drag ~70 MB of desktop natives into your
+APK. See [`llama-android/README.md`](llama-android/README.md) and
+[`llama-kotlin/README.md`](llama-kotlin/README.md) for details.
+
+### Option 2 (advanced): build from source inside your app
+
+Use this only if you need to patch the native layer or build for an ABI this project does
+not ship.
 1. Add java-llama.cpp as a submodule in your an droid `app` project directory
 ```shell
 git submodule add https://github.com/bernardladenthin/java-llama.cpp 
@@ -956,7 +1139,7 @@ keep class net.ladenthin.llama.** { *; }
 Forward-looking ideas being tracked for this fork:
 
 - **Adopt feature ideas from the Kotlin Llama Stack client.** Candidates (multimodal image input, typed chat messages, async API, batch inference, typed usage/timings) are inventoried with effort estimates in [`docs/feature-investigation-llama-stack-client-kotlin.md`](docs/feature-investigation-llama-stack-client-kotlin.md), derived from [`ogx-ai/llama-stack-client-kotlin`](https://github.com/ogx-ai/llama-stack-client-kotlin).
-- **Ship a directly Android-capable artifact.** Building on the existing [Importing in Android](#importing-in-android) flow and the `opencl-android-aarch64` classifier (see [Choosing the right classifier](#choosing-the-right-classifier)), the goal is a first-class Android Maven artifact — including a typed image-input helper for VLMs such as Qwen2.5-VL — so downstream Android projects can drop their dependency on [`ogx-ai/llama-stack-client-kotlin`](https://github.com/ogx-ai/llama-stack-client-kotlin) entirely.
+- **Ship a directly Android-capable artifact — DONE.** `net.ladenthin:llama-android` / `llama-android-opencl` (AAR, arm64-v8a, minSdk 28, consumer ProGuard rules, 16 KB page-size compliant) plus the optional `net.ladenthin:llama-kotlin` coroutines façade ship from this repo — see [Importing in Android](#importing-in-android). Typed image input for VLMs is covered by `ContentPart.imageBytes(...)` / `imageFile(...)` (see the multimodal section), so downstream Android projects can drop their dependency on [`ogx-ai/llama-stack-client-kotlin`](https://github.com/ogx-ai/llama-stack-client-kotlin) entirely. A dedicated example app remains a follow-up.
 - **Resolve all upstream `kherud/java-llama.cpp` open issues.** All 37 open issues at fork time are catalogued with per-issue verdicts in [`docs/history/49be664_open_issues.md`](docs/history/49be664_open_issues.md); fixes land in this fork as they are completed. Vision inputs (issues [#103](docs/history/49be664_open_issues.md#103--vlm-support--image-input-for-multimodal-models) and [#34](docs/history/49be664_open_issues.md#34--support-multimodal-inputs)) are now wired end to end through blocking, typed, streaming, and OpenAI-compatible request surfaces.
 
 ## Troubleshooting
@@ -993,10 +1176,19 @@ The system's updated C++ runtime will be used instead, resolving the crash.
 
 **Bindings / wrappers**
 
-- [LLaMAndroid](https://github.com/Rattlyy/LLaMAndroid/tree/main/app) — Android app demonstrating usage of llama.cpp bindings.
-- [llama-stack-client-kotlin](https://github.com/ogx-ai/llama-stack-client-kotlin) — Kotlin client for the Llama Stack API.
-- [llama.cpp-android-tutorial](https://github.com/JackZeng0208/llama.cpp-android-tutorial) — Step-by-step tutorial for running llama.cpp on Android.
+- [kherud/java-llama.cpp](https://github.com/kherud/java-llama.cpp) — the upstream Java binding this project was forked from (see the note at the top of this README); development continues independently here, with the fork-time upstream issues catalogued in [`docs/history/49be664_open_issues.md`](docs/history/49be664_open_issues.md).
 - [llamacpp4j](https://github.com/sebicom/llamacpp4j) — alternative Java/JNI binding to llama.cpp (SWIG-generated facade); pre-GGUF, dormant since 2023 but historically the other Java JNI option.
+- [llama-cpp-python](https://github.com/abetlen/llama-cpp-python) — the Python llama.cpp binding; the de-facto feature benchmark among llama.cpp bindings (server mode, multimodal, speculative decoding).
+- [LLamaSharp](https://github.com/SciSharp/LLamaSharp) — C#/.NET llama.cpp binding with per-backend runtime packages (CPU/CUDA/Vulkan/Metal), the .NET analogue of this project's classifier matrix.
+- [node-llama-cpp](https://github.com/withcatai/node-llama-cpp) — Node.js/TypeScript llama.cpp binding (prebuilt binaries, JSON-schema-constrained output, function calling).
+- [LLaMAndroid](https://github.com/Rattlyy/LLaMAndroid/tree/main/app) — Android app demonstrating usage of llama.cpp bindings.
+- [llama-stack-client-kotlin](https://github.com/ogx-ai/llama-stack-client-kotlin) — Kotlin client for the Llama Stack API with an ExecuTorch-backed local-inference path (the [`llama-android`](llama-android/) AAR + [`llama-kotlin`](llama-kotlin/) façade cover the same on-device ground natively).
+- [llama.cpp-android-tutorial](https://github.com/JackZeng0208/llama.cpp-android-tutorial) — Step-by-step tutorial for running llama.cpp on Android.
+
+**Other local inference stacks (no llama.cpp JVM binding)**
+
+- [Ollama](https://github.com/ollama/ollama) — llama.cpp-based local model runner with its own HTTP API and model registry. This project's OpenAI-compatible server implements the Ollama-native API surface (`/api/version`, `/api/tags`, `/api/show`, `/api/chat`, `/api/generate`), so Ollama-speaking clients (e.g. VS Code Copilot's Ollama provider) work against an in-process jllama model.
+- [ExecuTorch](https://github.com/pytorch/executorch) — PyTorch's on-device inference runtime (`.pte` models, XNNPACK/NPU delegates); the engine behind `llama-stack-client-kotlin`'s local mode and the main non-llama.cpp alternative for Android on-device inference (GGUF is not supported there — different model format ecosystem).
 
 **Pure-Java single-model inference (no JNI / no llama.cpp)** — Alfonso² Peterssen's `*.java` family of standalone, dependency-free Java inference runtimes, one per model architecture. Useful when JNI is unavailable (e.g. some sandboxes / GraalVM native-image scenarios) or when you want a single jar with no native side at all. Different design point from this project, which prioritises GGUF compatibility and llama.cpp performance via JNI.
 

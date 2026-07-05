@@ -203,6 +203,19 @@ SPDX-License-Identifier: MIT
     </Match>
 
     <!--
+        NativeServer's attach constructor deliberately stores the caller's LlamaModel reference:
+        attach mode serves that exact loaded model's native server context over HTTP, so the
+        borrowed-reference contract is the feature (mirror of the Session rationale above). The
+        model owns native memory and must NOT be defensively copied; NativeServer never closes it
+        (documented: close the server before the model).
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.server.NativeServer"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+        <Method name="&lt;init&gt;"/>
+    </Match>
+
+    <!--
         USBR_UNNECESSARY_STORE_BEFORE_RETURN on Lombok-generated equals / hashCode /
         canEqual / toString.
 
@@ -711,6 +724,47 @@ SPDX-License-Identifier: MIT
         <Class name="net.ladenthin.llama.server.OpenAiServerCli$Options"/>
         <Bug pattern="EI_EXPOSE_REP"/>
         <Method name="getChatTemplateKwargs"/>
+    </Match>
+
+    <!--
+        RouterClient is an HTTP client for the router-mode model-management endpoints; the
+        target URL is composed from the host/port the DEVELOPER passes to the constructor
+        (typically 127.0.0.1 + the port of the in-JVM NativeServer), never from request-time
+        or user-controlled input. findsecbugs' URLCONNECTION_SSRF_FD flags every
+        URL-from-variable HttpURLConnection; there is no server-side request forwarding here
+        for an attacker to influence.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.server.RouterClient"/>
+        <Bug pattern="URLCONNECTION_SSRF_FD"/>
+    </Match>
+
+    <!--
+        GgufInspector.read: the "same method called redundantly" finding is the stateful
+        sequential reader (each Reader.u64() consumes the next 8 bytes of the stream —
+        tensor count then kv count are two different values by design). The "unrelated
+        return values" finding is the GGUF tagged-value decoder: readValue() returns
+        Long/Double/Boolean/String/List by the wire type tag — heterogeneous Object
+        returns ARE the decoded format (the typed accessors on GgufMetadata re-narrow).
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.GgufInspector"/>
+        <Or>
+            <Bug pattern="PRMC_POSSIBLY_REDUNDANT_METHOD_CALLS"/>
+            <Bug pattern="URV_UNRELATED_RETURN_VALUES"/>
+        </Or>
+    </Match>
+
+    <!--
+        SessionCheckpoint's constructor takes List (not Collection) on purpose: transcript
+        turns are ORDER-SIGNIFICANT (user/assistant alternation), and List documents that
+        contract at the API boundary. Same rationale as the ChatMessage public constructor's
+        List parameter suppression.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.value.SessionCheckpoint"/>
+        <Bug pattern="OCP_OVERLY_CONCRETE_COLLECTION_PARAMETER"/>
+        <Method name="&lt;init&gt;"/>
     </Match>
 
 </FindBugsFilter>

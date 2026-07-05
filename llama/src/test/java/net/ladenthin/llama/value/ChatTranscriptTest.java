@@ -296,4 +296,53 @@ class ChatTranscriptTest {
             assertThat(t.snapshot().get(1).getRole(), is("assistant"));
         }
     }
+
+    @Nested
+    @DisplayName("checkpoint snapshot / rewind reset")
+    class CheckpointShape {
+
+        @Test
+        @DisplayName("turnsSnapshot() is a detached copy")
+        void turnsSnapshotIsDetachedCopy() {
+            ChatTranscript t = new ChatTranscript(null);
+            t.appendRound("hi", "hello");
+
+            List<Pair<String, String>> snapshot = t.turnsSnapshot();
+            snapshot.clear(); // mutating the copy must not affect the transcript
+
+            assertThat(t.size(), is(2));
+            assertThat(t.turnsSnapshot(), hasSize(2));
+        }
+
+        @Test
+        @DisplayName("resetTurns() replaces the committed turns and copies the input")
+        void resetTurnsReplacesAndCopies() {
+            ChatTranscript t = new ChatTranscript("sys");
+            t.appendRound("a", "b");
+            t.appendRound("c", "d");
+
+            List<Pair<String, String>> checkpoint = new java.util.ArrayList<>(
+                    java.util.Arrays.asList(new Pair<>("user", "a"), new Pair<>("assistant", "b")));
+            t.resetTurns(checkpoint);
+            checkpoint.clear(); // later mutation of the input must not leak in
+
+            assertThat(t.size(), is(2));
+            List<ChatMessage> snap = t.snapshot();
+            // system message survives the reset (fixed at construction)
+            assertThat(snap.get(0).getRole(), is("system"));
+            assertThat(snap.get(1).getContent(), is("a"));
+            assertThat(snap.get(2).getContent(), is("b"));
+        }
+
+        @Test
+        @DisplayName("resetTurns() to empty rewinds to the very start")
+        void resetTurnsToEmpty() {
+            ChatTranscript t = new ChatTranscript(null);
+            t.appendRound("a", "b");
+
+            t.resetTurns(java.util.Collections.<Pair<String, String>>emptyList());
+
+            assertThat(t.size(), is(0));
+        }
+    }
 }

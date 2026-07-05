@@ -849,6 +849,72 @@ TEST(ServerTaskResultApplyLora, ToJson_SuccessTrue) {
 }
 
 // ============================================================
+// server_task_result_get_lora::to_json
+//   The GET /lora-adapters shape parsed by the Java
+//   LoraAdapterResponseParser (LlamaModel.getLoraAdapters).
+// ============================================================
+
+TEST(ServerTaskResultGetLora, ToJson_NoAdapters_EmptyArray) {
+    server_task_result_get_lora r;
+    const json j = r.to_json();
+    ASSERT_TRUE(j.is_array());
+    EXPECT_TRUE(j.empty());
+}
+
+TEST(ServerTaskResultGetLora, ToJson_EntryCarriesIdPathScaleTaskNamePromptPrefix) {
+    server_task_result_get_lora r;
+    common_adapter_lora_info info;
+    info.path = "adapter.gguf";
+    info.scale = 0.5f;
+    info.task_name = "classification";
+    info.prompt_prefix = "prefix";
+    r.loras.push_back(server_task_result_get_lora::lora{info, "", {}});
+
+    const json j = r.to_json();
+    ASSERT_TRUE(j.is_array());
+    ASSERT_EQ(j.size(), 1u);
+    EXPECT_EQ(j[0].at("id").get<int>(), 0);
+    EXPECT_EQ(j[0].at("path").get<std::string>(), "adapter.gguf");
+    EXPECT_FLOAT_EQ(j[0].at("scale").get<float>(), 0.5f);
+    EXPECT_EQ(j[0].at("task_name").get<std::string>(), "classification");
+    EXPECT_EQ(j[0].at("prompt_prefix").get<std::string>(), "prefix");
+    // alora fields are only present when invocation tokens exist
+    EXPECT_FALSE(j[0].contains("alora_invocation_string"));
+    EXPECT_FALSE(j[0].contains("alora_invocation_tokens"));
+}
+
+TEST(ServerTaskResultGetLora, ToJson_AloraTokens_PresentWhenNonEmpty) {
+    server_task_result_get_lora r;
+    common_adapter_lora_info info;
+    info.path = "alora.gguf";
+    info.scale = 1.0f;
+    r.loras.push_back(server_task_result_get_lora::lora{info, "<invoke>", {7, 8}});
+
+    const json j = r.to_json();
+    ASSERT_EQ(j.size(), 1u);
+    EXPECT_EQ(j[0].at("alora_invocation_string").get<std::string>(), "<invoke>");
+    const auto toks = j[0].at("alora_invocation_tokens").get<std::vector<int>>();
+    ASSERT_EQ(toks.size(), 2u);
+    EXPECT_EQ(toks[0], 7);
+    EXPECT_EQ(toks[1], 8);
+}
+
+TEST(ServerTaskResultGetLora, ToJson_IdIsArrayIndex) {
+    server_task_result_get_lora r;
+    common_adapter_lora_info a;
+    a.path = "a.gguf";
+    common_adapter_lora_info b;
+    b.path = "b.gguf";
+    r.loras.push_back(server_task_result_get_lora::lora{a, "", {}});
+    r.loras.push_back(server_task_result_get_lora::lora{b, "", {}});
+
+    const json j = r.to_json();
+    ASSERT_EQ(j.size(), 2u);
+    EXPECT_EQ(j[0].at("id").get<int>(), 0);
+    EXPECT_EQ(j[1].at("id").get<int>(), 1);
+}
+
+// ============================================================
 // server_task_result_error::to_json
 //   jllama.cpp calls is_error() then get_result_error_message()
 //   (which calls to_json()["message"]) on every error result.

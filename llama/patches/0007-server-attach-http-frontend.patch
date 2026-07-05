@@ -1,0 +1,288 @@
+--- a/tools/server/server.cpp
++++ b/tools/server/server.cpp
+@@ -94,8 +94,111 @@
+     };
+ }
+ 
++// [jllama] Route table shared by the standalone single-model server, the router, and the
++// embedded attach mode (llama_server_attach below). Extracted verbatim from llama_server() so the
++// entry points cannot drift. The resumable-streaming routes are NOT registered here: their
++// handlers differ between router and non-router mode, so each entry point wires its own. Returns
++// false when the experimental built-in tools were requested but failed to set up.
++[[nodiscard]] static bool llama_server_register_common_routes(
++        server_http_context & ctx_http,
++        server_routes       & routes,
++        const common_params & params,
++        server_tools        & tools) {
++    ctx_http.get ("/health",                   ex_wrapper(routes.get_health)); // public endpoint (no API key check)
++    ctx_http.get ("/v1/health",                ex_wrapper(routes.get_health)); // public endpoint (no API key check)
++    ctx_http.get ("/metrics",                  ex_wrapper(routes.get_metrics));
++    ctx_http.get ("/props",                    ex_wrapper(routes.get_props));
++    ctx_http.post("/props",                    ex_wrapper(routes.post_props));
++    ctx_http.get ("/models",                   ex_wrapper(routes.get_models)); // public endpoint (no API key check)
++    ctx_http.get ("/v1/models",                ex_wrapper(routes.get_models)); // public endpoint (no API key check)
++    ctx_http.post("/completion",               ex_wrapper(routes.post_completions)); // legacy
++    ctx_http.post("/completions",              ex_wrapper(routes.post_completions));
++    ctx_http.post("/v1/completions",           ex_wrapper(routes.post_completions_oai));
++    ctx_http.post("/chat/completions",         ex_wrapper(routes.post_chat_completions));
++    ctx_http.post("/v1/chat/completions",      ex_wrapper(routes.post_chat_completions));
++    ctx_http.post("/v1/chat/completions/control", ex_wrapper(routes.post_control));
++    ctx_http.post("/v1/responses",             ex_wrapper(routes.post_responses_oai));
++    ctx_http.post("/responses",                ex_wrapper(routes.post_responses_oai));
++    ctx_http.post("/v1/audio/transcriptions",  ex_wrapper(routes.post_transcriptions_oai));
++    ctx_http.post("/audio/transcriptions",     ex_wrapper(routes.post_transcriptions_oai));
++    ctx_http.post("/v1/messages",              ex_wrapper(routes.post_anthropic_messages)); // anthropic messages API
++    ctx_http.post("/infill",                   ex_wrapper(routes.post_infill));
++    ctx_http.post("/embedding",                ex_wrapper(routes.post_embeddings)); // legacy
++    ctx_http.post("/embeddings",               ex_wrapper(routes.post_embeddings));
++    ctx_http.post("/v1/embeddings",            ex_wrapper(routes.post_embeddings_oai));
++    ctx_http.post("/rerank",                   ex_wrapper(routes.post_rerank));
++    ctx_http.post("/reranking",                ex_wrapper(routes.post_rerank));
++    ctx_http.post("/v1/rerank",                ex_wrapper(routes.post_rerank));
++    ctx_http.post("/v1/reranking",             ex_wrapper(routes.post_rerank));
++    ctx_http.post("/tokenize",                 ex_wrapper(routes.post_tokenize));
++    ctx_http.post("/detokenize",               ex_wrapper(routes.post_detokenize));
++    ctx_http.post("/apply-template",           ex_wrapper(routes.post_apply_template));
++    // token counting
++    ctx_http.post("/chat/completions/input_tokens",    ex_wrapper(routes.post_chat_completions_tok));
++    ctx_http.post("/v1/chat/completions/input_tokens", ex_wrapper(routes.post_chat_completions_tok));
++    ctx_http.post("/responses/input_tokens",           ex_wrapper(routes.post_responses_tok_oai));
++    ctx_http.post("/v1/responses/input_tokens",        ex_wrapper(routes.post_responses_tok_oai));
++    ctx_http.post("/v1/messages/count_tokens",         ex_wrapper(routes.post_anthropic_count_tokens)); // anthropic token counting
++    // LoRA adapters hotswap
++    ctx_http.get ("/lora-adapters",            ex_wrapper(routes.get_lora_adapters));
++    ctx_http.post("/lora-adapters",            ex_wrapper(routes.post_lora_adapters));
++    // Save & load slots
++    ctx_http.get ("/slots",                    ex_wrapper(routes.get_slots));
++    ctx_http.post("/slots/:id_slot",           ex_wrapper(routes.post_slots));
++
++    // Google Cloud Platform (Vertex AI) compat
++    ctx_http.register_gcp_compat();
++
++    // return 403 for disabled features
++    server_http_context::handler_t res_403 = [](const server_http_req &) {
++        auto res = std::make_unique<server_http_res>();
++        res->status = 403;
++        res->data = safe_json_to_str({
++            {"error", {
++                {"message", "this feature is disabled"},
++                {"type", "feature_disabled"},
++            }}
++        });
++        return res;
++    };
++
++    // CORS proxy (EXPERIMENTAL, only used by the Web UI for MCP)
++    if (params.ui_mcp_proxy) {
++        SRV_WRN("%s", "-----------------\n");
++        SRV_WRN("%s", "CORS proxy is enabled, do not expose server to untrusted environments\n");
++        SRV_WRN("%s", "This feature is EXPERIMENTAL and may be removed or changed in future versions\n");
++        SRV_WRN("%s", "-----------------\n");
++        ctx_http.get ("/cors-proxy",      ex_wrapper(proxy_handler_get));
++        ctx_http.post("/cors-proxy",      ex_wrapper(proxy_handler_post));
++    } else {
++        ctx_http.get ("/cors-proxy",      ex_wrapper(res_403));
++        ctx_http.post("/cors-proxy",      ex_wrapper(res_403));
++    }
++
++    // EXPERIMENTAL built-in tools
++    if (!params.server_tools.empty()) {
++        try {
++            tools.setup(params.server_tools);
++        } catch (const std::exception & e) {
++            SRV_ERR("tools setup failed: %s\n", e.what());
++            return false;
++        }
++        SRV_WRN("%s", "-----------------\n");
++        SRV_WRN("%s", "Built-in tools are enabled, do not expose server to untrusted environments\n");
++        SRV_WRN("%s", "This feature is EXPERIMENTAL and may be changed in the future\n");
++        SRV_WRN("%s", "-----------------\n");
++        ctx_http.get ("/tools",           ex_wrapper(tools.handle_get));
++        ctx_http.post("/tools",           ex_wrapper(tools.handle_post));
++    } else {
++        ctx_http.get ("/tools",           ex_wrapper(res_403));
++        ctx_http.post("/tools",           ex_wrapper(res_403));
++    }
++    return true;
++}
++
+ // satisfies -Wmissing-declarations
+ int llama_server(int argc, char ** argv);
++int llama_server_attach(int argc, char ** argv, server_context & ctx_server);
+ 
+ int llama_server(int argc, char ** argv) {
+     std::setlocale(LC_NUMERIC, "C");
+@@ -230,47 +333,9 @@
+         ctx_http.del ("/models",               ex_wrapper(models_routes->del_router_models));
+     }
+ 
+-    ctx_http.get ("/health",                   ex_wrapper(routes.get_health)); // public endpoint (no API key check)
+-    ctx_http.get ("/v1/health",                ex_wrapper(routes.get_health)); // public endpoint (no API key check)
+-    ctx_http.get ("/metrics",                  ex_wrapper(routes.get_metrics));
+-    ctx_http.get ("/props",                    ex_wrapper(routes.get_props));
+-    ctx_http.post("/props",                    ex_wrapper(routes.post_props));
+-    ctx_http.get ("/models",                   ex_wrapper(routes.get_models)); // public endpoint (no API key check)
+-    ctx_http.get ("/v1/models",                ex_wrapper(routes.get_models)); // public endpoint (no API key check)
+-    ctx_http.post("/completion",               ex_wrapper(routes.post_completions)); // legacy
+-    ctx_http.post("/completions",              ex_wrapper(routes.post_completions));
+-    ctx_http.post("/v1/completions",           ex_wrapper(routes.post_completions_oai));
+-    ctx_http.post("/chat/completions",         ex_wrapper(routes.post_chat_completions));
+-    ctx_http.post("/v1/chat/completions",      ex_wrapper(routes.post_chat_completions));
+-    ctx_http.post("/v1/chat/completions/control", ex_wrapper(routes.post_control));
+-    ctx_http.post("/v1/responses",             ex_wrapper(routes.post_responses_oai));
+-    ctx_http.post("/responses",                ex_wrapper(routes.post_responses_oai));
+-    ctx_http.post("/v1/audio/transcriptions",  ex_wrapper(routes.post_transcriptions_oai));
+-    ctx_http.post("/audio/transcriptions",     ex_wrapper(routes.post_transcriptions_oai));
+-    ctx_http.post("/v1/messages",              ex_wrapper(routes.post_anthropic_messages)); // anthropic messages API
+-    ctx_http.post("/infill",                   ex_wrapper(routes.post_infill));
+-    ctx_http.post("/embedding",                ex_wrapper(routes.post_embeddings)); // legacy
+-    ctx_http.post("/embeddings",               ex_wrapper(routes.post_embeddings));
+-    ctx_http.post("/v1/embeddings",            ex_wrapper(routes.post_embeddings_oai));
+-    ctx_http.post("/rerank",                   ex_wrapper(routes.post_rerank));
+-    ctx_http.post("/reranking",                ex_wrapper(routes.post_rerank));
+-    ctx_http.post("/v1/rerank",                ex_wrapper(routes.post_rerank));
+-    ctx_http.post("/v1/reranking",             ex_wrapper(routes.post_rerank));
+-    ctx_http.post("/tokenize",                 ex_wrapper(routes.post_tokenize));
+-    ctx_http.post("/detokenize",               ex_wrapper(routes.post_detokenize));
+-    ctx_http.post("/apply-template",           ex_wrapper(routes.post_apply_template));
+-    // token counting
+-    ctx_http.post("/chat/completions/input_tokens",    ex_wrapper(routes.post_chat_completions_tok));
+-    ctx_http.post("/v1/chat/completions/input_tokens", ex_wrapper(routes.post_chat_completions_tok));
+-    ctx_http.post("/responses/input_tokens",           ex_wrapper(routes.post_responses_tok_oai));
+-    ctx_http.post("/v1/responses/input_tokens",        ex_wrapper(routes.post_responses_tok_oai));
+-    ctx_http.post("/v1/messages/count_tokens",         ex_wrapper(routes.post_anthropic_count_tokens)); // anthropic token counting
+-    // LoRA adapters hotswap
+-    ctx_http.get ("/lora-adapters",            ex_wrapper(routes.get_lora_adapters));
+-    ctx_http.post("/lora-adapters",            ex_wrapper(routes.post_lora_adapters));
+-    // Save & load slots
+-    ctx_http.get ("/slots",                    ex_wrapper(routes.get_slots));
+-    ctx_http.post("/slots/:id_slot",           ex_wrapper(routes.post_slots));
++    if (!llama_server_register_common_routes(ctx_http, routes, params, tools)) {
++        return 1;
++    }
+ 
+     // resumable streaming, the conversation_id is the session identity end to end. router and
+     // child wire different handlers under the same paths: a child binds the local g_stream_sessions
+@@ -295,53 +360,6 @@
+     ctx_http.post("/v1/streams/lookup",        ex_wrapper(streams_lookup_h));
+     ctx_http.del ("/v1/stream/:conv_id",       ex_wrapper(stream_delete_h));
+ 
+-    // Google Cloud Platform (Vertex AI) compat
+-    ctx_http.register_gcp_compat();
+-
+-    // return 403 for disabled features
+-    server_http_context::handler_t res_403 = [](const server_http_req &) {
+-        auto res = std::make_unique<server_http_res>();
+-        res->status = 403;
+-        res->data = safe_json_to_str({
+-            {"error", {
+-                {"message", "this feature is disabled"},
+-                {"type", "feature_disabled"},
+-            }}
+-        });
+-        return res;
+-    };
+-
+-    // CORS proxy (EXPERIMENTAL, only used by the Web UI for MCP)
+-    if (params.ui_mcp_proxy) {
+-        SRV_WRN("%s", "-----------------\n");
+-        SRV_WRN("%s", "CORS proxy is enabled, do not expose server to untrusted environments\n");
+-        SRV_WRN("%s", "This feature is EXPERIMENTAL and may be removed or changed in future versions\n");
+-        SRV_WRN("%s", "-----------------\n");
+-        ctx_http.get ("/cors-proxy",      ex_wrapper(proxy_handler_get));
+-        ctx_http.post("/cors-proxy",      ex_wrapper(proxy_handler_post));
+-    } else {
+-        ctx_http.get ("/cors-proxy",      ex_wrapper(res_403));
+-        ctx_http.post("/cors-proxy",      ex_wrapper(res_403));
+-    }
+-
+-    // EXPERIMENTAL built-in tools
+-    if (!params.server_tools.empty()) {
+-        try {
+-            tools.setup(params.server_tools);
+-        } catch (const std::exception & e) {
+-            SRV_ERR("tools setup failed: %s\n", e.what());
+-            return 1;
+-        }
+-        SRV_WRN("%s", "-----------------\n");
+-        SRV_WRN("%s", "Built-in tools are enabled, do not expose server to untrusted environments\n");
+-        SRV_WRN("%s", "This feature is EXPERIMENTAL and may be changed in the future\n");
+-        SRV_WRN("%s", "-----------------\n");
+-        ctx_http.get ("/tools",           ex_wrapper(tools.handle_get));
+-        ctx_http.post("/tools",           ex_wrapper(tools.handle_post));
+-    } else {
+-        ctx_http.get ("/tools",           ex_wrapper(res_403));
+-        ctx_http.post("/tools",           ex_wrapper(res_403));
+-    }
+ 
+     //
+     // Handle downloading model
+@@ -503,3 +521,68 @@
+ 
+     return 0;
+ }
++
++// [jllama] Attach the upstream HTTP frontend — full route table, WebUI assets, resumable
++// streaming — to an ALREADY-LOADED server_context owned by an embedding caller (a LlamaModel
++// driven over JNI). Unlike llama_server(): no common_init(), no backend/NUMA init, no model
++// load and no start_loop() — the caller's worker thread keeps driving the context, the HTTP
++// routes only post tasks to its queue (the queue is the synchronization point). Parses only the
++// HTTP-relevant argv (--host/--port/--api-key/...; no -m). Blocks until
++// llama_server_request_shutdown(); never terminates the shared server_context or frees the
++// backend — the embedding caller owns both. Shares shutdown_handler with llama_server(), so the
++// single-instance-per-process rule covers both entry points.
++int llama_server_attach(int argc, char ** argv, server_context & ctx_server) {
++    std::setlocale(LC_NUMERIC, "C");
++
++    common_params params;
++    // embedded callers always forward a clean UTF-8 argv (see llama_server's embedded parse note)
++    if (!common_params_parse(argc, argv, params, LLAMA_EXAMPLE_SERVER)) {
++        return 1;
++    }
++
++    // stream session GC: lifecycle is symmetric with the HTTP frontend (same as llama_server)
++    g_stream_sessions.start_gc();
++
++    server_http_context ctx_http;
++    if (!ctx_http.init(params)) {
++        SRV_ERR("%s", "failed to initialize HTTP server\n");
++        g_stream_sessions.stop_gc();
++        return 1;
++    }
++
++    server_routes routes(params, ctx_server);
++    server_tools tools;
++    if (!llama_server_register_common_routes(ctx_http, routes, params, tools)) {
++        g_stream_sessions.stop_gc();
++        return 1;
++    }
++
++    // single-model (non-router) resumable-streaming handlers
++    ctx_http.get ("/v1/stream/:conv_id",       ex_wrapper(make_stream_get_handler()));
++    ctx_http.post("/v1/streams/lookup",        ex_wrapper(make_streams_lookup_handler()));
++    ctx_http.del ("/v1/stream/:conv_id",       ex_wrapper(make_stream_delete_handler()));
++
++    if (!ctx_http.start()) {
++        SRV_ERR("%s", "exiting due to HTTP server error\n");
++        g_stream_sessions.stop_gc();
++        return 1;
++    }
++
++    // the caller's model is already loaded, so the frontend is ready immediately
++    routes.update_meta(ctx_server);
++    ctx_http.is_ready.store(true);
++
++    shutdown_handler = [&](int) {
++        ctx_http.stop();
++    };
++
++    SRV_INF("attached to existing server context, listening on %s\n", ctx_http.listening_address.c_str());
++
++    // block until llama_server_request_shutdown() stops the HTTP thread
++    if (ctx_http.thread.joinable()) {
++        ctx_http.thread.join();
++    }
++
++    g_stream_sessions.stop_gc();
++    return 0;
++}

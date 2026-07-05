@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9870**
+Current llama.cpp pinned version: **b9878**
 
 ## Upgrading CUDA Version
 
@@ -376,7 +376,7 @@ needs no extra step here, `build-webui` re-reads the tag and rebuilds the matchi
 ships no UI):
 ```bash
 # needs node/npm + network; embed.cpp is plain C++17 (no npm)
-git clone --depth 1 --branch b9870 https://github.com/ggml-org/llama.cpp /tmp/lc
+git clone --depth 1 --branch b9878 https://github.com/ggml-org/llama.cpp /tmp/lc
 ( cd /tmp/lc/tools/ui && npm ci && npm run build \
   && ( cd dist && find . -type f -not -path './_gzip/*' \
        | while read -r f; do mkdir -p "_gzip/$(dirname "$f")"; gzip -9 -c "$f" > "_gzip/$f"; done ) \
@@ -416,7 +416,7 @@ cache lives in **Depot Cache** over sccache's **WebDAV** backend:
 - `SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}` — a Depot **organization** token, stored
   as the repo secret **`DEPOT_TOKEN`**.
 
-Because `sccache` is **content-addressed** and llama.cpp is pinned (`GIT_TAG b9870`), the
+Because `sccache` is **content-addressed** and llama.cpp is pinned (`GIT_TAG b9878`), the
 ~280 upstream object files are byte-identical every run, so a warm cache recompiles only the
 *changed* files. Depot's cache is **shared across all branches** (unlike GitHub's
 per-branch `actions/cache`), so every branch builds incrementally; a `b<nnnn>` version bump
@@ -529,6 +529,8 @@ Current patches:
 | `0003-pr22393-server-add-slot-prompt-similarity-getter-setter.patch` | **Upstream-PR carry** of [ggml-org/llama.cpp#22393](https://github.com/ggml-org/llama.cpp/pull/22393) ("server : add slot_prompt_similarity getter/setter") while it is still open upstream. Purely additive: adds `server_context::get_slot_prompt_similarity()` / `set_slot_prompt_similarity(float)` (`tools/server/server-context.{cpp,h}`) so an embedding/JNI caller can query and tune the slot-selection threshold at runtime without reloading the model. Verbatim copy of the PR — drop it once a pinned `b<nnnn>` includes the change. |
 | `0004-pr23116-server-per-request-reasoning-budget-tokens.patch` | **Upstream-PR carry** of [ggml-org/llama.cpp#23116](https://github.com/ggml-org/llama.cpp/pull/23116) ("server: honour per-request reasoning_budget_tokens in chat completions"), motivated by java-llama.cpp#140, while it is still open upstream. `oaicompat_chat_params_parse` (`tools/server/server-common.cpp`) only read the Anthropic `thinking_budget_tokens` alias and always wrote the server-level `reasoning_budget_message`, so a per-request `reasoning_budget_tokens` / `reasoning_budget_message` on a chat-completions request was ignored. The patch reads both overrides **before** the generic copy loop (precedence: `reasoning_budget_tokens` > `thinking_budget_tokens` alias > server default) and threads the per-request message through. Carries the upstream `tests/test-chat.cpp` additions verbatim so the patch is submittable as-is; like `0001`'s test/call-site flips they are **applied-but-not-compiled** here (`LLAMA_BUILD_TESTS` is OFF for the FetchContent subproject). Drop it once a pinned `b<nnnn>` includes the change. |
 | `0005-server-recurrent-near-prompt-end-checkpoints.patch` | **Multi-turn tool-calling perf fix for recurrent/hybrid models (e.g. Granite-4)**, upstream-submittable. In `server_context::update_slots` (`tools/server/server-context.cpp`) the near-prompt-end context checkpoints are gated by `checkpoint_min_step` (default 8192 tokens). An agentic conversation that appends only assistant/tool messages never produces a new user-message checkpoint (`is_user_start`/`is_last_user_message` match `COMMON_CHAT_ROLE_USER` only), so after turn 1 no new checkpoint is ever created and — because recurrent state can only roll back to a checkpoint — **every turn re-prefills the whole conversation tail** (measured on a synthetic granitehybrid model: prefilled tokens grew 901 → 1544 → 2187 → 2830 → 3473 over turns 2–6). The patch (1) exempts near-prompt-end checkpoints from the min-step spacing when the memory can only roll back via checkpoints (`ctx_tgt_seq_rm_type` is `FULL` or `RS` — SWA-only models are unaffected), and (2) skips creating a checkpoint whose position equals the newest one (the last-user-message checkpoint was re-created identically on every turn, flooding the 32-entry list). After the patch each turn restores the previous turn's near-end checkpoint and prefill is constant (~new-turn-sized; 647 tokens/turn in the same measurement, ≈5.4× less prefill at turn 6 and growing with conversation length). Validated output-identical (`temperature=0`) vs. unpatched. Complements — not duplicates — open upstream PRs #24035/#24899/#24891 (they fix checkpoint *invalidation/retention*; this fixes checkpoint *starvation*). Drop once upstream solves agentic checkpoint placement (e.g. a merged role-boundary checkpointing design, cf. #21885 / #22826 discussion). |
+| `0007-server-attach-http-frontend.patch` | **Adds `llama_server_attach(argc, argv, server_context&)`** so the `NativeServer` *attach mode* can serve an **already-loaded `LlamaModel`** over the full upstream HTTP frontend — no second model load, no `start_loop()`; the LlamaModel's worker keeps driving the shared `server_context` and the HTTP routes post tasks to its queue (the queue is the synchronization point). Mechanically: (1) extracts the common route table + CORS-proxy/tools blocks out of `llama_server()` into `llama_server_register_common_routes(...)` (shared verbatim, so the entry points cannot drift; returns `false` on tools-setup failure); (2) adds `llama_server_attach`, which parses only the HTTP-side argv via `common_params_parse`, starts `g_stream_sessions` GC + `server_http_context`, registers the common routes plus the non-router resumable-streaming handlers, marks ready immediately (model already loaded), and blocks on the HTTP thread until `llama_server_request_shutdown()` — never calling `common_init()`, backend init, `ctx_server.terminate()` or `llama_backend_free()` (the embedding caller owns those). Applies after `0001`+`0006` (same file); closes the "NativeServer — reuse an already-loaded LlamaModel" TODO. Upstream-submittable ("server: let embedding callers attach the HTTP frontend to an existing server_context"). |
+| `0008-server-models-worker-cmd-override.patch` | **Makes router mode usable in-JVM.** The router (`server-models.cpp`) spawns each model worker by re-executing its own binary (`get_server_exec_path()` = `/proc/self/exe` & friends) — inside a JVM that binary is `java`, not a llama-server, so embedded router workers could never start. The patch adds env `LLAMA_SERVER_WORKER_CMD` (whitespace-split; read in `server_model_meta::update_args`) which replaces only the leading binary-path token of the rendered worker args, letting an embedding host relaunch workers through its own bootstrap — e.g. `java -cp app.jar net.ladenthin.llama.server.NativeServer` (each worker is then a fresh JVM running the classic single-model `NativeServer`). Exposed in Java as `NativeServer.setWorkerCommand(String...)` (JNI `setenv`); exercised by `RouterModeIntegrationTest` (Linux CI). Upstream-submittable (also useful for containerized/wrapped deployments). |
 | `0006-server-embed-native-server-jni.patch` | **Makes `server.cpp`'s `llama_server` embeddable in the JVM** so the `NativeServer` JNI bridge can run the full upstream HTTP server (WebUI included) inside `libjllama` — see "Two server modes" below. b9870 already exposes `int llama_server(int, char**)` (non-static; no `main` in the file), so the patch only adds embedded-mode support: (1) a `g_llama_server_embedded` flag + `llama_server_set_embedded()` / `llama_server_request_shutdown()` (declared in the committed `src/main/cpp/native_server_bridge.h`); (2) skips installing the process-wide SIGINT/SIGTERM handlers when embedded (they would hijack the JVM's); (3) in embedded mode parses the **forwarded** argv via `common_params_parse` instead of `common_params_parse_main` (whose `GetCommandLineW` recovery would pick up `java.exe`'s command line — the same Windows class of bug `0001` fixes). `llama_server_request_shutdown()` mirrors the SIGTERM path (invokes the installed `shutdown_handler` → `ctx_server.terminate()` unblocks `start_loop()`), giving JNI an out-of-band stop since `ctx_server` is loop-local. Applies **after `0001`** (which flips this call site to `common_params_parse_main`), so its context is the post-`0001` tree; regenerate against `0001`+source on a bump. Only touches `tools/server/server.cpp`. |
 
 ## OuteTTS build-time extraction (`cmake/generate-tts-upstream.cmake`)
@@ -776,7 +778,7 @@ the README. The summary below covers only the optional-model bindings:
 | `net.ladenthin.llama.vision.image` | `MultimodalIntegrationTest` | committed default `src/test/resources/images/test-image.jpg`; override to any png/jpeg/webp/gif on disk |
 | `net.ladenthin.llama.audio.model` | `AudioInputIntegrationTest` (llama.cpp discussion #13759) | audio-input model GGUF, e.g. `ultravox-v0_5-llama-3_2-1b.gguf` |
 | `net.ladenthin.llama.audio.mmproj` | `AudioInputIntegrationTest` | matching audio mmproj/encoder, e.g. `mmproj-ultravox-v0_5-llama-3_2-1b-f16.gguf` |
-| `net.ladenthin.llama.audio.input` | `AudioInputIntegrationTest` | a `.wav`/`.mp3` clip on disk (no committed default — audio is not committed) |
+| `net.ladenthin.llama.audio.input` | `AudioInputIntegrationTest` | committed default `src/test/resources/audios/sample.wav`; override to any `.wav`/`.mp3` on disk |
 | `net.ladenthin.llama.tts.ttc.model` | `TtsIntegrationTest` | OuteTTS text-to-codes model, e.g. `OuteTTS-0.2-500M-Q4_K_M.gguf` |
 | `net.ladenthin.llama.tts.vocoder.model` | `TtsIntegrationTest` | matching codes-to-speech vocoder, e.g. `WavTokenizer-Large-75-F16.gguf` |
 
@@ -795,7 +797,7 @@ mvn test -Dtest=MultimodalIntegrationTest \
 mvn test -Dtest=AudioInputIntegrationTest \
          -Dnet.ladenthin.llama.audio.model=models/ultravox-v0_5-llama-3_2-1b.gguf \
          -Dnet.ladenthin.llama.audio.mmproj=models/mmproj-ultravox-v0_5-llama-3_2-1b-f16.gguf \
-         -Dnet.ladenthin.llama.audio.input=/path/to/speech.wav
+         -Dnet.ladenthin.llama.audio.input=/path/to/speech.wav   # optional: defaults to the committed src/test/resources/audios/sample.wav
 mvn test -Dtest=TtsIntegrationTest \
          -Dnet.ladenthin.llama.tts.ttc.model=models/OuteTTS-0.2-500M-Q4_K_M.gguf \
          -Dnet.ladenthin.llama.tts.vocoder.model=models/WavTokenizer-Large-75-F16.gguf
@@ -945,7 +947,7 @@ If the local check passes (`BUILD SUCCESS`), the `mvn package` job in
   - The `server` package is a dedicated top layer in the ArchUnit `layeredArchitecture` rule (the only layer allowed to access the root `Api`); `noInternalJdkImports` carries an explicit exception for the supported `com.sun.net.httpserver` (the exported `jdk.httpserver` module, which `module-info.java` `requires`). See README "OpenAI-compatible HTTP server".
 
 **Native layer** (`src/main/cpp/`):
-- `jllama.cpp` — JNI implementation bridging Java calls to llama.cpp. ~1,516 lines; 30 native methods (27 `LlamaModel` + 3 `TextToSpeech`).
+- `jllama.cpp` — JNI implementation bridging Java calls to llama.cpp. ~1,650 lines; 33 native methods (29 `LlamaModel` + 3 `TextToSpeech` + 1 `LlamaQuantizer`).
 - `utils.hpp` — Helper utilities (format helpers, argv stripping, token-piece serialisation).
 - `json_helpers.hpp` — Pure JSON transformation helpers (no JNI, no llama state). Independently unit-testable.
 - `jni_helpers.hpp` — JNI bridge helpers (handle management + server orchestration). Includes `json_helpers.hpp`.
@@ -957,7 +959,7 @@ If the local check passes (`BUILD SUCCESS`), the `mvn package` job in
 The library exposes **two** ways to serve a model over HTTP, on two different transports. The fat jar's `Main-Class` is `server.ServerLauncher`, a tiny dispatcher: it runs `OpenAiCompatServer` when `--jllama-openai-compat` is present (that marker is stripped, the rest forwarded) and the default `NativeServer` otherwise. Both mains are also runnable directly by class name via `java -cp`. The two modes:
 
 1. **`server.OpenAiCompatServer` (Java transport).** OpenAI/Ollama/Anthropic-compatible JSON API on the JDK's `com.sun.net.httpserver`, driving the compiled server *core* over JNI. Embeddable, no extra dependency, and it can share/reuse a `LlamaModel`. It serves **no** static assets — its `/` route is a 404, so **no WebUI**. It has its own `main` (run via `java -cp <jar> net.ladenthin.llama.server.OpenAiCompatServer …`); its CLI (`OpenAiServerCli`) maps a curated flag subset (`-m/-c/-b/-ub/-ngl/-t/-tb/-ctk/-ctv/--jinja/--chat-template-kwargs/--host/--port/--parallel/--mmproj/--api-key/--embedding/--reranking`).
-2. **`server.NativeServer` (native transport) — the default fat-jar server (when `--jllama-openai-compat` is absent).** Runs the **full upstream `llama_server`** (via `patches/0006` + `native_server.cpp`) inside `libjllama`, forwarding the raw llama-server argv verbatim — so **every** llama-server flag works and the **embedded WebUI is served** (when the assets are compiled in; CI's released jars have them, local `cmake` builds use the empty-asset stub). It is an **independent lifecycle** (loads its own model from the argv, like `llama-server.exe`; owns the process's llama backend + stderr logging while running), **single-instance per process** (upstream keeps shutdown state in file-scope globals), and **not available on Android** (the `subprocess.h` guard). Reusing an already-loaded `LlamaModel`'s context is a documented TODO. `libjllama` loading anywhere a JVM runs is what makes this "no separate `llama-server.exe`" possible.
+2. **`server.NativeServer` (native transport) — the default fat-jar server (when `--jllama-openai-compat` is absent).** Runs the **full upstream `llama_server`** (via `patches/0006` + `native_server.cpp`) inside `libjllama`, forwarding the raw llama-server argv verbatim — so **every** llama-server flag works and the **embedded WebUI is served** (when the assets are compiled in; CI's released jars have them, local `cmake` builds use the empty-asset stub). With the classic constructor it is an **independent lifecycle** (loads its own model from the argv, like `llama-server.exe`; owns the process's llama backend + stderr logging while running); the **attach constructor** (`NativeServer(LlamaModel, String...)`, via `patches/0007`'s `llama_server_attach`) instead serves an **already-loaded `LlamaModel`** — one copy of the weights, the model's worker keeps driving inference, the HTTP routes post to its queue; caller closes the server before the model. **Router mode** (start without a model argument: `--models-dir`, `GET/POST /models`, per-request model selection) works in-JVM after `NativeServer.setWorkerCommand(...)` redirects the worker spawn to a fresh JVM (`patches/0008` — upstream re-execs its own binary, which in a JVM is `java`); the typed `server.RouterClient` (+ `value.RouterModel`, `json.RouterModelsResponseParser`) wraps the model-management endpoints (list/load/unload/await-loaded with fail-fast on failed workers) so callers don't hand-roll HTTP+JSON. Either way it is **single-instance per process** (upstream keeps shutdown state in file-scope globals) and **not available on Android** (the `subprocess.h` guard). `libjllama` loading anywhere a JVM runs is what makes this "no separate `llama-server.exe`" possible.
 
 ### Native Helper Architecture
 
@@ -999,7 +1001,14 @@ Functions: `log_level_name`, `format_log_as_json`.
 
 *Layer B* (requires upstream server headers in the TU before `jni_helpers.hpp`): orchestration.
 Includes `json_helpers.hpp` so all bridge helpers can call transforms directly.
-- `json_to_jstring_impl` — serialises any `json` value to a JNI string via `dump()`.
+- `utf8_to_jstring_impl` — builds a `java.lang.String` from raw standard-UTF-8 bytes via the cached
+  `String(byte[], "UTF-8")` constructor. **Payload text must never go through `NewStringUTF`**: JNI
+  specifies *Modified* UTF-8 input there, so standard UTF-8 containing supplementary-plane
+  characters (every 4-byte emoji) is spec-invalid — Android CheckJNI aborts on it. The mirror of
+  `parse_jstring`'s `String.getBytes("UTF-8")` input path.
+- `json_to_jstring_impl` — serialises any `json` value to a JNI string via upstream
+  `safe_json_to_str` (dump with `error_handler_t::replace`, so content ending in an incomplete
+  UTF-8 sequence yields U+FFFD instead of throwing `json::type_error 316`) + `utf8_to_jstring_impl`.
 - `results_to_jstring_impl` — delegates to `results_to_json` then `json_to_jstring_impl`.
 - `vec_to_jarray_impl<JArray,JElem,CppElem>` — generic C++ vector → JNI primitive array.
 - `embedding_to_jfloat_array_impl` — converts `std::vector<float>` to `jfloatArray`.
@@ -1100,7 +1109,8 @@ properties set, so `LlamaEmbeddingsTest`, `MultimodalIntegrationTest`, and `TtsI
 **run on every platform** rather than self-skipping. `validate-models.{sh,bat}` treats all of
 these as **required** (a missing model hard-fails the job before tests run, so a download
 regression can never silently downgrade to a skip). The only model still self-skipping is the
-audio-input model (`AudioInputIntegrationTest`) — it has no committed clip and no CI download.
+audio-input model (`AudioInputIntegrationTest`) — the prompt clip is committed
+(`src/test/resources/audios/sample.wav`) but the audio model + mmproj have no CI download.
 The shared GGUF cache (`actions/cache`, key `gguf-models-v1`, path `models/`) holds the full set
 and is populated **once, upfront** by a dedicated **`download-models`** job (`needs: startgate`):
 it is the single place the ~5 GB set is fetched from HuggingFace (the ten `curl` steps + the
@@ -1146,18 +1156,18 @@ ctest --test-dir build --output-on-failure -R "ResultsToJson"
 
 | File | Tests | Scope |
 |------|-------|-------|
-| `src/test/cpp/test_utils.cpp` | 156 | Upstream helpers: `server_tokens`, `server_grammar_trigger`, `gen_tool_call_id`, `json_value`, `json_get_nested_values`, UTF-8 helpers, `format_response_rerank`, `format_embeddings_response_oaicompat`, `oaicompat_completion_params_parse`, `oaicompat_chat_params_parse`, `are_lora_equal`, `strip_flag_from_argv`, `token_piece_value`, `json_is_array_and_contains_numbers`, `format_oai_sse`, `format_oai_resp_sse`, `format_anthropic_sse` |
-| `src/test/cpp/test_server.cpp` | 197 | Upstream result types: `result_timings`, `task_params::to_json()` (incl. `dry_sequence_breakers`, `preserved_tokens`, `timings_per_token`), `completion_token_output`, `server_task_result_cmpl_partial` (non-oaicompat + `to_json_oaicompat` + logprobs + `to_json_oaicompat_chat` + `to_json_anthropic` + dispatcher), `server_task_result_cmpl_final` (non-oaicompat + `to_json_oaicompat` + `to_json_oaicompat_chat` + `to_json_oaicompat_chat_stream` + `to_json_anthropic` + `to_json_anthropic_stream` + tool_calls + dispatcher), `server_task_result_embd`, `server_task_result_rerank`, `server_task_result_metrics`, `server_task_result_slot_save_load`, `server_task_result_slot_erase`, `server_task_result_apply_lora`, `server_task_result_error`, `format_error_response`, `server_task::need_sampling()`, `server_task::n_tokens()`, `server_schema::eval_llama_cmpl_schema()` (parsing pipeline + grammar routing + error paths + per-request `dry_*` and `sse_ping_interval` field round-trips incl. hard-limit + server-default inheritance), `response_fields` projection |
+| `src/test/cpp/test_utils.cpp` | 162 | Upstream helpers: `server_tokens`, `server_grammar_trigger`, `gen_tool_call_id`, `json_value`, `json_get_nested_values`, UTF-8 helpers, `format_response_rerank`, `format_embeddings_response_oaicompat`, `oaicompat_completion_params_parse`, `oaicompat_chat_params_parse`, `are_lora_equal`, `strip_flag_from_argv`, `token_piece_value`, `json_is_array_and_contains_numbers`, `format_oai_sse`, `format_oai_resp_sse`, `format_anthropic_sse`, `parse_lora_request` |
+| `src/test/cpp/test_server.cpp` | 201 | Upstream result types: `result_timings`, `task_params::to_json()` (incl. `dry_sequence_breakers`, `preserved_tokens`, `timings_per_token`), `completion_token_output`, `server_task_result_cmpl_partial` (non-oaicompat + `to_json_oaicompat` + logprobs + `to_json_oaicompat_chat` + `to_json_anthropic` + dispatcher), `server_task_result_cmpl_final` (non-oaicompat + `to_json_oaicompat` + `to_json_oaicompat_chat` + `to_json_oaicompat_chat_stream` + `to_json_anthropic` + `to_json_anthropic_stream` + tool_calls + dispatcher), `server_task_result_embd`, `server_task_result_rerank`, `server_task_result_metrics`, `server_task_result_slot_save_load`, `server_task_result_slot_erase`, `server_task_result_apply_lora`, `server_task_result_get_lora`, `server_task_result_error`, `format_error_response`, `server_task::need_sampling()`, `server_task::n_tokens()`, `server_schema::eval_llama_cmpl_schema()` (parsing pipeline + grammar routing + error paths + per-request `dry_*` and `sse_ping_interval` field round-trips incl. hard-limit + server-default inheritance), `response_fields` projection |
 | `src/test/cpp/test_json_helpers.cpp` | 47 | All functions in `json_helpers.hpp`: `get_result_error_message`, `results_to_json`, `rerank_results_to_json`, `parse_encoding_format`, `extract_embedding_prompt`, `is_infill_request`, `parse_slot_prompt_similarity`, `parse_positive_int_config`, `wrap_stream_chunk` |
 | `src/test/cpp/test_log_helpers.cpp` | 13 | All functions in `log_helpers.hpp`: `log_level_name`, `format_log_as_json` |
-| `src/test/cpp/test_jni_helpers.cpp` | 47 | All functions in `jni_helpers.hpp` using a zero-filled `JNINativeInterface_` mock |
+| `src/test/cpp/test_jni_helpers.cpp` | 54 | All functions in `jni_helpers.hpp` using a zero-filled `JNINativeInterface_` mock (incl. the `utf8_to_jstring_impl` byte-array string path: emoji byte-preservation, truncated-UTF-8 replace-not-throw) |
 | `src/test/cpp/test_tts_wav.cpp` | 2 | The in-memory WAV writer `pcm_to_wav16_bytes` in `tts_wav.hpp` (WAV header/payload + little-endian clamping). The OuteTTS DSP it pairs with is derived from upstream `tts.cpp` and covered end-to-end by the Java `TtsIntegrationTest`, not unit-tested here. |
 
-**Current total: 462 tests (all passing).**
+**Current total: 479 tests (all passing).**
 
 #### Upstream source location (in CMake build tree)
 
-llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9870`.
+llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9878`.
 
 **GoogleTest** is a separate `BUILD_TESTING`-only FetchContent (`GIT_TAG v1.17.0`), used solely
 by the `jllama_test` C++ unit-test binary — not by the shipped library, and not coupled to the
@@ -1343,9 +1353,11 @@ See [`../workspace/policies/ci-test-diagnostics.md`](../workspace/policies/ci-te
 ## PIT Mutation Testing
 
 See [`../workspace/policies/pit-mutation-testing.md`](../workspace/policies/pit-mutation-testing.md).
-Run PIT with the lifecycle prefix — `mvn test-compile org.pitest:pitest-maven:mutationCoverage`.
-Repo-specific gotcha: the gate reaches 100% only with the audio fixture present — without it
-`value.ContentPart.audioFile(Path)` is uncovered (98%); see policy §4 and `TODO.md`.
+Run PIT with the lifecycle prefix — `mvn test-compile org.pitest:pitest-maven:mutationCoverage`
+(from the repo root add `-f llama/pom.xml`). The gate is **hermetic** — no model or audio fixture
+needed: `ContentPartTest`'s `@TempDir` tests cover `value.ContentPart.audioFile(Path)` (verified
+295/295, 0 NO_COVERAGE in a fixture-less sandbox; the former audio-fixture gotcha is resolved,
+see `TODO.md`).
 
 ## JPMS Module Descriptor
 
@@ -1355,21 +1367,31 @@ keeping it clear of the JPMS module-mode javadoc trap that bit BAF. **Before rai
 javadoc source level to ≥ 9, read**
 [`../workspace/policies/jpms-module-descriptor.md`](../workspace/policies/jpms-module-descriptor.md).
 
-## Repository layout — Maven reactor (`llama/` + `llama-langchain4j/`)
+## Repository layout — Maven reactor (`llama/` + `llama-langchain4j/` + `llama-kotlin/`) + the `llama-android/` Gradle build
 
 The repo root is a thin **aggregator/parent POM** (`net.ladenthin:llama-parent`,
-`packaging=pom`) with two modules:
+`packaging=pom`) with three modules:
 
 - **`llama/`** — the native JNI core (`net.ladenthin:llama`). *All the core sources and build
   files live here now:* `llama/src/`, `llama/CMakeLists.txt`, `llama/cmake/`, `llama/patches/`,
   `llama/pom.xml`, `llama/spotbugs-exclude.xml`, `llama/lombok.config`, `llama/.clang-format`.
   Its published coordinates are unchanged (`net.ladenthin:llama`), so consumers are unaffected.
 - **`llama-langchain4j/`** — the LangChain4j adapters (see below).
+- **`llama-kotlin/`** — the Kotlin coroutines façade (see "Android AAR + Kotlin façade" below).
 
-Both modules inherit the single `<version>` from the parent, so they **ship in lockstep by
+All modules inherit the single `<version>` from the parent, so they **ship in lockstep by
 construction** (no CI guard needed). The parent also holds the shared `release` profile (GPG +
-Central Publishing), so one reactor `mvn -P release deploy` signs and publishes all three
-artifacts (`llama-parent` pom, `llama`, `llama-langchain4j`) at the same version.
+Central Publishing), so one reactor `mvn -P release deploy` signs and publishes all four
+Maven artifacts (`llama-parent` pom, `llama`, `llama-langchain4j`, `llama-kotlin`) at the same
+version.
+
+**`llama-android/` is deliberately NOT a reactor module** but a standalone plain-Gradle build
+(no AGP, no Android SDK needed to build): Maven cannot produce or deploy an artifact with
+`<packaging>aar</packaging>` (the only android-maven-plugin is dead), while Gradle's built-in
+`maven-publish` can. It stays version-locked anyway — `llama-android/build.gradle.kts` parses
+the version and the mirrored dependency versions out of the Maven poms at configure time, so
+`mvn versions:set` remains the single bump point (no Gradle-side edit on a bump). See
+"Android AAR + Kotlin façade" below.
 
 **Consequences for build commands:** the core's cmake/native build runs *in `llama/`*.
 `.github/build.sh` / `build.bat` `cd` into `llama/` themselves (relative to the script), so CI
@@ -1383,11 +1405,15 @@ file shows `cmake -B build` / `src/main/...` / `mvn compile` at the root, read i
 **Version bump:** the child modules declare **no `<version>` of their own** — their *project*
 version is inherited from the parent. But each child still hardcodes the parent version inside its
 `<parent><version>` pointer (Maven requires a literal there — there is **no `${revision}`/CI-friendly
-versioning** here), so a version change must be applied to **all three poms in lockstep**:
+versioning** here), so a version change must be applied to **all four poms in lockstep**:
 
 - `pom.xml` (root) — `<version>`
 - `llama/pom.xml` — `<parent><version>`
 - `llama-langchain4j/pom.xml` — `<parent><version>`
+- `llama-kotlin/pom.xml` — `<parent><version>`
+
+(`llama-android/` needs **no** edit — its Gradle build reads the root pom's version at
+configure time.)
 
 The safe way is `mvn -q versions:set -DnewVersion=X.Y.Z -DgenerateBackupPoms=false` from the repo
 root (it updates the parent and every child `<parent>` reference at once). Changing only the root
@@ -1408,6 +1434,9 @@ missed again.)
   release version now appears in only ~4 spots here, not ~20 — the runtime details live once in the
   classifier table.)
 - **`llama-langchain4j/README.md`** — its own `<dependency>` snippet.
+- **`llama-android/README.md`** and **`llama-kotlin/README.md`** — their Gradle dependency
+  snippets, plus the `llama-android`/`llama-kotlin` snippets in the root README's
+  "Importing in Android" section.
 
 (If single-source ergonomics are wanted, the Maven
 CI-friendly `${revision}` property + `flatten-maven-plugin` would let a bump touch only the root —
@@ -1456,9 +1485,83 @@ Wiring:
    `-Dnet.ladenthin.llama.langchain4j.{embedding,rerank}.model` / `net.ladenthin.llama.model.path`
    properties. It is validation-only (not a release gate); a cold cache degrades to a self-skip.
 
-**Open follow-ups** (documented in `llama-langchain4j/README.md`): tool calling
-(`ToolSpecification` ↔ jllama `ToolDefinition`), `response_format`/JSON mode, and multimodal
-user input (currently flattened to text).
+**Mapped** (since 5.0.6): blocking tool calling (`ToolSpecification` ↔ jllama `ToolDefinition`
+via the module's own `JsonSchemaElementSerializer` — langchain4j's serializer lives in its
+`internal` package, so the module carries a public-API-only recursive walk emitting the same
+`$defs`/`#/$defs/…` conventions; tool-call turns round-trip in both directions),
+`response_format`/JSON mode (`json_object` + `json_schema` structured output), and multimodal
+user input (`ImageContent`/`AudioContent` → `ContentPart` array-form content; needs `--mmproj`).
+Streaming (since 5.0.6, second pass): `JllamaStreamingChatModel` now streams over the native
+OAI chunk path via the module's `StreamingChunkAssembler` — streamed tool calls
+(`onPartialToolCall`/`onCompleteToolCall` + `toolExecutionRequests()` on the final response),
+per-token thinking events (`onPartialThinking` + `AiMessage.thinking()`), real finish reason and
+token usage. **Open follow-up** (documented in `llama-langchain4j/README.md`): `modelName()` is
+ignored (one model per adapter).
+
+## Android AAR + Kotlin façade (`llama-android/` + `llama-kotlin/`)
+
+Two consumable Android-facing artifacts, replacing the submodule/NDK source-integration flow as
+the recommended path (README "Importing in Android", Option 1):
+
+- **`net.ladenthin:llama-android`** / **`llama-android-opencl`** — AARs (`<packaging>aar</packaging>`)
+  carrying the core classes + the CI-built `libjllama.so` natives under `jni/` — the CPU AAR is
+  **multi-ABI** (`arm64-v8a` devices + `x86_64` emulators/Chromebooks, built by the
+  `crosscompile-android-x86_64` dockcross job whose artifact also merges into the default JAR's
+  `Linux-Android/x86_64` tree via the `*-libraries` glob; the OpenCL flavor stays arm64-only —
+  Adreno is Qualcomm ARM hardware), a
+  `minSdkVersion 28` manifest (AGP enforces the floor on consumers), and consumer R8/ProGuard
+  rules (`consumer-proguard.txt` → `proguard.txt` in the AAR; keeps `net.ladenthin.llama.**` for
+  the JNI `FindClass`/Jackson reflection surface). The AAR's `classes.jar` is the
+  **byte-identical Maven-built core jar** minus the desktop/Android native resource trees
+  (~70 MB APK bloat otherwise) and `module-info.class` (D8 rejects it); on Android `LlamaLoader`
+  resolves via `System.loadLibrary("jllama")`, which finds the AAR-installed `.so` — no loader
+  change was needed. Built by the **standalone plain-Gradle build** in `llama-android/`
+  (see "Repository layout" for why it is not a Maven module); the POM mirrors the core's
+  compile-scope deps (jackson/slf4j-api/jspecify/checker-qual, versions parsed from
+  `llama/pom.xml` — deliberately NOT logback, which is the JVM-only runtime binding).
+- **`net.ladenthin:llama-kotlin`** — Maven reactor module; pure-Kotlin (2.2, jvmTarget 1.8)
+  coroutines façade: `generateFlow`/`generateChatFlow` (cold `Flow`, source closed on
+  completion/error/cancellation) and `completeSuspend`/`chatSuspend`/`chatCompleteTextSuspend`/
+  `embedSuspend` (`completeSuspend` wires coroutine cancellation into the cooperative
+  `CancellationToken`). The core dep is **provided-scope** so Android consumers pair it with the
+  AAR instead of transitively pulling the fat desktop JAR. 6 model-free unit tests fake the
+  `Iterable & AutoCloseable` seam (`closeableIterableFlow`/`withCancellationToken` internals).
+
+**16 KB page-size invariant (Google Play, Android 15+ targets):** `llama/CMakeLists.txt` pins
+`-Wl,-z,max-page-size=16384` in the Android guard block, and the `package-android-aar` CI job
+asserts every LOAD segment of the shipped `.so` is 16384-aligned via `readelf` — a dockcross
+toolchain bump cannot silently regress Play compatibility.
+
+**dlopen-ability invariant (bionic-only DT_NEEDED):** the same Android guard block sets
+`GGML_OPENMP OFF` (ggml uses its std::thread pool — Android ships no `libomp.so`; same trade
+as the Windows-arm64 clang-cl job) and links `-static-libstdc++` (no `libc++_shared.so`
+dependency — that runtime only exists when an app packages it itself). Without both, the
+dockcross cross-clang emitted `DT_NEEDED` on `libomp.so` + `libc++_shared.so`, which made
+`System.loadLibrary("jllama")` fail with `UnsatisfiedLinkError` on every device (caught by the
+`test-android-emulator` job; the released 5.0.5 arm64 lib had the same latent defect). The
+`package-android-aar` job enforces a per-`.so` `DT_NEEDED` whitelist (`libc.so libm.so libdl.so
+liblog.so libandroid.so`, plus `libOpenCL.so` for the OpenCL flavor) via `readelf -dW`, and
+`LlamaLoader` now includes the swallowed `System.loadLibrary` message in its
+"Directly from .apk/lib (…)" tried-path entry so a future dlopen reason is never invisible.
+
+**CI (`publish.yml`):** `test-java-llama-kotlin` (model-free unit tests);
+`package-android-aar` (needs both Android native jobs) builds the core jar, stages the natives,
+assembles both AARs, validates structure (entries, minSdk, classes.jar content, 16 KB alignment),
+publishes to mavenLocal, and runs the **AGP consumer smoke test** — the minimal app fixture in
+`.github/android-consumer-test/` resolves the AAR from mavenLocal and runs a full R8
+`assembleRelease` on the runner's preinstalled Android SDK (this is what actually validates
+AGP/Android Studio consumption). **On-device runtime IS now CI-covered** via
+`test-android-emulator`: a KVM-accelerated x86_64 emulator (API 30) runs the fixture's
+`connectedDebugAndroidTest` — `System.loadLibrary` from the AAR's `jni/x86_64`, on-device
+`GgufInspector`, and real native inference against the adb-pushed cached draft model
+(AMD-Llama-135m). The job is a **release gate** (in both
+publish `needs:` graphs) since PR #298, after running flake-free through the PR's validation
+cycle. arm64 kernels + the Adreno/OpenCL flavor remain out of emulator scope —
+the planned example app covers those on hardware.
+Both publish jobs `need` these jobs (fail-loud release gating) and publish the AARs via Gradle:
+snapshots to the Central snapshots repo (`publishAllPublicationsToCentralSnapshotsRepository`),
+releases as a signed Central Portal bundle upload (staging repo → zip → Publisher API).
+`llama-kotlin` rides the normal reactor `mvn -P release deploy`.
 
 ## Open TODOs
 

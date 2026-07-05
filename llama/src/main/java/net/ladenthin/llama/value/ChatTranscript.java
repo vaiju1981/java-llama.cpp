@@ -173,4 +173,26 @@ public final class ChatTranscript {
     public int size() {
         return turns.size();
     }
+
+    /**
+     * Return a fresh copy of the committed turns, for checkpointing. Mutating the
+     * returned list never affects this transcript.
+     *
+     * @return a fresh copy of the committed (role, text) turns, in order
+     */
+    public List<Pair<String, String>> turnsSnapshot() {
+        return new ArrayList<Pair<String, String>>(turns);
+    }
+
+    /**
+     * Replace the committed turns with a checkpointed snapshot, for rewinding. The
+     * input is copied, so later mutation of {@code newTurns} never affects this
+     * transcript. The system message is fixed at construction and unaffected.
+     *
+     * @param newTurns the (role, text) turns to restore, in order
+     */
+    public void resetTurns(List<Pair<String, String>> newTurns) {
+        turns.clear();
+        turns.addAll(newTurns);
+    }
 }

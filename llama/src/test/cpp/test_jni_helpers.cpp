@@ -15,7 +15,7 @@
 //
 // Layer B tests (need upstream server headers + mock JNIEnv):
 //   configure_multimodal_task_impl, configure_task_slot_impl,
-//   json_to_jstring_impl, results_to_jstring_impl,
+//   utf8_to_jstring_impl, json_to_jstring_impl, results_to_jstring_impl,
 //   embedding_to_jfloat_array_impl, tokens_to_jint_array_impl
 //
 // JNIEnv is mocked via a zero-filled JNINativeInterface_ table with only the
@@ -64,7 +64,22 @@ static std::string g_throw_message;
 static std::string g_new_string_utf_value;
 static jlong g_mock_handle = 0;
 
+// String-construction stubs (utf8_to_jstring_impl path): the produced Java
+// string is built via NewByteArray + SetByteArrayRegion + NewObject(String,
+// <init>([BLjava/lang/String;)V, bytes, charsetName), so the mock captures
+// the raw byte payload and the constructor arguments.
+static std::string g_string_bytes;
+static jsize g_byte_alloc_len = -1;
+static bool g_fail_new_byte_array = false;
+static bool g_new_object_called = false;
+static jmethodID g_ctor_method = nullptr;
+static jobject g_ctor_bytes_arg = nullptr;
+static jobject g_ctor_charset_arg = nullptr;
+static int g_delete_local_ref_count = 0;
+
 static jstring g_new_string_utf_sentinel = reinterpret_cast<jstring>(0xBEEF);
+static jbyteArray g_byte_array_sentinel = reinterpret_cast<jbyteArray>(0xB17E);
+static jstring g_ctor_string_sentinel = reinterpret_cast<jstring>(0x57A);
 
 static jint JNICALL stub_ThrowNew(JNIEnv *, jclass, const char *msg) {
     g_throw_called = true;
@@ -76,13 +91,36 @@ static jstring JNICALL stub_NewStringUTF(JNIEnv *, const char *utf) {
     g_new_string_utf_value = utf ? utf : "";
     return g_new_string_utf_sentinel;
 }
+static jbyteArray JNICALL stub_NewByteArray(JNIEnv *, jsize len) {
+    if (g_fail_new_byte_array) {
+        return nullptr;
+    }
+    g_byte_alloc_len = len;
+    return g_byte_array_sentinel;
+}
+static void JNICALL stub_SetByteArrayRegion(JNIEnv *, jbyteArray, jsize, jsize len, const jbyte *buf) {
+    g_string_bytes.assign(reinterpret_cast<const char *>(buf), static_cast<size_t>(len));
+}
+// JNIEnv_::NewObject forwards its varargs to functions->NewObjectV.
+static jobject JNICALL stub_NewObjectV(JNIEnv *, jclass, jmethodID mid, va_list args) {
+    g_new_object_called = true;
+    g_ctor_method = mid;
+    g_ctor_bytes_arg = va_arg(args, jobject);
+    g_ctor_charset_arg = va_arg(args, jobject);
+    return (jobject)g_ctor_string_sentinel;
+}
+static void JNICALL stub_DeleteLocalRef(JNIEnv *, jobject) { g_delete_local_ref_count++; }
 
-// Minimal env: ThrowNew + GetLongField + NewStringUTF.
+// Minimal env: ThrowNew + GetLongField + string-construction stubs.
 JNIEnv *make_mock_env(JNINativeInterface_ &table, JNIEnv_ &env_obj) {
     std::memset(&table, 0, sizeof(table));
     table.ThrowNew = stub_ThrowNew;
     table.GetLongField = stub_GetLongField;
     table.NewStringUTF = stub_NewStringUTF;
+    table.NewByteArray = stub_NewByteArray;
+    table.SetByteArrayRegion = stub_SetByteArrayRegion;
+    table.NewObjectV = stub_NewObjectV;
+    table.DeleteLocalRef = stub_DeleteLocalRef;
     env_obj.functions = &table;
     return &env_obj;
 }
@@ -94,6 +132,10 @@ struct MockJniFixture : ::testing::Test {
     JNIEnv *env = nullptr;
     jfieldID dummy_field = reinterpret_cast<jfieldID>(0x1);
     jclass dummy_class = reinterpret_cast<jclass>(0x2);
+    // Sentinels passed to the parameterized string-conversion helpers.
+    jclass string_class = reinterpret_cast<jclass>(0x53);
+    jmethodID string_ctor = reinterpret_cast<jmethodID>(0x54);
+    jobject charset_name = reinterpret_cast<jobject>(0x55);
 
     void SetUp() override {
         env = make_mock_env(table, env_obj);
@@ -101,6 +143,14 @@ struct MockJniFixture : ::testing::Test {
         g_throw_called = false;
         g_throw_message.clear();
         g_new_string_utf_value.clear();
+        g_string_bytes.clear();
+        g_byte_alloc_len = -1;
+        g_fail_new_byte_array = false;
+        g_new_object_called = false;
+        g_ctor_method = nullptr;
+        g_ctor_bytes_arg = nullptr;
+        g_ctor_charset_arg = nullptr;
+        g_delete_local_ref_count = 0;
     }
 };
 
@@ -383,14 +433,58 @@ TEST_F(ArrayFixture, JintArrayToTokens_ReleasesWithAbortFlag) {
 }
 
 // ============================================================
+// utf8_to_jstring_impl
+// ============================================================
+
+TEST_F(MockJniFixture, Utf8ToJstring_Ascii_BytesAndCtorArgsCaptured) {
+    jstring js = utf8_to_jstring_impl(env, "hello", string_class, string_ctor, charset_name);
+    EXPECT_EQ(js, g_ctor_string_sentinel);
+    EXPECT_EQ(g_string_bytes, "hello");
+    EXPECT_EQ(g_byte_alloc_len, 5);
+    EXPECT_EQ(g_ctor_method, string_ctor);
+    EXPECT_EQ(g_ctor_bytes_arg, (jobject)g_byte_array_sentinel);
+    EXPECT_EQ(g_ctor_charset_arg, charset_name);
+}
+
+// The whole point of the byte[]-based path: a supplementary-plane character
+// (4-byte standard UTF-8) must cross the JNI boundary byte-identical.
+// NewStringUTF would require Modified UTF-8 (CESU-8 surrogate encoding) here.
+TEST_F(MockJniFixture, Utf8ToJstring_FourByteEmoji_PreservedAsStandardUtf8) {
+    const std::string emoji = "\xF0\x9F\x98\x80"; // U+1F600
+    jstring js = utf8_to_jstring_impl(env, emoji, string_class, string_ctor, charset_name);
+    EXPECT_EQ(js, g_ctor_string_sentinel);
+    EXPECT_EQ(g_string_bytes, emoji);
+    EXPECT_EQ(g_byte_alloc_len, 4);
+}
+
+TEST_F(MockJniFixture, Utf8ToJstring_EmptyString_AllocatesZeroLength) {
+    jstring js = utf8_to_jstring_impl(env, "", string_class, string_ctor, charset_name);
+    EXPECT_EQ(js, g_ctor_string_sentinel);
+    EXPECT_EQ(g_byte_alloc_len, 0);
+    EXPECT_TRUE(g_string_bytes.empty());
+}
+
+TEST_F(MockJniFixture, Utf8ToJstring_ReleasesByteArrayLocalRef) {
+    (void)utf8_to_jstring_impl(env, "x", string_class, string_ctor, charset_name);
+    EXPECT_EQ(g_delete_local_ref_count, 1);
+}
+
+TEST_F(MockJniFixture, Utf8ToJstring_ByteArrayAllocFails_ReturnsNullWithoutCtor) {
+    g_fail_new_byte_array = true;
+    jstring js = utf8_to_jstring_impl(env, "x", string_class, string_ctor, charset_name);
+    EXPECT_EQ(js, nullptr);
+    EXPECT_FALSE(g_new_object_called);
+}
+
+// ============================================================
 // json_to_jstring_impl
 // ============================================================
 
 TEST_F(MockJniFixture, JsonToJstring_Object_RoundTrips) {
     json j = {{"key", "value"}, {"n", 42}};
-    jstring js = json_to_jstring_impl(env, j);
+    jstring js = json_to_jstring_impl(env, j, string_class, string_ctor, charset_name);
     EXPECT_NE(js, nullptr);
-    json parsed = json::parse(g_new_string_utf_value);
+    json parsed = json::parse(g_string_bytes);
     EXPECT_TRUE(parsed.is_object());
     EXPECT_EQ(parsed.value("key", ""), "value");
     EXPECT_EQ(parsed.value("n", 0), 42);
@@ -398,22 +492,45 @@ TEST_F(MockJniFixture, JsonToJstring_Object_RoundTrips) {
 
 TEST_F(MockJniFixture, JsonToJstring_Array_RoundTrips) {
     json j = json::array({1, 2, 3});
-    jstring js = json_to_jstring_impl(env, j);
+    jstring js = json_to_jstring_impl(env, j, string_class, string_ctor, charset_name);
     EXPECT_NE(js, nullptr);
-    json parsed = json::parse(g_new_string_utf_value);
+    json parsed = json::parse(g_string_bytes);
     EXPECT_TRUE(parsed.is_array());
     ASSERT_EQ(parsed.size(), 3u);
 }
 
-TEST_F(MockJniFixture, JsonToJstring_ReturnsSentinel) {
-    jstring js = json_to_jstring_impl(env, {{"ok", true}});
-    EXPECT_EQ(js, reinterpret_cast<jstring>(0xBEEF));
+TEST_F(MockJniFixture, JsonToJstring_ReturnsCtorResult) {
+    jstring js = json_to_jstring_impl(env, {{"ok", true}}, string_class, string_ctor, charset_name);
+    EXPECT_EQ(js, g_ctor_string_sentinel);
 }
 
 TEST_F(MockJniFixture, JsonToJstring_NullJson_SerializesToNullString) {
-    jstring js = json_to_jstring_impl(env, json(nullptr));
+    jstring js = json_to_jstring_impl(env, json(nullptr), string_class, string_ctor, charset_name);
     EXPECT_NE(js, nullptr);
-    EXPECT_EQ(g_new_string_utf_value, "null");
+    EXPECT_EQ(g_string_bytes, "null");
+}
+
+// A payload string ending in an incomplete UTF-8 sequence (possible on the
+// non-stream path when generation stops mid-codepoint at the token limit)
+// must serialise via error_handler_t::replace instead of throwing
+// json::type_error 316.
+TEST_F(MockJniFixture, JsonToJstring_TruncatedUtf8Content_ReplacesInsteadOfThrows) {
+    json j;
+    j["content"] = std::string("hi \xF0\x9F\x98", 6); // emoji cut after 3 of 4 bytes
+    jstring js = nullptr;
+    EXPECT_NO_THROW(js = json_to_jstring_impl(env, j, string_class, string_ctor, charset_name));
+    EXPECT_NE(js, nullptr);
+    // The produced JSON is valid UTF-8 with U+FFFD in place of the fragment.
+    json parsed = json::parse(g_string_bytes);
+    const std::string content = parsed.value("content", "");
+    EXPECT_NE(content.find("hi "), std::string::npos);
+    EXPECT_NE(content.find("\xEF\xBF\xBD"), std::string::npos);
+}
+
+TEST_F(MockJniFixture, JsonToJstring_EmojiContent_KeptAsFourByteUtf8) {
+    json j = {{"content", "\xF0\x9F\x98\x80"}};
+    (void)json_to_jstring_impl(env, j, string_class, string_ctor, charset_name);
+    EXPECT_NE(g_string_bytes.find("\xF0\x9F\x98\x80"), std::string::npos);
 }
 
 // ============================================================
@@ -424,10 +541,10 @@ TEST_F(MockJniFixture, ResultsToJstring_SingleResult_ReturnsBareObject) {
     std::vector<server_task_result_ptr> results;
     results.push_back(make_ok(1, "hello"));
 
-    jstring js = results_to_jstring_impl(env, results);
+    jstring js = results_to_jstring_impl(env, results, string_class, string_ctor, charset_name);
 
     EXPECT_NE(js, nullptr);
-    json parsed = json::parse(g_new_string_utf_value);
+    json parsed = json::parse(g_string_bytes);
     EXPECT_TRUE(parsed.is_object());
     EXPECT_EQ(parsed.value("content", ""), "hello");
 }
@@ -437,10 +554,10 @@ TEST_F(MockJniFixture, ResultsToJstring_MultipleResults_ReturnsArray) {
     results.push_back(make_ok(2, "first"));
     results.push_back(make_ok(3, "second"));
 
-    jstring js = results_to_jstring_impl(env, results);
+    jstring js = results_to_jstring_impl(env, results, string_class, string_ctor, charset_name);
 
     EXPECT_NE(js, nullptr);
-    json parsed = json::parse(g_new_string_utf_value);
+    json parsed = json::parse(g_string_bytes);
     EXPECT_TRUE(parsed.is_array());
     ASSERT_EQ(parsed.size(), 2u);
     EXPECT_EQ(parsed[0].value("content", ""), "first");
@@ -449,9 +566,9 @@ TEST_F(MockJniFixture, ResultsToJstring_MultipleResults_ReturnsArray) {
 
 TEST_F(MockJniFixture, ResultsToJstring_EmptyVector_ReturnsEmptyArray) {
     std::vector<server_task_result_ptr> results;
-    jstring js = results_to_jstring_impl(env, results);
+    jstring js = results_to_jstring_impl(env, results, string_class, string_ctor, charset_name);
     EXPECT_NE(js, nullptr);
-    json parsed = json::parse(g_new_string_utf_value);
+    json parsed = json::parse(g_string_bytes);
     EXPECT_TRUE(parsed.is_array());
     EXPECT_TRUE(parsed.empty());
 }

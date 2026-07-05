@@ -84,10 +84,19 @@ public class TestConstants {
 
     /**
      * System property holding a path to a {@code .wav} or {@code .mp3} clip used as the audio prompt in
-     * {@code AudioInputIntegrationTest}. The matching extension drives format detection in
+     * {@code AudioInputIntegrationTest}. When unset the test falls back to
+     * {@link #DEFAULT_AUDIO_INPUT_PATH}, which points at a small clip committed under
+     * {@code src/test/resources/audios/}. The matching extension drives format detection in
      * {@code ContentPart.audioFile(Path)}.
      */
     public static final String PROP_AUDIO_PATH = LlamaSystemProperties.PREFIX + ".audio.input";
+
+    /**
+     * Path used by {@code AudioInputIntegrationTest} when {@link #PROP_AUDIO_PATH} is unset. Points at
+     * the committed test resource so only the (large) audio model + mmproj have to be staged
+     * out-of-band.
+     */
+    public static final String DEFAULT_AUDIO_INPUT_PATH = "src/test/resources/audios/sample.wav";
 
     /**
      * System property holding a path to the text-to-codes (OuteTTS) GGUF used by

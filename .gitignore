@@ -75,3 +75,12 @@ llama/src/main/cpp/llama.cpp/
 # Local AI agent tooling (not part of the project)
 AGENTS.md
 .agents/
+# llama-android AAR build (Gradle): build outputs, Gradle caches, and the
+# CI-staged native libraries (never committed — same policy as resources_*).
+llama-android/build/
+llama-android/.gradle/
+llama-android/natives/
+
+# CI Android consumer-test fixture (Gradle/AGP) build outputs
+.github/android-consumer-test/**/build/
+.github/android-consumer-test/.gradle/

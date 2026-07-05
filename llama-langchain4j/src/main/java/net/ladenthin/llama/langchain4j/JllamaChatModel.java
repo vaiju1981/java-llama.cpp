@@ -17,10 +17,14 @@ import net.ladenthin.llama.LlamaModel;
  * {@link LlamaModel} you already own and keep managing that model's lifecycle (try-with-resources or
  * an explicit {@code close()}). One {@code LlamaModel} can back several adapters at once.
  *
- * <p>Mapped today: messages (system/user/assistant/tool-result) and the sampling parameters
- * {@code temperature}/{@code topP}/{@code topK}/{@code maxOutputTokens}/{@code stopSequences}.
- * Tool <em>specifications</em> on the request are not yet forwarded, so this returns assistant text,
- * not tool calls — see the module README for the planned tool-calling bridge.
+ * <p>Mapped today: messages (system/user/assistant-with-tool-calls/tool-result), multimodal user
+ * content (text + image/audio parts, routed through the mtmd pipeline when the model was loaded
+ * with an {@code mmproj}), tool specifications ({@code toolSpecifications()} + {@code toolChoice()}
+ * — a response with {@code tool_calls} comes back as {@link dev.langchain4j.data.message.AiMessage
+ * AiMessage}{@code .toolExecutionRequests()} with finish reason {@code TOOL_EXECUTION}), JSON
+ * {@code responseFormat()} (plain JSON mode and JSON-schema-constrained structured output), and the
+ * sampling parameters {@code temperature}/{@code topP}/{@code topK}/{@code maxOutputTokens}/{@code
+ * frequencyPenalty}/{@code presencePenalty}/{@code stopSequences}.
  */
 public final class JllamaChatModel implements ChatModel {
 

@@ -142,7 +142,11 @@ public class LlamaLoader {
                 System.loadLibrary(name);
                 return;
             } catch (UnsatisfiedLinkError e) {
-                triedPaths.add("Directly from .apk/lib");
+                // Carry the dlopen reason into the final error: "library not in the APK"
+                // and "library present but a DT_NEEDED dependency is missing" are
+                // indistinguishable without it (the latter shipped once — the Android .so
+                // linked libomp.so/libc++_shared.so, which no device has).
+                triedPaths.add("Directly from .apk/lib (" + e.getMessage() + ")");
             }
         }
 

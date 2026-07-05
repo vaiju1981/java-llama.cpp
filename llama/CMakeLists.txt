@@ -85,6 +85,30 @@ endif()
 # toolchain keeps working.
 if(ANDROID OR ANDROID_ABI OR OS_NAME MATCHES "Android" OR CMAKE_CXX_COMPILER MATCHES "android")
     add_compile_definitions(__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__)
+    # 16 KB page-size compliance (Google Play requirement for apps targeting
+    # Android 15+): every LOAD segment of the shipped .so must be aligned to a
+    # multiple of 16384. The dockcross cross-linker currently emits 0x4000
+    # alignment by default, but that is a toolchain default, not a guarantee —
+    # pin it explicitly so a toolchain image bump cannot silently regress Play
+    # compatibility. CI asserts the resulting alignment with readelf.
+    add_link_options(-Wl,-z,max-page-size=16384)
+    # The shipped .so must dlopen with ONLY bionic system libraries present —
+    # an app that consumes the AAR bundles no other native libs. The dockcross
+    # cross-clang, left alone, emits two DT_NEEDED entries that do not exist on
+    # any Android device and made System.loadLibrary fail with
+    # UnsatisfiedLinkError (caught on the API-30 emulator CI job; readelf on the
+    # released 5.0.5 arm64 lib shows the same latent defect):
+    #   - libomp.so: ggml's OpenMP backend links LLVM's libomp, which Android
+    #     does not ship. Turn OpenMP off; ggml falls back to its own std::thread
+    #     pool (same trade the Windows-arm64 clang-cl job makes with
+    #     -DGGML_OPENMP=OFF, and what the Google NDK toolchain does by default).
+    #   - libc++_shared.so: the NDK's shared C++ runtime, only present when an
+    #     app packages it itself. Link libc++ statically instead (upstream
+    #     llama.cpp's Android builds do the same); bionic system libs are the
+    #     only remaining DT_NEEDED. CI enforces this with a whitelist check on
+    #     the AAR's .so files.
+    set(GGML_OPENMP OFF CACHE BOOL "Android: no libomp.so on devices; use ggml's std::thread pool" FORCE)
+    add_link_options(-static-libstdc++)
 endif()
 
 set(LLAMA_BUILD_COMMON ON)
@@ -150,7 +174,7 @@ set(LLAMA_BUILD_APP OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
 	llama.cpp
 	GIT_REPOSITORY https://github.com/ggerganov/llama.cpp.git
-	GIT_TAG        b9870
+	GIT_TAG        b9878
 	PATCH_COMMAND  ${CMAKE_COMMAND}
 		-DPATCH_DIR=${CMAKE_CURRENT_SOURCE_DIR}/patches
 		-DLLAMA_SRC=<SOURCE_DIR>
@@ -173,7 +197,7 @@ execute_process(
     COMMAND ${CMAKE_COMMAND}
         -DTTS_SRC=${llama.cpp_SOURCE_DIR}/tools/tts/tts.cpp
         -DOUT_CPP=${JLLAMA_TTS_GEN_CPP}
-        -DLLAMA_TAG=b9870
+        -DLLAMA_TAG=b9878
         -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/generate-tts-upstream.cmake
     RESULT_VARIABLE JLLAMA_TTS_GEN_RESULT
 )

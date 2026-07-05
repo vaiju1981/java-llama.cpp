@@ -71,6 +71,10 @@ jclass c_error_oom = nullptr;
 jmethodID cc_hash_map = nullptr;
 jmethodID cc_integer = nullptr;
 jmethodID cc_float = nullptr;
+// String(byte[], String charsetName) — the standard-UTF-8-safe way to build a
+// Java String from native bytes (NewStringUTF expects Modified UTF-8 and is
+// spec-invalid for supplementary-plane characters such as 4-byte emoji).
+jmethodID cc_string_bytes_charset = nullptr;
 
 // methods
 jmethodID m_get_bytes = nullptr;
@@ -143,6 +147,31 @@ static const static_object_binding g_static_object_bindings[] = {
  */
 [[nodiscard]] static jllama_context *get_jllama_context(JNIEnv *env, jobject obj) {
     return get_jllama_context_impl(env, obj, f_model_pointer);
+}
+
+/**
+ * Builds a Java String from raw standard-UTF-8 bytes via the cached
+ * String(byte[], "UTF-8") constructor (see utf8_to_jstring_impl for why
+ * NewStringUTF must not be used for payload text).
+ */
+[[nodiscard]] static jstring utf8_to_jstring(JNIEnv *env, const std::string &s) {
+    return utf8_to_jstring_impl(env, s, c_string, cc_string_bytes_charset, o_utf_8);
+}
+
+/**
+ * Serialises a json value to a Java String (UTF-8-safe on both the dump and
+ * the JNI crossing; see json_to_jstring_impl).
+ */
+[[nodiscard]] static jstring json_to_jstring(JNIEnv *env, const json &j) {
+    return json_to_jstring_impl(env, j, c_string, cc_string_bytes_charset, o_utf_8);
+}
+
+/**
+ * Serialises a vector of task results to a Java String (see
+ * results_to_jstring_impl).
+ */
+[[nodiscard]] static jstring results_to_jstring(JNIEnv *env, const std::vector<server_task_result_ptr> &results) {
+    return results_to_jstring_impl(env, results, c_string, cc_string_bytes_charset, o_utf_8);
 }
 
 /**
@@ -260,7 +289,7 @@ static void populate_completion_task(server_task &task, jllama_context *jctx, in
     auto br = rd.wait_for_all([] { return false; });
     if (!batch_ok_or_throw(env, br))
         return nullptr;
-    return results_to_jstring_impl(env, br.results);
+    return results_to_jstring(env, br.results);
 }
 
 /**
@@ -328,7 +357,7 @@ std::string parse_jstring(JNIEnv *env, jstring java_string) {
     auto result = rd.next([] { return false; });
     if (!result_ok_or_throw(env, result))
         return nullptr;
-    return json_to_jstring_impl(env, result->to_json());
+    return json_to_jstring(env, result->to_json());
 }
 
 // Post a single slot file task (SAVE or RESTORE), wait for its result, and
@@ -518,8 +547,9 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
     cc_hash_map = env->GetMethodID(c_hash_map, "<init>", "()V");
     cc_integer = env->GetMethodID(c_integer, "<init>", "(I)V");
     cc_float = env->GetMethodID(c_float, "<init>", "(F)V");
+    cc_string_bytes_charset = env->GetMethodID(c_string, "<init>", "([BLjava/lang/String;)V");
 
-    if (!(cc_hash_map && cc_integer && cc_float)) {
+    if (!(cc_hash_map && cc_integer && cc_float && cc_string_bytes_charset)) {
         goto error;
     }
 
@@ -783,7 +813,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_getModelMetaJson(J
             {"n_vocab", llama_vocab_n_tokens(jctx->vocab)},
             {"special_tokens", special_tokens_json(jctx->vocab)},
         };
-        return json_to_jstring_impl(env, meta);
+        return json_to_jstring(env, meta);
     }
     auto m = ctx_server->get_meta();
     // Read general.architecture from GGUF metadata via the llama C API.
@@ -824,7 +854,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_getModelMetaJson(J
         }
         j["metadata"] = std::move(meta_map);
     }
-    return json_to_jstring_impl(env, j);
+    return json_to_jstring(env, j);
 }
 
 JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestCompletion(JNIEnv *env, jobject obj,
@@ -887,7 +917,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveCompletionJ
         break;
     }
 
-    return json_to_jstring_impl(env, response);
+    return json_to_jstring(env, response);
 }
 
 // Streaming OpenAI chat: poll one step of a chat.completion.chunk stream.
@@ -935,7 +965,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveChatComplet
         break;
     }
 
-    return json_to_jstring_impl(env, wrap_stream_chunk(std::move(payload), stop));
+    return json_to_jstring(env, wrap_stream_chunk(std::move(payload), stop));
 }
 
 JNIEXPORT jfloatArray JNICALL Java_net_ladenthin_llama_LlamaModel_embed(JNIEnv *env, jobject obj, jstring jprompt) {
@@ -1012,7 +1042,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleRerank(JNIEn
     auto br = rd.wait_for_all([] { return false; });
     if (!batch_ok_or_throw(env, br))
         return nullptr;
-    return json_to_jstring_impl(env, rerank_results_to_json(br.results, document_vector));
+    return json_to_jstring(env, rerank_results_to_json(br.results, document_vector));
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_applyTemplate(JNIEnv *env, jobject obj, jstring jparams) {
@@ -1033,7 +1063,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_applyTemplate(JNIE
         return nullptr;
     }
     std::string tok_str = templateData.at("prompt");
-    return env->NewStringUTF(tok_str.c_str());
+    return utf8_to_jstring(env, tok_str);
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleChatCompletions(JNIEnv *env, jobject obj,
@@ -1180,7 +1210,13 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_setLogger(JNIEnv *env
             if (env == nullptr || text == nullptr) {
                 return;
             }
-            jstring message = env->NewStringUTF(text);
+            // Log lines can embed payload text (prompts, model metadata), so the
+            // message must cross as standard UTF-8, not Modified UTF-8.
+            jstring message = utf8_to_jstring(env, text);
+            if (message == nullptr) {
+                env->ExceptionClear(); // allocation failed; drop this log line
+                return;
+            }
             jobject log_level = log_level_to_jobject(level);
             env->CallVoidMethod(o_log_callback, m_biconsumer_accept, log_level, message);
             env->DeleteLocalRef(message);
@@ -1349,7 +1385,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleEmbeddings(J
                    ? format_embeddings_response_oaicompat(
                          body, json_value(body, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), responses, use_base64)
                    : responses;
-    return json_to_jstring_impl(env, out);
+    return json_to_jstring(env, out);
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleTokenize(JNIEnv *env, jobject obj, jstring jcontent,
@@ -1388,7 +1424,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleTokenize(JNI
         tokens_response = tokens;
     }
 
-    return json_to_jstring_impl(env, format_tokenizer_response(tokens_response));
+    return json_to_jstring(env, format_tokenizer_response(tokens_response));
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleDetokenize(JNIEnv *env, jobject obj,
@@ -1396,7 +1432,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleDetokenize(J
     REQUIRE_SERVER_CONTEXT(nullptr);
 
     const auto tokens = jint_array_to_tokens_impl(env, jtokens);
-    return json_to_jstring_impl(env, format_detokenized_response(detokenize(jctx, tokens)));
+    return json_to_jstring(env, format_detokenized_response(detokenize(jctx, tokens)));
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleSlotAction(JNIEnv *env, jobject obj, jint action,
@@ -1420,6 +1456,55 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleSlotAction(J
     default:
         env->ThrowNew(c_llama_error, "Invalid slot action");
         return nullptr;
+    }
+}
+
+JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_getLoraAdaptersJson(JNIEnv *env, jobject obj) {
+    REQUIRE_SERVER_CONTEXT(nullptr);
+
+    return dispatch_one_shot_task(env, ctx_server, server_task(SERVER_TASK_TYPE_GET_LORA));
+}
+
+JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_setLoraAdaptersJson(JNIEnv *env, jobject obj,
+                                                                                  jstring jadapters) {
+    REQUIRE_SERVER_CONTEXT(nullptr);
+
+    json data;
+    if (!parse_json_params(env, jadapters, data)) {
+        return nullptr;
+    }
+    if (!data.is_array()) {
+        // Same contract as the upstream POST /lora-adapters route body.
+        env->ThrowNew(c_llama_error, "LoRA adapter list must be a JSON array of {id, scale} objects");
+        return nullptr;
+    }
+    server_task task(SERVER_TASK_TYPE_SET_LORA);
+    task.set_lora = parse_lora_request(data);
+    return dispatch_one_shot_task(env, ctx_server, std::move(task));
+}
+
+JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaQuantizer_quantizeNative(JNIEnv *env, jclass, jstring jinput,
+                                                                              jstring joutput, jint ftype, jint nthread,
+                                                                              jboolean allowRequantize) {
+    try {
+        const std::string input_path = parse_jstring(env, jinput);
+        const std::string output_path = parse_jstring(env, joutput);
+        // Idempotent; intentionally never paired with llama_backend_free here — a LlamaModel
+        // loaded in the same JVM shares the backend and must not have it freed underneath it.
+        llama_backend_init();
+        llama_model_quantize_params qparams = llama_model_quantize_default_params();
+        qparams.ftype = static_cast<llama_ftype>(ftype);
+        qparams.nthread = nthread;
+        qparams.allow_requantize = (allowRequantize == JNI_TRUE);
+        const uint32_t rc = llama_model_quantize(input_path.c_str(), output_path.c_str(), &qparams);
+        if (rc != 0) {
+            const std::string msg = "Quantization of '" + input_path + "' failed with code " + std::to_string(rc);
+            env->ThrowNew(c_llama_error, msg.c_str());
+        }
+    } catch (const std::exception &e) {
+        env->ThrowNew(c_llama_error, e.what());
+    } catch (...) {
+        env->ThrowNew(c_llama_error, "Unknown C++ exception during quantization");
     }
 }
 

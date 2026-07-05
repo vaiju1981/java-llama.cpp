@@ -174,6 +174,30 @@ jobs:
         run: mvn -B --no-transfer-progress -f llama-langchain4j/pom.xml verify
 
   # ---------------------------------------------------------------------------
+  # Model-free unit tests for the Kotlin coroutines facade (llama-kotlin).
+  # Pure Kotlin/JVM reactor module; its 6 tests fake the Iterable+AutoCloseable
+  # seam, so no native library and no model are needed.
+  # ---------------------------------------------------------------------------
+
+  test-java-llama-kotlin:
+    name: Build and Test llama-kotlin
+    needs: startgate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+      - name: Install parent + core net.ladenthin:llama into the local repo (Java only)
+        run: >
+          mvn -B --no-transfer-progress -pl llama -am -DskipTests -Denforcer.skip=true
+          -Dspotless.check.skip=true -Dspotbugs.skip=true
+          -Dmaven.javadoc.skip=true -Dmaven.source.skip=true -Dgpg.skip=true install
+      - name: Build and test llama-kotlin
+        run: mvn -B --no-transfer-progress -f llama-kotlin/pom.xml verify
+
+  # ---------------------------------------------------------------------------
   # Model-backed integration for the langchain4j adapters. Reuses the SAME shared GGUF
   # cache (populated once by download-models) and the SAME Linux-x86_64 native artifact the
   # core Java jobs already use — no extra model download and no duplicated download logic
@@ -214,6 +238,7 @@ jobs:
           -Dnet.ladenthin.llama.model.path=models/${REASONING_MODEL_NAME}
           -Dnet.ladenthin.llama.langchain4j.embedding.model=models/${NOMIC_EMBED_MODEL_NAME}
           -Dnet.ladenthin.llama.langchain4j.rerank.model=models/${RERANKING_MODEL_NAME}
+          -Dnet.ladenthin.llama.langchain4j.tool.model=models/${TOOL_MODEL_NAME}
 
   # ---------------------------------------------------------------------------
   # Build the llama.cpp WebUI ONCE, from the same pinned tag CMakeLists.txt fetches,
@@ -605,6 +630,38 @@ jobs:
           name: Linux-Android-aarch64-libraries
           path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
 
+  crosscompile-android-x86_64:
+    name: Cross-Compile Android x86_64
+    needs: [startgate, build-webui]
+    runs-on: ubuntu-latest
+    # Android x86_64 CPU ABI: consumed by the llama-android AAR as jni/x86_64 (so the
+    # Android emulator — and x86_64 Android devices/Chromebooks — can run the binding)
+    # and merged into the default JAR's Linux-Android/x86_64 tree via the *-libraries
+    # glob. Same dockcross + sccache steady-state env as the arm64 job; the wrapper
+    # pins the same image tag. Fail-loud and in the package/publish needs graphs.
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/llama/webui-generated/
+      - name: Build libraries
+        shell: bash
+        run: |
+          .github/dockcross/dockcross-android-x86_64 .github/build.sh "-DOS_NAME=Linux-Android -DOS_ARCH=x86_64"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Linux-Android-x86_64-libraries
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
+          if-no-files-found: error
+
   crosscompile-android-aarch64-opencl:
     name: Cross-Compile Android aarch64 (OpenCL/Adreno)
     needs: [startgate, build-webui]
@@ -634,6 +691,213 @@ jobs:
         with:
           name: android-libraries-opencl
           path: ${{ github.workspace }}/llama/src/main/resources_android_opencl/net/ladenthin/llama/
+
+  # ---------------------------------------------------------------------------
+  # Android AAR packaging (net.ladenthin:llama-android + llama-android-opencl).
+  # Plain-Gradle AAR assembly — no AGP and no Android SDK needed to BUILD (an AAR
+  # is a documented zip; see llama-android/README.md); AGP is only needed to
+  # CONSUME it, which the consumer smoke test below exercises on the runner's
+  # preinstalled Android SDK: a minimal app resolves the AAR from mavenLocal and
+  # runs a full R8 release build (validating AAR format, manifest minSdk merge,
+  # jni/ packaging, and the shipped consumer proguard rules). Structural checks
+  # additionally pin the AAR entries and the 16 KB LOAD-segment alignment
+  # (Google Play requirement for Android 15+ targets). Fail-loud and in the
+  # publish `needs:` graphs — a broken AAR blocks publishing, same policy as
+  # every native artifact job.
+  # ---------------------------------------------------------------------------
+
+  package-android-aar:
+    name: Package + Validate Android AARs
+    needs: [crosscompile-android-aarch64, crosscompile-android-x86_64, crosscompile-android-aarch64-opencl]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: Build core jar (byte-identical classes payload for the AAR)
+        run: >
+          mvn -B --no-transfer-progress -pl llama -am -DskipTests -Denforcer.skip=true
+          -Dspotless.check.skip=true -Dspotbugs.skip=true
+          -Dmaven.javadoc.skip=true -Dmaven.source.skip=true -Dgpg.skip=true package
+      - name: Download Android CPU natives (arm64)
+        uses: actions/download-artifact@v8
+        with:
+          name: Linux-Android-aarch64-libraries
+          path: stage/cpu/
+      - name: Download Android CPU natives (x86_64)
+        uses: actions/download-artifact@v8
+        with:
+          name: Linux-Android-x86_64-libraries
+          path: stage/cpu-x86_64/
+      - name: Download Android OpenCL natives
+        uses: actions/download-artifact@v8
+        with:
+          name: android-libraries-opencl
+          path: stage/opencl/
+      - name: Stage natives for the AAR build
+        run: |
+          mkdir -p llama-android/natives/cpu/arm64-v8a llama-android/natives/cpu/x86_64 llama-android/natives/opencl/arm64-v8a
+          cp stage/cpu/Linux-Android/aarch64/libjllama.so llama-android/natives/cpu/arm64-v8a/
+          cp stage/cpu-x86_64/Linux-Android/x86_64/libjllama.so llama-android/natives/cpu/x86_64/
+          cp stage/opencl/Linux-Android/aarch64/libjllama.so llama-android/natives/opencl/arm64-v8a/
+      - name: Assemble AARs + publish to mavenLocal
+        run: gradle -p llama-android aarCpu aarOpencl publishToMavenLocal
+      - name: Validate AAR structure + 16 KB page-size alignment
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n1)
+          for flavor in llama-android llama-android-opencl; do
+            AAR="llama-android/build/aar/${flavor}-${VERSION}.aar"
+            echo "== validating $AAR"
+            test -f "$AAR"
+            # The CPU AAR is multi-ABI (arm64 devices + x86_64 emulators/devices);
+            # the OpenCL flavor stays arm64-only (Adreno is Qualcomm ARM hardware).
+            ABIS="arm64-v8a"
+            if [ "$flavor" = "llama-android" ]; then ABIS="arm64-v8a x86_64"; fi
+            ENTRIES="AndroidManifest.xml classes.jar proguard.txt R.txt"
+            for abi in $ABIS; do ENTRIES="$ENTRIES jni/$abi/libjllama.so"; done
+            for entry in $ENTRIES; do
+              unzip -l "$AAR" | grep -q "${entry}$" || { echo "::error::$AAR is missing $entry"; exit 1; }
+            done
+            unzip -p "$AAR" AndroidManifest.xml | grep -q 'android:minSdkVersion="28"' \
+              || { echo "::error::$AAR manifest lost minSdkVersion 28"; exit 1; }
+            unzip -p "$AAR" classes.jar > /tmp/aar-classes.jar
+            unzip -l /tmp/aar-classes.jar | grep -q "net/ladenthin/llama/LlamaModel.class" \
+              || { echo "::error::$AAR classes.jar lost LlamaModel"; exit 1; }
+            if unzip -l /tmp/aar-classes.jar | grep -qE "module-info\.class|net/ladenthin/llama/(Linux|Mac|Windows)/"; then
+              echo "::error::$AAR classes.jar carries module-info or desktop native resources"; exit 1
+            fi
+            rm -rf /tmp/aar-natives && unzip -o -q -d /tmp/aar-natives "$AAR" "jni/*/libjllama.so"
+            # Google Play 16 KB page-size requirement (Android 15+ targets): every
+            # LOAD segment must be aligned to a multiple of 16384. CMake pins
+            # -Wl,-z,max-page-size=16384 for every Android ABI; this asserts it held.
+            for so in /tmp/aar-natives/jni/*/libjllama.so; do
+              for align in $(readelf -lW "$so" | awk '$1=="LOAD"{print $NF}'); do
+                if [ $(( align % 16384 )) -ne 0 ]; then
+                  echo "::error::$so: LOAD alignment $align is not a multiple of 16384 (16 KB page-size regression)"; exit 1
+                fi
+              done
+              # dlopen-ability gate: an app consuming the AAR bundles no other native
+              # libs, so every DT_NEEDED must be a bionic system library (plus the
+              # vendor ICD libOpenCL.so for the OpenCL flavor). A stray dependency —
+              # libomp.so / libc++_shared.so once shipped exactly this way — makes
+              # System.loadLibrary fail on every device with UnsatisfiedLinkError.
+              # CMake's Android guard (GGML_OPENMP OFF + -static-libstdc++) keeps the
+              # list clean; this asserts it held.
+              ALLOWED="libc.so libm.so libdl.so liblog.so libandroid.so"
+              if [ "$flavor" = "llama-android-opencl" ]; then ALLOWED="$ALLOWED libOpenCL.so"; fi
+              for needed in $(readelf -dW "$so" | awk '/\(NEEDED\)/{gsub(/[\[\]]/,"",$NF); print $NF}'); do
+                case " $ALLOWED " in
+                  *" $needed "*) ;;
+                  *) echo "::error::$so: DT_NEEDED '$needed' is not a bionic system library — dlopen would fail on-device"; exit 1 ;;
+                esac
+              done
+            done
+          done
+      - name: AGP consumer smoke test (R8 release build from mavenLocal)
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n1)
+          gradle -p .github/android-consumer-test assembleRelease "-PjllamaVersion=${VERSION}"
+          APK=.github/android-consumer-test/app/build/outputs/apk/release/app-release.apk
+          test -f "$APK"
+          for abi in arm64-v8a x86_64; do
+            unzip -l "$APK" | grep -q "lib/$abi/libjllama.so" \
+              || { echo "::error::consumer APK is missing lib/$abi/libjllama.so"; exit 1; }
+          done
+          # The AAR's consumer proguard.txt must have carried the binding through R8.
+          unzip -p "$APK" "classes*.dex" | grep -aq "Lnet/ladenthin/llama/LlamaModel;" \
+            || { echo "::error::R8 stripped net.ladenthin.llama.LlamaModel — consumer proguard rules broken"; exit 1; }
+      - name: Upload AARs
+        uses: actions/upload-artifact@v7
+        with:
+          name: llama-android-aars
+          path: llama-android/build/aar/*.aar
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # On-emulator runtime validation of the Android AAR: boots a KVM-accelerated
+  # x86_64 emulator (GitHub Linux runners have KVM; arm64 images cannot run here,
+  # which is exactly why the AAR carries the jni/x86_64 ABI), publishes the CPU AAR
+  # to mavenLocal, adb-pushes the already-cached tiny draft model, and runs the
+  # consumer fixture's connectedDebugAndroidTest — System.loadLibrary from the APK,
+  # pure-Java GgufInspector on-device, and real native inference on Android/bionic.
+  # RELEASE GATE (in both publish needs graphs) since PR #298: the job ran
+  # flake-free through the PR's validation cycle (boot ~30 s, on-device inference
+  # green), so a broken on-device runtime now blocks publishing — same fail-loud
+  # policy as every native artifact job. If emulator-boot flakiness ever appears,
+  # re-run the job first; demote it from the needs graphs only as a last resort.
+  # ---------------------------------------------------------------------------
+
+  test-android-emulator:
+    name: Android emulator on-device test (x86_64)
+    needs: [crosscompile-android-aarch64, crosscompile-android-x86_64, download-models]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: Enable KVM group permissions (GitHub-hosted runner)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Build core jar (classes payload for the AAR)
+        run: >
+          mvn -B --no-transfer-progress -pl llama -am -DskipTests -Denforcer.skip=true
+          -Dspotless.check.skip=true -Dspotbugs.skip=true
+          -Dmaven.javadoc.skip=true -Dmaven.source.skip=true -Dgpg.skip=true package
+      - name: Download Android CPU natives (arm64)
+        uses: actions/download-artifact@v8
+        with:
+          name: Linux-Android-aarch64-libraries
+          path: stage/cpu/
+      - name: Download Android CPU natives (x86_64)
+        uses: actions/download-artifact@v8
+        with:
+          name: Linux-Android-x86_64-libraries
+          path: stage/cpu-x86_64/
+      - name: Stage natives + publish the CPU AAR to mavenLocal
+        run: |
+          mkdir -p llama-android/natives/cpu/arm64-v8a llama-android/natives/cpu/x86_64
+          cp stage/cpu/Linux-Android/aarch64/libjllama.so llama-android/natives/cpu/arm64-v8a/
+          cp stage/cpu-x86_64/Linux-Android/x86_64/libjllama.so llama-android/natives/cpu/x86_64/
+          gradle -p llama-android publishLlamaAndroidPublicationToMavenLocal
+      - name: Restore shared GGUF model cache (populated by download-models; no re-download)
+        uses: actions/cache@v6
+        with:
+          path: models/
+          key: gguf-models-v1
+      - name: Run on-emulator instrumentation (connectedDebugAndroidTest)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: default
+          disable-animations: true
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          # One line on purpose: the emulator-runner executes `script:` LINE BY LINE via sh,
+          # so shell control flow must live in the committed helper script.
+          script: .github/run-android-emulator-test.sh
+      - name: Upload instrumentation reports (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-emulator-test-reports
+          path: .github/android-consumer-test/app/build/reports/androidTests/
+          if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------
   # Native build jobs — produce release artifacts + run C++ unit tests
@@ -2029,6 +2293,7 @@ jobs:
       - build-linux-x86_64-vulkan
       - build-linux-aarch64-vulkan
       - crosscompile-android-aarch64
+      - crosscompile-android-x86_64
       - crosscompile-android-aarch64-opencl
       - build-windows-x86_64
       - build-windows-x86
@@ -2205,7 +2470,7 @@ jobs:
 
   publish-snapshot:
     name: Publish Snapshot to Central
-    needs: [check-snapshot, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, code-style, test-java-llama-langchain4j]
+    needs: [check-snapshot, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, package-android-aar, test-android-emulator, code-style, test-java-llama-langchain4j, test-java-llama-kotlin]
     if: needs.check-snapshot.result == 'success' && inputs.publish_to_central
     runs-on: ubuntu-latest
     environment: maven-central
@@ -2305,15 +2570,36 @@ jobs:
             *-SNAPSHOT) echo "OK: -SNAPSHOT version, continuing snapshot deploy." ;;
             *) echo "::error::Refusing to publish non-SNAPSHOT version '$VERSION' from the snapshot job. Snapshot publishing requires a -SNAPSHOT version; releases go through the v* tag path."; exit 1 ;;
           esac
-      # One reactor deploy publishes all three artifacts at the same version:
-      # net.ladenthin:llama-parent (the pom), :llama (the core jar + classifiers), and
-      # :llama-langchain4j. The `release` profile (GPG + Central Publishing) is inherited
-      # from the parent, so every module — including the parent pom — is signed.
-      - name: Publish snapshot (reactor - parent + llama + llama-langchain4j)
+      # One reactor deploy publishes all four Maven artifacts at the same version:
+      # net.ladenthin:llama-parent (the pom), :llama (the core jar + classifiers),
+      # :llama-langchain4j, and :llama-kotlin. The `release` profile (GPG + Central
+      # Publishing) is inherited from the parent, so every module — including the
+      # parent pom — is signed. The Android AARs are published by the separate
+      # Gradle step below (Maven cannot deploy <packaging>aar</packaging>).
+      - name: Publish snapshot (reactor - parent + llama + llama-langchain4j + llama-kotlin)
         run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,rocm-linux,rocm-windows,sycl-fp16-linux,sycl-fp32-linux,sycl-windows,opencl-windows-aarch64,openvino-linux,openvino-windows -Dmaven.test.skip=true deploy
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      # Android AARs (llama-android, llama-android-opencl): assembled and published by
+      # the plain-Gradle build in llama-android/ — Maven cannot deploy
+      # <packaging>aar</packaging>. Natives are already on disk from the artifact
+      # downloads above; the core jar was just built by the reactor deploy.
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: Publish Android AAR snapshots (llama-android + llama-android-opencl)
+        run: |
+          mkdir -p llama-android/natives/cpu/arm64-v8a llama-android/natives/cpu/x86_64 llama-android/natives/opencl/arm64-v8a
+          cp llama/src/main/resources/net/ladenthin/llama/Linux-Android/aarch64/libjllama.so llama-android/natives/cpu/arm64-v8a/
+          cp llama/src/main/resources/net/ladenthin/llama/Linux-Android/x86_64/libjllama.so llama-android/natives/cpu/x86_64/
+          cp llama/src/main/resources_android_opencl/net/ladenthin/llama/Linux-Android/aarch64/libjllama.so llama-android/natives/opencl/arm64-v8a/
+          gradle -p llama-android publishAllPublicationsToCentralSnapshotsRepository
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
+          MAVEN_GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
       - name: Collect signed artifacts
         run: |
@@ -2322,6 +2608,9 @@ jobs:
           cp llama/target/*.jar.asc signed-snapshot-assets/ 2>/dev/null || true
           cp llama-langchain4j/target/*.jar signed-snapshot-assets/ 2>/dev/null || true
           cp llama-langchain4j/target/*.jar.asc signed-snapshot-assets/ 2>/dev/null || true
+          cp llama-kotlin/target/*.jar signed-snapshot-assets/ 2>/dev/null || true
+          cp llama-kotlin/target/*.jar.asc signed-snapshot-assets/ 2>/dev/null || true
+          cp llama-android/build/aar/*.aar signed-snapshot-assets/ 2>/dev/null || true
       - uses: actions/upload-artifact@v7
         with:
           name: signed-snapshot-assets
@@ -2356,7 +2645,7 @@ jobs:
   publish-release:
     name: Publish Release to Central
     if: needs.check-tag.result == 'success' && inputs.publish_to_central
-    needs: [check-tag, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, code-style, test-java-llama-langchain4j]
+    needs: [check-tag, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, package-android-aar, test-android-emulator, code-style, test-java-llama-langchain4j, test-java-llama-kotlin]
     runs-on: ubuntu-latest
     environment: maven-central
     permissions:
@@ -2450,11 +2739,42 @@ jobs:
       # net.ladenthin:llama-parent (the pom), :llama (the core jar + classifiers), and
       # :llama-langchain4j. The `release` profile (GPG + Central Publishing) is inherited
       # from the parent, so every module — including the parent pom — is signed.
-      - name: Publish release (reactor - parent + llama + llama-langchain4j)
+      - name: Publish release (reactor - parent + llama + llama-langchain4j + llama-kotlin)
         run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,rocm-linux,rocm-windows,sycl-fp16-linux,sycl-fp32-linux,sycl-windows,opencl-windows-aarch64,openvino-linux,openvino-windows -Dmaven.test.skip=true deploy
         env:
           MAVEN_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      # Android AARs (llama-android, llama-android-opencl): Maven cannot deploy
+      # <packaging>aar</packaging>, so the plain-Gradle build signs + publishes them
+      # into a local Maven-layout staging repo, which is zipped into a Central
+      # Portal bundle and uploaded via the Publisher API (publishingType=AUTOMATIC:
+      # the deployment publishes as soon as portal validation passes). Natives are
+      # already on disk from the artifact downloads above; the core jar was just
+      # built by the reactor deploy.
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: Publish Android AAR release bundle to Central Portal
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p llama-android/natives/cpu/arm64-v8a llama-android/natives/cpu/x86_64 llama-android/natives/opencl/arm64-v8a
+          cp llama/src/main/resources/net/ladenthin/llama/Linux-Android/aarch64/libjllama.so llama-android/natives/cpu/arm64-v8a/
+          cp llama/src/main/resources/net/ladenthin/llama/Linux-Android/x86_64/libjllama.so llama-android/natives/cpu/x86_64/
+          cp llama/src/main/resources_android_opencl/net/ladenthin/llama/Linux-Android/aarch64/libjllama.so llama-android/natives/opencl/arm64-v8a/
+          gradle -p llama-android publishAllPublicationsToStagingRepository
+          VERSION=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n1)
+          ( cd llama-android/build/staging-repo && zip -r -q ../central-bundle.zip net -x "*maven-metadata*" )
+          TOKEN=$(printf "%s:%s" "$CENTRAL_USERNAME" "$CENTRAL_PASSWORD" | base64 -w0)
+          curl --fail-with-body -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -F "bundle=@llama-android/build/central-bundle.zip" \
+            "https://central.sonatype.com/api/v1/publisher/upload?publishingType=AUTOMATIC&name=llama-android-$VERSION"
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
+          MAVEN_GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
       - name: Collect signed artifacts
         run: |
@@ -2463,6 +2783,9 @@ jobs:
           cp llama/target/*.jar.asc signed-release-assets/ 2>/dev/null || true
           cp llama-langchain4j/target/*.jar signed-release-assets/ 2>/dev/null || true
           cp llama-langchain4j/target/*.jar.asc signed-release-assets/ 2>/dev/null || true
+          cp llama-kotlin/target/*.jar signed-release-assets/ 2>/dev/null || true
+          cp llama-kotlin/target/*.jar.asc signed-release-assets/ 2>/dev/null || true
+          cp llama-android/build/aar/*.aar signed-release-assets/ 2>/dev/null || true
       - uses: actions/upload-artifact@v7
         with:
           name: signed-release-assets

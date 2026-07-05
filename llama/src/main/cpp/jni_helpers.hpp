@@ -15,7 +15,7 @@
 //
 //   Layer B — JNI + server orchestration:
 //     configure_multimodal_task_impl, configure_task_slot_impl,
-//     json_to_jstring_impl, results_to_jstring_impl,
+//     utf8_to_jstring_impl, json_to_jstring_impl, results_to_jstring_impl,
 //     embedding_to_jfloat_array_impl, tokens_to_jint_array_impl
 //
 // Pure JSON transforms (no JNI, no llama state) live in json_helpers.hpp,
@@ -186,13 +186,48 @@ inline void configure_task_slot_impl(server_task &task, const json &data) {
 }
 
 // ---------------------------------------------------------------------------
+// utf8_to_jstring_impl
+//
+// Builds a java.lang.String from raw standard-UTF-8 bytes via the
+// String(byte[], String charsetName) constructor. NewStringUTF must NOT be
+// used for payload text: JNI specifies *Modified* UTF-8 input, where
+// supplementary-plane characters (e.g. every 4-byte emoji sequence) are
+// encoded as CESU-8 surrogate pairs — standard UTF-8 payloads containing
+// them are spec-invalid (Android CheckJNI aborts, HotSpot mangles). Routing
+// through byte[] + charset keeps the bytes standard UTF-8 end to end and is
+// the mirror of parse_jstring's String.getBytes("UTF-8") input path.
+//
+// string_init_bytes_charset is the cached method id of
+// String(byte[], String) and charset_name a cached "UTF-8" jstring.
+// Returns nullptr with a pending OOM exception if the byte array cannot be
+// allocated.
+// ---------------------------------------------------------------------------
+[[nodiscard]] inline jstring utf8_to_jstring_impl(JNIEnv *env, const std::string &s, jclass string_class,
+                                                  jmethodID string_init_bytes_charset, jobject charset_name) {
+    const jsize length = static_cast<jsize>(s.size());
+    jbyteArray bytes = env->NewByteArray(length);
+    if (bytes == nullptr) {
+        return nullptr; // OOM exception already pending
+    }
+    env->SetByteArrayRegion(bytes, 0, length, reinterpret_cast<const jbyte *>(s.data()));
+    auto result = (jstring)env->NewObject(string_class, string_init_bytes_charset, bytes, charset_name);
+    env->DeleteLocalRef(bytes);
+    return result;
+}
+
+// ---------------------------------------------------------------------------
 // json_to_jstring_impl
 //
-// Serialises any json value to a JNI string via dump() + NewStringUTF.
+// Serialises any json value to a JNI string. Serialisation goes through
+// upstream safe_json_to_str (dump with error_handler_t::replace) so a
+// payload string that ends in an incomplete UTF-8 sequence — possible on the
+// non-stream path when generation stops mid-codepoint at the token limit —
+// is replaced with U+FFFD instead of throwing json::type_error 316. The
+// resulting UTF-8 bytes cross into Java via utf8_to_jstring_impl.
 // ---------------------------------------------------------------------------
-[[nodiscard]] inline jstring json_to_jstring_impl(JNIEnv *env, const json &j) {
-    std::string s = j.dump();
-    return env->NewStringUTF(s.c_str());
+[[nodiscard]] inline jstring json_to_jstring_impl(JNIEnv *env, const json &j, jclass string_class,
+                                                  jmethodID string_init_bytes_charset, jobject charset_name) {
+    return utf8_to_jstring_impl(env, safe_json_to_str(j), string_class, string_init_bytes_charset, charset_name);
 }
 
 // ---------------------------------------------------------------------------
@@ -202,8 +237,10 @@ inline void configure_task_slot_impl(server_task &task, const json &data) {
 // construction to results_to_json (json_helpers.hpp) and serialisation to
 // json_to_jstring_impl.
 // ---------------------------------------------------------------------------
-[[nodiscard]] inline jstring results_to_jstring_impl(JNIEnv *env, const std::vector<server_task_result_ptr> &results) {
-    return json_to_jstring_impl(env, results_to_json(results));
+[[nodiscard]] inline jstring results_to_jstring_impl(JNIEnv *env, const std::vector<server_task_result_ptr> &results,
+                                                     jclass string_class, jmethodID string_init_bytes_charset,
+                                                     jobject charset_name) {
+    return json_to_jstring_impl(env, results_to_json(results), string_class, string_init_bytes_charset, charset_name);
 }
 
 // ---------------------------------------------------------------------------
