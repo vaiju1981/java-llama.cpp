@@ -1,3 +1,8 @@
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
 # llama-kotlin
 
 Kotlin coroutines façade for [java-llama.cpp](https://github.com/bernardladenthin/java-llama.cpp):

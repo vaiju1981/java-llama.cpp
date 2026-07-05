@@ -53,6 +53,15 @@ public class RouterModeIntegrationTest extends OpenAiServerTestSupport {
     private static int port;
     private static String modelName;
 
+    /**
+     * Set only after {@link NativeServer#setWorkerCommand(String...)} succeeded in setup.
+     * tearDown must clear the override ONLY in that case: setWorkerCommand loads the native
+     * library, and when the class self-skipped via an {@code @BeforeAll} assumption (no model /
+     * non-Linux / lib-less analysis runner such as the Sonar job), {@code @AfterAll} still runs —
+     * an unconditional call would then die with UnsatisfiedLinkError instead of skipping cleanly.
+     */
+    private static boolean workerCommandSet;
+
     @BeforeAll
     public static void setup() throws Exception {
         Assumptions.assumeTrue(
@@ -75,6 +84,7 @@ public class RouterModeIntegrationTest extends OpenAiServerTestSupport {
         String javaBin =
                 Paths.get(System.getProperty("java.home"), "bin", "java").toString();
         NativeServer.setWorkerCommand(javaBin, "-cp", classpath, "net.ladenthin.llama.server.NativeServer");
+        workerCommandSet = true;
 
         int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
         port = findFreePort();
@@ -110,7 +120,9 @@ public class RouterModeIntegrationTest extends OpenAiServerTestSupport {
         if (server != null) {
             server.close(); // router clean-up unloads (terminates) all worker instances
         }
-        NativeServer.setWorkerCommand(); // clear the process-wide override
+        if (workerCommandSet) {
+            NativeServer.setWorkerCommand(); // clear the process-wide override
+        }
     }
 
     private static int findFreePort() throws IOException {
