@@ -5,6 +5,7 @@
 package net.ladenthin.llama.langchain4j;
 
 import dev.langchain4j.data.message.AiMessage;
+import dev.langchain4j.exception.UnsupportedFeatureException;
 import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
@@ -23,7 +24,11 @@ import net.ladenthin.llama.value.LlamaOutput;
  * message. Any failure during generation is reported via {@link StreamingChatResponseHandler#onError}.
  *
  * <p>The model is <em>borrowed</em> (never closed here) — see {@link JllamaChatModel}. Tool
- * specifications are not yet forwarded; this streams plain assistant text.
+ * specifications are <b>not supported on the streaming path yet</b>: a request carrying
+ * {@code toolSpecifications()} fails fast with
+ * {@link dev.langchain4j.exception.UnsupportedFeatureException} rather than silently generating
+ * un-parsed text — use {@link JllamaChatModel} (blocking) for tool calls. JSON
+ * {@code responseFormat()} and multimodal user content are forwarded like in the blocking adapter.
  */
 public final class JllamaStreamingChatModel implements StreamingChatModel {
 
@@ -40,6 +45,12 @@ public final class JllamaStreamingChatModel implements StreamingChatModel {
 
     @Override
     public void doChat(ChatRequest chatRequest, StreamingChatResponseHandler handler) {
+        if (chatRequest.toolSpecifications() != null
+                && !chatRequest.toolSpecifications().isEmpty()) {
+            throw new UnsupportedFeatureException(
+                    "Tool calling is not supported on the streaming path yet; "
+                            + "use JllamaChatModel (blocking) for tool calls");
+        }
         StringBuilder full = new StringBuilder();
         try (LlamaIterable stream = model.generateChat(LangChain4jMapping.toStreamingParameters(chatRequest))) {
             for (LlamaOutput output : stream) {

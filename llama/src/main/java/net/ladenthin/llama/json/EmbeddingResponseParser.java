@@ -67,12 +67,11 @@ public class EmbeddingResponseParser {
      *         {@code "data"} is absent or not an array
      */
     public List<float[]> parse(JsonNode node) {
-        List<float[]> results = new ArrayList<float[]>();
+        List<IndexedVector> vectors = new ArrayList<IndexedVector>();
         JsonNode data = node.path("data");
         if (!data.isArray()) {
-            return results;
+            return new ArrayList<float[]>();
         }
-        List<int[]> order = new ArrayList<int[]>(); // {index, position-in-results}
         int position = 0;
         for (JsonNode entry : data) {
             JsonNode embedding = entry.path("embedding");
@@ -84,18 +83,28 @@ public class EmbeddingResponseParser {
             for (int i = 0; i < vector.length; i++) {
                 vector[i] = (float) embedding.get(i).asDouble(0.0);
             }
-            order.add(new int[] {entry.path("index").asInt(position), results.size()});
-            results.add(vector);
+            vectors.add(new IndexedVector(entry.path("index").asInt(position), vector));
             position++;
         }
         // Stable sort by the response's index field so the vectors line up with the
         // request's input order even if the native side reordered completions.
-        order.sort((a, b) -> Integer.compare(a[0], b[0]));
-        List<float[]> ordered = new ArrayList<float[]>(results.size());
-        for (int[] entry : order) {
-            ordered.add(results.get(entry[1]));
+        vectors.sort((a, b) -> Integer.compare(a.index, b.index));
+        List<float[]> ordered = new ArrayList<float[]>(vectors.size());
+        for (IndexedVector entry : vectors) {
+            ordered.add(entry.vector);
         }
         return ordered;
+    }
+
+    /** One parsed embedding paired with the response's {@code index} field for reordering. */
+    private static final class IndexedVector {
+        final int index;
+        final float[] vector;
+
+        IndexedVector(int index, float[] vector) {
+            this.index = index;
+            this.vector = vector;
+        }
     }
 
     /**

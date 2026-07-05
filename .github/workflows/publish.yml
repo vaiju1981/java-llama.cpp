@@ -214,6 +214,7 @@ jobs:
           -Dnet.ladenthin.llama.model.path=models/${REASONING_MODEL_NAME}
           -Dnet.ladenthin.llama.langchain4j.embedding.model=models/${NOMIC_EMBED_MODEL_NAME}
           -Dnet.ladenthin.llama.langchain4j.rerank.model=models/${RERANKING_MODEL_NAME}
+          -Dnet.ladenthin.llama.langchain4j.tool.model=models/${TOOL_MODEL_NAME}
 
   # ---------------------------------------------------------------------------
   # Build the llama.cpp WebUI ONCE, from the same pinned tag CMakeLists.txt fetches,

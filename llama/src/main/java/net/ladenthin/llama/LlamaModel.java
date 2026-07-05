@@ -64,6 +64,11 @@ public class LlamaModel implements AutoCloseable {
     private static final com.fasterxml.jackson.databind.ObjectMapper OBJECT_MAPPER =
             new com.fasterxml.jackson.databind.ObjectMapper();
 
+    private static final net.ladenthin.llama.json.EmbeddingResponseParser EMBEDDING_RESPONSE_PARSER =
+            new net.ladenthin.llama.json.EmbeddingResponseParser();
+    private static final net.ladenthin.llama.json.LoraAdapterResponseParser LORA_ADAPTER_RESPONSE_PARSER =
+            new net.ladenthin.llama.json.LoraAdapterResponseParser();
+
     static {
         LlamaLoader.initialize();
     }
@@ -74,10 +79,6 @@ public class LlamaModel implements AutoCloseable {
     private final CompletionResponseParser completionParser = new CompletionResponseParser();
     private final ChatResponseParser chatParser = new ChatResponseParser();
     private final RerankResponseParser rerankParser = new RerankResponseParser();
-    private static final net.ladenthin.llama.json.EmbeddingResponseParser EMBEDDING_RESPONSE_PARSER =
-            new net.ladenthin.llama.json.EmbeddingResponseParser();
-    private static final net.ladenthin.llama.json.LoraAdapterResponseParser LORA_ADAPTER_RESPONSE_PARSER =
-            new net.ladenthin.llama.json.LoraAdapterResponseParser();
     private final ChatStreamChunkParser chatStreamParser = new ChatStreamChunkParser();
 
     /**

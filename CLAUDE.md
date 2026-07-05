@@ -1465,9 +1465,15 @@ Wiring:
    `-Dnet.ladenthin.llama.langchain4j.{embedding,rerank}.model` / `net.ladenthin.llama.model.path`
    properties. It is validation-only (not a release gate); a cold cache degrades to a self-skip.
 
-**Open follow-ups** (documented in `llama-langchain4j/README.md`): tool calling
-(`ToolSpecification` ↔ jllama `ToolDefinition`), `response_format`/JSON mode, and multimodal
-user input (currently flattened to text).
+**Mapped** (since 5.0.6): blocking tool calling (`ToolSpecification` ↔ jllama `ToolDefinition`
+via the module's own `JsonSchemaElementSerializer` — langchain4j's serializer lives in its
+`internal` package, so the module carries a public-API-only recursive walk emitting the same
+`$defs`/`#/$defs/…` conventions; tool-call turns round-trip in both directions),
+`response_format`/JSON mode (`json_object` + `json_schema` structured output), and multimodal
+user input (`ImageContent`/`AudioContent` → `ContentPart` array-form content; needs `--mmproj`).
+**Open follow-ups** (documented in `llama-langchain4j/README.md`): streaming tool calls
+(`JllamaStreamingChatModel` fails fast with `UnsupportedFeatureException` when tools are
+requested) and per-token thinking-stream events.
 
 ## Open TODOs
 

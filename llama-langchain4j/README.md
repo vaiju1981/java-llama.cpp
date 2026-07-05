@@ -95,6 +95,9 @@ mvn test -Dnet.ladenthin.llama.model.path=/abs/path/to/chat.gguf
 mvn test -Dnet.ladenthin.llama.langchain4j.embedding.model=/abs/path/to/embedding.gguf
 # re-ranking / scoring (JllamaScoringModelIntegrationTest)
 mvn test -Dnet.ladenthin.llama.langchain4j.rerank.model=/abs/path/to/reranker.gguf
+# tool calling + JSON-schema structured output (JllamaToolCallingIntegrationTest;
+# needs a tool-capable instruct model, e.g. Qwen2.5-Instruct)
+mvn test -Dnet.ladenthin.llama.langchain4j.tool.model=/abs/path/to/instruct.gguf
 ```
 
 In CI these reuse the project's existing shared GGUF cache (the chat, nomic-embedding and
@@ -102,22 +105,36 @@ jina-reranker models the core test jobs already download) — the
 `test-java-llama-langchain4j-integration` job restores that cache and the
 `Linux-x86_64` native library artifact, so no extra model is downloaded.
 
+## Mapped features
+
+- **Tool calling (blocking).** `ChatRequest.toolSpecifications()` and `toolChoice()` are forwarded to
+  the native OAI tools path; a response with `tool_calls` comes back as
+  `AiMessage.toolExecutionRequests()` with finish reason `TOOL_EXECUTION`. Assistant tool-call turns
+  and `ToolExecutionResultMessage`s in the request history round-trip, so langchain4j `AiServices`
+  agent loops work against `JllamaChatModel`. `ToolSpecification.parameters()` (the langchain4j
+  `JsonSchemaElement` tree, including `$defs`/`$ref` recursion) is serialized to standard JSON Schema
+  by this module.
+- **`response_format` (JSON mode).** `ResponseFormat.JSON` maps to the native
+  `response_format={"type":"json_object"}`; a `ResponseFormat` carrying a `JsonSchema` maps to the
+  native `json_schema` grammar constraint (structured output). Works on both adapters.
+- **Multimodal user input.** `ImageContent` (base64 or URL) and `AudioContent` (inline wav/mp3) map to
+  the OAI array-form `content` parts routed through the compiled-in mtmd pipeline — the model must be
+  loaded with a matching `--mmproj` (see the core README's multimodal section). Unsupported media
+  (URL-only audio, non-wav/mp3 audio, video/PDF) fails loud rather than being silently dropped.
+- **Sampling parameters:** `temperature`, `topP`, `topK`, `maxOutputTokens`, `frequencyPenalty`,
+  `presencePenalty`, `stopSequences`.
+
+The non-streaming chat response carries the model's real finish reason
+(`stop`/`length`/`tool_calls`) and token usage; the streaming completion carries assembled text
+(no per-token usage).
+
 ## Not mapped yet
 
-- **Tool calling.** `ChatRequest.toolSpecifications()` are not forwarded, so the chat adapters return
-  assistant *text*, not `AiMessage.toolExecutionRequests()`. (java-llama.cpp itself supports tool
-  calling via `LlamaModel.chatWithTools` / typed `ToolDefinition`; bridging that to langchain4j
-  `ToolSpecification` is the planned next step.)
-- **Multimodal user input.** A multi-content `UserMessage` is flattened to its text parts; image/audio
-  content is dropped.
-- **Per-token tool-call / thinking stream events.** Streaming forwards plain text via
-  `onPartialResponse`.
-- **`response_format` (JSON mode).** `ChatRequest.responseFormat()` (json_object / json_schema) is not
-  forwarded; `modelName()` is ignored since one model is bound per adapter.
-
-Mapped request parameters: `temperature`, `topP`, `topK`, `maxOutputTokens`, `frequencyPenalty`,
-`presencePenalty`, `stopSequences`. The non-streaming chat response carries the model's real finish
-reason (`stop`/`length`/`tool_calls`) and token usage; the streaming completion carries assembled text
-(no per-token usage).
+- **Streaming tool calls.** `JllamaStreamingChatModel` rejects a request with
+  `toolSpecifications()` up front (`UnsupportedFeatureException`) instead of streaming un-parsed
+  text — reconstructing `tool_calls` deltas into `ToolExecutionRequest`s over the token stream is
+  the planned follow-up. Use `JllamaChatModel` (blocking) for tool calls.
+- **Per-token thinking stream events.** Streaming forwards plain text via `onPartialResponse`.
+- **`modelName()`** is ignored since one model is bound per adapter.
 
 Requires Java 17+ (langchain4j 1.x baseline). Targets `langchain4j-core` 1.17.1.

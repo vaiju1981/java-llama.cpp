@@ -203,6 +203,19 @@ SPDX-License-Identifier: MIT
     </Match>
 
     <!--
+        NativeServer's attach constructor deliberately stores the caller's LlamaModel reference:
+        attach mode serves that exact loaded model's native server context over HTTP, so the
+        borrowed-reference contract is the feature (mirror of the Session rationale above). The
+        model owns native memory and must NOT be defensively copied; NativeServer never closes it
+        (documented: close the server before the model).
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.server.NativeServer"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+        <Method name="&lt;init&gt;"/>
+    </Match>
+
+    <!--
         USBR_UNNECESSARY_STORE_BEFORE_RETURN on Lombok-generated equals / hashCode /
         canEqual / toString.
 
