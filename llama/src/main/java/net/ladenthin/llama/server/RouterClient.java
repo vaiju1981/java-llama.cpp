@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -191,7 +192,9 @@ public final class RouterClient {
      * answers with a JSON {@code {"error": ...}} object), so callers see the actual reason.
      */
     private String request(String method, String path, @Nullable String body) throws IOException {
-        URL url = new URL("http://" + host + ":" + port + path);
+        // URI.create(...).toURL() instead of the URL(String) constructor: the latter is
+        // deprecated (no validation/encoding) — flagged by CodeQL; this form is Java-8-safe.
+        URL url = URI.create("http://" + host + ":" + port + path).toURL();
         HttpURLConnection connection = (HttpURLConnection) url.openConnection();
         try {
             connection.setRequestMethod(method);
