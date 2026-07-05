@@ -25,3 +25,15 @@
 # JVM-only optional integrations referenced from the core classes but absent
 # (and unused) on Android.
 -dontwarn org.slf4j.**
+
+# Compile-time-only references R8 cannot resolve on Android. The broad keep above
+# retains the whole binding, so R8 verifies every referenced type:
+# - com.sun.net.httpserver: the JDK's HTTP server, used only by the JVM-only
+#   OpenAiCompatServer transport. Those classes stay dexed but are unusable on
+#   Android by design (loading them throws NoClassDefFoundError; the supported
+#   Android entry points never touch them).
+# - lombok / animal-sniffer: CLASS-retention build-time annotations referenced
+#   from the bytecode; they exist on no runtime classpath anywhere.
+-dontwarn com.sun.net.httpserver.**
+-dontwarn lombok.**
+-dontwarn org.codehaus.mojo.animal_sniffer.**

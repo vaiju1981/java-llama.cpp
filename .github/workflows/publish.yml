@@ -872,15 +872,9 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: |
-            if [ -f "models/${DRAFT_MODEL_NAME}" ]; then
-              adb push "models/${DRAFT_MODEL_NAME}" /data/local/tmp/jllama-test-model.gguf
-              adb shell chmod 644 /data/local/tmp/jllama-test-model.gguf
-            else
-              echo "::warning::draft model missing from the GGUF cache — on-device tests will self-skip"
-            fi
-            VERSION=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n1)
-            gradle -p .github/android-consumer-test connectedDebugAndroidTest "-PjllamaVersion=${VERSION}"
+          # One line on purpose: the emulator-runner executes `script:` LINE BY LINE via sh,
+          # so shell control flow must live in the committed helper script.
+          script: .github/run-android-emulator-test.sh
       - name: Upload instrumentation reports (on failure)
         if: failure()
         uses: actions/upload-artifact@v7
