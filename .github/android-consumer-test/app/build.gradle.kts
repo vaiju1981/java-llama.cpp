@@ -20,9 +20,11 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        // arm64 = real devices; x86_64 = the CI emulator (and x86_64 Android hardware).
         ndk {
-            abiFilters += "arm64-v8a"
+            abiFilters += listOf("arm64-v8a", "x86_64")
         }
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     buildTypes {
@@ -43,4 +45,8 @@ android {
 
 dependencies {
     implementation("net.ladenthin:llama-android:$jllamaVersion")
+
+    // On-emulator instrumentation (test-android-emulator CI job).
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test:runner:1.6.2")
 }

@@ -175,7 +175,7 @@ exclusive — and optionally a CPU Windows build.
 
 | Classifier | Backend | Target platform | Runtime requirement |
 |---|---|---|---|
-| _(none)_ | CPU | Linux x86-64 / aarch64 / s390x, macOS x86-64 / aarch64, Windows x86-64 / x86 / aarch64 (Ninja Multi-Config + MSVC), Android aarch64 (CPU) | A JDK 8+ JVM. **Linux `aarch64` additionally requires glibc ≥ 2.39** (e.g. Ubuntu 24.04+, Debian 13+) — it is built natively on `ubuntu-24.04-arm`, matching upstream llama.cpp's own ARM binaries; older-glibc ARM hosts (Ubuntu 22.04, Debian 12, RHEL 8/9, Amazon Linux 2023) are not supported. Linux x86-64 keeps a glibc 2.17 floor (manylinux2014). **Windows `aarch64`** (Windows on ARM — Snapdragon X / Surface) is built natively on `windows-11-arm` and ships in the default JAR alongside the x86-64 / x86 natives. |
+| _(none)_ | CPU | Linux x86-64 / aarch64 / s390x, macOS x86-64 / aarch64, Windows x86-64 / x86 / aarch64 (Ninja Multi-Config + MSVC), Android aarch64 + x86-64 (CPU) | A JDK 8+ JVM. **Linux `aarch64` additionally requires glibc ≥ 2.39** (e.g. Ubuntu 24.04+, Debian 13+) — it is built natively on `ubuntu-24.04-arm`, matching upstream llama.cpp's own ARM binaries; older-glibc ARM hosts (Ubuntu 22.04, Debian 12, RHEL 8/9, Amazon Linux 2023) are not supported. Linux x86-64 keeps a glibc 2.17 floor (manylinux2014). **Windows `aarch64`** (Windows on ARM — Snapdragon X / Surface) is built natively on `windows-11-arm` and ships in the default JAR alongside the x86-64 / x86 natives. |
 | `msvc-windows` | CPU (MSVC / Visual Studio generator) | Windows x86-64 and x86 | None beyond a JDK 8+ JVM. Same CPU backend as the default JAR's Windows natives, but compiled with the Visual Studio generator instead of `Ninja Multi-Config`. Both use the same MSVC toolchain (static `/MT` CRT), so they are functionally equivalent — provided as an alternate-toolchain option. |
 | `cuda13-windows-x86-64` | CUDA 13 | Windows x86-64 with NVIDIA GPU | NVIDIA driver + CUDA 13 Toolkit installed on the host (`cudart64_13.dll`, `cublas64_13.dll`, `cublasLt64_13.dll` resolvable on `PATH`). The runtime libraries are **not bundled** in the JAR; native-library load fails with `UnsatisfiedLinkError` if they are absent. No CPU fallback. |
 | `vulkan-windows-x86-64` | Vulkan | Windows x86-64 with a Vulkan 1.2+ GPU (NVIDIA / AMD / Intel) | A Vulkan runtime (`vulkan-1.dll`), which current GPU drivers install. No Vulkan SDK is needed at runtime. The most portable Windows GPU option (vendor-independent). |
@@ -240,8 +240,10 @@ there. Pick **at most one** classifier (they are mutually exclusive):
 
 > [!NOTE]
 > Android `armeabi-v7a` (32-bit ARM) is **not** published. Only 64-bit
-> `aarch64` Android binaries are shipped, both as the CPU-only default JAR
-> and as `opencl-android-aarch64`. 32-bit Android devices are unsupported
+> Android binaries are shipped: `aarch64` (devices) and `x86_64`
+> (emulators, Chromebooks, x86-64 Android hardware) in the CPU-only default
+> JAR and the `llama-android` AAR, plus `aarch64` as
+> `opencl-android-aarch64`. 32-bit Android devices are unsupported
 > by the released artifacts; building from source via the
 > `.github/dockcross/dockcross-android-arm` toolchain is possible but not
 > wired into CI.
@@ -1061,9 +1063,12 @@ dependencies {
 }
 ```
 
-The AAR carries the full `net.ladenthin:llama` Java API, the CI-built `arm64-v8a`
-native library (16 KB page-size compliant), consumer R8/ProGuard rules (applied
-automatically), and a manifest `minSdkVersion 28` that AGP enforces against your app.
+The AAR carries the full `net.ladenthin:llama` Java API, the CI-built native libraries for
+`arm64-v8a` (devices) **and** `x86_64` (Android Studio emulator, Chromebooks — app bundles
+split per ABI so phones download only arm64), both 16 KB page-size compliant, consumer
+R8/ProGuard rules (applied automatically), and a manifest `minSdkVersion 28` that AGP
+enforces against your app. CI boots an x86_64 emulator and runs real on-device inference
+against every AAR build.
 Do **not** also depend on the desktop `net.ladenthin:llama` JAR in the same app — the AAR
 already contains those classes, and the JAR would drag ~70 MB of desktop natives into your
 APK. See [`llama-android/README.md`](llama-android/README.md) and

@@ -80,3 +80,7 @@ AGENTS.md
 llama-android/build/
 llama-android/.gradle/
 llama-android/natives/
+
+# CI Android consumer-test fixture (Gradle/AGP) build outputs
+.github/android-consumer-test/**/build/
+.github/android-consumer-test/.gradle/

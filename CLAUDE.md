@@ -1501,7 +1501,11 @@ Two consumable Android-facing artifacts, replacing the submodule/NDK source-inte
 the recommended path (README "Importing in Android", Option 1):
 
 - **`net.ladenthin:llama-android`** / **`llama-android-opencl`** — AARs (`<packaging>aar</packaging>`)
-  carrying the core classes + the CI-built `arm64-v8a` `libjllama.so` under `jni/`, a
+  carrying the core classes + the CI-built `libjllama.so` natives under `jni/` — the CPU AAR is
+  **multi-ABI** (`arm64-v8a` devices + `x86_64` emulators/Chromebooks, built by the
+  `crosscompile-android-x86_64` dockcross job whose artifact also merges into the default JAR's
+  `Linux-Android/x86_64` tree via the `*-libraries` glob; the OpenCL flavor stays arm64-only —
+  Adreno is Qualcomm ARM hardware), a
   `minSdkVersion 28` manifest (AGP enforces the floor on consumers), and consumer R8/ProGuard
   rules (`consumer-proguard.txt` → `proguard.txt` in the AAR; keeps `net.ladenthin.llama.**` for
   the JNI `FindClass`/Jackson reflection surface). The AAR's `classes.jar` is the
@@ -1531,8 +1535,14 @@ assembles both AARs, validates structure (entries, minSdk, classes.jar content, 
 publishes to mavenLocal, and runs the **AGP consumer smoke test** — the minimal app fixture in
 `.github/android-consumer-test/` resolves the AAR from mavenLocal and runs a full R8
 `assembleRelease` on the runner's preinstalled Android SDK (this is what actually validates
-AGP/Android Studio consumption; GitHub emulators are x86_64-only while the `.so` is arm64-only,
-so on-device inference is out of CI scope — the planned example app covers it on hardware).
+AGP/Android Studio consumption). **On-device runtime IS now CI-covered** via
+`test-android-emulator`: a KVM-accelerated x86_64 emulator (API 30) runs the fixture's
+`connectedDebugAndroidTest` — `System.loadLibrary` from the AAR's `jni/x86_64`, on-device
+`GgufInspector`, and real native inference against the adb-pushed cached draft model
+(AMD-Llama-135m). The job is **validation-only** (not in the publish needs graphs) until it has
+proven flake-free — emulator boot is the flakiest CI machinery; promote it to a release gate
+after a stable streak. arm64 kernels + the Adreno/OpenCL flavor remain out of emulator scope —
+the planned example app covers those on hardware.
 Both publish jobs `need` these jobs (fail-loud release gating) and publish the AARs via Gradle:
 snapshots to the Central snapshots repo (`publishAllPublicationsToCentralSnapshotsRepository`),
 releases as a signed Central Portal bundle upload (staging repo → zip → Publisher API).

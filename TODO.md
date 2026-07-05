@@ -543,9 +543,13 @@ Feel free to contribute fixes — PRs welcome.
   16 KB alignment and runs an AGP R8 consumer build from mavenLocal
   (`.github/android-consumer-test/`); publish jobs ship snapshots/releases via Gradle.
   See CLAUDE.md "Android AAR + Kotlin façade". **Remaining from this section:** the sample
-  app (`examples/android-sample/` — separate follow-up; will also provide the on-device
-  inference validation CI cannot do, since GitHub emulators are x86_64 and the lib is
-  arm64-only), and multi-ABI (`x86_64` Android would additionally unlock emulator-based CI).
+  app (`examples/android-sample/` — separate follow-up; covers real arm64 hardware +
+  Adreno/OpenCL). **Multi-ABI + emulator CI: DONE (2026-07-05)** — `crosscompile-android-x86_64`
+  (fail-loud, in the package/publish needs graphs; also feeds the default JAR via the
+  `*-libraries` glob), the CPU AAR ships `jni/{arm64-v8a,x86_64}`, and the validation-only
+  `test-android-emulator` job runs `connectedDebugAndroidTest` on a KVM x86_64 emulator
+  (System.loadLibrary + GgufInspector + real inference on the cached draft model); promote it
+  to a release gate after a stable streak.
 
 - **Publish a proper Android AAR alongside the existing JAR-with-resources packaging.** Today java-llama.cpp already cross-compiles the Android arm64 native lib in two flavours (CPU-only, bundled into the main JAR; OpenCL/Adreno under classifier `opencl-android-aarch64`), but both ship as plain Maven JARs that bury `libjllama.so` under `net/ladenthin/llama/Linux-Android/aarch64/`. Android/Gradle consumers expect an `.aar` with an `AndroidManifest.xml`, the native lib under `jni/arm64-v8a/`, and Maven coordinates like `net.ladenthin:llama-android:<version>@aar`. This is the format the [LLaMAndroid](https://github.com/Rattlyy/LLaMAndroid) integration referenced elsewhere in this file has to work around manually. Investigate using `com.android.library` via Gradle in a sibling module, or hand-rolling the AAR layout from the Maven build. Coordinate ABI coverage with any future armv7-a / x86_64 work so the AAR can declare multiple `jniLibs/<abi>/` entries when those land.
 

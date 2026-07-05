@@ -155,7 +155,7 @@ val javadocJar = tasks.register<Jar>("javadocJar") {
     from(readme.map { it.asFile.parentFile })
 }
 
-fun registerAarTask(taskName: String, artifactBase: String, nativesSubdir: String) =
+fun registerAarTask(taskName: String, artifactBase: String, nativesSubdir: String, requiredAbis: List<String>) =
     tasks.register<Zip>(taskName) {
         description = "Assembles $artifactBase-$reactorVersion.aar from the core classes and natives/$nativesSubdir."
         archiveBaseName.set(artifactBase)
@@ -166,11 +166,17 @@ fun registerAarTask(taskName: String, artifactBase: String, nativesSubdir: Strin
         isReproducibleFileOrder = true
         val nativesDir = file("natives/$nativesSubdir")
         doFirst {
-            val so = File(nativesDir, "arm64-v8a/libjllama.so")
-            require(so.isFile) {
-                "Missing Android native library: $so — stage the CI-built libjllama.so there " +
-                        "(artifact 'Linux-Android-aarch64-libraries' for cpu, 'android-libraries-opencl' for opencl; " +
-                        "the artifact tree is net/ladenthin/llama/Linux-Android/aarch64/libjllama.so)"
+            // Fail-loud per ABI: a missing staging copy must never silently produce an
+            // AAR that lacks an advertised ABI (emulator/x86_64 consumers would crash
+            // at load time instead).
+            for (abi in requiredAbis) {
+                val so = File(nativesDir, "$abi/libjllama.so")
+                require(so.isFile) {
+                    "Missing Android native library: $so — stage the CI-built libjllama.so there " +
+                            "(artifacts 'Linux-Android-aarch64-libraries' / 'Linux-Android-x86_64-libraries' " +
+                            "for cpu, 'android-libraries-opencl' for opencl; the artifact tree is " +
+                            "net/ladenthin/llama/Linux-Android/<arch>/libjllama.so)"
+                }
             }
         }
         from("src/main/AndroidManifest.xml")
@@ -180,8 +186,11 @@ fun registerAarTask(taskName: String, artifactBase: String, nativesSubdir: Strin
         from(nativesDir) { into("jni") }
     }
 
-val aarCpu = registerAarTask("aarCpu", "llama-android", "cpu")
-val aarOpencl = registerAarTask("aarOpencl", "llama-android-opencl", "opencl")
+// CPU AAR is multi-ABI: arm64-v8a for devices, x86_64 for emulators / x86_64 Android
+// hardware (Chromebooks etc.). App bundles split per ABI, so phones download only arm64.
+// The OpenCL flavor stays arm64-only (Adreno = Qualcomm ARM hardware).
+val aarCpu = registerAarTask("aarCpu", "llama-android", "cpu", listOf("arm64-v8a", "x86_64"))
+val aarOpencl = registerAarTask("aarOpencl", "llama-android-opencl", "opencl", listOf("arm64-v8a"))
 
 // ---------------------------------------------------------------------------
 // Publishing: POM <packaging>aar</packaging> + mirrored core dependencies.

@@ -630,6 +630,38 @@ jobs:
           name: Linux-Android-aarch64-libraries
           path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
 
+  crosscompile-android-x86_64:
+    name: Cross-Compile Android x86_64
+    needs: [startgate, build-webui]
+    runs-on: ubuntu-latest
+    # Android x86_64 CPU ABI: consumed by the llama-android AAR as jni/x86_64 (so the
+    # Android emulator — and x86_64 Android devices/Chromebooks — can run the binding)
+    # and merged into the default JAR's Linux-Android/x86_64 tree via the *-libraries
+    # glob. Same dockcross + sccache steady-state env as the arm64 job; the wrapper
+    # pins the same image tag. Fail-loud and in the package/publish needs graphs.
+    env:
+      USE_CACHE: ${{ github.event_name != 'workflow_dispatch' || inputs.use_cache }}
+      SCCACHE_WEBDAV_ENDPOINT: https://cache.depot.dev
+      SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}
+      DOCKCROSS_ARGS: "-e SCCACHE_WEBDAV_ENDPOINT -e SCCACHE_WEBDAV_TOKEN -e USE_CACHE"
+    steps:
+      - uses: actions/checkout@v7
+      - name: Download shared WebUI assets
+        uses: actions/download-artifact@v8
+        with:
+          name: webui-generated
+          path: ${{ github.workspace }}/llama/webui-generated/
+      - name: Build libraries
+        shell: bash
+        run: |
+          .github/dockcross/dockcross-android-x86_64 .github/build.sh "-DOS_NAME=Linux-Android -DOS_ARCH=x86_64"
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: Linux-Android-x86_64-libraries
+          path: ${{ github.workspace }}/llama/src/main/resources/net/ladenthin/llama/
+          if-no-files-found: error
+
   crosscompile-android-aarch64-opencl:
     name: Cross-Compile Android aarch64 (OpenCL/Adreno)
     needs: [startgate, build-webui]
@@ -676,7 +708,7 @@ jobs:
 
   package-android-aar:
     name: Package + Validate Android AARs
-    needs: [crosscompile-android-aarch64, crosscompile-android-aarch64-opencl]
+    needs: [crosscompile-android-aarch64, crosscompile-android-x86_64, crosscompile-android-aarch64-opencl]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -692,11 +724,16 @@ jobs:
           mvn -B --no-transfer-progress -pl llama -am -DskipTests -Denforcer.skip=true
           -Dspotless.check.skip=true -Dspotbugs.skip=true
           -Dmaven.javadoc.skip=true -Dmaven.source.skip=true -Dgpg.skip=true package
-      - name: Download Android CPU natives
+      - name: Download Android CPU natives (arm64)
         uses: actions/download-artifact@v8
         with:
           name: Linux-Android-aarch64-libraries
           path: stage/cpu/
+      - name: Download Android CPU natives (x86_64)
+        uses: actions/download-artifact@v8
+        with:
+          name: Linux-Android-x86_64-libraries
+          path: stage/cpu-x86_64/
       - name: Download Android OpenCL natives
         uses: actions/download-artifact@v8
         with:
@@ -704,8 +741,9 @@ jobs:
           path: stage/opencl/
       - name: Stage natives for the AAR build
         run: |
-          mkdir -p llama-android/natives/cpu/arm64-v8a llama-android/natives/opencl/arm64-v8a
+          mkdir -p llama-android/natives/cpu/arm64-v8a llama-android/natives/cpu/x86_64 llama-android/natives/opencl/arm64-v8a
           cp stage/cpu/Linux-Android/aarch64/libjllama.so llama-android/natives/cpu/arm64-v8a/
+          cp stage/cpu-x86_64/Linux-Android/x86_64/libjllama.so llama-android/natives/cpu/x86_64/
           cp stage/opencl/Linux-Android/aarch64/libjllama.so llama-android/natives/opencl/arm64-v8a/
       - name: Assemble AARs + publish to mavenLocal
         run: gradle -p llama-android aarCpu aarOpencl publishToMavenLocal
@@ -718,7 +756,13 @@ jobs:
             AAR="llama-android/build/aar/${flavor}-${VERSION}.aar"
             echo "== validating $AAR"
             test -f "$AAR"
-            for entry in AndroidManifest.xml classes.jar proguard.txt R.txt jni/arm64-v8a/libjllama.so; do
+            # The CPU AAR is multi-ABI (arm64 devices + x86_64 emulators/devices);
+            # the OpenCL flavor stays arm64-only (Adreno is Qualcomm ARM hardware).
+            ABIS="arm64-v8a"
+            if [ "$flavor" = "llama-android" ]; then ABIS="arm64-v8a x86_64"; fi
+            ENTRIES="AndroidManifest.xml classes.jar proguard.txt R.txt"
+            for abi in $ABIS; do ENTRIES="$ENTRIES jni/$abi/libjllama.so"; done
+            for entry in $ENTRIES; do
               unzip -l "$AAR" | grep -q "${entry}$" || { echo "::error::$AAR is missing $entry"; exit 1; }
             done
             unzip -p "$AAR" AndroidManifest.xml | grep -q 'android:minSdkVersion="28"' \
@@ -729,14 +773,16 @@ jobs:
             if unzip -l /tmp/aar-classes.jar | grep -qE "module-info\.class|net/ladenthin/llama/(Linux|Mac|Windows)/"; then
               echo "::error::$AAR classes.jar carries module-info or desktop native resources"; exit 1
             fi
-            rm -rf /tmp/aar-natives && unzip -o -q -d /tmp/aar-natives "$AAR" "jni/arm64-v8a/libjllama.so"
+            rm -rf /tmp/aar-natives && unzip -o -q -d /tmp/aar-natives "$AAR" "jni/*/libjllama.so"
             # Google Play 16 KB page-size requirement (Android 15+ targets): every
             # LOAD segment must be aligned to a multiple of 16384. CMake pins
-            # -Wl,-z,max-page-size=16384 for Android; this asserts it held.
-            for align in $(readelf -lW /tmp/aar-natives/jni/arm64-v8a/libjllama.so | awk '$1=="LOAD"{print $NF}'); do
-              if [ $(( align % 16384 )) -ne 0 ]; then
-                echo "::error::LOAD segment alignment $align is not a multiple of 16384 (16 KB page-size regression)"; exit 1
-              fi
+            # -Wl,-z,max-page-size=16384 for every Android ABI; this asserts it held.
+            for so in /tmp/aar-natives/jni/*/libjllama.so; do
+              for align in $(readelf -lW "$so" | awk '$1=="LOAD"{print $NF}'); do
+                if [ $(( align % 16384 )) -ne 0 ]; then
+                  echo "::error::$so: LOAD alignment $align is not a multiple of 16384 (16 KB page-size regression)"; exit 1
+                fi
+              done
             done
           done
       - name: AGP consumer smoke test (R8 release build from mavenLocal)
@@ -747,8 +793,10 @@ jobs:
           gradle -p .github/android-consumer-test assembleRelease "-PjllamaVersion=${VERSION}"
           APK=.github/android-consumer-test/app/build/outputs/apk/release/app-release.apk
           test -f "$APK"
-          unzip -l "$APK" | grep -q "lib/arm64-v8a/libjllama.so" \
-            || { echo "::error::consumer APK is missing lib/arm64-v8a/libjllama.so"; exit 1; }
+          for abi in arm64-v8a x86_64; do
+            unzip -l "$APK" | grep -q "lib/$abi/libjllama.so" \
+              || { echo "::error::consumer APK is missing lib/$abi/libjllama.so"; exit 1; }
+          done
           # The AAR's consumer proguard.txt must have carried the binding through R8.
           unzip -p "$APK" "classes*.dex" | grep -aq "Lnet/ladenthin/llama/LlamaModel;" \
             || { echo "::error::R8 stripped net.ladenthin.llama.LlamaModel — consumer proguard rules broken"; exit 1; }
@@ -758,6 +806,88 @@ jobs:
           name: llama-android-aars
           path: llama-android/build/aar/*.aar
           if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # On-emulator runtime validation of the Android AAR: boots a KVM-accelerated
+  # x86_64 emulator (GitHub Linux runners have KVM; arm64 images cannot run here,
+  # which is exactly why the AAR carries the jni/x86_64 ABI), publishes the CPU AAR
+  # to mavenLocal, adb-pushes the already-cached tiny draft model, and runs the
+  # consumer fixture's connectedDebugAndroidTest — System.loadLibrary from the APK,
+  # pure-Java GgufInspector on-device, and real native inference on Android/bionic.
+  # VALIDATION-ONLY for now (not in the publish needs graphs): emulator boot is the
+  # flakiest class of CI machinery, so it must prove itself stable before it gates
+  # releases (same staged policy the sccache rollout used). The structural AAR
+  # checks + AGP R8 consumer build in package-android-aar remain the release gates.
+  # ---------------------------------------------------------------------------
+
+  test-android-emulator:
+    name: Android emulator on-device test (x86_64)
+    needs: [crosscompile-android-aarch64, crosscompile-android-x86_64, download-models]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: Enable KVM group permissions (GitHub-hosted runner)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Build core jar (classes payload for the AAR)
+        run: >
+          mvn -B --no-transfer-progress -pl llama -am -DskipTests -Denforcer.skip=true
+          -Dspotless.check.skip=true -Dspotbugs.skip=true
+          -Dmaven.javadoc.skip=true -Dmaven.source.skip=true -Dgpg.skip=true package
+      - name: Download Android CPU natives (arm64)
+        uses: actions/download-artifact@v8
+        with:
+          name: Linux-Android-aarch64-libraries
+          path: stage/cpu/
+      - name: Download Android CPU natives (x86_64)
+        uses: actions/download-artifact@v8
+        with:
+          name: Linux-Android-x86_64-libraries
+          path: stage/cpu-x86_64/
+      - name: Stage natives + publish the CPU AAR to mavenLocal
+        run: |
+          mkdir -p llama-android/natives/cpu/arm64-v8a llama-android/natives/cpu/x86_64
+          cp stage/cpu/Linux-Android/aarch64/libjllama.so llama-android/natives/cpu/arm64-v8a/
+          cp stage/cpu-x86_64/Linux-Android/x86_64/libjllama.so llama-android/natives/cpu/x86_64/
+          gradle -p llama-android publishLlamaAndroidPublicationToMavenLocal
+      - name: Restore shared GGUF model cache (populated by download-models; no re-download)
+        uses: actions/cache@v6
+        with:
+          path: models/
+          key: gguf-models-v1
+      - name: Run on-emulator instrumentation (connectedDebugAndroidTest)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: default
+          disable-animations: true
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: |
+            if [ -f "models/${DRAFT_MODEL_NAME}" ]; then
+              adb push "models/${DRAFT_MODEL_NAME}" /data/local/tmp/jllama-test-model.gguf
+              adb shell chmod 644 /data/local/tmp/jllama-test-model.gguf
+            else
+              echo "::warning::draft model missing from the GGUF cache — on-device tests will self-skip"
+            fi
+            VERSION=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n1)
+            gradle -p .github/android-consumer-test connectedDebugAndroidTest "-PjllamaVersion=${VERSION}"
+      - name: Upload instrumentation reports (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-emulator-test-reports
+          path: .github/android-consumer-test/app/build/reports/androidTests/
+          if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------
   # Native build jobs — produce release artifacts + run C++ unit tests
@@ -2153,6 +2283,7 @@ jobs:
       - build-linux-x86_64-vulkan
       - build-linux-aarch64-vulkan
       - crosscompile-android-aarch64
+      - crosscompile-android-x86_64
       - crosscompile-android-aarch64-opencl
       - build-windows-x86_64
       - build-windows-x86
@@ -2450,8 +2581,9 @@ jobs:
           gradle-version: "8.14.3"
       - name: Publish Android AAR snapshots (llama-android + llama-android-opencl)
         run: |
-          mkdir -p llama-android/natives/cpu/arm64-v8a llama-android/natives/opencl/arm64-v8a
+          mkdir -p llama-android/natives/cpu/arm64-v8a llama-android/natives/cpu/x86_64 llama-android/natives/opencl/arm64-v8a
           cp llama/src/main/resources/net/ladenthin/llama/Linux-Android/aarch64/libjllama.so llama-android/natives/cpu/arm64-v8a/
+          cp llama/src/main/resources/net/ladenthin/llama/Linux-Android/x86_64/libjllama.so llama-android/natives/cpu/x86_64/
           cp llama/src/main/resources_android_opencl/net/ladenthin/llama/Linux-Android/aarch64/libjllama.so llama-android/natives/opencl/arm64-v8a/
           gradle -p llama-android publishAllPublicationsToCentralSnapshotsRepository
         env:
@@ -2617,8 +2749,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p llama-android/natives/cpu/arm64-v8a llama-android/natives/opencl/arm64-v8a
+          mkdir -p llama-android/natives/cpu/arm64-v8a llama-android/natives/cpu/x86_64 llama-android/natives/opencl/arm64-v8a
           cp llama/src/main/resources/net/ladenthin/llama/Linux-Android/aarch64/libjllama.so llama-android/natives/cpu/arm64-v8a/
+          cp llama/src/main/resources/net/ladenthin/llama/Linux-Android/x86_64/libjllama.so llama-android/natives/cpu/x86_64/
           cp llama/src/main/resources_android_opencl/net/ladenthin/llama/Linux-Android/aarch64/libjllama.so llama-android/natives/opencl/arm64-v8a/
           gradle -p llama-android publishAllPublicationsToStagingRepository
           VERSION=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n1)

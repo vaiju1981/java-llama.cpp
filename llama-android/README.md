@@ -15,7 +15,8 @@ dependencies {
 ```
 
 - **minSdk 28** (Android 9.0 Pie) — enforced at build time via the AAR manifest.
-- **arm64-v8a only** (the only Android ABI this project ships; see the core README).
+- **Multi-ABI**: `arm64-v8a` (devices) + `x86_64` (Android Studio emulator, Chromebooks,
+  x86-64 Android hardware). App bundles split per ABI, so phones download only arm64.
 - **R8/ProGuard safe** — consumer rules ship inside the AAR (`proguard.txt`) and apply
   automatically.
 - **16 KB page-size compliant** native library (Google Play requirement for Android 15+ targets).
@@ -37,7 +38,7 @@ as assets and copy them to files dir) and pass the absolute path to `ModelParame
 
 | Artifact | Backend | Requirement |
 |---|---|---|
-| `llama-android` | CPU | any arm64-v8a device, API 28+ |
+| `llama-android` | CPU | any arm64-v8a or x86_64 Android environment, API 28+ |
 | `llama-android-opencl` | OpenCL (Adreno-tuned kernels) | device OpenCL ICD (`libOpenCL.so`) — Qualcomm Adreno drivers ship one; devices without an ICD must use the CPU flavor |
 
 ## How this build works
@@ -61,6 +62,7 @@ mvn -pl llama -am -DskipTests package
 
 # 2. Stage the Android native libraries (CI artifacts, or a dockcross build):
 #    natives/cpu/arm64-v8a/libjllama.so
+#    natives/cpu/x86_64/libjllama.so
 #    natives/opencl/arm64-v8a/libjllama.so
 
 # 3. Assemble + publish to the local staging repo / mavenLocal
