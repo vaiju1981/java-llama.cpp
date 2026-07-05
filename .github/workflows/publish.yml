@@ -783,6 +783,21 @@ jobs:
                   echo "::error::$so: LOAD alignment $align is not a multiple of 16384 (16 KB page-size regression)"; exit 1
                 fi
               done
+              # dlopen-ability gate: an app consuming the AAR bundles no other native
+              # libs, so every DT_NEEDED must be a bionic system library (plus the
+              # vendor ICD libOpenCL.so for the OpenCL flavor). A stray dependency —
+              # libomp.so / libc++_shared.so once shipped exactly this way — makes
+              # System.loadLibrary fail on every device with UnsatisfiedLinkError.
+              # CMake's Android guard (GGML_OPENMP OFF + -static-libstdc++) keeps the
+              # list clean; this asserts it held.
+              ALLOWED="libc.so libm.so libdl.so liblog.so libandroid.so"
+              if [ "$flavor" = "llama-android-opencl" ]; then ALLOWED="$ALLOWED libOpenCL.so"; fi
+              for needed in $(readelf -dW "$so" | awk '/\(NEEDED\)/{gsub(/[\[\]]/,"",$NF); print $NF}'); do
+                case " $ALLOWED " in
+                  *" $needed "*) ;;
+                  *) echo "::error::$so: DT_NEEDED '$needed' is not a bionic system library — dlopen would fail on-device"; exit 1 ;;
+                esac
+              done
             done
           done
       - name: AGP consumer smoke test (R8 release build from mavenLocal)

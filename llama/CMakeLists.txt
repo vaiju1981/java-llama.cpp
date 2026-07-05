@@ -92,6 +92,23 @@ if(ANDROID OR ANDROID_ABI OR OS_NAME MATCHES "Android" OR CMAKE_CXX_COMPILER MAT
     # pin it explicitly so a toolchain image bump cannot silently regress Play
     # compatibility. CI asserts the resulting alignment with readelf.
     add_link_options(-Wl,-z,max-page-size=16384)
+    # The shipped .so must dlopen with ONLY bionic system libraries present —
+    # an app that consumes the AAR bundles no other native libs. The dockcross
+    # cross-clang, left alone, emits two DT_NEEDED entries that do not exist on
+    # any Android device and made System.loadLibrary fail with
+    # UnsatisfiedLinkError (caught on the API-30 emulator CI job; readelf on the
+    # released 5.0.5 arm64 lib shows the same latent defect):
+    #   - libomp.so: ggml's OpenMP backend links LLVM's libomp, which Android
+    #     does not ship. Turn OpenMP off; ggml falls back to its own std::thread
+    #     pool (same trade the Windows-arm64 clang-cl job makes with
+    #     -DGGML_OPENMP=OFF, and what the Google NDK toolchain does by default).
+    #   - libc++_shared.so: the NDK's shared C++ runtime, only present when an
+    #     app packages it itself. Link libc++ statically instead (upstream
+    #     llama.cpp's Android builds do the same); bionic system libs are the
+    #     only remaining DT_NEEDED. CI enforces this with a whitelist check on
+    #     the AAR's .so files.
+    set(GGML_OPENMP OFF CACHE BOOL "Android: no libomp.so on devices; use ggml's std::thread pool" FORCE)
+    add_link_options(-static-libstdc++)
 endif()
 
 set(LLAMA_BUILD_COMMON ON)

@@ -1529,6 +1529,18 @@ the recommended path (README "Importing in Android", Option 1):
 asserts every LOAD segment of the shipped `.so` is 16384-aligned via `readelf` — a dockcross
 toolchain bump cannot silently regress Play compatibility.
 
+**dlopen-ability invariant (bionic-only DT_NEEDED):** the same Android guard block sets
+`GGML_OPENMP OFF` (ggml uses its std::thread pool — Android ships no `libomp.so`; same trade
+as the Windows-arm64 clang-cl job) and links `-static-libstdc++` (no `libc++_shared.so`
+dependency — that runtime only exists when an app packages it itself). Without both, the
+dockcross cross-clang emitted `DT_NEEDED` on `libomp.so` + `libc++_shared.so`, which made
+`System.loadLibrary("jllama")` fail with `UnsatisfiedLinkError` on every device (caught by the
+`test-android-emulator` job; the released 5.0.5 arm64 lib had the same latent defect). The
+`package-android-aar` job enforces a per-`.so` `DT_NEEDED` whitelist (`libc.so libm.so libdl.so
+liblog.so libandroid.so`, plus `libOpenCL.so` for the OpenCL flavor) via `readelf -dW`, and
+`LlamaLoader` now includes the swallowed `System.loadLibrary` message in its
+"Directly from .apk/lib (…)" tried-path entry so a future dlopen reason is never invisible.
+
 **CI (`publish.yml`):** `test-java-llama-kotlin` (model-free unit tests);
 `package-android-aar` (needs both Android native jobs) builds the core jar, stages the natives,
 assembles both AARs, validates structure (entries, minSdk, classes.jar content, 16 KB alignment),
