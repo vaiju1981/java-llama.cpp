@@ -141,6 +141,45 @@ public class LlamaEmbeddingsTest {
     }
 
     // -------------------------------------------------------------------------
+    // Batch embeddings — embed(Collection<String>)
+    // -------------------------------------------------------------------------
+
+    /**
+     * The batch form must return one correctly-sized vector per prompt in request order:
+     * identical prompts map to (near-)identical vectors, different prompts to different ones.
+     */
+    @Test
+    public void testEmbedBatchReturnsOneVectorPerPromptInOrder() {
+        model = openModel(PoolingType.MEAN);
+        java.util.List<float[]> batch =
+                model.embed(java.util.Arrays.asList(TEXT, "A completely different sentence.", TEXT));
+
+        assertEquals(3, batch.size());
+        for (float[] vector : batch) {
+            assertEquals(EXPECTED_DIM, vector.length);
+            assertEmbeddingValid(vector, PoolingType.MEAN);
+        }
+        // Same prompt at positions 0 and 2 → same vector (same model state, same params).
+        org.junit.jupiter.api.Assertions.assertArrayEquals(batch.get(0), batch.get(2), 1e-3f);
+        // Different prompt at position 1 → measurably different vector.
+        boolean differ = false;
+        for (int i = 0; i < EXPECTED_DIM; i++) {
+            if (Math.abs(batch.get(0)[i] - batch.get(1)[i]) > 1e-4f) {
+                differ = true;
+                break;
+            }
+        }
+        assertTrue(differ, "Different prompts must not produce identical embeddings");
+    }
+
+    /** An empty prompt collection short-circuits to an empty result without a native call. */
+    @Test
+    public void testEmbedBatchEmptyCollection() {
+        model = openModel(PoolingType.MEAN);
+        assertTrue(model.embed(java.util.Collections.<String>emptyList()).isEmpty());
+    }
+
+    // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
 

@@ -102,7 +102,8 @@ Inference of Meta's LLaMA model (and others) in pure C/C++.
 
 - Text completion (blocking and streaming) with full control over sampling parameters.
 - OpenAI-compatible **chat completion** with automatic chat-template application, including streaming and tool/function calling support via the upstream server.
-- **Embeddings** and **reranking** for retrieval pipelines.
+- **Embeddings** (single and native-batched via `embed(Collection<String>)`) and **reranking** for retrieval pipelines.
+- **Runtime LoRA adapter control** — list the loaded adapters and change their scales at runtime without reloading the model (`getLoraAdapters()` / `setLoraAdapters(Map)`), the typed counterpart of the upstream `GET`/`POST /lora-adapters` endpoints.
 - **Text-to-speech** (`TextToSpeech`) over the two-model OuteTTS + WavTokenizer pipeline, returning WAV audio.
 - **Infilling** (fill-in-the-middle) for code models.
 - **Tokenize / detokenize** and **JSON-schema → grammar** conversion.
@@ -516,8 +517,31 @@ ModelParameters modelParams = new ModelParameters()
         .enableEmbedding();
 try (LlamaModel model = new LlamaModel(modelParams)) {
     float[] embedding = model.embed("Embed this sentence");
+    // Batch form: one native dispatch for many inputs, results in request order.
+    List<float[]> embeddings = model.embed(Arrays.asList("First sentence", "Second sentence"));
 }
 ```
+
+### Runtime LoRA adapter control
+
+Adapters loaded at model-load time (`addLoraAdapter(...)` / `addLoraScaledAdapter(...)`, optionally
+`setLoraInitWithoutApply()` to start disabled) can be listed and re-scaled at runtime without
+reloading the model — the typed counterpart of the upstream `GET`/`POST /lora-adapters` endpoints:
+
+```java
+ModelParameters modelParams = new ModelParameters()
+        .setModel("models/base.gguf")
+        .addLoraScaledAdapter("models/adapter.gguf", 1.0f);
+try (LlamaModel model = new LlamaModel(modelParams)) {
+    List<LoraAdapter> adapters = model.getLoraAdapters();      // [{id=0, path=..., scale=1.0}]
+    model.setLoraAdapter(0, 0.5f);                             // re-scale at runtime
+    model.setLoraAdapters(Collections.emptyMap());             // disable all adapters
+}
+```
+
+Per the upstream contract, a scale update lists the adapters to keep active — any adapter missing
+from the map is set to scale `0` (disabled). The native side clears affected KV caches when the
+effective adapter set changes.
 
 ### Text-to-Speech
 

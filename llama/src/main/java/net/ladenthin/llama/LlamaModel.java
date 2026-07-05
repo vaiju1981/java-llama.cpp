@@ -74,6 +74,10 @@ public class LlamaModel implements AutoCloseable {
     private final CompletionResponseParser completionParser = new CompletionResponseParser();
     private final ChatResponseParser chatParser = new ChatResponseParser();
     private final RerankResponseParser rerankParser = new RerankResponseParser();
+    private static final net.ladenthin.llama.json.EmbeddingResponseParser EMBEDDING_RESPONSE_PARSER =
+            new net.ladenthin.llama.json.EmbeddingResponseParser();
+    private static final net.ladenthin.llama.json.LoraAdapterResponseParser LORA_ADAPTER_RESPONSE_PARSER =
+            new net.ladenthin.llama.json.LoraAdapterResponseParser();
     private final ChatStreamChunkParser chatStreamParser = new ChatStreamChunkParser();
 
     /**
@@ -376,6 +380,32 @@ public class LlamaModel implements AutoCloseable {
      * @throws IllegalStateException if embedding mode was not activated (see {@link net.ladenthin.llama.parameters.ModelParameters#enableEmbedding()})
      */
     public native float[] embed(String prompt);
+
+    /**
+     * Get the embeddings of several strings in one native batch. Prompts are dispatched to the
+     * native scheduler together (continuous batching across the configured parallel slots), so
+     * this is the preferred form for embedding many inputs — e.g. indexing documents for a
+     * retrieval pipeline. As with {@link #embed(String)}, the prompts are not preprocessed in
+     * any way.
+     *
+     * @param prompts the strings to embed; may be empty (returns an empty list)
+     * @return one embedding vector per prompt, in the same order as {@code prompts}
+     * @throws net.ladenthin.llama.exception.LlamaException if embedding mode was not activated (see
+     *         {@link net.ladenthin.llama.parameters.ModelParameters#enableEmbedding()}), a prompt is empty, or the
+     *         native response cannot be parsed
+     */
+    public List<float[]> embed(java.util.Collection<String> prompts) {
+        if (prompts.isEmpty()) {
+            return new java.util.ArrayList<float[]>();
+        }
+        String response = handleEmbeddings(EMBEDDING_RESPONSE_PARSER.toBatchRequestJson(prompts), true);
+        List<float[]> embeddings = EMBEDDING_RESPONSE_PARSER.parse(response);
+        if (embeddings.size() != prompts.size()) {
+            throw new LlamaException("Expected " + prompts.size() + " embeddings but the native response contained "
+                    + embeddings.size());
+        }
+        return embeddings;
+    }
 
     /**
      * Tokenize a prompt given the native tokenizer
@@ -901,6 +931,68 @@ public class LlamaModel implements AutoCloseable {
     public String restoreSlot(int slotId, String filepath) {
         return handleSlotAction(2, slotId, filepath);
     }
+
+    // ------------------------------------------------------------------
+    // Runtime LoRA adapter control
+    // ------------------------------------------------------------------
+
+    /**
+     * List the LoRA adapters registered on the loaded model with their current scales.
+     * Adapters are loaded at model-load time via
+     * {@link net.ladenthin.llama.parameters.ModelParameters#addLoraAdapter(String)} /
+     * {@link net.ladenthin.llama.parameters.ModelParameters#addLoraScaledAdapter(String, float)}
+     * (optionally with
+     * {@link net.ladenthin.llama.parameters.ModelParameters#setLoraInitWithoutApply()} to load
+     * them disabled); this call returns an empty list when the model was loaded without
+     * adapters. Typed counterpart of the upstream {@code GET /lora-adapters} endpoint.
+     *
+     * @return the registered adapters with their current scales; empty when none were loaded
+     * @throws net.ladenthin.llama.exception.LlamaException if the native call fails
+     */
+    public List<net.ladenthin.llama.value.LoraAdapter> getLoraAdapters() {
+        return LORA_ADAPTER_RESPONSE_PARSER.parse(getLoraAdaptersJson());
+    }
+
+    /**
+     * Set the scales of the loaded LoRA adapters at runtime, without reloading the model.
+     * Mirrors the upstream {@code POST /lora-adapters} contract: adapters present in
+     * {@code scales} get the given scale, <b>all other adapters are set to {@code 0}
+     * (disabled)</b>. Ids not corresponding to a loaded adapter are ignored. The native side
+     * clears affected KV caches when the effective adapter set changes.
+     *
+     * @param scales adapter id (see {@link net.ladenthin.llama.value.LoraAdapter#getId()}) to
+     *        new scale; an empty map disables every adapter
+     * @throws IllegalArgumentException if a scale is NaN or infinite
+     * @throws net.ladenthin.llama.exception.LlamaException if the native call fails
+     */
+    public void setLoraAdapters(Map<Integer, Float> scales) {
+        setLoraAdaptersJson(LORA_ADAPTER_RESPONSE_PARSER.toRequestJson(scales));
+    }
+
+    /**
+     * Set the scale of a single LoRA adapter at runtime. Convenience form of
+     * {@link #setLoraAdapters(Map)} — note that, per the upstream contract, every
+     * <b>other</b> adapter is set to {@code 0} (disabled) by this call.
+     *
+     * @param adapterId the adapter id (see {@link net.ladenthin.llama.value.LoraAdapter#getId()})
+     * @param scale the new scale; {@code 0} disables the adapter
+     * @throws IllegalArgumentException if {@code scale} is NaN or infinite
+     * @throws net.ladenthin.llama.exception.LlamaException if the native call fails
+     */
+    public void setLoraAdapter(int adapterId, float scale) {
+        setLoraAdapters(java.util.Collections.singletonMap(adapterId, scale));
+    }
+
+    /**
+     * List the LoRA adapters as the raw native JSON array (the upstream
+     * {@code GET /lora-adapters} response shape). Prefer {@link #getLoraAdapters()} for typed
+     * access.
+     *
+     * @return JSON array of {@code {id, path, scale, task_name, prompt_prefix}} objects
+     */
+    public native String getLoraAdaptersJson();
+
+    private native String setLoraAdaptersJson(String adaptersJson);
 
     /**
      * Configure runtime inference parameters.

@@ -440,7 +440,32 @@ Feel free to contribute fixes — PRs welcome.
   - **DONE so far:**
     - README system-properties table (`e36f631`, with two cleanups in `3ae6c81` + `28dc9e6`).
     - Per-run timing line (`TimingsLogger` class + wire-in to `CompletionResponseParser` and `ChatResponseParser`; format mirrors what `llama.cpp` CLI prints — `prompt: N tok in X ms (Y tok/s) | gen: … | cache: N | draft: …`; dedicated SLF4J logger `net.ladenthin.llama.timings` so users can suppress it independently; 7 unit tests pin format + pipeline behaviour).
-  - **Remaining first-batch items:** UTF-8 boundary-safe streaming decoder + jbang example.
+  - **DONE (2026-07-05):**
+    - **UTF-8 boundary safety** — resolved natively rather than with the proposed Java-side decoder:
+      the investigation showed the upstream server core already holds back incomplete UTF-8 at the
+      end of the generated text (`server_context::process_token`), so streamed chunks can never
+      split a codepoint. The *actual* gaps were in the JNI crossing: `json_to_jstring_impl` used
+      `dump()` (throws `json::type_error 316` when the non-stream final content ends mid-codepoint
+      at the token limit) + `NewStringUTF` (expects **Modified** UTF-8 — spec-invalid for
+      supplementary-plane characters such as 4-byte emoji; Android CheckJNI aborts). Fixed by
+      serialising via upstream `safe_json_to_str` (U+FFFD replacement) and building every payload
+      string through the cached `String(byte[], "UTF-8")` constructor (`utf8_to_jstring_impl`);
+      the `applyTemplate` return and the log-callback message take the same path. Pinned by new
+      C++ unit tests (mock-JNI byte capture, emoji preservation, truncated-UTF-8 no-throw) and the
+      model-backed `Utf8RoundTripIntegrationTest` (deterministic `applyTemplate` emoji/CJK
+      round-trip + well-formedness of every streamed chunk).
+    - **Runtime LoRA adapter control** (backlog item 8, `llama_adapter_lora_*` hot-apply) — typed
+      `LlamaModel.getLoraAdapters()` / `setLoraAdapters(Map)` / `setLoraAdapter(int, float)` over
+      new JNI methods posting `SERVER_TASK_TYPE_GET_LORA` / `SET_LORA` (the upstream
+      `GET`/`POST /lora-adapters` contract; `value.LoraAdapter` + `json.LoraAdapterResponseParser`).
+      Closes the `setLoraInitWithoutApply()` inconsistency (its Javadoc pointed at an endpoint the
+      bindings could not reach). Tested model-free (parser + PIT-complete value tests, C++
+      `ParseLoraRequest`/`ServerTaskResultGetLora` tests) and model-backed
+      (`RuntimeLoraIntegrationTest`, adapter-less contract).
+    - **Typed batch embeddings** — `LlamaModel.embed(Collection<String>)` → `List<float[]>` over the
+      OAI array-input path of `handleEmbeddings` (`json.EmbeddingResponseParser`, index-ordered).
+      Requested by upstream kherud users and unserved there.
+  - **Remaining first-batch items:** jbang example.
 
 ### Android distribution: AAR + Kotlin-friendly API + sample app
 

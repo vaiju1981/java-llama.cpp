@@ -1140,6 +1140,54 @@ TEST(AreLoraEqual, PathDifference_Ignored) {
 }
 
 // ============================================================
+// parse_lora_request
+//   Parses the POST /lora-adapters body shape [{id, scale}, ...]
+//   into the id -> scale map consumed by SERVER_TASK_TYPE_SET_LORA
+//   (also the wire format of LlamaModel.setLoraAdapters).
+// ============================================================
+
+TEST(ParseLoraRequest, EmptyArray_ReturnsEmptyMap) {
+    const auto result = parse_lora_request(json::array());
+    EXPECT_TRUE(result.empty());
+}
+
+TEST(ParseLoraRequest, SingleEntry_MapsIdToScale) {
+    const json body = json::array({{{"id", 0}, {"scale", 0.5f}}});
+    const auto result = parse_lora_request(body);
+    ASSERT_EQ(result.size(), 1u);
+    EXPECT_FLOAT_EQ(result.at(0), 0.5f);
+}
+
+TEST(ParseLoraRequest, MultipleEntries_AllMapped) {
+    const json body = json::array({{{"id", 0}, {"scale", 1.0f}}, {{"id", 2}, {"scale", 0.25f}}});
+    const auto result = parse_lora_request(body);
+    ASSERT_EQ(result.size(), 2u);
+    EXPECT_FLOAT_EQ(result.at(0), 1.0f);
+    EXPECT_FLOAT_EQ(result.at(2), 0.25f);
+}
+
+TEST(ParseLoraRequest, MissingId_DefaultsToMinusOne) {
+    const json body = json::array({{{"scale", 0.75f}}});
+    const auto result = parse_lora_request(body);
+    ASSERT_EQ(result.size(), 1u);
+    EXPECT_FLOAT_EQ(result.at(-1), 0.75f);
+}
+
+TEST(ParseLoraRequest, MissingScale_DefaultsToZero) {
+    const json body = json::array({{{"id", 1}}});
+    const auto result = parse_lora_request(body);
+    ASSERT_EQ(result.size(), 1u);
+    EXPECT_FLOAT_EQ(result.at(1), 0.0f);
+}
+
+TEST(ParseLoraRequest, DuplicateId_LastWins) {
+    const json body = json::array({{{"id", 0}, {"scale", 0.1f}}, {{"id", 0}, {"scale", 0.9f}}});
+    const auto result = parse_lora_request(body);
+    ASSERT_EQ(result.size(), 1u);
+    EXPECT_FLOAT_EQ(result.at(0), 0.9f);
+}
+
+// ============================================================
 // StripFlagFromArgv
 //   Helper used by loadModel to remove --vocab-only from argv
 //   before passing to common_params_parse, which does not know

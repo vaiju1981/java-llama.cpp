@@ -153,6 +153,20 @@ JNIEXPORT jboolean JNICALL Java_net_ladenthin_llama_LlamaModel_configureParallel
  */
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_getModelMetaJson(JNIEnv *, jobject);
 
+/*
+ * Class:     net_ladenthin_llama_LlamaModel
+ * Method:    getLoraAdaptersJson
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_getLoraAdaptersJson(JNIEnv *, jobject);
+
+/*
+ * Class:     net_ladenthin_llama_LlamaModel
+ * Method:    setLoraAdaptersJson
+ * Signature: (Ljava/lang/String;)Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_setLoraAdaptersJson(JNIEnv *, jobject, jstring);
+
 #ifdef __cplusplus
 }
 #endif
