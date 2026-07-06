@@ -254,6 +254,40 @@ there. Pick **at most one** classifier (they are mutually exclusive):
 > The minimum required Android version is **API 28 (Android 9.0 Pie)**.
 > Devices running Android 8.1 (API 27) or earlier are not supported.
 
+### Standalone server fat jars (GitHub Releases)
+
+For running the [embedded server](#native-server-with-the-built-in-webui-nativeserver)
+without any Maven setup, every tagged [GitHub Release](https://github.com/bernardladenthin/java-llama.cpp/releases)
+(and the rolling `snapshot` pre-release from `main`) attaches self-contained
+**all-backends fat jars** — one download per OS/arch, runnable directly:
+
+```bash
+java -jar llama-<version>-all-linux-x86-64-jar-with-dependencies.jar -m model.gguf --port 8080
+```
+
+| Release asset | Bundled GPU backends | CPU fallback |
+|---|---|---|
+| `llama-<version>-all-linux-x86-64-jar-with-dependencies.jar` | CUDA 13, ROCm, SYCL fp16/fp32, Vulkan, OpenVINO | yes |
+| `llama-<version>-all-linux-aarch64-jar-with-dependencies.jar` | Vulkan | yes |
+| `llama-<version>-all-windows-x86-64-jar-with-dependencies.jar` | CUDA 13, ROCm, SYCL, Vulkan, OpenCL, OpenVINO | yes |
+| `llama-<version>-all-windows-aarch64-jar-with-dependencies.jar` | OpenCL (Adreno / Snapdragon X) | yes |
+| `llama-<version>-jar-with-dependencies.jar` | none (CPU only, incl. macOS Metal) | — |
+
+Each all-backends jar contains the library classes, all Java runtime
+dependencies, the default CPU natives for **every** platform, and every GPU
+backend for its named OS/arch. At startup the loader tries the bundled backends
+in priority order (CUDA → ROCm → SYCL → Vulkan → OpenCL → OpenVINO) and uses
+the **first one whose native library loads**; if none loads — e.g. no GPU
+driver/toolkit installed — it falls back to the CPU natives, so the jar starts
+everywhere. The usual GPU policy applies: vendor runtimes are **not** bundled
+(see the classifier table above for what each backend needs on the host).
+Force a specific backend with `-Dnet.ladenthin.llama.backend=<name>`
+(e.g. `vulkan`; fails loud instead of falling back) or force CPU with
+`-Dnet.ladenthin.llama.backend=default`. A `.sha256` checksum file accompanies
+every jar. These fat jars are GitHub download assets only — they are **not**
+published to Maven Central (Maven users combine the thin classifier jars
+instead, see above).
+
 ### Setup required
 
 If none of the above listed platforms matches yours, currently you have to compile the library yourself (also if you 
@@ -308,6 +342,7 @@ Every `net.ladenthin.llama.*` system property recognised by the library, deep-sc
 | `net.ladenthin.llama.lib.path` | unset (falls back to `java.library.path`) | runtime | `LlamaLoader` | Directory containing the native `jllama` shared library. Checked first, before `java.library.path`. Set with `-Dnet.ladenthin.llama.lib.path=/path/to/dir`. |
 | `net.ladenthin.llama.tmpdir` | unset (falls back to `java.io.tmpdir`) | runtime | `LlamaLoader` | Custom temporary directory used when extracting the native library from the JAR. |
 | `net.ladenthin.llama.osinfo.architecture` | unset (uses `os.arch`) | runtime | `OSInfo` | Override for the architecture string used to locate the bundled library inside the JAR. Useful when `os.arch` reports an unexpected value (e.g. inside dockcross / chrooted environments). |
+| `net.ladenthin.llama.backend` | unset (auto: first loadable backend, then CPU) | runtime | `LlamaLoader` | Backend override for the [all-backends fat jars](#standalone-server-fat-jars-github-releases) (jars carrying a `jllama-backends.txt` manifest). Names one bundled backend (e.g. `cuda13`, `vulkan`) to load exclusively — failure is then fatal instead of falling back — or `default`/`cpu` to skip all GPU backends. Ignored by jars without a backend manifest. |
 | `net.ladenthin.llama.test.ngl` | `43` for the general suite; `0` for `ToolCallingIntegrationTest` | test | Model-backed integration tests | Number of GPU layers used during testing. Pin to `0` on CPU-only hosts: `mvn test -Dnet.ladenthin.llama.test.ngl=0`. The tool test also selects device `none` at zero layers so Metal/CUDA is not initialized. |
 | `net.ladenthin.llama.tool.model` | `models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf` (test self-skips if missing) | test | `ToolCallingIntegrationTest` | Path to a tool-capable GGUF used to verify required blocking and streaming tool calls. The default matches the Qwen2.5 model in upstream llama.cpp's tool-call test matrix. |
 | `net.ladenthin.llama.nomic.path` | unset (test self-skips) | test | `LlamaEmbeddingsTest#testNomicEmbedLoads` | Path to a Nomic embedding model (`nomic-embed-text-v1.5.f16.gguf` or a compatible BERT-family encoder). Regression test for upstream issue #98 (BERT-encoder `result_output` assertion). |

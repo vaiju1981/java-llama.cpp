@@ -343,6 +343,51 @@ pinned to a specific version): if a URL/version 404s in CI, the job fails loud a
 `src/main/resources_{linux_rocm,windows_rocm,linux_sycl_fp16,linux_sycl_fp32,windows_sycl,linux_openvino,windows_openvino}/`
 are all git-ignored (staged by CI, never committed).
 
+## All-backends server fat jars (GitHub Release assets, never Maven Central)
+
+Every pipeline run assembles **per-OS multi-backend server fat jars** and, on the release
+paths, attaches them to GitHub: `llama-<version>-all-<os>-<arch>-jar-with-dependencies.jar`
+for `linux-x86-64`, `linux-aarch64`, `windows-x86-64`, `windows-aarch64`, plus the default
+CPU fat jar — each with a `.sha256` file. They are **download assets only**: the Central
+deploy invocations run without the `assembly` profile and are untouched.
+
+Mechanism (three pieces):
+
+1. **`.github/package-fatjars.sh`** — run by the `package-fatjars` job (`needs: [package]`,
+   downloads `llama-jars`). Enumerates the `<classifier>` set from `llama/pom.xml` (source of
+   truth) and cross-checks it in **both** directions against the built classifier jars; parses
+   each classifier as `<backend>-<os>-<arch>`; **fails loud** on unparseable classifiers,
+   backends missing from its priority table, missing native trees, or zip-update corruption
+   (entry list, `Main-Class`, sample byte-compare). Excluded by design: `msvc-windows`
+   (redundant CPU variant) and `opencl-android-aarch64` (no `java -jar` on Android). For each
+   OS/arch it copies the default fat jar and adds every backend's native tree under
+   `net/ladenthin/llama/<OS>/<ARCH>/<backend>/` plus a **`jllama-backends.txt`** manifest
+   (backends in priority order `cuda13 rocm sycl-fp16 sycl-fp32 sycl vulkan opencl openvino`;
+   extra tokens per line list sibling files such as openvino-windows' bundled `OpenCL.dll`).
+   **A new classifier fails this script until it is consciously ranked/excluded** — that is the
+   no-silent-gaps guarantee.
+2. **`LlamaLoader` backend selection** — when (and only when) the manifest resource exists,
+   the loader tries each backend subdirectory in order: extract into a per-backend temp subdir
+   (`jllama-backend-<name>/`; backends share file names), load manifest extras first, then the
+   backend's `jllama` library. A load failure (missing vendor runtime → `UnsatisfiedLinkError`)
+   moves to the next backend; after the list it falls back to the default CPU natives. System
+   property `net.ladenthin.llama.backend` forces one backend (fail-loud) or `default`/`cpu`.
+   Jars without a manifest take the unchanged legacy path. A backend whose extra module is
+   already resident from a previously failed attempt is skipped (by-name import cross-wiring).
+3. **`publish.yml` wiring** — `smoke-fatjar-linux` / `smoke-fatjar-windows` run the
+   `all-<os>-x86-64` jar via real `java -jar` on GPU-less runners (cached draft model,
+   `--chat-template chatml`): poll `/health` to 200, assert a `/v1/chat/completions` choice,
+   and require the loader's backend-selection log line. `publish-snapshot`/`publish-release`
+   `need` `package-fatjars` + both smokes (fail-loud gating); `github-release-signed` and
+   `github-snapshot` additionally download `llama-fatjars` into their asset directory so the
+   fat jars land on the tag release and the rolling `snapshot` pre-release.
+
+A backend loading successfully but finding **zero usable devices** (e.g. CUDA toolkit
+installed, no NVIDIA GPU) is benign: ggml's backend registry contributes no devices and
+inference runs on CPU inside that library. The known trade-off is that such a host never
+reaches a *different* GPU backend later in the list — the `net.ladenthin.llama.backend`
+override is the escape hatch (documented in the README table).
+
 ## WebUI (llama.cpp Svelte UI) embedding
 
 The llama.cpp WebUI is **built once in CI and shared to every native build**, then
