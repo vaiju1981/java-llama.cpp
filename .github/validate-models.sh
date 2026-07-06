@@ -10,23 +10,21 @@
 
 set -e
 
-# Every CI Java test job (Linux + all macOS + all Windows) now downloads the full
-# model set before validating, and runs the embedding / vision / TTS integration
-# tests with their properties set — so all of these are REQUIRED, not optional. A
-# missing model is a hard failure here (it would otherwise let an integration test
-# silently self-skip). See .github/workflows/publish.yml.
-MODELS=(
-  "models/codellama-7b.Q2_K.gguf"
-  "models/jina-reranker-v1-tiny-en-Q4_0.gguf"
-  "models/AMD-Llama-135m-code.Q2_K.gguf"
-  "models/Qwen3-0.6B-Q4_K_M.gguf"
-  "models/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
-  "models/nomic-embed-text-v1.5.f16.gguf"
-  "models/SmolVLM-500M-Instruct-Q8_0.gguf"
-  "models/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
-  "models/OuteTTS-0.2-500M-Q4_K_M.gguf"
-  "models/WavTokenizer-Large-75-F16.gguf"
-)
+# Every CI Java test job (Linux + all macOS + all Windows) restores the shared model
+# cache before validating, and runs the embedding / vision / TTS integration tests
+# with their properties set — so all of these are REQUIRED, not optional. A missing
+# model is a hard failure here (it would otherwise let an integration test silently
+# self-skip). The required set comes from the single source of truth
+# .github/models.csv (filename,url per line; # comments ignored) so this gate can
+# never drift from what download-models actually fetches.
+MODELS_CSV="$(dirname "$0")/models.csv"
+[ -f "${MODELS_CSV}" ] || { echo "ERROR: model manifest not found: ${MODELS_CSV}"; exit 1; }
+MODELS=()
+while IFS=, read -r name _url; do
+  case "$name" in ''|\#*) continue ;; esac
+  MODELS+=("models/$name")
+done < "${MODELS_CSV}"
+[ "${#MODELS[@]}" -gt 0 ] || { echo "ERROR: no models parsed from ${MODELS_CSV}"; exit 1; }
 
 # Optional GGUFs validated only when present. The vision test image is committed to
 # src/test/resources/images/test-image.jpg and is not validated here — its presence

@@ -1161,26 +1161,29 @@ these as **required** (a missing model hard-fails the job before tests run, so a
 regression can never silently downgrade to a skip). The only model still self-skipping is the
 audio-input model (`AudioInputIntegrationTest`) — the prompt clip is committed
 (`src/test/resources/audios/sample.wav`) but the audio model + mmproj have no CI download.
-The shared GGUF cache (key `gguf-models-v1`, path `models/`) holds the full set
-and is populated **once, upfront** by a dedicated **`download-models`** job (`needs: startgate`):
-it is the single place the ~5 GB set is fetched from HuggingFace (the ten `curl` steps + the
-`validate-models.sh` gate live only there), and it is the **only writer** of the cache — every
-`test-java-*` job, the langchain4j integration job, and the fat-jar smoke jobs `need:
-download-models` and use the **restore-only** `actions/cache/restore` action (no per-job
-download, no save — a consumer running on a cache miss can never re-save an empty/partial entry
-under the immutable key), keeping `validate-models.{sh,bat}` as a per-job integrity guard.
-GGUF is platform-independent and the writer sets **`enableCrossOsArchive: true`**, so the one
-ubuntu-built entry is the same entry macOS and Windows restore. (Both halves are lessons from
-run 28805360584: without the flag, cache entries are versioned per-OS and the unreachable
-Windows-side entry had been re-saved **empty** (343 B) after an eviction; and
+The model set has a **single source of truth: `.github/models.csv`** (one `filename,url` row per
+model; `#` comments). Everything derives from it: the **`download-models`** job (ubuntu,
+`needs: startgate`) is the only place models are fetched from HuggingFace (one manifest-driven
+`curl` loop; files already restored from cache are skipped) and the **only writer** of the shared
+GGUF cache (path `models/`, key **`gguf-models-<hash of models.csv>`** — so *editing the manifest
+automatically creates a fresh complete cache entry*; no manual cache deletion on a model-set
+change). The writer sets **`enableCrossOsArchive: true`**, making the one ubuntu-built entry the
+same entry macOS and Windows restore. A **`verify-model-cache` matrix job** (ubuntu / macOS /
+Windows, `needs: download-models`) then proves the entry is restorable
+(`actions/cache/restore` + `fail-on-cache-miss: true`) **and complete**
+(`validate-models.{sh,bat}`, which read their required list from the same manifest) on every OS
+**before any model-consuming job starts** — all `test-java-*` jobs, the langchain4j integration
+job, the Android emulator job and the fat-jar smoke jobs `need: verify-model-cache` and use the
+**restore-only** action themselves (no per-job download, no save — a consumer can never re-save
+an empty/partial entry), keeping validate as a per-job integrity guard. (This design hardened
+after run 28805360584: without the cross-OS flag, cache entries are versioned per-OS and the
+unreachable Windows-side entry had been re-saved **empty** (343 B) after an eviction; and
 `validate-models.bat`'s quoted `MODELS` list broke cmd's for-tokenization so its `exit /b 1`
-never fired — the empty cache sailed through the "gate" and the Windows jobs silently self-
-skipped every model-backed test until the fat-jar smoke's hard check caught it.)
-`validate-models.{sh,bat}` treats the models as **required** (a
-missing model hard-fails the job before tests run). Because the cache key is immutable, changing
-the model set means the **existing cache entry must be deleted** (not bumped to `v2`) so
-`download-models` rebuilds it complete — locally the model tests still self-skip when a GGUF is
-absent (`Assume.assumeTrue`), so a partial local checkout is fine.
+never fired — the empty cache sailed through the "gate" and the Windows jobs silently
+self-skipped every model-backed test until the fat-jar smoke's hard check caught it.) The
+`*_MODEL_NAME` workflow env vars remain consumer-side wiring for the `-Dnet.ladenthin.llama.*`
+test properties and must match the manifest's filename column — locally the model tests still
+self-skip when a GGUF is absent (`Assume.assumeTrue`), so a partial local checkout is fine.
 
 Set the model path via system property or environment variable (see test files for exact property names).
 

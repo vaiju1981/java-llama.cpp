@@ -21,30 +21,23 @@ on:
         default: true
 env:
   JAVA_VERSION: '21'
-  MODEL_URL: "https://huggingface.co/TheBloke/CodeLlama-7B-GGUF/resolve/main/codellama-7b.Q2_K.gguf"
+  # Model DOWNLOAD URLS live in .github/models.csv (the single source of truth for the
+  # CI model set; the model cache key is derived from that file's hash). The *_NAME
+  # vars below are consumer-side wiring only (-Dnet.ladenthin.llama.* test properties)
+  # and must match the filename column of models.csv.
   MODEL_NAME: "codellama-7b.Q2_K.gguf"
-  RERANKING_MODEL_URL: "https://huggingface.co/gpustack/jina-reranker-v1-tiny-en-GGUF/resolve/main/jina-reranker-v1-tiny-en-Q4_0.gguf"
   RERANKING_MODEL_NAME: "jina-reranker-v1-tiny-en-Q4_0.gguf"
-  DRAFT_MODEL_URL: "https://huggingface.co/QuantFactory/AMD-Llama-135m-code-GGUF/resolve/main/AMD-Llama-135m-code.Q2_K.gguf"
   DRAFT_MODEL_NAME: "AMD-Llama-135m-code.Q2_K.gguf"
-  REASONING_MODEL_URL: "https://huggingface.co/unsloth/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q4_K_M.gguf"
   REASONING_MODEL_NAME: "Qwen3-0.6B-Q4_K_M.gguf"
-  TOOL_MODEL_URL: "https://huggingface.co/bartowski/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
   TOOL_MODEL_NAME: "Qwen2.5-1.5B-Instruct-Q4_K_M.gguf"
-  NOMIC_EMBED_MODEL_URL: "https://huggingface.co/nomic-ai/nomic-embed-text-v1.5-GGUF/resolve/main/nomic-embed-text-v1.5.f16.gguf"
   NOMIC_EMBED_MODEL_NAME: "nomic-embed-text-v1.5.f16.gguf"
   # Vision model + mmproj for MultimodalIntegrationTest.
   # SmolVLM-500M is the smallest community vision GGUF that loads reliably
-  # under the upstream mtmd pipeline. Total download ~600 MB across model
-  # plus mmproj; matches the existing per-test-job download budget.
-  VISION_MODEL_URL: "https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/SmolVLM-500M-Instruct-Q8_0.gguf"
+  # under the upstream mtmd pipeline.
   VISION_MODEL_NAME: "SmolVLM-500M-Instruct-Q8_0.gguf"
-  VISION_MMPROJ_URL: "https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
   VISION_MMPROJ_NAME: "mmproj-SmolVLM-500M-Instruct-Q8_0.gguf"
   # Text-to-speech models for AudioInputIntegrationTest's sibling TtsIntegrationTest (OuteTTS pipeline).
-  TTS_MODEL_URL: "https://huggingface.co/second-state/OuteTTS-0.2-500M-GGUF/resolve/main/OuteTTS-0.2-500M-Q4_K_M.gguf"
   TTS_MODEL_NAME: "OuteTTS-0.2-500M-Q4_K_M.gguf"
-  TTS_VOCODER_URL: "https://huggingface.co/ggml-org/WavTokenizer/resolve/main/WavTokenizer-Large-75-F16.gguf"
   TTS_VOCODER_NAME: "WavTokenizer-Large-75-F16.gguf"
   # Test image used by MultimodalIntegrationTest is committed to the repo
   # at src/test/resources/images/test-image.jpg (see the README in that
@@ -71,7 +64,7 @@ jobs:
   # ---------------------------------------------------------------------------
   # Download + cache the GGUF test models ONCE, upfront, for the whole pipeline.
   # Every Java test job (`test-java-*`) and the langchain4j integration job `needs:` this
-  # job and then only RESTORES the shared cache (key gguf-models-v1) — so the ~5 GB model
+  # job and then only RESTORES the shared cache (key gguf-models-<manifest hash>) — so the ~5 GB model
   # set is fetched from HuggingFace at most once per cache lifetime instead of racing to
   # download in each job. GGUF is platform-independent, so this single ubuntu job's cache
   # is reused by the macOS and Windows jobs too. On a warm cache this job is a no-op
@@ -95,34 +88,55 @@ jobs:
         uses: actions/cache@v6
         with:
           path: models/
-          # GGUF is platform-independent, so ubuntu + macOS + Windows share one entry;
-          # bump the suffix when the model set / URLs change.
-          key: gguf-models-v1
+          # GGUF is platform-independent, so ubuntu + macOS + Windows share one entry.
+          # The key is derived from the model manifest, so EDITING models.csv
+          # automatically creates a fresh complete entry — no manual cache deletion.
+          key: gguf-models-${{ hashFiles('.github/models.csv') }}
           enableCrossOsArchive: true
-      - name: Download text generation model
-        run: test -f models/${MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${MODEL_URL} --create-dirs -o models/${MODEL_NAME}
-      - name: Download reranking model
-        run: test -f models/${RERANKING_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${RERANKING_MODEL_URL} --create-dirs -o models/${RERANKING_MODEL_NAME}
-      - name: Download draft model
-        run: test -f models/${DRAFT_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${DRAFT_MODEL_URL} --create-dirs -o models/${DRAFT_MODEL_NAME}
-      - name: Download reasoning model
-        run: test -f models/${REASONING_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${REASONING_MODEL_URL} --create-dirs -o models/${REASONING_MODEL_NAME}
-      - name: Download tool-calling model
-        run: test -f models/${TOOL_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${TOOL_MODEL_URL} --create-dirs -o models/${TOOL_MODEL_NAME}
-      - name: Download nomic embedding model (issue #98 regression)
-        run: test -f models/${NOMIC_EMBED_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${NOMIC_EMBED_MODEL_URL} --create-dirs -o models/${NOMIC_EMBED_MODEL_NAME}
-      - name: Download vision model
-        run: test -f models/${VISION_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${VISION_MODEL_URL} --create-dirs -o models/${VISION_MODEL_NAME}
-      - name: Download vision mmproj
-        run: test -f models/${VISION_MMPROJ_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${VISION_MMPROJ_URL} --create-dirs -o models/${VISION_MMPROJ_NAME}
-      - name: Download TTS model (OuteTTS)
-        run: test -f models/${TTS_MODEL_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${TTS_MODEL_URL} --create-dirs -o models/${TTS_MODEL_NAME}
-      - name: Download TTS vocoder (WavTokenizer)
-        run: test -f models/${TTS_VOCODER_NAME} || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors ${TTS_VOCODER_URL} --create-dirs -o models/${TTS_VOCODER_NAME}
+      - name: Download missing models (manifest-driven, .github/models.csv)
+        # The manifest is the single source of truth for the model set; this loop is
+        # the ONLY place in CI that downloads models. Files already restored from the
+        # cache are skipped, so a warm cache downloads nothing.
+        run: |
+          while IFS=, read -r name url; do
+            case "$name" in ''|\#*) continue ;; esac
+            test -f "models/$name" || curl -L --proto =https --proto-redir =https --fail --retry 5 --retry-all-errors "$url" --create-dirs -o "models/$name"
+          done < .github/models.csv
       - name: List files in models directory
         run: ls -l models/
       - name: Validate model files
         run: bash .github/validate-models.sh
+
+  # Prove the freshly written cache entry is restorable AND complete on every OS the
+  # pipeline uses BEFORE any model-consuming job starts: the same restore-only action
+  # the consumers use (fail-on-cache-miss makes an unrestorable entry fail here, not
+  # deep inside a test job), followed by the full validate gate. Every model-backed
+  # job `needs:` this instead of download-models directly.
+  verify-model-cache:
+    name: "Verify model cache (${{ matrix.os }})"
+    needs: download-models
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            validate: bash .github/validate-models.sh
+          - os: macos-15
+            validate: bash .github/validate-models.sh
+          - os: windows-2025-vs2026
+            validate: .github\validate-models.bat
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Restore shared GGUF model cache (populated by download-models; no re-download)
+        uses: actions/cache/restore@v6
+        with:
+          path: models/
+          key: gguf-models-${{ hashFiles('.github/models.csv') }}
+          enableCrossOsArchive: true
+          fail-on-cache-miss: true
+      - name: Validate model files
+        run: ${{ matrix.validate }}
 
   # ---------------------------------------------------------------------------
   # Cross-compile jobs (Docker / dockcross) — produce release artifacts, no testing
@@ -215,7 +229,7 @@ jobs:
 
   test-java-llama-langchain4j-integration:
     name: Integration Test llama-langchain4j (model-backed)
-    needs: [crosscompile-linux-x86_64, download-models]
+    needs: [crosscompile-linux-x86_64, verify-model-cache]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -232,7 +246,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: models/
-          key: gguf-models-v1
+          key: gguf-models-${{ hashFiles('.github/models.csv') }}
           enableCrossOsArchive: true
       - uses: actions/setup-java@v5
         with:
@@ -849,7 +863,7 @@ jobs:
 
   test-android-emulator:
     name: Android emulator on-device test (x86_64)
-    needs: [crosscompile-android-aarch64, crosscompile-android-x86_64, download-models]
+    needs: [crosscompile-android-aarch64, crosscompile-android-x86_64, verify-model-cache]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -894,7 +908,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: models/
-          key: gguf-models-v1
+          key: gguf-models-${{ hashFiles('.github/models.csv') }}
           enableCrossOsArchive: true
       - name: Run on-emulator instrumentation (connectedDebugAndroidTest)
         uses: reactivecircus/android-emulator-runner@v2
@@ -1814,7 +1828,7 @@ jobs:
 
   test-java-linux-x86_64:
     name: Java Tests Ubuntu Latest x86_64
-    needs: [crosscompile-linux-x86_64, download-models]
+    needs: [crosscompile-linux-x86_64, verify-model-cache]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -1833,7 +1847,7 @@ jobs:
       # GGUF models are downloaded + cached ONCE by the upstream `download-models` job
       # (this job `needs:` it), so here we only RESTORE the shared cache — no per-job
       # download logic. GGUF is platform-independent, so ubuntu + macOS + Windows share
-      # one entry (key gguf-models-v1). validate-models is kept as an integrity guard so a
+      # one entry (key gguf-models-<manifest hash>). validate-models is kept as an integrity guard so a
       # partial/absent restore fails loudly instead of silently self-skipping required tests.
       - name: Restore shared GGUF model cache (populated by download-models; no re-download)
         # Restore-only: consumer jobs can NEVER write the cache, so a job running on a
@@ -1843,7 +1857,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: models/
-          key: gguf-models-v1
+          key: gguf-models-${{ hashFiles('.github/models.csv') }}
           enableCrossOsArchive: true
       - name: Validate model files
         run: bash .github/validate-models.sh
@@ -1937,7 +1951,7 @@ jobs:
 
   test-java-macos-arm64-metal:
     name: Java Tests macOS 14 arm64 (Metal)
-    needs: [build-macos-arm64-metal, download-models]
+    needs: [build-macos-arm64-metal, verify-model-cache]
     runs-on: macos-14
     steps:
       - uses: actions/checkout@v7
@@ -1956,7 +1970,7 @@ jobs:
       # GGUF models are downloaded + cached ONCE by the upstream `download-models` job
       # (this job `needs:` it), so here we only RESTORE the shared cache — no per-job
       # download logic. GGUF is platform-independent, so ubuntu + macOS + Windows share
-      # one entry (key gguf-models-v1). validate-models is kept as an integrity guard so a
+      # one entry (key gguf-models-<manifest hash>). validate-models is kept as an integrity guard so a
       # partial/absent restore fails loudly instead of silently self-skipping required tests.
       - name: Restore shared GGUF model cache (populated by download-models; no re-download)
         # Restore-only: consumer jobs can NEVER write the cache, so a job running on a
@@ -1966,7 +1980,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: models/
-          key: gguf-models-v1
+          key: gguf-models-${{ hashFiles('.github/models.csv') }}
           enableCrossOsArchive: true
       - name: Validate model files
         run: bash .github/validate-models.sh
@@ -2006,7 +2020,7 @@ jobs:
 
   test-java-macos-arm64-no-metal:
     name: Java Tests macOS 15 arm64 (no Metal)
-    needs: [build-macos-arm64-no-metal, download-models]
+    needs: [build-macos-arm64-no-metal, verify-model-cache]
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
@@ -2025,7 +2039,7 @@ jobs:
       # GGUF models are downloaded + cached ONCE by the upstream `download-models` job
       # (this job `needs:` it), so here we only RESTORE the shared cache — no per-job
       # download logic. GGUF is platform-independent, so ubuntu + macOS + Windows share
-      # one entry (key gguf-models-v1). validate-models is kept as an integrity guard so a
+      # one entry (key gguf-models-<manifest hash>). validate-models is kept as an integrity guard so a
       # partial/absent restore fails loudly instead of silently self-skipping required tests.
       - name: Restore shared GGUF model cache (populated by download-models; no re-download)
         # Restore-only: consumer jobs can NEVER write the cache, so a job running on a
@@ -2035,7 +2049,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: models/
-          key: gguf-models-v1
+          key: gguf-models-${{ hashFiles('.github/models.csv') }}
           enableCrossOsArchive: true
       - name: Validate model files
         run: bash .github/validate-models.sh
@@ -2075,7 +2089,7 @@ jobs:
 
   test-java-macos-arm64-metal-15:
     name: Java Tests macOS 15 arm64 (Metal)
-    needs: [build-macos-arm64-metal-15, download-models]
+    needs: [build-macos-arm64-metal-15, verify-model-cache]
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
@@ -2094,7 +2108,7 @@ jobs:
       # GGUF models are downloaded + cached ONCE by the upstream `download-models` job
       # (this job `needs:` it), so here we only RESTORE the shared cache — no per-job
       # download logic. GGUF is platform-independent, so ubuntu + macOS + Windows share
-      # one entry (key gguf-models-v1). validate-models is kept as an integrity guard so a
+      # one entry (key gguf-models-<manifest hash>). validate-models is kept as an integrity guard so a
       # partial/absent restore fails loudly instead of silently self-skipping required tests.
       - name: Restore shared GGUF model cache (populated by download-models; no re-download)
         # Restore-only: consumer jobs can NEVER write the cache, so a job running on a
@@ -2104,7 +2118,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: models/
-          key: gguf-models-v1
+          key: gguf-models-${{ hashFiles('.github/models.csv') }}
           enableCrossOsArchive: true
       - name: Validate model files
         run: bash .github/validate-models.sh
@@ -2144,7 +2158,7 @@ jobs:
 
   test-java-windows-x86_64:
     name: Java Tests Windows 2025 x86_64 (default / Ninja)
-    needs: [build-windows-x86_64, download-models]
+    needs: [build-windows-x86_64, verify-model-cache]
     runs-on: windows-2025-vs2026
     steps:
       - uses: actions/checkout@v7
@@ -2175,7 +2189,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: models/
-          key: gguf-models-v1
+          key: gguf-models-${{ hashFiles('.github/models.csv') }}
           enableCrossOsArchive: true
       - name: Validate model files
         run: .github\validate-models.bat
@@ -2238,7 +2252,7 @@ jobs:
   # validated end-to-end before the `msvc-windows` classifier JAR ships.
   test-java-windows-x86_64-msvc:
     name: Java Tests Windows 2025 x86_64 (MSVC classifier)
-    needs: [build-windows-x86_64-msvc, download-models]
+    needs: [build-windows-x86_64-msvc, verify-model-cache]
     runs-on: windows-2025-vs2026
     steps:
       - uses: actions/checkout@v7
@@ -2269,7 +2283,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: models/
-          key: gguf-models-v1
+          key: gguf-models-${{ hashFiles('.github/models.csv') }}
           enableCrossOsArchive: true
       - name: Validate model files
         run: .github\validate-models.bat
@@ -2521,7 +2535,7 @@ jobs:
   # a real `java -jar`, then proves the server serves /health + /v1/chat/completions.
   smoke-fatjar-linux:
     name: Smoke test all-backends fat jar (Linux)
-    needs: [package-fatjars, download-models]
+    needs: [package-fatjars, verify-model-cache]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -2537,7 +2551,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: models/
-          key: gguf-models-v1
+          key: gguf-models-${{ hashFiles('.github/models.csv') }}
           enableCrossOsArchive: true
       - name: Validate model files
         run: .github/validate-models.sh
@@ -2559,7 +2573,7 @@ jobs:
 
   smoke-fatjar-windows:
     name: Smoke test all-backends fat jar (Windows)
-    needs: [package-fatjars, download-models]
+    needs: [package-fatjars, verify-model-cache]
     runs-on: windows-2025-vs2026
     steps:
       - uses: actions/checkout@v7
@@ -2575,7 +2589,7 @@ jobs:
         uses: actions/cache/restore@v6
         with:
           path: models/
-          key: gguf-models-v1
+          key: gguf-models-${{ hashFiles('.github/models.csv') }}
           enableCrossOsArchive: true
       - name: Validate model files
         run: .github\validate-models.bat
