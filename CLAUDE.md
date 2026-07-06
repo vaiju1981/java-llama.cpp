@@ -1161,14 +1161,22 @@ these as **required** (a missing model hard-fails the job before tests run, so a
 regression can never silently downgrade to a skip). The only model still self-skipping is the
 audio-input model (`AudioInputIntegrationTest`) — the prompt clip is committed
 (`src/test/resources/audios/sample.wav`) but the audio model + mmproj have no CI download.
-The shared GGUF cache (`actions/cache`, key `gguf-models-v1`, path `models/`) holds the full set
+The shared GGUF cache (key `gguf-models-v1`, path `models/`) holds the full set
 and is populated **once, upfront** by a dedicated **`download-models`** job (`needs: startgate`):
 it is the single place the ~5 GB set is fetched from HuggingFace (the ten `curl` steps + the
-`validate-models.sh` gate live only there). Every `test-java-*` job — and the langchain4j
-integration job — `needs: download-models` and then only **restores** that cache (no per-job
-download, no cold-start save race), keeping `validate-models.{sh,bat}` as a per-job integrity
-guard. GGUF is platform-independent, so the one ubuntu `download-models` cache is reused by the
-macOS and Windows jobs too. `validate-models.{sh,bat}` treats the models as **required** (a
+`validate-models.sh` gate live only there), and it is the **only writer** of the cache — every
+`test-java-*` job, the langchain4j integration job, and the fat-jar smoke jobs `need:
+download-models` and use the **restore-only** `actions/cache/restore` action (no per-job
+download, no save — a consumer running on a cache miss can never re-save an empty/partial entry
+under the immutable key), keeping `validate-models.{sh,bat}` as a per-job integrity guard.
+GGUF is platform-independent and the writer sets **`enableCrossOsArchive: true`**, so the one
+ubuntu-built entry is the same entry macOS and Windows restore. (Both halves are lessons from
+run 28805360584: without the flag, cache entries are versioned per-OS and the unreachable
+Windows-side entry had been re-saved **empty** (343 B) after an eviction; and
+`validate-models.bat`'s quoted `MODELS` list broke cmd's for-tokenization so its `exit /b 1`
+never fired — the empty cache sailed through the "gate" and the Windows jobs silently self-
+skipped every model-backed test until the fat-jar smoke's hard check caught it.)
+`validate-models.{sh,bat}` treats the models as **required** (a
 missing model hard-fails the job before tests run). Because the cache key is immutable, changing
 the model set means the **existing cache entry must be deleted** (not bumped to `v2`) so
 `download-models` rebuilds it complete — locally the model tests still self-skip when a GGUF is
