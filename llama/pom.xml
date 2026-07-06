@@ -694,8 +694,8 @@ SPDX-License-Identifier: MIT
 				  see ../workspace/policies/pit-mutation-testing.md.
 				  Repo-specific: the gated value/exception/args/json classes are pure-Java
 				  (no native libjllama or model file needed); targetClasses/targetTests are
-				  kept in lock-step. NOTE: value.ContentPart.audioFile(Path) mutants are only
-				  killed with the audio fixture present — see TODO.md and policy §4.
+				  kept in lock-step. The gate is hermetic: ContentPartTest's @TempDir tests
+				  cover value.ContentPart.audioFile(Path), so no fixture is required.
 				-->
 				<groupId>org.pitest</groupId>
 				<artifactId>pitest-maven</artifactId>
