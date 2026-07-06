@@ -108,6 +108,123 @@ public class LlamaLoaderTest {
     }
 
     // -------------------------------------------------------------------------
+    // parseBackendManifest
+    // -------------------------------------------------------------------------
+
+    private static java.util.List<LlamaLoader.BackendEntry> parseManifest(String content) throws IOException {
+        return LlamaLoader.parseBackendManifest(new java.io.BufferedReader(new java.io.StringReader(content)));
+    }
+
+    @Test
+    public void testParseBackendManifestPreservesPriorityOrder() throws IOException {
+        java.util.List<LlamaLoader.BackendEntry> entries = parseManifest("cuda13\nvulkan\nopencl\n");
+        assertEquals(3, entries.size());
+        assertEquals("cuda13", entries.get(0).name);
+        assertEquals("vulkan", entries.get(1).name);
+        assertEquals("opencl", entries.get(2).name);
+    }
+
+    @Test
+    public void testParseBackendManifestTokenizesExtraFiles() throws IOException {
+        java.util.List<LlamaLoader.BackendEntry> entries = parseManifest("openvino OpenCL.dll second.dll\n");
+        assertEquals(1, entries.size());
+        assertEquals("openvino", entries.get(0).name);
+        assertEquals(java.util.Arrays.asList("OpenCL.dll", "second.dll"), entries.get(0).extraFiles);
+    }
+
+    @Test
+    public void testParseBackendManifestNoExtraFiles() throws IOException {
+        java.util.List<LlamaLoader.BackendEntry> entries = parseManifest("vulkan\n");
+        assertTrue(entries.get(0).extraFiles.isEmpty());
+    }
+
+    @Test
+    public void testParseBackendManifestSkipsCommentsAndBlankLines() throws IOException {
+        java.util.List<LlamaLoader.BackendEntry> entries =
+                parseManifest("# priority order\n\n  \ncuda13\n# tail comment\n");
+        assertEquals(1, entries.size());
+        assertEquals("cuda13", entries.get(0).name);
+    }
+
+    @Test
+    public void testParseBackendManifestToleratesCrLfAndIndentation() throws IOException {
+        // BufferedReader.readLine strips \r\n; leading/trailing whitespace is trimmed per line.
+        java.util.List<LlamaLoader.BackendEntry> entries = parseManifest("  cuda13\r\n\tvulkan \r\n");
+        assertEquals(2, entries.size());
+        assertEquals("cuda13", entries.get(0).name);
+        assertEquals("vulkan", entries.get(1).name);
+    }
+
+    @Test
+    public void testParseBackendManifestEmptyContent() throws IOException {
+        assertTrue(parseManifest("").isEmpty());
+    }
+
+    // -------------------------------------------------------------------------
+    // selectBackendCandidates / isForcedBackend
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void testSelectBackendCandidatesWithoutOverrideReturnsManifestOrder() throws IOException {
+        java.util.List<LlamaLoader.BackendEntry> manifest = parseManifest("cuda13\nvulkan\n");
+        assertEquals(manifest, LlamaLoader.selectBackendCandidates(manifest, null));
+    }
+
+    @Test
+    public void testSelectBackendCandidatesDefaultSkipsAllBackends() throws IOException {
+        java.util.List<LlamaLoader.BackendEntry> manifest = parseManifest("cuda13\n");
+        assertTrue(LlamaLoader.selectBackendCandidates(manifest, "default").isEmpty());
+    }
+
+    @Test
+    public void testSelectBackendCandidatesCpuAliasSkipsAllBackends() throws IOException {
+        java.util.List<LlamaLoader.BackendEntry> manifest = parseManifest("cuda13\n");
+        assertTrue(LlamaLoader.selectBackendCandidates(manifest, "cpu").isEmpty());
+    }
+
+    @Test
+    public void testSelectBackendCandidatesForcedKnownBackendKeepsItsExtraFiles() throws IOException {
+        java.util.List<LlamaLoader.BackendEntry> manifest = parseManifest("cuda13\nopenvino OpenCL.dll\n");
+        java.util.List<LlamaLoader.BackendEntry> selected = LlamaLoader.selectBackendCandidates(manifest, "openvino");
+        assertEquals(1, selected.size());
+        assertEquals("openvino", selected.get(0).name);
+        assertEquals(java.util.Collections.singletonList("OpenCL.dll"), selected.get(0).extraFiles);
+    }
+
+    @Test
+    public void testSelectBackendCandidatesForcedUnknownBackendIsSynthesized() throws IOException {
+        // A backend name absent from the manifest is still attempted (stale-manifest override),
+        // just without extra files; the loader fails loud if its library is missing.
+        java.util.List<LlamaLoader.BackendEntry> manifest = parseManifest("cuda13\n");
+        java.util.List<LlamaLoader.BackendEntry> selected = LlamaLoader.selectBackendCandidates(manifest, "rocm");
+        assertEquals(1, selected.size());
+        assertEquals("rocm", selected.get(0).name);
+        assertTrue(selected.get(0).extraFiles.isEmpty());
+    }
+
+    @Test
+    public void testIsForcedBackendUnsetIsNotForced() {
+        assertFalse(LlamaLoader.isForcedBackend(null));
+    }
+
+    @Test
+    public void testIsForcedBackendDefaultAndCpuAreNotForced() {
+        assertFalse(LlamaLoader.isForcedBackend("default"));
+        assertFalse(LlamaLoader.isForcedBackend("cpu"));
+    }
+
+    @Test
+    public void testIsForcedBackendSpecificBackendIsForced() {
+        assertTrue(LlamaLoader.isForcedBackend("cuda13"));
+    }
+
+    @Test
+    public void testBackendTempDirPrefixMatchesCleanup() {
+        // The per-backend extraction directories must be picked up by the temp-dir cleanup.
+        assertTrue(LlamaLoader.shouldCleanPath(Paths.get("/tmp/" + LlamaLoader.BACKEND_TEMP_DIR_PREFIX + "cuda13")));
+    }
+
+    // -------------------------------------------------------------------------
     // contentsEquals
     // -------------------------------------------------------------------------
 

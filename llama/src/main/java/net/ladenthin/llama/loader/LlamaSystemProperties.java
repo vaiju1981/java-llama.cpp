@@ -60,4 +60,18 @@ public class LlamaSystemProperties {
     public @Nullable String getTestNgl() {
         return getProperty(".test.ngl");
     }
+
+    /**
+     * Native-backend override for multi-backend ("all") fat jars that carry a
+     * {@code jllama-backends.txt} manifest next to their native libraries. Names one backend
+     * subdirectory (e.g. {@code cuda13}, {@code vulkan}) to load exclusively &mdash; loading then
+     * fails loud instead of falling back &mdash; or the special value {@code default} (alias
+     * {@code cpu}) to skip all manifest backends and load the default library directly. Ignored
+     * by jars without a backend manifest.
+     *
+     * @return the configured backend name, or {@code null} if unset
+     */
+    public @Nullable String getBackend() {
+        return getProperty(".backend");
+    }
 }
