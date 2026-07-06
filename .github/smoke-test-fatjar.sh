@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+
+# SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 # Smoke test for an all-backends server fat jar on a GPU-less runner:
 # `java -jar` must start the embedded server — with every manifest backend failing
 # its load cleanly and the loader falling back to the default CPU natives — then

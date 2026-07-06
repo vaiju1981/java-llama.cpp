@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+
+# SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+#
+# SPDX-License-Identifier: MIT
+
 # Assembles the per-OS "all backends" server fat jars distributed as GitHub Release
 # assets (never deployed to Maven Central).
 #
