@@ -2451,6 +2451,94 @@ jobs:
           compression-level: 0 # jars are already deflated
           retention-days: 7 # multi-GB artifact; release jobs consume it within the same run
           if-no-files-found: error
+      # Small single-jar artifacts so the smoke jobs don't download the multi-GB set.
+      - name: Upload Linux smoke jar
+        uses: actions/upload-artifact@v7
+        with:
+          name: llama-fatjar-smoke-linux
+          path: fatjars/llama-*-all-linux-x86-64-jar-with-dependencies.jar
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+      - name: Upload Windows smoke jar
+        uses: actions/upload-artifact@v7
+        with:
+          name: llama-fatjar-smoke-windows
+          path: fatjars/llama-*-all-windows-x86-64-jar-with-dependencies.jar
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+
+  # GPU-less runners: every manifest backend must fail its load cleanly (missing vendor
+  # runtimes) and the server must come up on the default CPU natives — this exercises
+  # manifest parsing, per-backend extraction, and the fallback chain end-to-end through
+  # a real `java -jar`, then proves the server serves /health + /v1/chat/completions.
+  smoke-fatjar-linux:
+    name: Smoke test all-backends fat jar (Linux)
+    needs: [package-fatjars, download-models]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: llama-fatjar-smoke-linux
+          path: fatjars/
+      - name: Restore shared GGUF model cache (populated by download-models; no re-download)
+        uses: actions/cache@v6
+        with:
+          path: models/
+          key: gguf-models-v1
+      - name: Validate model files
+        run: .github/validate-models.sh
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Run fat-jar server smoke test
+        run: .github/smoke-test-fatjar.sh fatjars 'llama-*-all-linux-x86-64-jar-with-dependencies.jar' "models/${DRAFT_MODEL_NAME}"
+      - name: Upload server logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fatjar-smoke-linux-logs
+          path: |
+            server-out.log
+            server-err.log
+          if-no-files-found: warn
+
+  smoke-fatjar-windows:
+    name: Smoke test all-backends fat jar (Windows)
+    needs: [package-fatjars, download-models]
+    runs-on: windows-2025-vs2026
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: llama-fatjar-smoke-windows
+          path: fatjars/
+      - name: Restore shared GGUF model cache (populated by download-models; no re-download)
+        uses: actions/cache@v6
+        with:
+          path: models/
+          key: gguf-models-v1
+      - name: Validate model files
+        run: .github\validate-models.bat
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Run fat-jar server smoke test
+        shell: pwsh
+        run: .github/smoke-test-fatjar.ps1 -JarDir fatjars -JarGlob 'llama-*-all-windows-x86-64-jar-with-dependencies.jar' -Model "models/$env:DRAFT_MODEL_NAME"
+      - name: Upload server logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fatjar-smoke-windows-logs
+          path: |
+            server-out.log
+            server-err.log
+          if-no-files-found: warn
 
   report:
     name: Report
