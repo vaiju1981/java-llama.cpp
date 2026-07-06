@@ -2408,8 +2408,9 @@ jobs:
         # `assembly` additionally produces the fat jar-with-dependencies uber JAR
         # (llama-<version>-jar-with-dependencies.jar: library classes + Java runtime deps +
         # default-platform native libs in one drop-on-classpath JAR, runnable via its
-        # OpenAiCompatServer Main-Class). It lands in target/ and is uploaded in the `llama-jars`
-        # artifact below - a CI run artifact only, not a Maven Central / GitHub-Release asset.
+        # ServerLauncher Main-Class). It lands in target/ and is uploaded in the `llama-jars`
+        # artifact below - never a Maven Central asset; the `package-fatjars` job downstream
+        # combines it with the classifier jars into the GitHub-Release fat-jar assets.
         # Windows classifier JARs: `windows-msvc` (MSVC-built CPU natives) plus the GPU
         # backends `cuda-windows` / `vulkan-windows` / `opencl-windows`. The default JAR's
         # Windows natives are the Ninja `*-libraries` merged into src/main/resources/ above.
@@ -2419,6 +2420,37 @@ jobs:
         with:
           name: llama-jars
           path: llama/target/*.jar
+
+  package-fatjars:
+    name: Package all-backends fat jars
+    needs: [package]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: llama-jars
+          path: jars/
+      # One self-contained multi-backend server fat jar per OS/arch
+      # (llama-<version>-all-<os>-<arch>-jar-with-dependencies.jar): the default
+      # jar-with-dependencies plus every GPU backend of that OS/arch in backend
+      # subdirectories, described by the jllama-backends.txt priority manifest that
+      # LlamaLoader reads at runtime (first loadable backend wins, CPU fallback).
+      # These are GitHub-Release download assets ONLY - never deployed to Maven
+      # Central (the deploy jobs run without the `assembly` profile and are untouched).
+      # The script enumerates the classifiers from llama/pom.xml and fails loud on any
+      # mismatch with the built classifier jars, so a new classifier cannot be silently
+      # skipped.
+      - name: Assemble all-backends fat jars
+        run: bash .github/package-fatjars.sh jars fatjars llama/pom.xml
+      - name: Upload fat jars
+        uses: actions/upload-artifact@v7
+        with:
+          name: llama-fatjars
+          path: fatjars/
+          compression-level: 0 # jars are already deflated
+          retention-days: 7 # multi-GB artifact; release jobs consume it within the same run
+          if-no-files-found: error
 
   report:
     name: Report
