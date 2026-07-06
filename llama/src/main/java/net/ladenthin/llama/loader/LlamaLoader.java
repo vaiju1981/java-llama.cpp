@@ -174,7 +174,7 @@ public class LlamaLoader {
                 }
             }
             Files.delete(path);
-        } catch (Exception e) {
+        } catch (IOException | RuntimeException e) {
             System.err.println("Failed to delete old native lib: " + e.getMessage());
         }
     }
@@ -232,13 +232,14 @@ public class LlamaLoader {
         // next backend is tried). Jars without a manifest skip this block entirely.
         String backendOverride = systemProperties.getBackend();
         List<BackendEntry> backendCandidates = selectBackendCandidates(readBackendManifest(), backendOverride);
+        String nativeResourcePath = getNativeResourcePath();
         Set<String> residentExtraFiles = new HashSet<>();
         for (BackendEntry backend : backendCandidates) {
-            if (tryLoadBackend(getNativeResourcePath(), backend, residentExtraFiles)) {
+            if (tryLoadBackend(nativeResourcePath, backend, residentExtraFiles)) {
                 System.out.println("[jllama] using native backend '" + backend.name + "'");
                 return;
             }
-            triedPaths.add(getNativeResourcePath() + "/" + backend.name);
+            triedPaths.add(nativeResourcePath + "/" + backend.name);
         }
         if (isForcedBackend(backendOverride) && !backendCandidates.isEmpty()) {
             // An explicitly requested backend must fail loud instead of silently falling back.
@@ -256,7 +257,7 @@ public class LlamaLoader {
         }
 
         // As a last resort try load the os-dependent library from the jar file
-        nativeLibPath = getNativeResourcePath();
+        nativeLibPath = nativeResourcePath;
         if (hasNativeLib(nativeLibPath, nativeLibName)) {
             // temporary library folder
             String tempFolder = getTempDir().getAbsolutePath();
@@ -479,17 +480,17 @@ public class LlamaLoader {
                 return false;
             }
         }
-        File targetDir = new File(getTempDir(), BACKEND_TEMP_DIR_PREFIX + entry.name);
+        Path targetDirPath = getTempDir().toPath().resolve(BACKEND_TEMP_DIR_PREFIX + entry.name);
         try {
-            Files.createDirectories(targetDir.toPath());
+            Files.createDirectories(targetDirPath);
         } catch (IOException e) {
-            System.err.println("Failed to create backend temp directory " + targetDir + ": " + e.getMessage());
+            System.err.println("Failed to create backend temp directory " + targetDirPath + ": " + e.getMessage());
             return false;
         }
         // Registered before the contained files: File.deleteOnExit processing is LIFO, so the
         // files registered afterwards by extractFile are deleted first, then this directory.
-        targetDir.deleteOnExit();
-        String targetFolder = targetDir.getAbsolutePath();
+        targetDirPath.toFile().deleteOnExit();
+        String targetFolder = targetDirPath.toAbsolutePath().toString();
         for (String extraFile : entry.extraFiles) {
             Path extraPath = extractFile(backendResourcePath, extraFile, targetFolder);
             if (extraPath == null || !loadNativeLibrary(extraPath)) {
