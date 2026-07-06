@@ -2590,7 +2590,7 @@ jobs:
 
   publish-snapshot:
     name: Publish Snapshot to Central
-    needs: [check-snapshot, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, package-android-aar, test-android-emulator, code-style, test-java-llama-langchain4j, test-java-llama-kotlin]
+    needs: [check-snapshot, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, package-android-aar, test-android-emulator, code-style, test-java-llama-langchain4j, test-java-llama-kotlin, package-fatjars, smoke-fatjar-linux, smoke-fatjar-windows]
     if: needs.check-snapshot.result == 'success' && inputs.publish_to_central
     runs-on: ubuntu-latest
     environment: maven-central
@@ -2738,8 +2738,8 @@ jobs:
 
   github-snapshot:
     name: Update Snapshot Pre-release on GitHub
-    needs: [publish-snapshot]
-    if: needs.publish-snapshot.result == 'success'
+    needs: [publish-snapshot, package-fatjars]
+    if: needs.publish-snapshot.result == 'success' && needs.package-fatjars.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -2747,6 +2747,14 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: signed-snapshot-assets
+          path: snapshot-assets/
+      # All-backends server fat jars (+ default CPU fat jar + sha256 files) — GitHub
+      # download assets only, deliberately NOT deployed to Maven Central. Downloaded
+      # into the same directory so the one upload glob below picks everything up
+      # (fat-jar names are disjoint from the signed thin-jar names).
+      - uses: actions/download-artifact@v8
+        with:
+          name: llama-fatjars
           path: snapshot-assets/
       - name: Update snapshot pre-release
         env:
@@ -2765,7 +2773,7 @@ jobs:
   publish-release:
     name: Publish Release to Central
     if: needs.check-tag.result == 'success' && inputs.publish_to_central
-    needs: [check-tag, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, package-android-aar, test-android-emulator, code-style, test-java-llama-langchain4j, test-java-llama-kotlin]
+    needs: [check-tag, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, package-android-aar, test-android-emulator, code-style, test-java-llama-langchain4j, test-java-llama-kotlin, package-fatjars, smoke-fatjar-linux, smoke-fatjar-windows]
     runs-on: ubuntu-latest
     environment: maven-central
     permissions:
@@ -2913,8 +2921,8 @@ jobs:
 
   github-release-signed:
     name: Attach Signed Binaries to GitHub Release
-    needs: [publish-release]
-    if: needs.publish-release.result == 'success'
+    needs: [publish-release, package-fatjars]
+    if: needs.publish-release.result == 'success' && needs.package-fatjars.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -2922,6 +2930,14 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: signed-release-assets
+          path: release-assets/
+      # All-backends server fat jars (+ default CPU fat jar + sha256 files) — GitHub
+      # download assets only, deliberately NOT deployed to Maven Central. Downloaded
+      # into the same directory so the one upload glob below picks everything up
+      # (fat-jar names are disjoint from the signed thin-jar names).
+      - uses: actions/download-artifact@v8
+        with:
+          name: llama-fatjars
           path: release-assets/
       - name: Upload release assets
         uses: softprops/action-gh-release@v3
