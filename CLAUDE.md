@@ -175,7 +175,7 @@ build is shipped as the **`msvc-windows`** classifier; and three GPU backends sh
 `CMAKE_{C,CXX}_COMPILER_LAUNCHER`, so only Ninja Multi-Config can front `cl.exe` with sccache over
 Depot WebDAV. **Both generators use the same MSVC toolchain** (`cl.exe`, static `/MT` CRT via
 `CMAKE_MSVC_RUNTIME_LIBRARY`, same Release flags, same runner), so the produced
-`jllama.dll`/`llama.dll`/`ggml.dll` are **functionally equivalent with identical runtime
+`jllama.dll` binaries are **functionally equivalent with identical runtime
 dependencies** — the only difference is build-system plumbing + caching. Making Ninja the default
 gives the most-pulled JAR the sccache cache; MSVC stays available as a classifier for anyone who
 wants the Visual-Studio-generator build. (Upstream llama.cpp also builds its Windows artifacts with
@@ -183,8 +183,8 @@ Ninja Multi-Config + MSVC.) Both Windows CPU builds are validated end-to-end wit
 model-backed Java suite (`test-java-windows-x86_64` = default/Ninja, `test-java-windows-x86_64-msvc`
 = MSVC classifier).
 
-**GPU runtime libraries are NOT bundled.** The GPU JARs ship only `jllama.dll`/`llama.dll`/`ggml.dll`
-(plus the embedded backend). The consumer's driver/toolkit must supply the runtime: CUDA needs the
+**GPU runtime libraries are NOT bundled.** The GPU JARs ship only the single monolithic
+`jllama.dll` (llama.cpp + ggml + the backend are statically linked in — `BUILD_SHARED_LIBS OFF`). The consumer's driver/toolkit must supply the runtime: CUDA needs the
 installed CUDA 13 Toolkit (`cudart64_13.dll`/`cublas64_13.dll`/`cublasLt64_13.dll` on `PATH`); Vulkan
 needs `vulkan-1.dll` (ships with current GPU drivers); OpenCL needs the vendor ICD
 (`System32\OpenCL.dll`). Not bundling = no NVIDIA-EULA redistribution obligation. **GitHub-hosted
@@ -728,11 +728,16 @@ folder name is produced on both ends.
 | Linux aarch64 | `libjllama.so` | `src/main/resources/net/ladenthin/llama/Linux/aarch64/` |
 | macOS Apple Silicon | `libjllama.dylib` | `src/main/resources/net/ladenthin/llama/Mac/aarch64/` |
 | macOS Intel | `libjllama.dylib` | `src/main/resources/net/ladenthin/llama/Mac/x86_64/` |
-| Windows x86_64 | `jllama.dll` (+ `llama.dll`, `ggml.dll`) | `src/main/resources/net/ladenthin/llama/Windows/x86_64/` |
+| Windows x86_64 | `jllama.dll` | `src/main/resources/net/ladenthin/llama/Windows/x86_64/` |
 
-The Windows `RUNTIME_OUTPUT_DIRECTORY_*` properties (`CMakeLists.txt:266-269`)
-deposit `jllama.dll` alongside the upstream `llama.dll` / `ggml.dll`; all
-three must remain co-located so the loader can resolve transitive imports.
+On every platform exactly **one** `jllama` library is produced: `CMakeLists.txt` forces
+`BUILD_SHARED_LIBS OFF`, so upstream `llama` and `ggml` are static libraries linked into
+`jllama` (the `RUNTIME_OUTPUT_DIRECTORY_*` block that also names the `llama`/`ggml` targets
+is a no-op for them — verified against the published 5.0.5 jars, which contain only
+`jllama.dll` per Windows arch). `LlamaLoader` accordingly extracts and loads a single file
+from the jar (plus `ggml-metal.metal` on macOS). Historical note: upstream kherud once
+shipped split `ggml` + `jllama` libraries, which is where stale "three co-located DLLs"
+claims came from.
 
 End-to-end local workflow for running Java tests:
 

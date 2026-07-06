@@ -110,7 +110,9 @@ public class LlamaLoader {
             return false;
         }
         String fileName = fileNamePath.toString();
-        return fileName.startsWith("jllama") || fileName.startsWith("llama");
+        // "ggml" covers the ggml-metal.metal file that initialize() extracts on macOS — it was
+        // never matched here, so a stale extracted copy accumulated in the temp dir forever.
+        return fileName.startsWith("jllama") || fileName.startsWith("llama") || fileName.startsWith("ggml");
     }
 
     private static void cleanPath(Path path) {

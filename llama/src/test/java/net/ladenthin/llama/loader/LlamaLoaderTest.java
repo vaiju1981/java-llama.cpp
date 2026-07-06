@@ -19,8 +19,9 @@ import org.junit.jupiter.api.Test;
 
 @ClaudeGenerated(
         purpose = "Verify the helper statics extracted from LlamaLoader without requiring any "
-                + "native library: shouldCleanPath detects jllama/llama-prefixed files for "
-                + "cleanup; contentsEquals performs a correct byte-level stream comparison "
+                + "native library: shouldCleanPath detects jllama/llama/ggml-prefixed files for "
+                + "cleanup (ggml covers the extracted macOS ggml-metal.metal); "
+                + "contentsEquals performs a correct byte-level stream comparison "
                 + "including BufferedInputStream wrapping and length mismatches; getTempDir "
                 + "honours the 'net.ladenthin.llama.tmpdir' system-property override; and "
                 + "getNativeResourcePath produces the expected classpath resource prefix; and "
@@ -92,6 +93,18 @@ public class LlamaLoaderTest {
     public void testShouldCleanPathCaseSensitive() {
         // "Jllama" does not start with lowercase "jllama"
         assertFalse(LlamaLoader.shouldCleanPath(Paths.get("/tmp/Jllama.so")));
+    }
+
+    @Test
+    public void testShouldCleanPathGgmlMetalFile() {
+        // Regression: initialize() extracts ggml-metal.metal on macOS, but cleanup() never
+        // matched the "ggml" prefix, so a stale extracted copy was left in the temp dir forever.
+        assertTrue(LlamaLoader.shouldCleanPath(Paths.get("/tmp/ggml-metal.metal")));
+    }
+
+    @Test
+    public void testShouldCleanPathGgmlPrefix() {
+        assertTrue(LlamaLoader.shouldCleanPath(Paths.get("/tmp/ggml.tmp")));
     }
 
     // -------------------------------------------------------------------------
