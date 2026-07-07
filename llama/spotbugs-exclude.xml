@@ -767,4 +767,30 @@ SPDX-License-Identifier: MIT
         <Method name="&lt;init&gt;"/>
     </Match>
 
+    <!--
+        LlamaLoader$BackendEntry's constructor takes List (not Collection) on purpose: the
+        extra files of a backend-manifest entry are ORDER-SIGNIFICANT (they are extracted
+        and loaded in listed order, before the backend's main library), and List documents
+        that contract at the API boundary. Same rationale as SessionCheckpoint above.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.loader.LlamaLoader$BackendEntry"/>
+        <Bug pattern="OCP_OVERLY_CONCRETE_COLLECTION_PARAMETER"/>
+        <Method name="&lt;init&gt;"/>
+    </Match>
+
+    <!--
+        LlamaLoader.loadNativeLibrary(String) accumulates the diagnostic triedPaths list
+        (a handful of strings that only ever feed the final UnsatisfiedLinkError message).
+        fb-contrib's PSC_PRESIZE_COLLECTIONS fires because the backend-candidate loop adds
+        to it, but the list's final size depends on which resolution steps fail at runtime,
+        so there is no meaningful size to preallocate — same "tiny short-lived collection"
+        rationale as OpenAiServerCli.parseChatTemplateKwargs above.
+    -->
+    <Match>
+        <Class name="net.ladenthin.llama.loader.LlamaLoader"/>
+        <Bug pattern="PSC_PRESIZE_COLLECTIONS"/>
+        <Method name="loadNativeLibrary"/>
+    </Match>
+
 </FindBugsFilter>

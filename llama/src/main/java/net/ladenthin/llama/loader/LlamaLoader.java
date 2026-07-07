@@ -6,15 +6,23 @@
 package net.ladenthin.llama.loader;
 
 import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Stream;
 import lombok.ToString;
 import org.jspecify.annotations.Nullable;
@@ -67,6 +75,47 @@ public class LlamaLoader {
      */
     private static final String NATIVE_RESOURCE_BASE = "/net/ladenthin/llama";
 
+    /**
+     * File name of the optional multi-backend manifest located next to the native libraries
+     * ({@code net/ladenthin/llama/<os>/<arch>/jllama-backends.txt}). Only the multi-backend
+     * ("all") fat jars assembled by the release pipeline carry it; jars without it behave
+     * exactly as before. Format: one backend per line in priority order &mdash; the backend
+     * subdirectory name optionally followed by whitespace-separated extra files to extract and
+     * load before the main library; blank lines and {@code #} comments are skipped.
+     */
+    static final String BACKEND_MANIFEST_FILE = "jllama-backends.txt";
+
+    /**
+     * Prefix of the per-backend extraction subdirectory below the temp dir. Deliberately starts
+     * with {@code jllama} so {@link #shouldCleanPath(Path)} matches it during cleanup.
+     */
+    static final String BACKEND_TEMP_DIR_PREFIX = "jllama-backend-";
+
+    /** Special {@code net.ladenthin.llama.backend} value selecting the default (CPU) library. */
+    static final String BACKEND_DEFAULT = "default";
+
+    /** Alias of {@link #BACKEND_DEFAULT}. */
+    static final String BACKEND_CPU = "cpu";
+
+    /**
+     * One entry of the multi-backend manifest: a backend subdirectory below the OS/arch native
+     * resource folder, plus the extra files (e.g. a bundled ICD loader) to extract and load
+     * before the main {@code jllama} library, in listed order.
+     */
+    static final class BackendEntry {
+
+        /** Backend subdirectory name below the OS/arch native resource folder. */
+        final String name;
+
+        /** Extra files to extract and load before the main library, in order; may be empty. */
+        final List<String> extraFiles;
+
+        BackendEntry(String name, List<String> extraFiles) {
+            this.name = name;
+            this.extraFiles = Collections.unmodifiableList(new ArrayList<>(extraFiles));
+        }
+    }
+
     /** Static utility holder; not instantiable. */
     private LlamaLoader() {}
 
@@ -110,13 +159,22 @@ public class LlamaLoader {
             return false;
         }
         String fileName = fileNamePath.toString();
-        return fileName.startsWith("jllama") || fileName.startsWith("llama");
+        // "ggml" covers the ggml-metal.metal file that initialize() extracts on macOS — it was
+        // never matched here, so a stale extracted copy accumulated in the temp dir forever.
+        return fileName.startsWith("jllama") || fileName.startsWith("llama") || fileName.startsWith("ggml");
     }
 
     private static void cleanPath(Path path) {
         try {
+            // Backend extractions live in per-backend subdirectories (BACKEND_TEMP_DIR_PREFIX),
+            // so directories are cleaned recursively; each delete stays individually best-effort.
+            if (Files.isDirectory(path, LinkOption.NOFOLLOW_LINKS)) {
+                try (Stream<Path> entries = Files.list(path)) {
+                    entries.forEach(LlamaLoader::cleanPath);
+                }
+            }
             Files.delete(path);
-        } catch (Exception e) {
+        } catch (IOException | RuntimeException e) {
             System.err.println("Failed to delete old native lib: " + e.getMessage());
         }
     }
@@ -168,8 +226,38 @@ public class LlamaLoader {
             }
         }
 
+        // Multi-backend ("all") fat jars carry a backend manifest next to their native
+        // libraries. Try each listed backend subdirectory in priority order; the first one
+        // whose library loads wins (a missing vendor runtime fails its load cleanly, and the
+        // next backend is tried). Jars without a manifest skip this block entirely.
+        String backendOverride = systemProperties.getBackend();
+        List<BackendEntry> backendCandidates = selectBackendCandidates(readBackendManifest(), backendOverride);
+        String nativeResourcePath = getNativeResourcePath();
+        Set<String> residentExtraFiles = new HashSet<>();
+        for (BackendEntry backend : backendCandidates) {
+            if (tryLoadBackend(nativeResourcePath, backend, residentExtraFiles)) {
+                System.out.println("[jllama] using native backend '" + backend.name + "'");
+                return;
+            }
+            triedPaths.add(nativeResourcePath + "/" + backend.name);
+        }
+        if (isForcedBackend(backendOverride) && !backendCandidates.isEmpty()) {
+            // An explicitly requested backend must fail loud instead of silently falling back.
+            throw new UnsatisfiedLinkError(String.format(
+                    "Forced native backend '%s' (%s.backend) could not be loaded for os.name=%s, os.arch=%s,"
+                            + " paths=[%s]",
+                    backendOverride,
+                    LlamaSystemProperties.PREFIX,
+                    OSInfo.getOSName(),
+                    OSInfo.getArchName(),
+                    String.join(File.pathSeparator, triedPaths)));
+        }
+        if (!backendCandidates.isEmpty()) {
+            System.out.println("[jllama] no manifest backend loadable, using default (CPU) native library");
+        }
+
         // As a last resort try load the os-dependent library from the jar file
-        nativeLibPath = getNativeResourcePath();
+        nativeLibPath = nativeResourcePath;
         if (hasNativeLib(nativeLibPath, nativeLibName)) {
             // temporary library folder
             String tempFolder = getTempDir().getAbsolutePath();
@@ -286,6 +374,131 @@ public class LlamaLoader {
             }
             return contentsEquals(resource, onDisk);
         }
+    }
+
+    /**
+     * Parses the multi-backend manifest (see {@link #BACKEND_MANIFEST_FILE} for the format).
+     *
+     * @param reader the manifest content
+     * @return the listed backends in manifest (priority) order; empty for an empty manifest
+     * @throws IOException when reading fails
+     */
+    static List<BackendEntry> parseBackendManifest(BufferedReader reader) throws IOException {
+        List<BackendEntry> entries = new ArrayList<>();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty() || trimmed.startsWith("#")) {
+                continue;
+            }
+            String[] tokens = trimmed.split("\\s+");
+            entries.add(new BackendEntry(tokens[0], Arrays.asList(tokens).subList(1, tokens.length)));
+        }
+        return entries;
+    }
+
+    /**
+     * Selects which backends to attempt, honoring the {@code net.ladenthin.llama.backend}
+     * override.
+     *
+     * @param manifest the parsed manifest entries in priority order
+     * @param override the override property value, or {@code null} if unset
+     * @return the manifest as-is without an override; an empty list for
+     *         {@link #BACKEND_DEFAULT}/{@link #BACKEND_CPU}; otherwise exactly the named backend
+     *         (synthesized without extra files when the manifest does not list it)
+     */
+    static List<BackendEntry> selectBackendCandidates(List<BackendEntry> manifest, @Nullable String override) {
+        if (override == null) {
+            return manifest;
+        }
+        if (BACKEND_DEFAULT.equals(override) || BACKEND_CPU.equals(override)) {
+            return Collections.emptyList();
+        }
+        for (BackendEntry entry : manifest) {
+            if (entry.name.equals(override)) {
+                return Collections.singletonList(entry);
+            }
+        }
+        return Collections.singletonList(new BackendEntry(override, Collections.<String>emptyList()));
+    }
+
+    /**
+     * Whether the override names a specific backend (as opposed to being unset or selecting the
+     * default library), which makes a load failure fatal instead of falling back.
+     *
+     * @param override the override property value, or {@code null} if unset
+     * @return {@code true} when a specific backend is forced
+     */
+    static boolean isForcedBackend(@Nullable String override) {
+        return override != null && !BACKEND_DEFAULT.equals(override) && !BACKEND_CPU.equals(override);
+    }
+
+    /**
+     * Reads the multi-backend manifest from the classpath, if present.
+     *
+     * @return the parsed entries, or an empty list when no manifest ships in this jar (the
+     *         normal case for every artifact except the multi-backend fat jars)
+     */
+    private static List<BackendEntry> readBackendManifest() {
+        String manifestResource = getNativeResourcePath() + "/" + BACKEND_MANIFEST_FILE;
+        InputStream stream = LlamaLoader.class.getResourceAsStream(manifestResource);
+        if (stream == null) {
+            return Collections.emptyList();
+        }
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            return parseBackendManifest(reader);
+        } catch (IOException e) {
+            System.err.println("Failed to read backend manifest " + manifestResource + ": " + e.getMessage());
+            return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Attempts to extract and load one manifest backend from its resource subdirectory into a
+     * per-backend temp subdirectory (backends share file names, so they must not overwrite each
+     * other's extractions).
+     *
+     * @param baseResourcePath   the OS/arch native resource folder
+     * @param entry              the backend to attempt
+     * @param residentExtraFiles file names of extra modules already loaded by earlier failed
+     *                           attempts; updated with this attempt's loaded extras. A native
+     *                           module cannot be unloaded, and imports bind by module name, so a
+     *                           backend declaring an extra file that is already resident from
+     *                           another backend must be skipped to avoid cross-wiring.
+     * @return whether the backend's main library was successfully loaded
+     */
+    private static boolean tryLoadBackend(String baseResourcePath, BackendEntry entry, Set<String> residentExtraFiles) {
+        String backendResourcePath = baseResourcePath + "/" + entry.name;
+        String mainLibraryFileName = System.mapLibraryName("jllama");
+        if (!hasNativeLib(backendResourcePath, mainLibraryFileName)) {
+            return false;
+        }
+        for (String extraFile : entry.extraFiles) {
+            if (residentExtraFiles.contains(extraFile)) {
+                System.err.println("[jllama] skipping backend '" + entry.name + "': module '" + extraFile
+                        + "' is already resident from a previously failed backend attempt");
+                return false;
+            }
+        }
+        Path targetDirPath = getTempDir().toPath().resolve(BACKEND_TEMP_DIR_PREFIX + entry.name);
+        try {
+            Files.createDirectories(targetDirPath);
+        } catch (IOException e) {
+            System.err.println("Failed to create backend temp directory " + targetDirPath + ": " + e.getMessage());
+            return false;
+        }
+        // Registered before the contained files: File.deleteOnExit processing is LIFO, so the
+        // files registered afterwards by extractFile are deleted first, then this directory.
+        targetDirPath.toFile().deleteOnExit();
+        String targetFolder = targetDirPath.toAbsolutePath().toString();
+        for (String extraFile : entry.extraFiles) {
+            Path extraPath = extractFile(backendResourcePath, extraFile, targetFolder);
+            if (extraPath == null || !loadNativeLibrary(extraPath)) {
+                return false;
+            }
+            residentExtraFiles.add(extraFile);
+        }
+        return extractAndLoadLibraryFile(backendResourcePath, mainLibraryFileName, targetFolder);
     }
 
     /**

@@ -9,10 +9,28 @@ REM GGUF files start with magic bytes: 0x47 0x47 0x55 0x46 ("GGUF")
 
 setlocal enabledelayedexpansion
 
-REM Every CI Java test job (incl. Windows) now downloads the full model set before
+REM Every CI Java test job (incl. Windows) restores the shared model cache before
 REM validating and runs the embedding / vision / TTS integration tests, so all of
 REM these are REQUIRED (a missing one is a hard failure, not a silent self-skip).
-set "MODELS=models\codellama-7b.Q2_K.gguf" "models\jina-reranker-v1-tiny-en-Q4_0.gguf" "models\AMD-Llama-135m-code.Q2_K.gguf" "models\Qwen3-0.6B-Q4_K_M.gguf" "models\Qwen2.5-1.5B-Instruct-Q4_K_M.gguf" "models\nomic-embed-text-v1.5.f16.gguf" "models\SmolVLM-500M-Instruct-Q8_0.gguf" "models\mmproj-SmolVLM-500M-Instruct-Q8_0.gguf" "models\OuteTTS-0.2-500M-Q4_K_M.gguf" "models\WavTokenizer-Large-75-F16.gguf"
+REM
+REM The required set comes from the single source of truth .github\models.csv
+REM (filename,url per line; # comments ignored) so this gate can never drift from
+REM what download-models actually fetches. The list is built UNQUOTED (no filename
+REM contains spaces): an earlier hardcoded form embedded literal quotes into the
+REM variable, which made the for-loop see the whole list as ONE token — `if not
+REM exist` then parsed it as path-plus-command, so only a fragment was ever checked
+REM and the exit /b 1 never fired (the ERROR printed but the step passed; observed
+REM in run 28805360584, where an empty model cache sailed through this "gate").
+if not exist "%~dp0models.csv" (
+  echo ERROR: model manifest not found: %~dp0models.csv
+  exit /b 1
+)
+set MODELS=
+for /f "usebackq eol=# tokens=1 delims=," %%N in ("%~dp0models.csv") do set "MODELS=!MODELS! models\%%N"
+if "!MODELS!"=="" (
+  echo ERROR: no models parsed from %~dp0models.csv
+  exit /b 1
+)
 
 REM No optional models remain (the audio-input model has no CI download and its
 REM test self-skips). Left empty so the optional loop below is a no-op.

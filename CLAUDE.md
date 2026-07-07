@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9886**
+Current llama.cpp pinned version: **b9894**
 
 ## Upgrading CUDA Version
 
@@ -175,7 +175,7 @@ build is shipped as the **`msvc-windows`** classifier; and three GPU backends sh
 `CMAKE_{C,CXX}_COMPILER_LAUNCHER`, so only Ninja Multi-Config can front `cl.exe` with sccache over
 Depot WebDAV. **Both generators use the same MSVC toolchain** (`cl.exe`, static `/MT` CRT via
 `CMAKE_MSVC_RUNTIME_LIBRARY`, same Release flags, same runner), so the produced
-`jllama.dll`/`llama.dll`/`ggml.dll` are **functionally equivalent with identical runtime
+`jllama.dll` binaries are **functionally equivalent with identical runtime
 dependencies** — the only difference is build-system plumbing + caching. Making Ninja the default
 gives the most-pulled JAR the sccache cache; MSVC stays available as a classifier for anyone who
 wants the Visual-Studio-generator build. (Upstream llama.cpp also builds its Windows artifacts with
@@ -183,8 +183,8 @@ Ninja Multi-Config + MSVC.) Both Windows CPU builds are validated end-to-end wit
 model-backed Java suite (`test-java-windows-x86_64` = default/Ninja, `test-java-windows-x86_64-msvc`
 = MSVC classifier).
 
-**GPU runtime libraries are NOT bundled.** The GPU JARs ship only `jllama.dll`/`llama.dll`/`ggml.dll`
-(plus the embedded backend). The consumer's driver/toolkit must supply the runtime: CUDA needs the
+**GPU runtime libraries are NOT bundled.** The GPU JARs ship only the single monolithic
+`jllama.dll` (llama.cpp + ggml + the backend are statically linked in — `BUILD_SHARED_LIBS OFF`). The consumer's driver/toolkit must supply the runtime: CUDA needs the
 installed CUDA 13 Toolkit (`cudart64_13.dll`/`cublas64_13.dll`/`cublasLt64_13.dll` on `PATH`); Vulkan
 needs `vulkan-1.dll` (ships with current GPU drivers); OpenCL needs the vendor ICD
 (`System32\OpenCL.dll`). Not bundling = no NVIDIA-EULA redistribution obligation. **GitHub-hosted
@@ -343,6 +343,51 @@ pinned to a specific version): if a URL/version 404s in CI, the job fails loud a
 `src/main/resources_{linux_rocm,windows_rocm,linux_sycl_fp16,linux_sycl_fp32,windows_sycl,linux_openvino,windows_openvino}/`
 are all git-ignored (staged by CI, never committed).
 
+## All-backends server fat jars (GitHub Release assets, never Maven Central)
+
+Every pipeline run assembles **per-OS multi-backend server fat jars** and, on the release
+paths, attaches them to GitHub: `llama-<version>-all-<os>-<arch>-jar-with-dependencies.jar`
+for `linux-x86-64`, `linux-aarch64`, `windows-x86-64`, `windows-aarch64`, plus the default
+CPU fat jar — each with a `.sha256` file. They are **download assets only**: the Central
+deploy invocations run without the `assembly` profile and are untouched.
+
+Mechanism (three pieces):
+
+1. **`.github/package-fatjars.sh`** — run by the `package-fatjars` job (`needs: [package]`,
+   downloads `llama-jars`). Enumerates the `<classifier>` set from `llama/pom.xml` (source of
+   truth) and cross-checks it in **both** directions against the built classifier jars; parses
+   each classifier as `<backend>-<os>-<arch>`; **fails loud** on unparseable classifiers,
+   backends missing from its priority table, missing native trees, or zip-update corruption
+   (entry list, `Main-Class`, sample byte-compare). Excluded by design: `msvc-windows`
+   (redundant CPU variant) and `opencl-android-aarch64` (no `java -jar` on Android). For each
+   OS/arch it copies the default fat jar and adds every backend's native tree under
+   `net/ladenthin/llama/<OS>/<ARCH>/<backend>/` plus a **`jllama-backends.txt`** manifest
+   (backends in priority order `cuda13 rocm sycl-fp16 sycl-fp32 sycl vulkan opencl openvino`;
+   extra tokens per line list sibling files such as openvino-windows' bundled `OpenCL.dll`).
+   **A new classifier fails this script until it is consciously ranked/excluded** — that is the
+   no-silent-gaps guarantee.
+2. **`LlamaLoader` backend selection** — when (and only when) the manifest resource exists,
+   the loader tries each backend subdirectory in order: extract into a per-backend temp subdir
+   (`jllama-backend-<name>/`; backends share file names), load manifest extras first, then the
+   backend's `jllama` library. A load failure (missing vendor runtime → `UnsatisfiedLinkError`)
+   moves to the next backend; after the list it falls back to the default CPU natives. System
+   property `net.ladenthin.llama.backend` forces one backend (fail-loud) or `default`/`cpu`.
+   Jars without a manifest take the unchanged legacy path. A backend whose extra module is
+   already resident from a previously failed attempt is skipped (by-name import cross-wiring).
+3. **`publish.yml` wiring** — `smoke-fatjar-linux` / `smoke-fatjar-windows` run the
+   `all-<os>-x86-64` jar via real `java -jar` on GPU-less runners (cached draft model,
+   `--chat-template chatml`): poll `/health` to 200, assert a `/v1/chat/completions` choice,
+   and require the loader's backend-selection log line. `publish-snapshot`/`publish-release`
+   `need` `package-fatjars` + both smokes (fail-loud gating); `github-release-signed` and
+   `github-snapshot` additionally download `llama-fatjars` into their asset directory so the
+   fat jars land on the tag release and the rolling `snapshot` pre-release.
+
+A backend loading successfully but finding **zero usable devices** (e.g. CUDA toolkit
+installed, no NVIDIA GPU) is benign: ggml's backend registry contributes no devices and
+inference runs on CPU inside that library. The known trade-off is that such a host never
+reaches a *different* GPU backend later in the list — the `net.ladenthin.llama.backend`
+override is the escape hatch (documented in the README table).
+
 ## WebUI (llama.cpp Svelte UI) embedding
 
 The llama.cpp WebUI is **built once in CI and shared to every native build**, then
@@ -376,7 +421,7 @@ needs no extra step here, `build-webui` re-reads the tag and rebuilds the matchi
 ships no UI):
 ```bash
 # needs node/npm + network; embed.cpp is plain C++17 (no npm)
-git clone --depth 1 --branch b9886 https://github.com/ggml-org/llama.cpp /tmp/lc
+git clone --depth 1 --branch b9894 https://github.com/ggml-org/llama.cpp /tmp/lc
 ( cd /tmp/lc/tools/ui && npm ci && npm run build \
   && ( cd dist && find . -type f -not -path './_gzip/*' \
        | while read -r f; do mkdir -p "_gzip/$(dirname "$f")"; gzip -9 -c "$f" > "_gzip/$f"; done ) \
@@ -416,7 +461,7 @@ cache lives in **Depot Cache** over sccache's **WebDAV** backend:
 - `SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}` — a Depot **organization** token, stored
   as the repo secret **`DEPOT_TOKEN`**.
 
-Because `sccache` is **content-addressed** and llama.cpp is pinned (`GIT_TAG b9886`), the
+Because `sccache` is **content-addressed** and llama.cpp is pinned (`GIT_TAG b9894`), the
 ~280 upstream object files are byte-identical every run, so a warm cache recompiles only the
 *changed* files. Depot's cache is **shared across all branches** (unlike GitHub's
 per-branch `actions/cache`), so every branch builds incrementally; a `b<nnnn>` version bump
@@ -728,11 +773,16 @@ folder name is produced on both ends.
 | Linux aarch64 | `libjllama.so` | `src/main/resources/net/ladenthin/llama/Linux/aarch64/` |
 | macOS Apple Silicon | `libjllama.dylib` | `src/main/resources/net/ladenthin/llama/Mac/aarch64/` |
 | macOS Intel | `libjllama.dylib` | `src/main/resources/net/ladenthin/llama/Mac/x86_64/` |
-| Windows x86_64 | `jllama.dll` (+ `llama.dll`, `ggml.dll`) | `src/main/resources/net/ladenthin/llama/Windows/x86_64/` |
+| Windows x86_64 | `jllama.dll` | `src/main/resources/net/ladenthin/llama/Windows/x86_64/` |
 
-The Windows `RUNTIME_OUTPUT_DIRECTORY_*` properties (`CMakeLists.txt:266-269`)
-deposit `jllama.dll` alongside the upstream `llama.dll` / `ggml.dll`; all
-three must remain co-located so the loader can resolve transitive imports.
+On every platform exactly **one** `jllama` library is produced: `CMakeLists.txt` forces
+`BUILD_SHARED_LIBS OFF`, so upstream `llama` and `ggml` are static libraries linked into
+`jllama` (the `RUNTIME_OUTPUT_DIRECTORY_*` block that also names the `llama`/`ggml` targets
+is a no-op for them — verified against the published 5.0.5 jars, which contain only
+`jllama.dll` per Windows arch). `LlamaLoader` accordingly extracts and loads a single file
+from the jar (plus `ggml-metal.metal` on macOS). Historical note: upstream kherud once
+shipped split `ggml` + `jllama` libraries, which is where stale "three co-located DLLs"
+claims came from.
 
 End-to-end local workflow for running Java tests:
 
@@ -1111,18 +1161,29 @@ these as **required** (a missing model hard-fails the job before tests run, so a
 regression can never silently downgrade to a skip). The only model still self-skipping is the
 audio-input model (`AudioInputIntegrationTest`) — the prompt clip is committed
 (`src/test/resources/audios/sample.wav`) but the audio model + mmproj have no CI download.
-The shared GGUF cache (`actions/cache`, key `gguf-models-v1`, path `models/`) holds the full set
-and is populated **once, upfront** by a dedicated **`download-models`** job (`needs: startgate`):
-it is the single place the ~5 GB set is fetched from HuggingFace (the ten `curl` steps + the
-`validate-models.sh` gate live only there). Every `test-java-*` job — and the langchain4j
-integration job — `needs: download-models` and then only **restores** that cache (no per-job
-download, no cold-start save race), keeping `validate-models.{sh,bat}` as a per-job integrity
-guard. GGUF is platform-independent, so the one ubuntu `download-models` cache is reused by the
-macOS and Windows jobs too. `validate-models.{sh,bat}` treats the models as **required** (a
-missing model hard-fails the job before tests run). Because the cache key is immutable, changing
-the model set means the **existing cache entry must be deleted** (not bumped to `v2`) so
-`download-models` rebuilds it complete — locally the model tests still self-skip when a GGUF is
-absent (`Assume.assumeTrue`), so a partial local checkout is fine.
+The model set has a **single source of truth: `.github/models.csv`** (one `filename,url` row per
+model; `#` comments). Everything derives from it: the **`download-models`** job (ubuntu,
+`needs: startgate`) is the only place models are fetched from HuggingFace (one manifest-driven
+`curl` loop; files already restored from cache are skipped) and the **only writer** of the shared
+GGUF cache (path `models/`, key **`gguf-models-<hash of models.csv>`** — so *editing the manifest
+automatically creates a fresh complete cache entry*; no manual cache deletion on a model-set
+change). The writer sets **`enableCrossOsArchive: true`**, making the one ubuntu-built entry the
+same entry macOS and Windows restore. A **`verify-model-cache` matrix job** (ubuntu / macOS /
+Windows, `needs: download-models`) then proves the entry is restorable
+(`actions/cache/restore` + `fail-on-cache-miss: true`) **and complete**
+(`validate-models.{sh,bat}`, which read their required list from the same manifest) on every OS
+**before any model-consuming job starts** — all `test-java-*` jobs, the langchain4j integration
+job, the Android emulator job and the fat-jar smoke jobs `need: verify-model-cache` and use the
+**restore-only** action themselves (no per-job download, no save — a consumer can never re-save
+an empty/partial entry), keeping validate as a per-job integrity guard. (This design hardened
+after run 28805360584: without the cross-OS flag, cache entries are versioned per-OS and the
+unreachable Windows-side entry had been re-saved **empty** (343 B) after an eviction; and
+`validate-models.bat`'s quoted `MODELS` list broke cmd's for-tokenization so its `exit /b 1`
+never fired — the empty cache sailed through the "gate" and the Windows jobs silently
+self-skipped every model-backed test until the fat-jar smoke's hard check caught it.) The
+`*_MODEL_NAME` workflow env vars remain consumer-side wiring for the `-Dnet.ladenthin.llama.*`
+test properties and must match the manifest's filename column — locally the model tests still
+self-skip when a GGUF is absent (`Assume.assumeTrue`), so a partial local checkout is fine.
 
 Set the model path via system property or environment variable (see test files for exact property names).
 
@@ -1167,7 +1228,7 @@ ctest --test-dir build --output-on-failure -R "ResultsToJson"
 
 #### Upstream source location (in CMake build tree)
 
-llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9886`.
+llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9894`.
 
 **GoogleTest** is a separate `BUILD_TESTING`-only FetchContent (`GIT_TAG v1.17.0`), used solely
 by the `jllama_test` C++ unit-test binary — not by the shipped library, and not coupled to the
