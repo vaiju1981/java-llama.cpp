@@ -13,7 +13,7 @@ SPDX-License-Identifier: MIT
 	<parent>
 		<groupId>net.ladenthin</groupId>
 		<artifactId>llama-parent</artifactId>
-		<version>5.0.6-SNAPSHOT</version>
+		<version>5.0.6</version>
 		<relativePath>../pom.xml</relativePath>
 	</parent>
 
@@ -88,7 +88,7 @@ SPDX-License-Identifier: MIT
 		<spotless.version>3.8.0</spotless.version>
 		<palantir-java-format.version>2.94.0</palantir-java-format.version>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<project.build.outputTimestamp>2026-07-05T07:13:51Z</project.build.outputTimestamp>
+		<project.build.outputTimestamp>2026-07-07T07:24:29Z</project.build.outputTimestamp>
 	</properties>
 
 	<!--

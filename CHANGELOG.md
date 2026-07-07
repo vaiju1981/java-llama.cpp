@@ -9,6 +9,58 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 
 ## [Unreleased]
 
+## [5.0.6] - 2026-07-07
+
+Feature release. Headline additions are the Android AAR + Kotlin coroutines
+façade, the `NativeServer` attach and in-JVM router modes, GGUF tooling
+(quantizer + inspector), and all-backends server fat jars as GitHub release
+assets. Tracks llama.cpp **b9870 → b9894**.
+
+### Added
+- **Android AARs** (`net.ladenthin:llama-android`, `net.ladenthin:llama-android-opencl`): consumable Android artifacts carrying the core classes + CI-built `libjllama.so` natives — the CPU AAR is multi-ABI (`arm64-v8a` devices + `x86_64` emulators/Chromebooks), minSdk 28, with consumer R8/ProGuard rules. Built by a standalone Gradle build (version-locked to the Maven reactor); validated in CI by an AGP consumer smoke test (full R8 `assembleRelease`) and an on-emulator job running real native inference (release gate).
+- **Kotlin coroutines façade** (`net.ladenthin:llama-kotlin`, new reactor module): `generateFlow`/`generateChatFlow` cold `Flow`s plus `completeSuspend`/`chatSuspend`/`chatCompleteTextSuspend`/`embedSuspend`, with coroutine cancellation wired into the cooperative `CancellationToken`.
+- **`NativeServer` attach mode** (`NativeServer(LlamaModel, String...)`, patch `0007`): serve an **already-loaded** `LlamaModel` over the full upstream HTTP frontend — one copy of the weights, no second model load.
+- **In-JVM router mode** (patch `0008` + `NativeServer.setWorkerCommand(...)`): `--models-dir` multi-model routing with per-request model selection, worker processes relaunched as fresh JVMs; typed `server.RouterClient` + `value.RouterModel` API for the model-management endpoints.
+- **GGUF tooling**: `LlamaQuantizer` (native GGUF quantization) and `GgufInspector` (metadata reader; works on Android).
+- **Session fork/rewind**, **runtime LoRA control**, and **batch embeddings** on the core API.
+- **LangChain4j**: blocking tool calling (`ToolSpecification` round-trip), JSON mode (`json_object` + `json_schema` structured output), multimodal user input (`ImageContent`/`AudioContent`), and full streaming via `StreamingChunkAssembler` — streamed tool calls, per-token thinking events, real finish reason and token usage.
+- **All-backends server fat jars** attached to GitHub releases (never Maven Central): `llama-<version>-all-<os>-<arch>-jar-with-dependencies.jar` for Linux/Windows x86-64 + aarch64, each bundling every GPU backend's natives with a priority manifest. `LlamaLoader` tries each backend in order and falls back to CPU; the `net.ladenthin.llama.backend` system property forces one. Smoke-tested via real `java -jar` runs on Linux + Windows.
+- Committed audio prompt fixture (`src/test/resources/audios/sample.wav`) for `AudioInputIntegrationTest`.
+
+### Fixed
+- **Android `System.loadLibrary("jllama")` failure on every device**: the cross-clang emitted `DT_NEEDED` on `libomp.so` and `libc++_shared.so`, which don't exist on stock Android — fixed by disabling OpenMP and linking `-static-libstdc++` (the released 5.0.5 arm64 lib carried this latent defect). A per-`.so` `DT_NEEDED` whitelist and the 16 KB page-size alignment are now CI-enforced.
+- **UTF-8-safe JNI strings**: payload text no longer goes through `NewStringUTF` (which expects *Modified* UTF-8), so supplementary-plane characters (emoji) are preserved and Android CheckJNI no longer aborts.
+- Stale Windows docs claiming three co-located DLLs corrected (a single monolithic `jllama.dll` ships per arch); leftover extracted `ggml-metal.metal` cleanup.
+
+### Changed
+- Upgraded llama.cpp from **b9870 to b9894** (all local patches refreshed across the range).
+- CI model downloads single-sourced from `.github/models.csv`: one download job is the only cache writer, the cache entry is cross-OS, and a 3-OS verification gate proves it restorable and complete before any model-consuming job starts.
+
+## [5.0.5] - 2026-07-04
+
+Feature release. Headline addition is `NativeServer` — the full upstream
+llama.cpp server (embedded WebUI included) running in-process over JNI — plus
+a large native-artifact matrix expansion (Linux Vulkan, Windows arm64, eight
+ROCm/SYCL/OpenVINO/OpenCL classifiers, Linux s390x). Tracks llama.cpp
+**b9859 → b9870**.
+
+### Added
+- **`server.NativeServer`**: runs the full upstream `llama_server` — WebUI and all — inside `libjllama` via JNI (patch `0006`), forwarding the raw llama-server argv verbatim, so every llama-server flag works with no separate `llama-server` executable. The fat jar's `Main-Class` is now `server.ServerLauncher`: `NativeServer` by default, `--jllama-openai-compat` selects the Java-transport `OpenAiCompatServer`.
+- **Linux Vulkan classifiers** (`vulkan-linux-x86-64`, `vulkan-linux-aarch64`): vendor-neutral GPU jars for NVIDIA/AMD/Intel without a CUDA toolkit.
+- **Windows arm64 CPU natives** in the default JAR (built natively on `windows-11-arm` with clang-cl; self-contained `/MT` CRT, OpenMP off).
+- **Eight further GPU-backend classifiers**: `rocm-linux-x86-64`, `rocm-windows-x86-64`, `sycl-fp16-linux-x86-64`, `sycl-fp32-linux-x86-64`, `sycl-windows-x86-64`, `opencl-windows-aarch64`, `openvino-linux-x86-64`, `openvino-windows-x86-64`.
+- **Linux s390x (big-endian) natives** in the default JAR, cross-compiled and gated by the full C++ unit suite under `qemu-user` (real big-endian correctness check for the byte-order-sensitive surface).
+- `sse_ping_interval` and further audited completion parameters on `InferenceParameters`; model ftype/quantization surfaced through the Java API and `/v1/models`; additional `OpenAiServerCli` flags (`-b`/`-ub`/`-tb`/`-ctk`/`-ctv`/`--jinja`/`--chat-template-kwargs`).
+- llama.cpp version-bump automation: `.github/scripts/llama-next-version.sh` + the runbook `docs/upgrade/llama-cpp-version-bump.md`.
+
+### Fixed
+- **Multi-turn tool-calling checkpoint starvation** for recurrent/hybrid models (e.g. Granite-4), patch `0005`: agentic conversations no longer re-prefill the whole conversation tail every turn — prefill is constant per turn (≈5.4× less prefill by turn 6, growing with conversation length), validated output-identical.
+
+### Changed
+- Upgraded llama.cpp from **b9859 to b9870**.
+- CI: per-job sccache statistics table appended to GitHub job summaries.
+- Bumped checker-qual 4.2.0 → 4.2.1 and spotless-maven-plugin 3.7.0 → 3.8.0.
+
 ## [5.0.4] - 2026-07-02
 
 Feature release. Adds in-process LangChain4j adapters, an experimental
@@ -147,7 +199,9 @@ Releases `1.1.1` through `4.2.0` were authored by [@kherud](https://github.com/k
 
 For an architecture-level diff between the pre-fork baseline (`49be664`) and the first 5.0.0 candidate (`24918e4`), see [`docs/history/49be664_24918e4.md`](docs/history/49be664_24918e4.md). For the server-fork-deletion refactor that culminated in 5.0.0, see [`docs/history/REFACTORING.md`](docs/history/REFACTORING.md). For the chat-completion integration that landed in 5.0.0, see [`docs/history/CHAT_INTEGRATION_SUMMARY.md`](docs/history/CHAT_INTEGRATION_SUMMARY.md).
 
-[Unreleased]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.4...HEAD
+[Unreleased]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.6...HEAD
+[5.0.6]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.5...v5.0.6
+[5.0.5]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.4...v5.0.5
 [5.0.4]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.3...v5.0.4
 [5.0.3]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.2...v5.0.3
 [5.0.2]: https://github.com/bernardladenthin/java-llama.cpp/compare/v5.0.1...v5.0.2
