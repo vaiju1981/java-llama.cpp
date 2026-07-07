@@ -2766,6 +2766,11 @@ jobs:
       # Publishing) is inherited from the parent, so every module — including the
       # parent pom — is signed. The Android AARs are published by the separate
       # Gradle step below (Maven cannot deploy <packaging>aar</packaging>).
+      # Informational only (nothing depends on it): logs the effective POM with the same
+      # profile set as the deploy below, so the resolved central-publishing configuration
+      # (waitUntil/waitMaxTime etc.) is visible for debugging.
+      - name: Show effective POM (debug)
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,rocm-linux,rocm-windows,sycl-fp16-linux,sycl-fp32-linux,sycl-windows,opencl-windows-aarch64,openvino-linux,openvino-windows help:effective-pom
       - name: Publish snapshot (reactor - parent + llama + llama-langchain4j + llama-kotlin)
         run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,rocm-linux,rocm-windows,sycl-fp16-linux,sycl-fp32-linux,sycl-windows,opencl-windows-aarch64,openvino-linux,openvino-windows -Dmaven.test.skip=true deploy
         env:
@@ -2937,6 +2942,11 @@ jobs:
       # net.ladenthin:llama-parent (the pom), :llama (the core jar + classifiers), and
       # :llama-langchain4j. The `release` profile (GPG + Central Publishing) is inherited
       # from the parent, so every module — including the parent pom — is signed.
+      # Informational only (nothing depends on it): logs the effective POM with the same
+      # profile set as the deploy below, so the resolved central-publishing configuration
+      # (waitUntil/waitMaxTime etc.) is visible for debugging.
+      - name: Show effective POM (debug)
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,rocm-linux,rocm-windows,sycl-fp16-linux,sycl-fp32-linux,sycl-windows,opencl-windows-aarch64,openvino-linux,openvino-windows help:effective-pom
       - name: Publish release (reactor - parent + llama + llama-langchain4j + llama-kotlin)
         run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,rocm-linux,rocm-windows,sycl-fp16-linux,sycl-fp32-linux,sycl-windows,opencl-windows-aarch64,openvino-linux,openvino-windows -Dmaven.test.skip=true deploy
         env:
