@@ -149,7 +149,7 @@ To use the latest snapshot, add the repository and dependency to your `pom.xml`:
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.6-SNAPSHOT</version>
+    <version>5.0.7-SNAPSHOT</version>
 </dependency>
 ```
 
