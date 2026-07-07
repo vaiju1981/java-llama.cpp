@@ -124,7 +124,7 @@ Access this library via Maven (released versions on Maven Central):
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.5</version>
+    <version>5.0.6</version>
 </dependency>
 ```
 
@@ -214,7 +214,7 @@ there. Pick **at most one** classifier (they are mutually exclusive):
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.5</version>
+    <version>5.0.6</version>
 </dependency>
 
 <!-- GPU / accelerator or alternate-CPU build: add the <classifier> from the
@@ -222,7 +222,7 @@ there. Pick **at most one** classifier (they are mutually exclusive):
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama</artifactId>
-    <version>5.0.5</version>
+    <version>5.0.6</version>
     <classifier>cuda13-linux-x86-64</classifier>
 </dependency>
 ```
@@ -932,7 +932,7 @@ forcing that floor on every core consumer. It ships and versions in lockstep wit
 <dependency>
     <groupId>net.ladenthin</groupId>
     <artifactId>llama-langchain4j</artifactId>
-    <version>5.0.5</version>
+    <version>5.0.6</version>
 </dependency>
 ```
 
