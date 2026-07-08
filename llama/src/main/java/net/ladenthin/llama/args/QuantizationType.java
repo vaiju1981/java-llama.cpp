@@ -83,7 +83,9 @@ public enum QuantizationType {
     /** Mostly NVFP4 — {@code LLAMA_FTYPE_MOSTLY_NVFP4 = 39}. */
     NVFP4(39),
     /** Mostly Q1_0 — {@code LLAMA_FTYPE_MOSTLY_Q1_0 = 40}. */
-    Q1_0(40);
+    Q1_0(40),
+    /** Mostly Q2_0 — {@code LLAMA_FTYPE_MOSTLY_Q2_0 = 41}. */
+    Q2_0(41);
 
     private final int ftypeValue;
 
