@@ -1580,7 +1580,7 @@ the recommended path (README "Importing in Android", Option 1):
   (see "Repository layout" for why it is not a Maven module); the POM mirrors the core's
   compile-scope deps (jackson/slf4j-api/jspecify/checker-qual, versions parsed from
   `llama/pom.xml` — deliberately NOT logback, which is the JVM-only runtime binding).
-- **`net.ladenthin:llama-kotlin`** — Maven reactor module; pure-Kotlin (2.2, jvmTarget 1.8)
+- **`net.ladenthin:llama-kotlin`** — Maven reactor module; pure-Kotlin (2.4, jvmTarget 1.8)
   coroutines façade: `generateFlow`/`generateChatFlow` (cold `Flow`, source closed on
   completion/error/cancellation) and `completeSuspend`/`chatSuspend`/`chatCompleteTextSuspend`/
   `embedSuspend` (`completeSuspend` wires coroutine cancellation into the cooperative

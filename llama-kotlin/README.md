@@ -58,5 +58,5 @@ mvn -pl llama-kotlin -am -DskipTests install   # build with the core
 mvn -f llama-kotlin/pom.xml test               # 6 model-free unit tests
 ```
 
-Requires Kotlin 2.1+ in consuming Kotlin projects (compiled with Kotlin 2.2, metadata readable one
+Requires Kotlin 2.3+ in consuming Kotlin projects (compiled with Kotlin 2.4, metadata readable one
 minor back); the bytecode targets Java 8, same as the core.
