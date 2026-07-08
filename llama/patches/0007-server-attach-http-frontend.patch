@@ -1,8 +1,16 @@
 diff --git a/tools/server/server.cpp b/tools/server/server.cpp
-index 3eff189a2..24ee0d99d 100644
+index 9c0caf18..7ee763ac 100644
 --- a/tools/server/server.cpp
 +++ b/tools/server/server.cpp
-@@ -94,8 +94,111 @@ static server_http_context::handler_t ex_wrapper(server_http_context::handler_t
+@@ -63,6 +63,7 @@ int llama_server(int argc, char ** argv);
+ 
+ // to be used via CLI (argc / argv are used by router mode only)
+ int llama_server(common_params & params, int argc, char ** argv);
++int llama_server_attach(int argc, char ** argv, server_context & ctx_server);
+ void llama_server_terminate();
+ void llama_server_terminate() {
+     if (shutdown_handler) {
+@@ -107,6 +108,108 @@ static server_http_context::handler_t ex_wrapper(server_http_context::handler_t
      };
  }
  
@@ -108,13 +116,10 @@ index 3eff189a2..24ee0d99d 100644
 +    return true;
 +}
 +
- // satisfies -Wmissing-declarations
- int llama_server(int argc, char ** argv);
-+int llama_server_attach(int argc, char ** argv, server_context & ctx_server);
- 
  int llama_server(int argc, char ** argv) {
      std::setlocale(LC_NUMERIC, "C");
-@@ -230,47 +333,9 @@ int llama_server(int argc, char ** argv) {
+ 
+@@ -250,47 +353,9 @@ int llama_server(common_params & params, int argc, char ** argv) {
          ctx_http.del ("/models",               ex_wrapper(models_routes->del_router_models));
      }
  
@@ -165,7 +170,7 @@ index 3eff189a2..24ee0d99d 100644
  
      // resumable streaming, the conversation_id is the session identity end to end. router and
      // child wire different handlers under the same paths: a child binds the local session
-@@ -295,53 +360,6 @@ int llama_server(int argc, char ** argv) {
+@@ -315,53 +380,6 @@ int llama_server(common_params & params, int argc, char ** argv) {
      ctx_http.post("/v1/streams/lookup",        ex_wrapper(streams_lookup_h));
      ctx_http.del ("/v1/stream/:conv_id",       ex_wrapper(stream_delete_h));
  
@@ -219,7 +224,7 @@ index 3eff189a2..24ee0d99d 100644
  
      //
      // Handle downloading model
-@@ -503,3 +521,68 @@ int llama_server(int argc, char ** argv) {
+@@ -524,3 +542,68 @@ int llama_server(common_params & params, int argc, char ** argv) {
  
      return 0;
  }
