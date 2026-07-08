@@ -9,6 +9,9 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 
 ## [Unreleased]
 
+### Changed
+- Upgraded llama.cpp from **b9894 to b9912** (all eight local patches re-verified across the range; no project source changes required).
+
 ## [5.0.6] - 2026-07-07
 
 Feature release. Headline additions are the Android AAR + Kotlin coroutines
