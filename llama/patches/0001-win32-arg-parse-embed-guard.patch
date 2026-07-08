@@ -1,8 +1,8 @@
 diff --git a/common/arg.cpp b/common/arg.cpp
-index 276dbec..106bac5 100644
+index a26093199..61fdfabb1 100644
 --- a/common/arg.cpp
 +++ b/common/arg.cpp
-@@ -931,14 +931,10 @@ static utf8_argv make_utf8_argv() {
+@@ -1051,14 +1051,10 @@ static utf8_argv make_utf8_argv() {
  #endif
  
  bool common_params_parse(int argc, char ** argv, common_params & params, llama_example ex, void(*print_usage)(int, char **)) {
@@ -21,7 +21,7 @@ index 276dbec..106bac5 100644
      auto ctx_arg = common_params_parser_init(params, ex, print_usage);
      const common_params params_org = ctx_arg.params; // the example can modify the default params
  
-@@ -971,6 +967,21 @@ bool common_params_parse(int argc, char ** argv, common_params & params, llama_e
+@@ -1091,6 +1087,21 @@ bool common_params_parse(int argc, char ** argv, common_params & params, llama_e
      return true;
  }
  
@@ -44,10 +44,10 @@ index 276dbec..106bac5 100644
      std::vector<const char *> supported_tmpl;
      int32_t res = llama_chat_builtin_templates(nullptr, 0);
 diff --git a/common/arg.h b/common/arg.h
-index fdfc04b..a5777d7 100644
+index 54a38b9cc..04e934f6c 100644
 --- a/common/arg.h
 +++ b/common/arg.h
-@@ -122,6 +122,11 @@ struct common_params_context {
+@@ -123,6 +123,11 @@ struct common_params_context {
  // if one argument has invalid value, it will automatically display usage of the specific argument (and not the full usage message)
  bool common_params_parse(int argc, char ** argv, common_params & params, llama_example ex, void(*print_usage)(int, char **) = nullptr);
  
@@ -60,7 +60,7 @@ index fdfc04b..a5777d7 100644
  bool common_params_to_map(int argc, char ** argv, llama_example ex, std::map<common_arg, std::string> & out_map);
  
 diff --git a/examples/batched/batched.cpp b/examples/batched/batched.cpp
-index 830e45f..15b6910 100644
+index 830e45f5a..15b6910d7 100644
 --- a/examples/batched/batched.cpp
 +++ b/examples/batched/batched.cpp
 @@ -26,7 +26,7 @@ int main(int argc, char ** argv) {
@@ -73,7 +73,7 @@ index 830e45f..15b6910 100644
      }
  
 diff --git a/examples/debug/debug.cpp b/examples/debug/debug.cpp
-index 761e7a2..c955241 100644
+index 761e7a2db..c955241ea 100644
 --- a/examples/debug/debug.cpp
 +++ b/examples/debug/debug.cpp
 @@ -220,7 +220,7 @@ int main(int argc, char ** argv) {
@@ -86,7 +86,7 @@ index 761e7a2..c955241 100644
      }
  
 diff --git a/examples/diffusion/diffusion-cli.cpp b/examples/diffusion/diffusion-cli.cpp
-index 86ebbf8..a4d5b04 100644
+index 86ebbf88c..a4d5b04bb 100644
 --- a/examples/diffusion/diffusion-cli.cpp
 +++ b/examples/diffusion/diffusion-cli.cpp
 @@ -108,7 +108,7 @@ int main(int argc, char ** argv) {
@@ -99,7 +99,7 @@ index 86ebbf8..a4d5b04 100644
      }
  
 diff --git a/examples/embedding/embedding.cpp b/examples/embedding/embedding.cpp
-index f6a20ef..fabe2a0 100644
+index f6a20ef9d..fabe2a098 100644
 --- a/examples/embedding/embedding.cpp
 +++ b/examples/embedding/embedding.cpp
 @@ -101,7 +101,7 @@ int main(int argc, char ** argv) {
@@ -112,7 +112,7 @@ index f6a20ef..fabe2a0 100644
      }
  
 diff --git a/examples/eval-callback/eval-callback.cpp b/examples/eval-callback/eval-callback.cpp
-index 4ce8d60..a50e3a6 100644
+index 4ce8d600b..a50e3a6a2 100644
 --- a/examples/eval-callback/eval-callback.cpp
 +++ b/examples/eval-callback/eval-callback.cpp
 @@ -43,7 +43,7 @@ int main(int argc, char ** argv) {
@@ -125,7 +125,7 @@ index 4ce8d60..a50e3a6 100644
      }
  
 diff --git a/examples/idle/idle.cpp b/examples/idle/idle.cpp
-index 409fd25..a0d4f59 100644
+index 409fd25c1..a0d4f5926 100644
 --- a/examples/idle/idle.cpp
 +++ b/examples/idle/idle.cpp
 @@ -21,7 +21,7 @@ int main(int argc, char ** argv) {
@@ -138,7 +138,7 @@ index 409fd25..a0d4f59 100644
      }
  
 diff --git a/examples/lookahead/lookahead.cpp b/examples/lookahead/lookahead.cpp
-index b7f5c6d..de6f07e 100644
+index b7f5c6de8..de6f07e91 100644
 --- a/examples/lookahead/lookahead.cpp
 +++ b/examples/lookahead/lookahead.cpp
 @@ -45,7 +45,7 @@ int main(int argc, char ** argv) {
@@ -151,7 +151,7 @@ index b7f5c6d..de6f07e 100644
      }
  
 diff --git a/examples/lookup/lookup-create.cpp b/examples/lookup/lookup-create.cpp
-index c0f6c8f..ff3e849 100644
+index c0f6c8fc2..ff3e8493e 100644
 --- a/examples/lookup/lookup-create.cpp
 +++ b/examples/lookup/lookup-create.cpp
 @@ -14,7 +14,7 @@ int main(int argc, char ** argv){
@@ -164,7 +164,7 @@ index c0f6c8f..ff3e849 100644
      }
  
 diff --git a/examples/lookup/lookup-stats.cpp b/examples/lookup/lookup-stats.cpp
-index 84642e0..afa0ccd 100644
+index 84642e05d..afa0ccdf6 100644
 --- a/examples/lookup/lookup-stats.cpp
 +++ b/examples/lookup/lookup-stats.cpp
 @@ -20,7 +20,7 @@ int main(int argc, char ** argv){
@@ -177,7 +177,7 @@ index 84642e0..afa0ccd 100644
      }
  
 diff --git a/examples/lookup/lookup.cpp b/examples/lookup/lookup.cpp
-index 2d4c0e5..5dbc699 100644
+index 2d4c0e528..5dbc69973 100644
 --- a/examples/lookup/lookup.cpp
 +++ b/examples/lookup/lookup.cpp
 @@ -20,7 +20,7 @@ int main(int argc, char ** argv){
@@ -190,7 +190,7 @@ index 2d4c0e5..5dbc699 100644
      }
  
 diff --git a/examples/parallel/parallel.cpp b/examples/parallel/parallel.cpp
-index a46400c..3b68b11 100644
+index a46400c5b..3b68b11df 100644
 --- a/examples/parallel/parallel.cpp
 +++ b/examples/parallel/parallel.cpp
 @@ -165,7 +165,7 @@ int main(int argc, char ** argv) {
@@ -203,7 +203,7 @@ index a46400c..3b68b11 100644
      }
  
 diff --git a/examples/passkey/passkey.cpp b/examples/passkey/passkey.cpp
-index 8440a2b..564613c 100644
+index 8440a2bf7..564613cce 100644
 --- a/examples/passkey/passkey.cpp
 +++ b/examples/passkey/passkey.cpp
 @@ -27,7 +27,7 @@ int main(int argc, char ** argv) {
@@ -216,7 +216,7 @@ index 8440a2b..564613c 100644
      }
  
 diff --git a/examples/retrieval/retrieval.cpp b/examples/retrieval/retrieval.cpp
-index 7d93ab1..c68dec4 100644
+index 7d93ab117..c68dec49f 100644
 --- a/examples/retrieval/retrieval.cpp
 +++ b/examples/retrieval/retrieval.cpp
 @@ -119,7 +119,7 @@ int main(int argc, char ** argv) {
@@ -229,7 +229,7 @@ index 7d93ab1..c68dec4 100644
      }
  
 diff --git a/examples/speculative-simple/speculative-simple.cpp b/examples/speculative-simple/speculative-simple.cpp
-index d87ba48..1aa93b4 100644
+index d87ba48be..1aa93b407 100644
 --- a/examples/speculative-simple/speculative-simple.cpp
 +++ b/examples/speculative-simple/speculative-simple.cpp
 @@ -20,7 +20,7 @@ int main(int argc, char ** argv) {
@@ -242,7 +242,7 @@ index d87ba48..1aa93b4 100644
      }
  
 diff --git a/examples/speculative/speculative.cpp b/examples/speculative/speculative.cpp
-index f7fa5e3..36f14bf 100644
+index f7fa5e306..36f14bf45 100644
 --- a/examples/speculative/speculative.cpp
 +++ b/examples/speculative/speculative.cpp
 @@ -40,7 +40,7 @@ int main(int argc, char ** argv) {
@@ -255,7 +255,7 @@ index f7fa5e3..36f14bf 100644
      }
  
 diff --git a/examples/training/finetune.cpp b/examples/training/finetune.cpp
-index 0a75ac1..bdf13ba 100644
+index 0a75ac110..bdf13ba6a 100644
 --- a/examples/training/finetune.cpp
 +++ b/examples/training/finetune.cpp
 @@ -22,7 +22,7 @@ int main(int argc, char ** argv) {
@@ -267,21 +267,8 @@ index 0a75ac1..bdf13ba 100644
          return 1;
      }
  
-diff --git a/tests/test-export-graph-ops.cpp b/tests/test-export-graph-ops.cpp
-index 7d8118d..88b7641 100644
---- a/tests/test-export-graph-ops.cpp
-+++ b/tests/test-export-graph-ops.cpp
-@@ -131,7 +131,7 @@ int main(int argc, char ** argv) {
- 
-     common_init();
- 
--    if (!common_params_parse(argc, argv, params, LLAMA_EXAMPLE_EXPORT_GRAPH_OPS)) {
-+    if (!common_params_parse_main(argc, argv, params, LLAMA_EXAMPLE_EXPORT_GRAPH_OPS)) {
-         return 1;
-     }
- 
 diff --git a/tests/test-arg-parser.cpp b/tests/test-arg-parser.cpp
-index e83ee85..f860565 100644
+index e83ee85dd..f8605657d 100644
 --- a/tests/test-arg-parser.cpp
 +++ b/tests/test-arg-parser.cpp
 @@ -113,6 +113,15 @@ static void test(void) {
@@ -300,8 +287,21 @@ index e83ee85..f860565 100644
      argv = {"binary_name", "-t", "1234"};
      assert(true == common_params_parse(argv.size(), list_str_to_char(argv).data(), params, LLAMA_EXAMPLE_COMMON));
      assert(params.cpuparams.n_threads == 1234);
+diff --git a/tests/test-export-graph-ops.cpp b/tests/test-export-graph-ops.cpp
+index 7d8118dcd..88b76410f 100644
+--- a/tests/test-export-graph-ops.cpp
++++ b/tests/test-export-graph-ops.cpp
+@@ -131,7 +131,7 @@ int main(int argc, char ** argv) {
+ 
+     common_init();
+ 
+-    if (!common_params_parse(argc, argv, params, LLAMA_EXAMPLE_EXPORT_GRAPH_OPS)) {
++    if (!common_params_parse_main(argc, argv, params, LLAMA_EXAMPLE_EXPORT_GRAPH_OPS)) {
+         return 1;
+     }
+ 
 diff --git a/tests/test-recurrent-state-rollback.cpp b/tests/test-recurrent-state-rollback.cpp
-index be19316..26a041a 100644
+index be19316db..26a041aea 100644
 --- a/tests/test-recurrent-state-rollback.cpp
 +++ b/tests/test-recurrent-state-rollback.cpp
 @@ -44,7 +44,7 @@ int main(int argc, char ** argv) {
@@ -314,7 +314,7 @@ index be19316..26a041a 100644
      }
  
 diff --git a/tests/test-save-load-state.cpp b/tests/test-save-load-state.cpp
-index b097d75..bbafc52 100644
+index b097d752a..bbafc5234 100644
 --- a/tests/test-save-load-state.cpp
 +++ b/tests/test-save-load-state.cpp
 @@ -281,7 +281,7 @@ int main(int argc, char ** argv) {
@@ -327,7 +327,7 @@ index b097d75..bbafc52 100644
      }
  
 diff --git a/tests/test-state-restore-fragmented.cpp b/tests/test-state-restore-fragmented.cpp
-index d5548af..95ba2b6 100644
+index d5548afba..95ba2b67b 100644
 --- a/tests/test-state-restore-fragmented.cpp
 +++ b/tests/test-state-restore-fragmented.cpp
 @@ -24,7 +24,7 @@ int main(int argc, char ** argv) {
@@ -340,7 +340,7 @@ index d5548af..95ba2b6 100644
      }
  
 diff --git a/tests/test-thread-safety.cpp b/tests/test-thread-safety.cpp
-index acda4aa..64eccd8 100644
+index d0b5946e2..5b665b426 100644
 --- a/tests/test-thread-safety.cpp
 +++ b/tests/test-thread-safety.cpp
 @@ -18,7 +18,7 @@ int main(int argc, char ** argv) {
@@ -353,7 +353,7 @@ index acda4aa..64eccd8 100644
      }
  
 diff --git a/tools/batched-bench/batched-bench.cpp b/tools/batched-bench/batched-bench.cpp
-index e2dcd0b..0fdecd0 100644
+index e2dcd0b2e..0fdecd02c 100644
 --- a/tools/batched-bench/batched-bench.cpp
 +++ b/tools/batched-bench/batched-bench.cpp
 @@ -25,7 +25,7 @@ int llama_batched_bench(int argc, char ** argv) {
@@ -366,7 +366,7 @@ index e2dcd0b..0fdecd0 100644
      }
  
 diff --git a/tools/cli/cli.cpp b/tools/cli/cli.cpp
-index 8b7b586..0cb7d7a 100644
+index d974a4019..98a1bdd75 100644
 --- a/tools/cli/cli.cpp
 +++ b/tools/cli/cli.cpp
 @@ -371,7 +371,7 @@ int llama_cli(int argc, char ** argv) {
@@ -379,7 +379,7 @@ index 8b7b586..0cb7d7a 100644
      }
  
 diff --git a/tools/completion/completion.cpp b/tools/completion/completion.cpp
-index 6747558..4423551 100644
+index 6747558fc..4423551ae 100644
 --- a/tools/completion/completion.cpp
 +++ b/tools/completion/completion.cpp
 @@ -91,7 +91,7 @@ int llama_completion(int argc, char ** argv) {
@@ -392,7 +392,7 @@ index 6747558..4423551 100644
      }
  
 diff --git a/tools/cvector-generator/cvector-generator.cpp b/tools/cvector-generator/cvector-generator.cpp
-index 8c6b3d8..8522cae 100644
+index 8c6b3d868..8522cae7b 100644
 --- a/tools/cvector-generator/cvector-generator.cpp
 +++ b/tools/cvector-generator/cvector-generator.cpp
 @@ -403,7 +403,7 @@ int main(int argc, char ** argv) {
@@ -405,7 +405,7 @@ index 8c6b3d8..8522cae 100644
      }
  
 diff --git a/tools/export-lora/export-lora.cpp b/tools/export-lora/export-lora.cpp
-index e1bc4a2..1e2cf96 100644
+index e1bc4a2f3..1e2cf96ec 100644
 --- a/tools/export-lora/export-lora.cpp
 +++ b/tools/export-lora/export-lora.cpp
 @@ -420,7 +420,7 @@ int main(int argc, char ** argv) {
@@ -418,7 +418,7 @@ index e1bc4a2..1e2cf96 100644
      }
  
 diff --git a/tools/fit-params/fit-params.cpp b/tools/fit-params/fit-params.cpp
-index 5d897bc..81d6c1c 100644
+index 5d897bc46..81d6c1c6e 100644
 --- a/tools/fit-params/fit-params.cpp
 +++ b/tools/fit-params/fit-params.cpp
 @@ -20,7 +20,7 @@ int llama_fit_params(int argc, char ** argv) {
@@ -431,7 +431,7 @@ index 5d897bc..81d6c1c 100644
      }
  
 diff --git a/tools/imatrix/imatrix.cpp b/tools/imatrix/imatrix.cpp
-index 3431a4e..35254d0 100644
+index 3431a4eca..35254d019 100644
 --- a/tools/imatrix/imatrix.cpp
 +++ b/tools/imatrix/imatrix.cpp
 @@ -1067,7 +1067,7 @@ int main(int argc, char ** argv) {
@@ -444,7 +444,7 @@ index 3431a4e..35254d0 100644
      }
  
 diff --git a/tools/mtmd/debug/mtmd-debug.cpp b/tools/mtmd/debug/mtmd-debug.cpp
-index b88a16f..db4facf 100644
+index b88a16f0f..db4facf3d 100644
 --- a/tools/mtmd/debug/mtmd-debug.cpp
 +++ b/tools/mtmd/debug/mtmd-debug.cpp
 @@ -58,7 +58,7 @@ int main(int argc, char ** argv) {
@@ -457,7 +457,7 @@ index b88a16f..db4facf 100644
      }
  
 diff --git a/tools/mtmd/mtmd-cli.cpp b/tools/mtmd/mtmd-cli.cpp
-index 8704ea7..eecbaae 100644
+index 8704ea79d..eecbaaeb0 100644
 --- a/tools/mtmd/mtmd-cli.cpp
 +++ b/tools/mtmd/mtmd-cli.cpp
 @@ -375,7 +375,7 @@ int main(int argc, char ** argv) {
@@ -470,7 +470,7 @@ index 8704ea7..eecbaae 100644
      }
  
 diff --git a/tools/perplexity/perplexity.cpp b/tools/perplexity/perplexity.cpp
-index 92f8830..ffd1bf1 100644
+index 92f88306c..ffd1bf11d 100644
 --- a/tools/perplexity/perplexity.cpp
 +++ b/tools/perplexity/perplexity.cpp
 @@ -2018,7 +2018,7 @@ int llama_perplexity(int argc, char ** argv) {
@@ -483,7 +483,7 @@ index 92f8830..ffd1bf1 100644
      }
  
 diff --git a/tools/results/results.cpp b/tools/results/results.cpp
-index f2179ed..6d958a8 100644
+index f2179ed27..6d958a861 100644
 --- a/tools/results/results.cpp
 +++ b/tools/results/results.cpp
 @@ -61,7 +61,7 @@ int main(int argc, char ** argv) {
@@ -496,20 +496,20 @@ index f2179ed..6d958a8 100644
      }
      if (params.out_file.empty()) {
 diff --git a/tools/server/server.cpp b/tools/server/server.cpp
-index eafef86..84c7f0b 100644
+index 9e8603be6..e81ecba3f 100644
 --- a/tools/server/server.cpp
 +++ b/tools/server/server.cpp
 @@ -87,7 +87,7 @@ int llama_server(int argc, char ** argv) {
      // touch it. lifecycle is symmetric, stop_gc() runs in clean_up() before backend free
-     g_stream_sessions.start_gc();
-
+     server_stream_session_manager_start();
+ 
 -    if (!common_params_parse(argc, argv, params, LLAMA_EXAMPLE_SERVER)) {
 +    if (!common_params_parse_main(argc, argv, params, LLAMA_EXAMPLE_SERVER)) {
          return 1;
      }
  
 diff --git a/tools/tts/tts.cpp b/tools/tts/tts.cpp
-index 2a1bdcc..3bd25a2 100644
+index 2a1bdccc9..3bd25a246 100644
 --- a/tools/tts/tts.cpp
 +++ b/tools/tts/tts.cpp
 @@ -553,7 +553,7 @@ int main(int argc, char ** argv) {
