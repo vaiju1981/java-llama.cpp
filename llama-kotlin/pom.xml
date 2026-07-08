@@ -61,13 +61,13 @@ SPDX-License-Identifier: MIT
 		     read metadata at most one minor version ahead of their own compiler, so
 		     compiling with 2.2.x keeps this artifact consumable from Kotlin 2.1+
 		     projects (typical Android Studio installs) instead of forcing 2.2+. -->
-		<kotlin.version>2.2.21</kotlin.version>
+		<kotlin.version>2.4.0</kotlin.version>
 		<kotlinx.coroutines.version>1.11.0</kotlinx.coroutines.version>
 		<junit.version>6.1.1</junit.version>
 		<hamcrest.version>3.0</hamcrest.version>
 		<surefire.version>3.5.6</surefire.version>
 		<source.plugin.version>3.4.0</source.plugin.version>
-		<jar.plugin.version>3.4.1</jar.plugin.version>
+		<jar.plugin.version>3.5.0</jar.plugin.version>
 	</properties>
 
 	<dependencies>

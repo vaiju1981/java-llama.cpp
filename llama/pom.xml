@@ -61,7 +61,7 @@ SPDX-License-Identifier: MIT
 		<errorprone.version>2.50.0</errorprone.version>
 		<nullaway.version>0.13.7</nullaway.version>
 		<checker.version>4.2.1</checker.version>
-		<jackson.version>2.22.0</jackson.version>
+		<jackson.version>2.22.1</jackson.version>
 		<reactor.version>3.8.6</reactor.version>
 		<slf4j.version>2.0.18</slf4j.version>
 		<logback.version>1.5.37</logback.version>
@@ -335,7 +335,7 @@ SPDX-License-Identifier: MIT
 				<plugin>
 					<groupId>org.pitest</groupId>
 					<artifactId>pitest-maven</artifactId>
-					<version>1.25.5</version>
+					<version>1.25.6</version>
 				</plugin>
 				<plugin>
 					<groupId>org.sonatype.central</groupId>

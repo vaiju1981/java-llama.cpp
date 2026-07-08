@@ -9,6 +9,12 @@ from version 5.0.0 onward. Pre-fork releases (`1.x`–`4.2.0`) were authored by
 
 ## [Unreleased]
 
+### Added
+- `QuantizationType.Q2_0` — maps the new upstream `LLAMA_FTYPE_MOSTLY_Q2_0` (llama.cpp b9916) for `LlamaQuantizer`.
+
+### Changed
+- Upgraded llama.cpp from **b9894 to b9917** (all eight local patches re-verified across the range).
+
 ## [5.0.6] - 2026-07-07
 
 Feature release. Headline additions are the Android AAR + Kotlin coroutines

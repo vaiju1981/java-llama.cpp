@@ -2766,6 +2766,11 @@ jobs:
       # Publishing) is inherited from the parent, so every module — including the
       # parent pom — is signed. The Android AARs are published by the separate
       # Gradle step below (Maven cannot deploy <packaging>aar</packaging>).
+      # Informational only (nothing depends on it): logs the effective POM with the same
+      # profile set as the deploy below, so the resolved central-publishing configuration
+      # (waitUntil/waitMaxTime etc.) is visible for debugging.
+      - name: Show effective POM (debug)
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,rocm-linux,rocm-windows,sycl-fp16-linux,sycl-fp32-linux,sycl-windows,opencl-windows-aarch64,openvino-linux,openvino-windows help:effective-pom
       - name: Publish snapshot (reactor - parent + llama + llama-langchain4j + llama-kotlin)
         run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,rocm-linux,rocm-windows,sycl-fp16-linux,sycl-fp32-linux,sycl-windows,opencl-windows-aarch64,openvino-linux,openvino-windows -Dmaven.test.skip=true deploy
         env:
@@ -2791,7 +2796,12 @@ jobs:
           CENTRAL_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
           MAVEN_GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      # Runs even when the deploy step failed: a Central publish-poll timeout reds the
+      # job *after* the bundle was uploaded (and typically published server-side), while
+      # the signed jars + .asc files already exist in target/ (signing happens at
+      # verify). Collecting on failure lets the github-snapshot job still attach them.
       - name: Collect signed artifacts
+        if: ${{ !cancelled() }}
         run: |
           mkdir -p signed-snapshot-assets
           cp llama/target/*.jar signed-snapshot-assets/ 2>/dev/null || true
@@ -2802,6 +2812,7 @@ jobs:
           cp llama-kotlin/target/*.jar.asc signed-snapshot-assets/ 2>/dev/null || true
           cp llama-android/build/aar/*.aar signed-snapshot-assets/ 2>/dev/null || true
       - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
         with:
           name: signed-snapshot-assets
           path: signed-snapshot-assets/
@@ -2809,7 +2820,10 @@ jobs:
   github-snapshot:
     name: Update Snapshot Pre-release on GitHub
     needs: [publish-snapshot, package-fatjars]
-    if: needs.publish-snapshot.result == 'success' && needs.package-fatjars.result == 'success'
+    # Also runs when publish-snapshot FAILED (not when skipped/cancelled): a Central
+    # publish-poll timeout reds that job after the artifacts were already uploaded —
+    # the GitHub pre-release assets must not be lost in that case.
+    if: ${{ !cancelled() && (needs.publish-snapshot.result == 'success' || needs.publish-snapshot.result == 'failure') && needs.package-fatjars.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -2937,6 +2951,11 @@ jobs:
       # net.ladenthin:llama-parent (the pom), :llama (the core jar + classifiers), and
       # :llama-langchain4j. The `release` profile (GPG + Central Publishing) is inherited
       # from the parent, so every module — including the parent pom — is signed.
+      # Informational only (nothing depends on it): logs the effective POM with the same
+      # profile set as the deploy below, so the resolved central-publishing configuration
+      # (waitUntil/waitMaxTime etc.) is visible for debugging.
+      - name: Show effective POM (debug)
+        run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,rocm-linux,rocm-windows,sycl-fp16-linux,sycl-fp32-linux,sycl-windows,opencl-windows-aarch64,openvino-linux,openvino-windows help:effective-pom
       - name: Publish release (reactor - parent + llama + llama-langchain4j + llama-kotlin)
         run: mvn --batch-mode --no-transfer-progress -P release,cuda,vulkan-linux,vulkan-linux-aarch64,opencl-android,windows-msvc,cuda-windows,vulkan-windows,opencl-windows,rocm-linux,rocm-windows,sycl-fp16-linux,sycl-fp32-linux,sycl-windows,opencl-windows-aarch64,openvino-linux,openvino-windows -Dmaven.test.skip=true deploy
         env:
@@ -2974,7 +2993,12 @@ jobs:
           CENTRAL_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
           MAVEN_GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      # Runs even when the deploy step failed: a Central publish-poll timeout reds the
+      # job *after* the bundle was uploaded (and typically published server-side), while
+      # the signed jars + .asc files already exist in target/ (signing happens at
+      # verify). Collecting on failure lets the github-release-signed job still attach them.
       - name: Collect signed artifacts
+        if: ${{ !cancelled() }}
         run: |
           mkdir -p signed-release-assets
           cp llama/target/*.jar signed-release-assets/ 2>/dev/null || true
@@ -2985,6 +3009,7 @@ jobs:
           cp llama-kotlin/target/*.jar.asc signed-release-assets/ 2>/dev/null || true
           cp llama-android/build/aar/*.aar signed-release-assets/ 2>/dev/null || true
       - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
         with:
           name: signed-release-assets
           path: signed-release-assets/
@@ -2992,7 +3017,10 @@ jobs:
   github-release-signed:
     name: Attach Signed Binaries to GitHub Release
     needs: [publish-release, package-fatjars]
-    if: needs.publish-release.result == 'success' && needs.package-fatjars.result == 'success'
+    # Also runs when publish-release FAILED (not when skipped/cancelled): a Central
+    # publish-poll timeout reds that job after the artifacts were already uploaded —
+    # the GitHub release assets must not be lost in that case.
+    if: ${{ !cancelled() && (needs.publish-release.result == 'success' || needs.publish-release.result == 'failure') && needs.package-fatjars.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
