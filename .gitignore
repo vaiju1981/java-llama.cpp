@@ -84,3 +84,11 @@ llama-android/natives/
 # CI Android consumer-test fixture (Gradle/AGP) build outputs
 .github/android-consumer-test/**/build/
 .github/android-consumer-test/.gradle/
+
+# Android example app (Gradle/AGP): build outputs, Gradle caches, local SDK
+# pointer, and any signing keystore (secrets are NEVER committed).
+llama-android-example/**/build/
+llama-android-example/.gradle/
+llama-android-example/local.properties
+*.jks
+*.keystore
