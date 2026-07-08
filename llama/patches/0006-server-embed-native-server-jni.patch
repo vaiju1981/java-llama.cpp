@@ -1,5 +1,5 @@
 diff --git a/tools/server/server.cpp b/tools/server/server.cpp
-index 84c7f0b..5c9fac9 100644
+index 7f9ca414..9c0caf18 100644
 --- a/tools/server/server.cpp
 +++ b/tools/server/server.cpp
 @@ -25,6 +25,28 @@
@@ -31,9 +31,9 @@ index 84c7f0b..5c9fac9 100644
  static inline void signal_handler(int signal) {
      if (is_terminating.test_and_set()) {
          // in case it hangs, we can force terminate the server by hitting Ctrl+C twice
-@@ -87,7 +109,13 @@ int llama_server(int argc, char ** argv) {
+@@ -97,7 +119,13 @@ int llama_server(int argc, char ** argv) {
      // touch it. lifecycle is symmetric, stop_gc() runs in clean_up() before backend free
-     g_stream_sessions.start_gc();
+     server_stream_session_manager_start();
  
 -    if (!common_params_parse_main(argc, argv, params, LLAMA_EXAMPLE_SERVER)) {
 +    // [jllama] embedded (JNI) callers forward a clean UTF-8 argv, so honor it exactly via
@@ -46,22 +46,15 @@ index 84c7f0b..5c9fac9 100644
          return 1;
      }
  
-@@ -412,6 +440,10 @@ int llama_server(int argc, char ** argv) {
+@@ -433,7 +461,10 @@ int llama_server(common_params & params, int argc, char ** argv) {
      }
  
-     // TODO: refactor in common/console
-+    // [jllama] skip installing process-wide signal handlers when embedded in the JVM (they would
-+    // hijack the JVM's own SIGINT/SIGTERM). NativeServer stops the embedded server via
+     // register signal handler if not running by CLI
+-    if (!is_run_by_cli) {
++    // [jllama] also skip when embedded in the JVM (they would hijack the JVM's own
++    // SIGINT/SIGTERM). NativeServer stops the embedded server via
 +    // llama_server_request_shutdown() instead.
-+    if (!g_llama_server_embedded.load()) {
++    if (!is_run_by_cli && !g_llama_server_embedded.load()) {
  #if defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
-     struct sigaction sigint_action;
-     sigint_action.sa_handler = signal_handler;
-@@ -425,6 +457,7 @@ int llama_server(int argc, char ** argv) {
-     };
-     SetConsoleCtrlHandler(reinterpret_cast<PHANDLER_ROUTINE>(console_ctrl_handler), true);
- #endif
-+    }
- 
-     SRV_INF("listening on %s\n", ctx_http.listening_address.c_str());
- 
+         struct sigaction sigint_action;
+         sigint_action.sa_handler = signal_handler;
