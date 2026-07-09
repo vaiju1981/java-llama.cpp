@@ -19,6 +19,11 @@ plugins {
 
 val signingKey = System.getenv("MAVEN_GPG_PRIVATE_KEY")
 val signingPassphrase = System.getenv("MAVEN_GPG_PASSPHRASE")
+// Optional: the signing (sub)key id, e.g. 07D2D767. When set, Gradle selects
+// that key instead of the primary — needed here because gpg signs with the
+// 4096-bit signing subkey while the 2-arg useInMemoryPgpKeys picks the primary
+// (whose secret this BouncyCastle can't unlock → the null-PGPPrivateKey NPE).
+val signingKeyId = System.getenv("MAVEN_GPG_KEY_ID")
 require(!signingKey.isNullOrBlank()) { "MAVEN_GPG_PRIVATE_KEY is empty" }
 
 val makeArtifact = tasks.register<Zip>("makeArtifact") {
@@ -28,6 +33,10 @@ val makeArtifact = tasks.register<Zip>("makeArtifact") {
 }
 
 signing {
-    useInMemoryPgpKeys(signingKey, signingPassphrase ?: "")
+    if (!signingKeyId.isNullOrBlank()) {
+        useInMemoryPgpKeys(signingKeyId, signingKey, signingPassphrase ?: "")
+    } else {
+        useInMemoryPgpKeys(signingKey, signingPassphrase ?: "")
+    }
     sign(makeArtifact.get())
 }
