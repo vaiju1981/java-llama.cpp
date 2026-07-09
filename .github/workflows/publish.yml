@@ -175,6 +175,68 @@ jobs:
           echo "RESULT: OK — key imports, is not expired, is signing-capable, and the passphrase successfully unlocked it to produce a VALID signature. maven-gpg-plugin will be able to sign with this key/passphrase."
 
   # ---------------------------------------------------------------------------
+  # GPG signing-key preflight — GRADLE / BouncyCastle path (java-llama.cpp ONLY).
+  # The sibling `verify-signing-key` job tests the `gpg` CLI path (maven-gpg-plugin,
+  # used by every repo's Maven publish). This repo ALSO signs the `llama-android`
+  # AAR via Gradle's `signing` plugin + `useInMemoryPgpKeys` (BouncyCastle), which
+  # is STRICTER at parsing the armored key and is exactly where the AAR snapshot
+  # signing failed (null PGPPrivateKey). This job drives `useInMemoryPgpKeys` on a
+  # throwaway signing project — the only faithful test of that path. Standalone
+  # (no `needs:`), parallel at pipeline start, `environment: maven-central` so it
+  # reads the same secret the AAR publish uses. Red-by-design where the secret is
+  # not delivered (see the gpg job's note).
+  #
+  # SECURITY: prints no secret material. Key/passphrase reach Gradle only via env
+  # (MAVEN_GPG_PRIVATE_KEY / MAVEN_GPG_PASSPHRASE, read by System.getenv at
+  # runtime); `set -x` is never enabled; the passphrase is `::add-mask::`ed; Gradle
+  # runs with `--stacktrace` only (no `--info`/`--debug`). Only the produced `.asc`
+  # (exit code) is asserted. Uses Gradle 8.14.3 — the same version the AAR publish
+  # uses — so the BouncyCastle version under test matches production.
+  # ---------------------------------------------------------------------------
+  verify-signing-key-gradle:
+    name: Verify GPG signing key — Gradle/BouncyCastle path (no secrets printed)
+    runs-on: ubuntu-latest
+    environment: maven-central
+    steps:
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: Sign a throwaway artifact via useInMemoryPgpKeys (BouncyCastle)
+        shell: bash
+        env:
+          MAVEN_GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: |
+          set -euo pipefail   # NOTE: deliberately NO `set -x` — it would echo the passphrase.
+
+          if [ -z "${MAVEN_GPG_PRIVATE_KEY:-}" ]; then
+            echo "::error::MAVEN_GPG_PRIVATE_KEY is empty for this run. The maven-central environment did not deliver the secret to this ref (fork PR / other branch). Nothing to verify."
+            exit 1
+          fi
+          if [ -n "${MAVEN_GPG_PASSPHRASE:-}" ]; then echo "::add-mask::${MAVEN_GPG_PASSPHRASE}"; fi
+
+          WORK="$(mktemp -d)"
+          echo 'cm9vdFByb2plY3QubmFtZSA9ICJzaWduaW5nLXNlbGZ0ZXN0Igo=' | base64 -d > "$WORK/settings.gradle.kts"
+          echo 'cGx1Z2lucyB7CiAgICBiYXNlCiAgICBzaWduaW5nCn0KLy8gTWlycm9ycyBsbGFtYS1hbmRyb2lkL2J1aWxkLmdyYWRsZS5rdHM6IHNhbWUgZW52IHZhciBuYW1lcywgc2FtZQovLyB1c2VJbk1lbW9yeVBncEtleXMoa2V5LCBwYXNzcGhyYXNlKSBjYWxsLCBzbyB0aGlzIHJlcHJvZHVjZXMgdGhlIGV4YWN0Ci8vIEdyYWRsZS9Cb3VuY3lDYXN0bGUgc2lnbmluZyBwYXRoIHRoZSBBQVIgcHVibGlzaCB1c2VzLgp2YWwgc2lnbmluZ0tleSA9IFN5c3RlbS5nZXRlbnYoIk1BVkVOX0dQR19QUklWQVRFX0tFWSIpCnZhbCBzaWduaW5nUGFzc3BocmFzZSA9IFN5c3RlbS5nZXRlbnYoIk1BVkVOX0dQR19QQVNTUEhSQVNFIikKcmVxdWlyZSghc2lnbmluZ0tleS5pc051bGxPckJsYW5rKCkpIHsgIk1BVkVOX0dQR19QUklWQVRFX0tFWSBpcyBlbXB0eSIgfQoKdmFsIG1ha2VBcnRpZmFjdCA9IHRhc2tzLnJlZ2lzdGVyPFppcD4oIm1ha2VBcnRpZmFjdCIpIHsKICAgIGFyY2hpdmVCYXNlTmFtZS5zZXQoInNpZ25pbmctc2VsZnRlc3QiKQogICAgZGVzdGluYXRpb25EaXJlY3Rvcnkuc2V0KGxheW91dC5idWlsZERpcmVjdG9yeSkKICAgIGZyb20obGF5b3V0LnByb2plY3REaXJlY3RvcnkuZmlsZSgic2V0dGluZ3MuZ3JhZGxlLmt0cyIpKQp9CnNpZ25pbmcgewogICAgdXNlSW5NZW1vcnlQZ3BLZXlzKHNpZ25pbmdLZXksIHNpZ25pbmdQYXNzcGhyYXNlID86ICIiKQogICAgc2lnbihtYWtlQXJ0aWZhY3QuZ2V0KCkpCn0K' | base64 -d > "$WORK/build.gradle.kts"
+
+          echo "== Sign a throwaway artifact through Gradle's useInMemoryPgpKeys (BouncyCastle) =="
+          gradle --no-daemon -p "$WORK" signMakeArtifact --stacktrace
+
+          ASC="$WORK/build/signing-selftest.zip.asc"
+          if [ -f "$ASC" ]; then
+            echo "  Detached signature produced: $(wc -c < "$ASC") armored bytes"
+            echo "RESULT: OK — Gradle's useInMemoryPgpKeys accepted the armored key + passphrase and produced a signature. The llama-android AAR publish will be able to sign with this key/passphrase."
+          else
+            echo "::error::Gradle signing produced no .asc — useInMemoryPgpKeys could not build a usable signatory from MAVEN_GPG_PRIVATE_KEY / MAVEN_GPG_PASSPHRASE (the AAR-publish failure mode)."
+            exit 1
+          fi
+          rm -rf "$WORK"
+
+  # ---------------------------------------------------------------------------
   # Download + cache the GGUF test models ONCE, upfront, for the whole pipeline.
   # Every Java test job (`test-java-*`) and the langchain4j integration job `needs:` this
   # job and then only RESTORES the shared cache (key gguf-models-<manifest hash>) — so the ~5 GB model
