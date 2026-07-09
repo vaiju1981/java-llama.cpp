@@ -129,7 +129,11 @@ The `build-android-llmservice` job in `.github/workflows/publish.yml`:
 2. Builds a **release `.aab`** — signed with the upload key when the CI secrets are set
    (`ANDROID_UPLOAD_KEYSTORE_BASE64` = base64 of the keystore, plus the store/alias/key
    password secrets), otherwise debug-signed — and uploads it as the `android-llmservice-aab`
-   artifact.
+   artifact. It also uploads a **directly-installable release `.apk`** as the
+   `android-llmservice-apk` artifact: download it from the run's **Artifacts** section
+   (independent of any release) and sideload it with `adb install app-release.apk`. (The `.aab`
+   is only for the Play Console — it is not directly installable; the `.apk` is the one to grab
+   to try the app on a phone.)
 3. Runs the app's **instrumented UI test on a KVM-accelerated x86_64 emulator** (API 30): it
    adb-pushes the tiny cached draft model, then `connectedDebugAndroidTest` launches the app,
    **types a prompt, taps Send, and asserts a non-empty assistant reply** — exercising the

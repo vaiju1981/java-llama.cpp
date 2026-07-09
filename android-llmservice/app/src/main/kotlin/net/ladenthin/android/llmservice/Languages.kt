@@ -16,8 +16,9 @@ package net.ladenthin.android.llmservice
 data class AppLanguage(val tag: String, val endonym: String, val flag: String)
 
 /**
- * The languages the app ships translations for. Kept in sync with the values-*/ resource dirs
- * and res/xml/locales_config.xml. The first entry (empty tag) follows the device language.
+ * The languages the app ships translations for. Kept in sync with the per-language `values-*`
+ * resource dirs and `res/xml/locales_config.xml`. The first entry (empty tag) follows the device
+ * language.
  */
 val APP_LANGUAGES: List<AppLanguage> = listOf(
     AppLanguage("", "System", "🌐"),

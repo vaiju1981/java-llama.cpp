@@ -1180,15 +1180,19 @@ jobs:
           else
             echo "No ANDROID_UPLOAD_KEYSTORE_BASE64 secret -> release AAB will be debug-signed."
           fi
-      - name: Build release bundle (AAB) + debug APK
+      - name: Build release bundle (AAB) + installable APK (release + debug)
         env:
           JLLAMA_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
           JLLAMA_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
           JLLAMA_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
         run: |
           VERSION=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n1)
-          gradle -p android-llmservice bundleRelease assembleDebug "-PjllamaVersion=${VERSION}"
+          # bundleRelease -> app-release.aab (Play upload, NOT directly installable);
+          # assembleRelease -> app-release.apk (sideloadable installable, debug-signed unless the
+          # upload-key secrets are set); assembleDebug -> app-debug.apk (for the emulator test).
+          gradle -p android-llmservice bundleRelease assembleRelease assembleDebug "-PjllamaVersion=${VERSION}"
           test -f android-llmservice/app/build/outputs/bundle/release/app-release.aab
+          test -f android-llmservice/app/build/outputs/apk/release/app-release.apk
       - name: Restore shared GGUF model cache (populated by download-models; no re-download)
         uses: actions/cache/restore@v6
         with:
@@ -1205,11 +1209,20 @@ jobs:
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           # One line on purpose: the emulator-runner executes `script:` LINE BY LINE via sh.
           script: .github/run-android-llmservice-test.sh
-      - name: Upload release bundle (AAB)
+      - name: Upload release bundle (AAB — for Play upload)
         uses: actions/upload-artifact@v7
         with:
           name: android-llmservice-aab
           path: android-llmservice/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+      - name: Upload installable APK (release — sideload / adb install)
+        # Directly installable APK, downloadable from this run's Artifacts (independent of any
+        # release). Debug-signed unless the ANDROID_UPLOAD_* secrets are set. This is the file to
+        # grab to try the app on a phone; the .aab above is only for the Play Console.
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-llmservice-apk
+          path: android-llmservice/app/build/outputs/apk/release/*.apk
           if-no-files-found: error
       - name: Upload instrumentation reports (on failure)
         if: failure()
