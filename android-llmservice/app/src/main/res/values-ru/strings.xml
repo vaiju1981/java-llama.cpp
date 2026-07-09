@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+<resources>
+    <string name="intro_pick_model">Выберите файл модели GGUF, чтобы общаться приватно, полностью на вашем устройстве. Лучше всего подходит instruct/chat-модель.</string>
+    <string name="action_choose_model">Выбрать модель</string>
+    <string name="status_loading_model">Загрузка модели…</string>
+    <string name="hint_message">Сообщение…</string>
+    <string name="action_send">Отправить</string>
+    <string name="banner_model_not_loaded">Модель не загружена. Выберите модель, чтобы продолжить этот чат.</string>
+    <string name="error_load_model">Не удалось загрузить модель: %1$s</string>
+    <string name="error_generation">Ошибка генерации: %1$s</string>
+    <string name="system_prompt">Вы полезный и лаконичный ассистент, работающий полностью на устройстве. Отвечайте на языке пользователя.</string>
+    <string name="cd_save">Сохранить чат</string>
+    <string name="cd_load">Загрузить чат</string>
+    <string name="cd_language">Выбрать язык</string>
+    <string name="toast_session_saved">Чат сохранён</string>
+    <string name="toast_session_loaded">Чат загружен</string>
+    <string name="toast_session_none">Нет сохранённого чата</string>
+</resources>

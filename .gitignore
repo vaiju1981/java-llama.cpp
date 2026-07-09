@@ -85,10 +85,10 @@ llama-android/natives/
 .github/android-consumer-test/**/build/
 .github/android-consumer-test/.gradle/
 
-# Android example app (Gradle/AGP): build outputs, Gradle caches, local SDK
+# LLM Service Android app (Gradle/AGP): build outputs, Gradle caches, local SDK
 # pointer, and any signing keystore (secrets are NEVER committed).
-llama-android-example/**/build/
-llama-android-example/.gradle/
-llama-android-example/local.properties
+android-llmservice/**/build/
+android-llmservice/.gradle/
+android-llmservice/local.properties
 *.jks
 *.keystore

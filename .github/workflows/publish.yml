@@ -1104,22 +1104,23 @@ jobs:
           if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------
-  # The shippable Android EXAMPLE app (llama-android-example): a KISS on-device
-  # chat demo consuming the llama-android AAR + llama-kotlin facade. This job proves
-  # the whole "real app" story end to end: it builds a Play-shaped release bundle
-  # (signed release AAB — with a real upload key when the ANDROID_UPLOAD_KEYSTORE_BASE64
-  # secret is set, else debug-signed so forks/PRs stay green) and runs the app's
-  # Compose UI test on the same KVM x86_64 emulator as test-android-emulator, driving
-  # the actual UI (type a prompt, tap Send) against real on-device inference.
-  # NOT yet a publish gate (unlike test-android-emulator): it runs on every push/PR so
-  # it is validated, but a version-pin hiccup in the Compose/AGP toolchain must not block
-  # a Maven Central release of the library. Promote it into the publish-snapshot /
-  # publish-release needs graphs once it has run flake-free (same policy that made
-  # test-android-emulator a gate in PR #298).
+  # The shippable Android app "LLM Service" (android-llmservice): a KISS, fully-offline
+  # on-device chat app consuming the llama-android AAR + llama-kotlin facade (Compose UI,
+  # SAF model picker, 13-language flag picker, local save/load). This job proves the whole
+  # "real app" story end to end: it builds a Play-shaped release bundle (signed release AAB
+  # — with a real upload key when the ANDROID_UPLOAD_KEYSTORE_BASE64 secret is set, else
+  # debug-signed so forks/PRs stay green) and runs the app's Compose UI test on the same KVM
+  # x86_64 emulator as test-android-emulator, driving the actual UI (type a prompt, tap Send)
+  # against real on-device inference.
+  # NOT yet a publish gate (unlike test-android-emulator): it runs on every push/PR so it is
+  # validated, but a version-pin hiccup in the Compose/AGP toolchain must not block a Maven
+  # Central release of the library. Promote it into the publish-snapshot / publish-release
+  # needs graphs once it has run flake-free (same policy that made test-android-emulator a
+  # gate in PR #298).
   # ---------------------------------------------------------------------------
 
-  build-android-example:
-    name: Build + emulator-test the Android example app
+  build-android-llmservice:
+    name: Build + emulator-test the LLM Service Android app
     needs: [crosscompile-android-aarch64, crosscompile-android-x86_64, verify-model-cache]
     runs-on: ubuntu-latest
     steps:
@@ -1137,7 +1138,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Build core jar + install llama-kotlin facade to mavenLocal
-        # install (not package) so the example's Gradle build resolves llama-kotlin +
+        # install (not package) so the app's Gradle build resolves llama-kotlin +
         # the core POM from mavenLocal. llama-kotlin's core dep is provided-scope, so the
         # desktop JAR is never pulled into the APK — the AAR supplies net.ladenthin.llama.*.
         run: >
@@ -1183,15 +1184,15 @@ jobs:
           JLLAMA_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
         run: |
           VERSION=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n1)
-          gradle -p llama-android-example bundleRelease assembleDebug "-PjllamaVersion=${VERSION}"
-          test -f llama-android-example/app/build/outputs/bundle/release/app-release.aab
+          gradle -p android-llmservice bundleRelease assembleDebug "-PjllamaVersion=${VERSION}"
+          test -f android-llmservice/app/build/outputs/bundle/release/app-release.aab
       - name: Restore shared GGUF model cache (populated by download-models; no re-download)
         uses: actions/cache/restore@v6
         with:
           path: models/
           key: gguf-models-${{ hashFiles('.github/models.csv') }}
           enableCrossOsArchive: true
-      - name: Run example UI test on emulator (connectedDebugAndroidTest)
+      - name: Run LLM Service UI test on emulator (connectedDebugAndroidTest)
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
@@ -1200,19 +1201,19 @@ jobs:
           disable-animations: true
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           # One line on purpose: the emulator-runner executes `script:` LINE BY LINE via sh.
-          script: .github/run-android-example-test.sh
-      - name: Upload example release bundle (AAB)
+          script: .github/run-android-llmservice-test.sh
+      - name: Upload release bundle (AAB)
         uses: actions/upload-artifact@v7
         with:
-          name: llama-android-example-aab
-          path: llama-android-example/app/build/outputs/bundle/release/*.aab
+          name: android-llmservice-aab
+          path: android-llmservice/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
-      - name: Upload example instrumentation reports (on failure)
+      - name: Upload instrumentation reports (on failure)
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: android-example-test-reports
-          path: llama-android-example/app/build/reports/androidTests/
+          name: android-llmservice-test-reports
+          path: android-llmservice/app/build/reports/androidTests/
           if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------

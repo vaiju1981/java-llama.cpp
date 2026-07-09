@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+<resources>
+    <!--
+      AppCompat DayNight theme (no ActionBar — Compose draws its own top bar). AppCompat is
+      required because MainActivity extends AppCompatActivity for the per-app language API;
+      Compose supplies its own Material 3 theming on top of this.
+    -->
+    <style name="Theme.LlmService" parent="Theme.AppCompat.DayNight.NoActionBar" />
+</resources>

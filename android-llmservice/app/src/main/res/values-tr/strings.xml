@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+<resources>
+    <string name="intro_pick_model">Tamamen cihazınızda gizli olarak sohbet etmek için bir GGUF model dosyası seçin. instruct/chat modeli en iyi sonucu verir.</string>
+    <string name="action_choose_model">Model seç</string>
+    <string name="status_loading_model">Model yükleniyor…</string>
+    <string name="hint_message">Mesaj…</string>
+    <string name="action_send">Gönder</string>
+    <string name="banner_model_not_loaded">Yüklü model yok. Bu sohbete devam etmek için bir model seçin.</string>
+    <string name="error_load_model">Model yüklenemedi: %1$s</string>
+    <string name="error_generation">Üretim hatası: %1$s</string>
+    <string name="system_prompt">Tamamen cihazda çalışan, yardımsever ve öz bir asistansınız. Kullanıcının dilinde yanıt verin.</string>
+    <string name="cd_save">Sohbeti kaydet</string>
+    <string name="cd_load">Sohbeti yükle</string>
+    <string name="cd_language">Dil seç</string>
+    <string name="toast_session_saved">Sohbet kaydedildi</string>
+    <string name="toast_session_loaded">Sohbet yüklendi</string>
+    <string name="toast_session_none">Kayıtlı sohbet yok</string>
+</resources>

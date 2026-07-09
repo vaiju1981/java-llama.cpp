@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+<resources>
+    <string name="intro_pick_model">GGUF モデルファイルを選択して、完全にデバイス上でプライベートにチャットします。instruct/chat モデルが最適です。</string>
+    <string name="action_choose_model">モデルを選択</string>
+    <string name="status_loading_model">モデルを読み込み中…</string>
+    <string name="hint_message">メッセージ…</string>
+    <string name="action_send">送信</string>
+    <string name="banner_model_not_loaded">モデルが読み込まれていません。続けるにはモデルを選択してください。</string>
+    <string name="error_load_model">モデルを読み込めませんでした: %1$s</string>
+    <string name="error_generation">生成エラー: %1$s</string>
+    <string name="system_prompt">あなたはデバイス上で完全に動作する、有能で簡潔なアシスタントです。ユーザーの言語で答えてください。</string>
+    <string name="cd_save">チャットを保存</string>
+    <string name="cd_load">チャットを読み込む</string>
+    <string name="cd_language">言語を選択</string>
+    <string name="toast_session_saved">チャットを保存しました</string>
+    <string name="toast_session_loaded">チャットを読み込みました</string>
+    <string name="toast_session_none">保存されたチャットはありません</string>
+</resources>

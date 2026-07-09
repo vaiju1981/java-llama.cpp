@@ -1624,50 +1624,70 @@ snapshots to the Central snapshots repo (`publishAllPublicationsToCentralSnapsho
 releases as a signed Central Portal bundle upload (staging repo → zip → Publisher API).
 `llama-kotlin` rides the normal reactor `mvn -P release deploy`.
 
-## Android example app (`llama-android-example/`)
+## Android app "LLM Service" (`android-llmservice/`)
 
-A shippable, **KISS on-device chat demo** consuming the `llama-android` AAR + `llama-kotlin`
-façade: one Compose screen that picks a GGUF from the file system (Storage Access Framework)
-and streams a chat reply fully on-device. Like `llama-android/` and
+A shippable, **KISS fully-offline on-device chat app** consuming the `llama-android` AAR +
+`llama-kotlin` façade. App label **"LLM Service"**, applicationId/namespace/package
+**`net.ladenthin.android.llmservice`**. One Compose screen: pick a GGUF from the file system
+(Storage Access Framework), stream a chat reply fully on-device, switch UI language via a
+**flag picker (13 languages)**, and **Save/Load** the conversation to **private local storage**.
+No `INTERNET`/storage permission — nothing leaves the device. Like `llama-android/` and
 `.github/android-consumer-test/`, it is a **standalone plain-Gradle/AGP build, NOT a Maven
 reactor module** (and NOT published to Maven Central — it is an app, not a library). It is the
 "real app" counterpart to the headless `.github/android-consumer-test/` fixture (which only
-compiles/loads the API); this one has a UI and is driven end-to-end.
+compiles/loads the API); this one has a UI and is driven end-to-end. The name is intentionally
+**generic/descriptive** (sidesteps trademark conflicts); the applicationId under the owner's
+domain is the only string that must be globally unique.
 
 Structure (mirrors the consumer-test's plumbing):
-- **`settings.gradle.kts`** — pins AGP `8.7.3` + Kotlin `2.4.0` + the Compose plugin; `mavenLocal()`
-  first so the freshly-built AAR + façade resolve there in CI (Maven Central for real users).
-- **`app/build.gradle.kts`** — `minSdk 28` (AAR floor), `compileSdk/targetSdk 35`, Jetpack Compose,
-  ABIs `arm64-v8a` + `x86_64`. Depends on `net.ladenthin:llama-android` + `net.ladenthin:llama-kotlin`
-  at `-PjllamaVersion=<reactor version>` (defaults to the last release when built by hand). The
-  release `signingConfig` reads an **upload keystore** (env vars `JLLAMA_UPLOAD_STORE_FILE` /
-  `_STORE_PASSWORD` / `_KEY_ALIAS` / `_KEY_PASSWORD`, or the matching `-P` props) and **falls back to
-  debug signing** when none is set, so forks/PRs/local builds stay green without secrets.
-- **`app/src/main/kotlin/.../ChatViewModel.kt`** — the only logic: loads a `LlamaModel` (SAF
-  `content://` copied into `filesDir` because llama.cpp mmaps a real path), streams via
-  `generateChatFlow`. **`MainActivity.kt`** — Compose UI + the picker; reads optional `MODEL_PATH` /
-  `CHAT_TEMPLATE` intent extras as a **test hook** (the shipping UI never sets them).
+- **`settings.gradle.kts`** — `rootProject.name = "android-llmservice"`; pins AGP `8.7.3` + Kotlin
+  `2.4.0` + the Compose plugin; `mavenLocal()` first so the freshly-built AAR + façade resolve there
+  in CI (Maven Central for real users).
+- **`app/build.gradle.kts`** — `namespace`/`applicationId` `net.ladenthin.android.llmservice`,
+  `minSdk 28` (AAR floor), `compileSdk/targetSdk 35`, Jetpack Compose, `androidx.appcompat` (only for
+  the per-app language API), ABIs `arm64-v8a` + `x86_64`. Depends on `net.ladenthin:llama-android` +
+  `net.ladenthin:llama-kotlin` at `-PjllamaVersion=<reactor version>` (defaults to the last release
+  when built by hand). The release `signingConfig` reads an **upload keystore** (env vars
+  `JLLAMA_UPLOAD_STORE_FILE` / `_STORE_PASSWORD` / `_KEY_ALIAS` / `_KEY_PASSWORD`, or the matching `-P`
+  props) and **falls back to debug signing** when none is set, so forks/PRs/local builds stay green.
+- **i18n:** every UI string is a resource; translations ship for **13 languages**
+  (`values-{de,es,fr,it,pt,ru,tr,ar,hi,zh-rCN,ja,ko}/strings.xml` + default English), listed in
+  `res/xml/locales_config.xml` and `Languages.kt`. The flag dropdown switches language in-app via
+  `AppCompatDelegate.setApplicationLocales` (AppCompat `autoStoreLocales` service persists it;
+  `MainActivity` extends `AppCompatActivity`, theme `Theme.LlmService` = AppCompat DayNight). The
+  ViewModel survives the locale-change recreation, so the chat isn't lost. `app_name` ("LLM Service")
+  is the one string deliberately NOT translated.
+- **`ChatViewModel.kt`** — the logic: loads a `LlamaModel` (SAF `content://` copied into `filesDir`
+  because llama.cpp mmaps a real path), streams via `generateChatFlow`; the localized system prompt is
+  passed in from the UI. **`SessionStore.kt`** — private local save/load: the conversation + model path
+  as JSON in `filesDir/session.json` (`org.json`, no dep added), readable only by the app.
+  **`MainActivity.kt`** — Compose UI + SAF picker + flag menu + Save/Load buttons; reads optional
+  `MODEL_PATH` / `CHAT_TEMPLATE` intent extras as a **test hook** (the shipping UI never sets them).
 - **`app/src/androidTest/kotlin/.../ChatFlowInstrumentedTest.kt`** — the real end-to-end test:
   launches the activity with a preloaded model (bypassing the system SAF dialog, which only
   UiAutomator could drive), types a prompt, taps Send, asserts a non-empty streamed reply.
   Self-skips (JUnit `Assume`) when the adb-pushed model is absent.
+
+**Recommended real model: Gemma 3 4B Instruct** (a `*-it` GGUF; carries its own chat template, so
+no override needed). Any instruct GGUF works. The CI on-device test uses the tiny cached draft model
+with a forced `chatml` template just to prove tokens generate.
 
 **Key signing fact:** the Maven Central **GPG key cannot sign an APK/AAB** (different
 cryptosystem). Android needs a Java keystore (PKCS12/JKS + RSA) **upload key**; Play App Signing
 manages the final app-signing key. CI wires it from the optional `ANDROID_UPLOAD_KEYSTORE_BASE64`
 + password/alias secrets.
 
-**CI wiring** (mirrors `test-android-emulator`): the **`build-android-example`** job
+**CI wiring** (mirrors `test-android-emulator`): the **`build-android-llmservice`** job
 (`.github/workflows/publish.yml`, `needs: [crosscompile-android-aarch64, crosscompile-android-x86_64,
 verify-model-cache]`) installs the core + `llama-kotlin` to mavenLocal (`llama-kotlin`'s core dep is
 provided-scope, so the desktop JAR is never pulled into the APK), stages the CI-built Android natives,
 publishes the CPU AAR to mavenLocal, builds a **release `.aab`** (signed with the upload key when the
-secret is present, else debug-signed; uploaded as `llama-android-example-aab`), then runs the Compose
-UI test on the KVM x86_64 emulator via **`.github/run-android-example-test.sh`** (adb-pushes the cached
-`AMD-Llama-135m` draft model, `connectedDebugAndroidTest`). It is **NOT yet a publish gate** (not in the
-`publish-snapshot`/`publish-release` `needs:` graphs) so a Compose/AGP version-pin hiccup can't block a
-library release — promote it into those graphs once it has run flake-free (same policy that made
-`test-android-emulator` a gate in PR #298). `llama-android-example/**/build/` is git-ignored.
+secret is present, else debug-signed; uploaded as `android-llmservice-aab`), then runs the Compose
+UI test on the KVM x86_64 emulator via **`.github/run-android-llmservice-test.sh`** (adb-pushes the
+cached `AMD-Llama-135m` draft model, `connectedDebugAndroidTest`). It is **NOT yet a publish gate**
+(not in the `publish-snapshot`/`publish-release` `needs:` graphs) so a Compose/AGP version-pin hiccup
+can't block a library release — promote it into those graphs once it has run flake-free (same policy
+that made `test-android-emulator` a gate in PR #298). `android-llmservice/**/build/` is git-ignored.
 
 ## Open TODOs
 

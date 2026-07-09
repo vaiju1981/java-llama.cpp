@@ -12,7 +12,7 @@ import net.ladenthin.llama.parameters.ModelParameters;
  * Compile-time consumer check: references the binding's API surface exactly the way an app
  * would, so the AGP build fails if the AAR's classes.jar is broken or its POM dependencies
  * (Jackson etc.) do not resolve. No code here runs in CI — the fixture is never installed on a
- * device; on-device inference is covered by the example app (separate project).
+ * device; on-device inference is covered by the LLM Service app (android-llmservice, separate project).
  */
 public final class ConsumerSmoke {
 

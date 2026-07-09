@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+<resources>
+    <string name="intro_pick_model">选择一个 GGUF 模型文件，完全在您的设备上进行私密聊天。指令/对话模型效果最佳。</string>
+    <string name="action_choose_model">选择模型</string>
+    <string name="status_loading_model">正在加载模型…</string>
+    <string name="hint_message">消息…</string>
+    <string name="action_send">发送</string>
+    <string name="banner_model_not_loaded">未加载模型。请选择一个模型以继续此对话。</string>
+    <string name="error_load_model">无法加载模型：%1$s</string>
+    <string name="error_generation">生成错误：%1$s</string>
+    <string name="system_prompt">你是一个有用且简洁的助手，完全在设备上运行。请用用户的语言回答。</string>
+    <string name="cd_save">保存对话</string>
+    <string name="cd_load">加载对话</string>
+    <string name="cd_language">选择语言</string>
+    <string name="toast_session_saved">对话已保存</string>
+    <string name="toast_session_loaded">对话已加载</string>
+    <string name="toast_session_none">没有已保存的对话</string>
+</resources>

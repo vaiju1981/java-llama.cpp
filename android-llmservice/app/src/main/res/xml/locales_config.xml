@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+<!-- Locales the app ships translations for. Kept in sync with the values-*/ dirs and the
+     APP_LANGUAGES list in Languages.kt. Used by Android 13+ per-app language settings and by
+     AppCompat's autoStoreLocales. -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="de" />
+    <locale android:name="es" />
+    <locale android:name="fr" />
+    <locale android:name="it" />
+    <locale android:name="pt" />
+    <locale android:name="ru" />
+    <locale android:name="tr" />
+    <locale android:name="ar" />
+    <locale android:name="hi" />
+    <locale android:name="zh-CN" />
+    <locale android:name="ja" />
+    <locale android:name="ko" />
+</locale-config>
