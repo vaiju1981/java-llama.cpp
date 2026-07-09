@@ -198,6 +198,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: maven-central
     steps:
+      - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
         with:
           java-version: '21'
@@ -210,6 +211,7 @@ jobs:
         env:
           MAVEN_GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          MAVEN_GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
         run: |
           set -euo pipefail   # NOTE: deliberately NO `set -x` — it would echo the passphrase.
 
@@ -219,14 +221,13 @@ jobs:
           fi
           if [ -n "${MAVEN_GPG_PASSPHRASE:-}" ]; then echo "::add-mask::${MAVEN_GPG_PASSPHRASE}"; fi
 
-          WORK="$(mktemp -d)"
-          echo 'cm9vdFByb2plY3QubmFtZSA9ICJzaWduaW5nLXNlbGZ0ZXN0Igo=' | base64 -d > "$WORK/settings.gradle.kts"
-          echo 'cGx1Z2lucyB7CiAgICBiYXNlCiAgICBzaWduaW5nCn0KLy8gTWlycm9ycyBsbGFtYS1hbmRyb2lkL2J1aWxkLmdyYWRsZS5rdHM6IHNhbWUgZW52IHZhciBuYW1lcywgc2FtZQovLyB1c2VJbk1lbW9yeVBncEtleXMoa2V5LCBwYXNzcGhyYXNlKSBjYWxsLCBzbyB0aGlzIHJlcHJvZHVjZXMgdGhlIGV4YWN0Ci8vIEdyYWRsZS9Cb3VuY3lDYXN0bGUgc2lnbmluZyBwYXRoIHRoZSBBQVIgcHVibGlzaCB1c2VzLgp2YWwgc2lnbmluZ0tleSA9IFN5c3RlbS5nZXRlbnYoIk1BVkVOX0dQR19QUklWQVRFX0tFWSIpCnZhbCBzaWduaW5nUGFzc3BocmFzZSA9IFN5c3RlbS5nZXRlbnYoIk1BVkVOX0dQR19QQVNTUEhSQVNFIikKcmVxdWlyZSghc2lnbmluZ0tleS5pc051bGxPckJsYW5rKCkpIHsgIk1BVkVOX0dQR19QUklWQVRFX0tFWSBpcyBlbXB0eSIgfQoKdmFsIG1ha2VBcnRpZmFjdCA9IHRhc2tzLnJlZ2lzdGVyPFppcD4oIm1ha2VBcnRpZmFjdCIpIHsKICAgIGFyY2hpdmVCYXNlTmFtZS5zZXQoInNpZ25pbmctc2VsZnRlc3QiKQogICAgZGVzdGluYXRpb25EaXJlY3Rvcnkuc2V0KGxheW91dC5idWlsZERpcmVjdG9yeSkKICAgIGZyb20obGF5b3V0LnByb2plY3REaXJlY3RvcnkuZmlsZSgic2V0dGluZ3MuZ3JhZGxlLmt0cyIpKQp9CnNpZ25pbmcgewogICAgdXNlSW5NZW1vcnlQZ3BLZXlzKHNpZ25pbmdLZXksIHNpZ25pbmdQYXNzcGhyYXNlID86ICIiKQogICAgc2lnbihtYWtlQXJ0aWZhY3QuZ2V0KCkpCn0K' | base64 -d > "$WORK/build.gradle.kts"
-
+          # The throwaway signing project is committed (readable, reviewable) at
+          # .github/signing-selftest/ — it mirrors llama-android/build.gradle.kts.
+          PROJ=".github/signing-selftest"
           echo "== Sign a throwaway artifact through Gradle's useInMemoryPgpKeys (BouncyCastle) =="
-          gradle --no-daemon -p "$WORK" signMakeArtifact --stacktrace
+          gradle --no-daemon -p "$PROJ" signMakeArtifact --stacktrace
 
-          ASC="$WORK/build/signing-selftest.zip.asc"
+          ASC="$PROJ/build/signing-selftest.zip.asc"
           if [ -f "$ASC" ]; then
             echo "  Detached signature produced: $(wc -c < "$ASC") armored bytes"
             echo "RESULT: OK — Gradle's useInMemoryPgpKeys accepted the armored key + passphrase and produced a signature. The llama-android AAR publish will be able to sign with this key/passphrase."
@@ -234,7 +235,6 @@ jobs:
             echo "::error::Gradle signing produced no .asc — useInMemoryPgpKeys could not build a usable signatory from MAVEN_GPG_PRIVATE_KEY / MAVEN_GPG_PASSPHRASE (the AAR-publish failure mode)."
             exit 1
           fi
-          rm -rf "$WORK"
 
   # ---------------------------------------------------------------------------
   # Download + cache the GGUF test models ONCE, upfront, for the whole pipeline.
@@ -2971,6 +2971,7 @@ jobs:
           CENTRAL_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
           MAVEN_GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          MAVEN_GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
       # Runs even when the deploy step failed: a Central publish-poll timeout reds the
       # job *after* the bundle was uploaded (and typically published server-side), while
       # the signed jars + .asc files already exist in target/ (signing happens at
@@ -3168,6 +3169,7 @@ jobs:
           CENTRAL_PASSWORD: ${{ secrets.CENTRAL_TOKEN }}
           MAVEN_GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
           MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          MAVEN_GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
       # Runs even when the deploy step failed: a Central publish-poll timeout reds the
       # job *after* the bundle was uploaded (and typically published server-side), while
       # the signed jars + .asc files already exist in target/ (signing happens at

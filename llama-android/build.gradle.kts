@@ -295,9 +295,19 @@ publishing {
 // Sign only when CI provides the key (same GPG key the Maven release uses).
 val signingKey = System.getenv("MAVEN_GPG_PRIVATE_KEY")
 val signingPassphrase = System.getenv("MAVEN_GPG_PASSPHRASE")
+// The signing (sub)key id (e.g. 07D2D767). When set, Gradle selects that key
+// instead of the primary. This key's signing capability lives on a 4096-bit
+// subkey; gpg (maven-gpg-plugin) auto-selects it, but the 2-arg
+// useInMemoryPgpKeys picks the primary — whose secret this BouncyCastle can't
+// unlock, failing with a null PGPPrivateKey. Selecting the subkey by id fixes it.
+val signingKeyId = System.getenv("MAVEN_GPG_KEY_ID")
 if (signingKey != null) {
     signing {
-        useInMemoryPgpKeys(signingKey, signingPassphrase ?: "")
+        if (!signingKeyId.isNullOrBlank()) {
+            useInMemoryPgpKeys(signingKeyId, signingKey, signingPassphrase ?: "")
+        } else {
+            useInMemoryPgpKeys(signingKey, signingPassphrase ?: "")
+        }
         sign(publishing.publications)
     }
 }
