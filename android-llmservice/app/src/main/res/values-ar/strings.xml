@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+<resources>
+    <string name="intro_pick_model">اختر ملف نموذج GGUF للدردشة بخصوصية، بالكامل على جهازك. تعمل نماذج instruct/chat بشكل أفضل.</string>
+    <string name="action_choose_model">اختيار نموذج</string>
+    <string name="status_loading_model">جارٍ تحميل النموذج…</string>
+    <string name="hint_message">رسالة…</string>
+    <string name="action_send">إرسال</string>
+    <string name="banner_model_not_loaded">لم يتم تحميل أي نموذج. اختر نموذجًا لمتابعة هذه المحادثة.</string>
+    <string name="error_load_model">تعذّر تحميل النموذج: %1$s</string>
+    <string name="error_generation">خطأ في التوليد: %1$s</string>
+    <string name="system_prompt">أنت مساعد مفيد وموجز يعمل بالكامل على الجهاز. أجب بلغة المستخدم.</string>
+    <string name="cd_save">حفظ المحادثة</string>
+    <string name="cd_load">تحميل المحادثة</string>
+    <string name="cd_language">اختيار اللغة</string>
+    <string name="toast_session_saved">تم حفظ المحادثة</string>
+    <string name="toast_session_loaded">تم تحميل المحادثة</string>
+    <string name="toast_session_none">لا توجد محادثة محفوظة</string>
+</resources>

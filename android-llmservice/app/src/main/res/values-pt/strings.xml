@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+<resources>
+    <string name="intro_pick_model">Escolha um arquivo de modelo GGUF para conversar de forma privada, totalmente no seu dispositivo. Um modelo instruct/chat funciona melhor.</string>
+    <string name="action_choose_model">Escolher modelo</string>
+    <string name="status_loading_model">Carregando modelo…</string>
+    <string name="hint_message">Mensagem…</string>
+    <string name="action_send">Enviar</string>
+    <string name="banner_model_not_loaded">Nenhum modelo carregado. Escolha um modelo para continuar esta conversa.</string>
+    <string name="error_load_model">Não foi possível carregar o modelo: %1$s</string>
+    <string name="error_generation">Erro de geração: %1$s</string>
+    <string name="system_prompt">Você é um assistente útil e conciso que roda totalmente no dispositivo. Responda no idioma do usuário.</string>
+    <string name="cd_save">Salvar conversa</string>
+    <string name="cd_load">Carregar conversa</string>
+    <string name="cd_language">Escolher idioma</string>
+    <string name="toast_session_saved">Conversa salva</string>
+    <string name="toast_session_loaded">Conversa carregada</string>
+    <string name="toast_session_none">Nenhuma conversa salva</string>
+</resources>

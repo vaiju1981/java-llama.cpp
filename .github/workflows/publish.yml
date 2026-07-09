@@ -1104,6 +1104,119 @@ jobs:
           if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------
+  # The shippable Android app "LLM Service" (android-llmservice): a KISS, fully-offline
+  # on-device chat app consuming the llama-android AAR + llama-kotlin facade (Compose UI,
+  # SAF model picker, 13-language flag picker, local save/load). This job proves the whole
+  # "real app" story end to end: it builds a Play-shaped release bundle (signed release AAB
+  # — with a real upload key when the ANDROID_UPLOAD_KEYSTORE_BASE64 secret is set, else
+  # debug-signed so forks/PRs stay green) and runs the app's Compose UI test on the same KVM
+  # x86_64 emulator as test-android-emulator, driving the actual UI (type a prompt, tap Send)
+  # against real on-device inference.
+  # NOT yet a publish gate (unlike test-android-emulator): it runs on every push/PR so it is
+  # validated, but a version-pin hiccup in the Compose/AGP toolchain must not block a Maven
+  # Central release of the library. Promote it into the publish-snapshot / publish-release
+  # needs graphs once it has run flake-free (same policy that made test-android-emulator a
+  # gate in PR #298).
+  # ---------------------------------------------------------------------------
+
+  build-android-llmservice:
+    name: Build + emulator-test the LLM Service Android app
+    needs: [crosscompile-android-aarch64, crosscompile-android-x86_64, verify-model-cache]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.3"
+      - name: Enable KVM group permissions (GitHub-hosted runner)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Build core jar + install llama-kotlin facade to mavenLocal
+        # install (not package) so the app's Gradle build resolves llama-kotlin +
+        # the core POM from mavenLocal. llama-kotlin's core dep is provided-scope, so the
+        # desktop JAR is never pulled into the APK — the AAR supplies net.ladenthin.llama.*.
+        run: >
+          mvn -B --no-transfer-progress -pl llama,llama-kotlin -am -DskipTests -Denforcer.skip=true
+          -Dspotless.check.skip=true -Dspotbugs.skip=true
+          -Dmaven.javadoc.skip=true -Dmaven.source.skip=true -Dgpg.skip=true install
+      - name: Download Android CPU natives (arm64)
+        uses: actions/download-artifact@v8
+        with:
+          name: Linux-Android-aarch64-libraries
+          path: stage/cpu/
+      - name: Download Android CPU natives (x86_64)
+        uses: actions/download-artifact@v8
+        with:
+          name: Linux-Android-x86_64-libraries
+          path: stage/cpu-x86_64/
+      - name: Stage natives + publish the CPU AAR to mavenLocal
+        run: |
+          mkdir -p llama-android/natives/cpu/arm64-v8a llama-android/natives/cpu/x86_64
+          cp stage/cpu/Linux-Android/aarch64/libjllama.so llama-android/natives/cpu/arm64-v8a/
+          cp stage/cpu-x86_64/Linux-Android/x86_64/libjllama.so llama-android/natives/cpu/x86_64/
+          gradle -p llama-android publishLlamaAndroidPublicationToMavenLocal
+      - name: Decode upload keystore (if configured)
+        # Optional Play upload key. Set the ANDROID_UPLOAD_KEYSTORE_BASE64 secret
+        # (base64 of a PKCS12/JKS upload keystore) plus the three password/alias secrets
+        # below to sign the release AAB with a real upload key. Without it the release
+        # build falls back to debug signing (app/build.gradle.kts) so this step is inert
+        # on forks/PRs where secrets are withheld.
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "${KEYSTORE_B64}" ]; then
+            echo "${KEYSTORE_B64}" | base64 -d > "${RUNNER_TEMP}/upload-keystore.jks"
+            echo "JLLAMA_UPLOAD_STORE_FILE=${RUNNER_TEMP}/upload-keystore.jks" >> "$GITHUB_ENV"
+            echo "Upload keystore decoded -> release AAB will be signed with the upload key."
+          else
+            echo "No ANDROID_UPLOAD_KEYSTORE_BASE64 secret -> release AAB will be debug-signed."
+          fi
+      - name: Build release bundle (AAB) + debug APK
+        env:
+          JLLAMA_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
+          JLLAMA_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
+          JLLAMA_UPLOAD_KEY_PASSWORD: ${{ secrets.ANDROID_UPLOAD_KEY_PASSWORD }}
+        run: |
+          VERSION=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n1)
+          gradle -p android-llmservice bundleRelease assembleDebug "-PjllamaVersion=${VERSION}"
+          test -f android-llmservice/app/build/outputs/bundle/release/app-release.aab
+      - name: Restore shared GGUF model cache (populated by download-models; no re-download)
+        uses: actions/cache/restore@v6
+        with:
+          path: models/
+          key: gguf-models-${{ hashFiles('.github/models.csv') }}
+          enableCrossOsArchive: true
+      - name: Run LLM Service UI test on emulator (connectedDebugAndroidTest)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: default
+          disable-animations: true
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          # One line on purpose: the emulator-runner executes `script:` LINE BY LINE via sh.
+          script: .github/run-android-llmservice-test.sh
+      - name: Upload release bundle (AAB)
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-llmservice-aab
+          path: android-llmservice/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+      - name: Upload instrumentation reports (on failure)
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-llmservice-test-reports
+          path: android-llmservice/app/build/reports/androidTests/
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
   # Native build jobs — produce release artifacts + run C++ unit tests
   # ---------------------------------------------------------------------------
 

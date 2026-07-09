@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+<resources>
+    <!-- app_name is the product label; intentionally NOT translated (same in every locale). -->
+    <string name="app_name">LLM Service</string>
+
+    <string name="intro_pick_model">Pick a GGUF model file to chat privately, fully on your device. An instruct/chat model works best.</string>
+    <string name="action_choose_model">Choose model</string>
+    <string name="status_loading_model">Loading model…</string>
+    <string name="hint_message">Message…</string>
+    <string name="action_send">Send</string>
+    <string name="banner_model_not_loaded">No model loaded. Choose a model to continue this chat.</string>
+    <string name="error_load_model">Could not load model: %1$s</string>
+    <string name="error_generation">Generation error: %1$s</string>
+    <string name="system_prompt">You are a helpful, concise assistant running fully on-device. Answer in the user\'s language.</string>
+    <string name="cd_save">Save chat</string>
+    <string name="cd_load">Load chat</string>
+    <string name="cd_language">Choose language</string>
+    <string name="toast_session_saved">Chat saved</string>
+    <string name="toast_session_loaded">Chat loaded</string>
+    <string name="toast_session_none">No saved chat</string>
+</resources>

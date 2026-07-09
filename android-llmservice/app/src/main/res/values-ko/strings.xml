@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+<resources>
+    <string name="intro_pick_model">GGUF 모델 파일을 선택하여 전적으로 기기에서 비공개로 채팅하세요. instruct/chat 모델이 가장 좋습니다.</string>
+    <string name="action_choose_model">모델 선택</string>
+    <string name="status_loading_model">모델 로드 중…</string>
+    <string name="hint_message">메시지…</string>
+    <string name="action_send">보내기</string>
+    <string name="banner_model_not_loaded">로드된 모델이 없습니다. 이 채팅을 계속하려면 모델을 선택하세요.</string>
+    <string name="error_load_model">모델을 로드할 수 없습니다: %1$s</string>
+    <string name="error_generation">생성 오류: %1$s</string>
+    <string name="system_prompt">당신은 전적으로 기기에서 실행되는 유용하고 간결한 어시스턴트입니다. 사용자의 언어로 답하세요.</string>
+    <string name="cd_save">채팅 저장</string>
+    <string name="cd_load">채팅 불러오기</string>
+    <string name="cd_language">언어 선택</string>
+    <string name="toast_session_saved">채팅이 저장되었습니다</string>
+    <string name="toast_session_loaded">채팅을 불러왔습니다</string>
+    <string name="toast_session_none">저장된 채팅이 없습니다</string>
+</resources>

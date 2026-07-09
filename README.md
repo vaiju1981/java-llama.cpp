@@ -1112,6 +1112,14 @@ already contains those classes, and the JAR would drag ~70 MB of desktop natives
 APK. See [`llama-android/README.md`](llama-android/README.md) and
 [`llama-kotlin/README.md`](llama-kotlin/README.md) for details.
 
+**Runnable example app — "LLM Service".** A minimal, KISS, fully-offline on-device chat app
+— pick a GGUF from the file system, then chat with it, tokens streaming into a Jetpack
+Compose UI, with a 13-language flag picker and private local save/load — lives in
+[`android-llmservice/`](android-llmservice/README.md) (`net.ladenthin.android.llmservice`).
+It builds with plain Gradle/AGP (no Android Studio required), produces a Play-shaped signed
+`.aab`, and is validated in CI by a real on-device emulator UI test. See its README for the
+build, signing/Play, and testing walkthrough.
+
 ### Option 2 (advanced): build from source inside your app
 
 Use this only if you need to patch the native layer or build for an ABI this project does
@@ -1179,7 +1187,7 @@ Open work items live in [`TODO.md`](TODO.md).
 Forward-looking ideas being tracked for this fork:
 
 - **Adopt feature ideas from the Kotlin Llama Stack client.** Candidates (multimodal image input, typed chat messages, async API, batch inference, typed usage/timings) are inventoried with effort estimates in [`docs/feature-investigation-llama-stack-client-kotlin.md`](docs/feature-investigation-llama-stack-client-kotlin.md), derived from [`ogx-ai/llama-stack-client-kotlin`](https://github.com/ogx-ai/llama-stack-client-kotlin).
-- **Ship a directly Android-capable artifact — DONE.** `net.ladenthin:llama-android` / `llama-android-opencl` (AAR, arm64-v8a, minSdk 28, consumer ProGuard rules, 16 KB page-size compliant) plus the optional `net.ladenthin:llama-kotlin` coroutines façade ship from this repo — see [Importing in Android](#importing-in-android). Typed image input for VLMs is covered by `ContentPart.imageBytes(...)` / `imageFile(...)` (see the multimodal section), so downstream Android projects can drop their dependency on [`ogx-ai/llama-stack-client-kotlin`](https://github.com/ogx-ai/llama-stack-client-kotlin) entirely. A dedicated example app remains a follow-up.
+- **Ship a directly Android-capable artifact — DONE.** `net.ladenthin:llama-android` / `llama-android-opencl` (AAR, arm64-v8a, minSdk 28, consumer ProGuard rules, 16 KB page-size compliant) plus the optional `net.ladenthin:llama-kotlin` coroutines façade ship from this repo — see [Importing in Android](#importing-in-android). Typed image input for VLMs is covered by `ContentPart.imageBytes(...)` / `imageFile(...)` (see the multimodal section), so downstream Android projects can drop their dependency on [`ogx-ai/llama-stack-client-kotlin`](https://github.com/ogx-ai/llama-stack-client-kotlin) entirely. A dedicated KISS example app — **"LLM Service"** (SAF model picker + Compose streaming chat, 13-language flag picker, private local save/load, plain Gradle/AGP, signed `.aab`, on-device emulator UI test) — ships in [`android-llmservice/`](android-llmservice/README.md).
 - **Resolve all upstream `kherud/java-llama.cpp` open issues.** All 37 open issues at fork time are catalogued with per-issue verdicts in [`docs/history/49be664_open_issues.md`](docs/history/49be664_open_issues.md); fixes land in this fork as they are completed. Vision inputs (issues [#103](docs/history/49be664_open_issues.md#103--vlm-support--image-input-for-multimodal-models) and [#34](docs/history/49be664_open_issues.md#34--support-multimodal-inputs)) are now wired end to end through blocking, typed, streaming, and OpenAI-compatible request surfaces.
 
 ## Troubleshooting

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+<resources>
+    <string name="intro_pick_model">पूरी तरह अपने डिवाइस पर निजी तौर पर चैट करने के लिए एक GGUF मॉडल फ़ाइल चुनें। instruct/chat मॉडल सबसे अच्छा काम करता है।</string>
+    <string name="action_choose_model">मॉडल चुनें</string>
+    <string name="status_loading_model">मॉडल लोड हो रहा है…</string>
+    <string name="hint_message">संदेश…</string>
+    <string name="action_send">भेजें</string>
+    <string name="banner_model_not_loaded">कोई मॉडल लोड नहीं है। इस चैट को जारी रखने के लिए एक मॉडल चुनें।</string>
+    <string name="error_load_model">मॉडल लोड नहीं हो सका: %1$s</string>
+    <string name="error_generation">जनरेशन त्रुटि: %1$s</string>
+    <string name="system_prompt">आप एक सहायक और संक्षिप्त सहायक हैं जो पूरी तरह डिवाइस पर चलता है। उपयोगकर्ता की भाषा में उत्तर दें।</string>
+    <string name="cd_save">चैट सहेजें</string>
+    <string name="cd_load">चैट लोड करें</string>
+    <string name="cd_language">भाषा चुनें</string>
+    <string name="toast_session_saved">चैट सहेजी गई</string>
+    <string name="toast_session_loaded">चैट लोड हो गई</string>
+    <string name="toast_session_none">कोई सहेजी गई चैट नहीं</string>
+</resources>

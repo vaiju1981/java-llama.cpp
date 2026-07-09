@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+SPDX-FileCopyrightText: 2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>
+
+SPDX-License-Identifier: MIT
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!--
+      No storage permissions: the model is picked with the Storage Access Framework
+      (ACTION_OPEN_DOCUMENT), which grants one-shot read access to the chosen file with
+      no permission prompt and is fully Google-Play compliant (no MANAGE_EXTERNAL_STORAGE).
+      No INTERNET permission either — LLM Service is fully offline; nothing leaves the device.
+    -->
+    <application
+        android:allowBackup="true"
+        android:label="@string/app_name"
+        android:localeConfig="@xml/locales_config"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.LlmService">
+
+        <!--
+          Enables AppCompat's per-app language persistence (AppCompatDelegate
+          .setApplicationLocales): the flag language picker's choice survives restarts and
+          integrates with the Android 13+ system per-app language setting.
+        -->
+        <service
+            android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="autoStoreLocales"
+                android:value="true" />
+        </service>
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
