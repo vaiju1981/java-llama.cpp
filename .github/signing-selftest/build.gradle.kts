@@ -3,15 +3,13 @@
 // SPDX-License-Identifier: MIT
 
 // Throwaway signing project used ONLY by the `verify-signing-key-gradle`
-// preflight job in .github/workflows/publish.yml. It mirrors the signing setup
-// in llama-android/build.gradle.kts (the AAR publish): the SAME env var names
-// and the SAME `useInMemoryPgpKeys(key, passphrase)` call, so running
-// `gradle signMakeArtifact` here reproduces the exact Gradle/BouncyCastle
-// signing path the AAR uses — the path that failed with a null PGPPrivateKey,
-// which the gpg-based `verify-signing-key` job cannot exercise.
-//
-// It signs a tiny throwaway Zip; the job asserts only that the detached .asc
-// was produced. No secret is ever printed (the key/passphrase arrive via env).
+// preflight job in .github/workflows/publish.yml. It signs a tiny throwaway Zip
+// through Gradle's `signing` plugin + `useInMemoryPgpKeys` (BouncyCastle) — the
+// exact path any Gradle-based publish (e.g. an Android AAR) uses to sign release
+// artifacts, and a stricter parser of the armored key than the `gpg` CLI. The
+// job asserts only that the detached .asc was produced; no secret is ever
+// printed (the key/passphrase arrive via env). Kept identical across the sibling
+// repos so a future Gradle publish is pre-validated ("prepared for Gradle").
 plugins {
     base
     signing
@@ -19,10 +17,11 @@ plugins {
 
 val signingKey = System.getenv("MAVEN_GPG_PRIVATE_KEY")
 val signingPassphrase = System.getenv("MAVEN_GPG_PASSPHRASE")
-// Optional: the signing (sub)key id, e.g. 07D2D767. When set, Gradle selects
-// that key instead of the primary — needed here because gpg signs with the
-// 4096-bit signing subkey while the 2-arg useInMemoryPgpKeys picks the primary
-// (whose secret this BouncyCastle can't unlock → the null-PGPPrivateKey NPE).
+// Optional signing (sub)key id (e.g. 07D2D767). When set, Gradle selects that
+// key instead of the primary — required when the key's signing capability lives
+// on a subkey (gpg auto-selects it, but the 2-arg useInMemoryPgpKeys picks the
+// primary, whose secret BouncyCastle may not be able to unlock -> null
+// PGPPrivateKey). Driven by the GPG_KEY_ID env secret.
 val signingKeyId = System.getenv("MAVEN_GPG_KEY_ID")
 require(!signingKey.isNullOrBlank()) { "MAVEN_GPG_PRIVATE_KEY is empty" }
 
