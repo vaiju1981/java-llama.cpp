@@ -37,7 +37,15 @@ android {
         applicationId = "net.ladenthin.android.llmservice"
         minSdk = 28 // AAR floor (bionic weak-symbol gate for posix_spawn); AGP enforces it.
         targetSdk = 35
-        versionCode = 1
+        // Monotonic versionCode so Android accepts IN-PLACE UPGRADES: a new APK must advertise a
+        // strictly higher code than the installed one, or the install is rejected. CI passes the
+        // workflow run number (GITHUB_RUN_NUMBER, strictly increasing per run); `-PappVersionCode`
+        // overrides it; a local hand build falls back to 1. (The other half of clean upgrades is a
+        // STABLE signing key across builds — see the signing block below and README "Signing".)
+        versionCode = (
+            providers.gradleProperty("appVersionCode").orNull
+                ?: System.getenv("GITHUB_RUN_NUMBER")
+        )?.toIntOrNull() ?: 1
         versionName = "1.0"
         // arm64 = real phones; x86_64 = the CI emulator (and x86_64 Android hardware).
         ndk {
