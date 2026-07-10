@@ -341,6 +341,34 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         log("Chat cleared")
     }
 
+    /**
+     * Unloads the current model: cancels any generation, frees the native memory, and deletes the
+     * copied working model file (privacy + storage). The chat history is kept (still saveable /
+     * copyable), and the UI returns to the "no model loaded" state so a new model can be picked.
+     * No-op if no model is loaded.
+     */
+    fun unloadModel() {
+        if (model == null && _uiState.value.modelState == ModelState.NONE) {
+            return
+        }
+        generation?.cancel()
+        generation = null
+        val toClose = model
+        model = null
+        modelPath = null
+        chatTemplate = null
+        _uiState.update {
+            it.copy(modelState = ModelState.NONE, modelName = null, generating = false, error = null)
+        }
+        log("Model unloaded")
+        viewModelScope.launch(Dispatchers.IO) {
+            toClose?.close()
+            // Drop the copied working model (frees storage; nothing lingers). A model loaded by an
+            // absolute path (test / session restore) has no copy here, so this is then a no-op.
+            File(getApplication<Application>().filesDir, MODEL_COPY_NAME).delete()
+        }
+    }
+
     /** Saves the current conversation (and its model path) to private local storage. */
     fun saveSession() {
         val snapshot = _uiState.value

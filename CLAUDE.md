@@ -1670,8 +1670,8 @@ Structure (mirrors the consumer-test's plumbing):
   working data** (the copied model `current-model.gguf` + cache) on every **cold start**
   (`onCreate`) — a privacy guarantee independent of the OS calling `onDestroy`; `MainActivity` also
   wipes best-effort on finish. Only the **opt-in saved session** persists. **`MainActivity.kt`** —
-  Compose UI with a **two-row app bar** (row 1 = horizontally-scrollable model name on its own line,
-  row 2 = all action icons) + SAF picker + flag menu + Save/Load + the ⚙️ Settings sheet
+  Compose UI with a **two-row app bar** (row 1 = horizontally-scrollable model name + a ❌ unload
+  button when a model is loaded, row 2 = all action icons) + SAF picker + flag menu + Save/Load + the ⚙️ Settings sheet
   (sampling knobs + a **Model** section: CPU threads / context length applied via **Reload model**) +
   the 🧾 log strip/viewer + Stop/Copy/Regenerate/Clear chat actions (+ **long-press any bubble to
   copy**) + **prompt shortcut chips** + a **device-readiness card** (free RAM / storage / battery via

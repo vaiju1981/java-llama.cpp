@@ -164,17 +164,24 @@ private fun ChatScreen(viewModel: ChatViewModel) {
             // readable / draggable), and all the action icons sit on a second line below it.
             Surface(shadowElevation = 3.dp) {
                 Column(modifier = Modifier.fillMaxWidth().statusBarsPadding()) {
-                    // Row 1: model name, horizontally scrollable (drag a long name into view; no
-                    // auto-marquee wobble).
-                    Text(
-                        text = state.modelName ?: stringResource(R.string.app_name),
-                        style = MaterialTheme.typography.titleLarge,
-                        maxLines = 1,
-                        softWrap = false,
-                        modifier = Modifier.fillMaxWidth()
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                    )
+                    // Row 1: model name (horizontally scrollable — drag a long name into view; no
+                    // auto-marquee wobble) + a ❌ button to unload the model when one is loaded.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = state.modelName ?: stringResource(R.string.app_name),
+                            style = MaterialTheme.typography.titleLarge,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.weight(1f)
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                        )
+                        if (state.modelState == ChatViewModel.ModelState.READY) {
+                            IconButton(onClick = { viewModel.unloadModel() }) {
+                                Text("❌", modifier = Modifier.testTag("unloadButton"))
+                            }
+                        }
+                    }
                     // Row 2: all action icons on their own line.
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
