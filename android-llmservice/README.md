@@ -120,6 +120,29 @@ app + enroll in Play App Signing). After that, automated Play uploads are possib
 Gradle Play Publisher plugin or fastlane `supply` (needs a Play service-account JSON) — left
 out here to keep the demo KISS.
 
+### In-place upgrades (why "problem parsing the package" / "app not installed" on update)
+
+Android only installs an update **over** an existing app when **both** hold:
+
+1. **Same signing key.** A different signer is rejected (often surfaced as the generic
+   *"There was a problem parsing the package"* / *"App not installed"*) — you must uninstall
+   the old app first. This is exactly what happens with the **debug-signing fallback**: a
+   GitHub-hosted runner has no persistent debug keystore, so **each CI build auto-generates a
+   new random debug key** → consecutive sideloaded APKs have **different** signatures.
+   **Fix:** set the four `ANDROID_UPLOAD_KEYSTORE_BASE64` / `…_STORE_PASSWORD` / `…_KEY_ALIAS`
+   / `…_KEY_PASSWORD` CI secrets (above) so every build is signed with the **same** upload key.
+   Keep that keystore private and backed up — never commit it (the repo is public; a leaked
+   signing key lets anyone ship a fake update over your users' install).
+2. **Higher `versionCode`.** The new APK must advertise a strictly greater `versionCode`.
+   `app/build.gradle.kts` derives it from `GITHUB_RUN_NUMBER` in CI (strictly increasing per
+   run; `-PappVersionCode=<n>` overrides; local hand builds use `1`), so successive CI APKs
+   upgrade cleanly once the signing key is stable.
+
+Until the upload-key secrets are configured, sideloaded CI builds are debug-signed with an
+ephemeral key and will keep requiring an **uninstall before reinstall**. (Also make sure you
+install the `.apk` artifact, not the `.aab` — an `.aab` is not directly installable and also
+fails to parse.)
+
 ## CI: build, sign, and a **real** on-device test
 
 The `build-android-llmservice` job in `.github/workflows/publish.yml`:

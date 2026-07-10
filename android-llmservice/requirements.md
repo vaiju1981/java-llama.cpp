@@ -123,8 +123,9 @@ by hand only (no automated test); `build` = enforced at build/resource-compile t
 | ID | Requirement | Source | Verified by |
 |---|---|---|---|
 | R10.1 | The top-bar **model-name title is horizontally scrollable** (draggable), so a long name can be read in full — single line, no auto-marquee. | `MainActivity` top bar | manual |
-| R10.2 | The release `signingConfig` reads an **upload keystore** from env vars / `-P` props, and **falls back to debug signing** when none is set (so forks/PRs/local builds stay green). | `app/build.gradle.kts` | build |
+| R10.2 | The release `signingConfig` reads an **upload keystore** from env vars / `-P` props, and **falls back to debug signing** when none is set (so forks/PRs/local builds stay green). **Upgrade caveat:** the debug fallback uses an ephemeral per-runner key, so debug-signed CI APKs are **not** mutually upgradeable (a signer change is rejected → uninstall required); stable in-place upgrades need the upload-key secrets. | `app/build.gradle.kts` | build |
 | R10.3 | The build produces a release **`.aab`** (for Play) and an installable release **`.apk`** (sideload); the Maven Central GPG key cannot sign these — Android needs a Java keystore upload key. | `app/build.gradle.kts`; `README.md` | build |
+| R10.4 | `versionCode` is **monotonic** (derived from `GITHUB_RUN_NUMBER` in CI, strictly increasing per run; `-PappVersionCode` overrides; local hand builds use `1`), so successive release APKs advertise a higher version and Android accepts the in-place upgrade (given a stable signer, R10.2). | `app/build.gradle.kts` | build |
 
 ## R11 — Testing hooks & automated coverage
 
