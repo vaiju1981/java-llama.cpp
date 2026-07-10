@@ -60,6 +60,7 @@ by hand only (no automated test); `build` = enforced at build/resource-compile t
 | R3.5 | Loading a new model **closes** the previously loaded one (native memory is not GC-managed). | `ChatViewModel.openModel` | manual |
 | R3.6 | Recommended real model for coherent replies: an instruct GGUF (default **Gemma 3 4B Instruct**); base/completion models still run. | `README.md` | manual |
 | R3.7 | The model-picker screen shows a **device-readiness card**: free/total **RAM** (`ActivityManager.MemoryInfo`), free **storage** (`StatFs`), and **battery** level + charging (`BatteryManager`) — so the user can gauge whether a model fits before loading. Read once at composition. | `DeviceInfo`; `MainActivity.DeviceCard` | manual |
+| R3.8 | **Unload model:** a ❌ button next to the model name (shown only when a model is loaded) frees the native model from memory, deletes the copied working model file, and returns to the "no model loaded" state. The **chat history is kept** (still saveable/copyable); a generation in flight is cancelled first. | `MainActivity` (`unloadButton`); `ChatViewModel.unloadModel` | manual |
 
 ## R4 — Chat & streaming
 
@@ -127,7 +128,7 @@ by hand only (no automated test); `build` = enforced at build/resource-compile t
 
 | ID | Requirement | Source | Verified by |
 |---|---|---|---|
-| R10.1 | The app bar is **two rows**: row 1 is the **model-name title on its own full-width line**, **horizontally scrollable** (draggable) so a long name can be read in full (single line, no auto-marquee); row 2 holds **all action icons** (save / load / clear / settings / language) on their own line below it. | `MainActivity` top bar | manual |
+| R10.1 | The app bar is **two rows**: row 1 is the **model-name title** (own full-width line, **horizontally scrollable** / draggable, single line, no auto-marquee) plus a **❌ unload button** at its right when a model is loaded (R3.8); row 2 holds **all action icons** (save / load / clear / settings / language) on their own line below it. | `MainActivity` top bar | manual |
 | R10.2 | The release `signingConfig` reads an **upload keystore** from env vars / `-P` props, and **falls back to debug signing** when none is set (so forks/PRs/local builds stay green). **Upgrade caveat:** the debug fallback uses an ephemeral per-runner key, so debug-signed CI APKs are **not** mutually upgradeable (a signer change is rejected → uninstall required); stable in-place upgrades need the upload-key secrets. | `app/build.gradle.kts` | build |
 | R10.3 | The build produces a release **`.aab`** (for Play) and an installable release **`.apk`** (sideload); the Maven Central GPG key cannot sign these — Android needs a Java keystore upload key. | `app/build.gradle.kts`; `README.md` | build |
 | R10.4 | `versionCode` is **monotonic** (derived from `GITHUB_RUN_NUMBER` in CI, strictly increasing per run; `-PappVersionCode` overrides; local hand builds use `1`), so successive release APKs advertise a higher version and Android accepts the in-place upgrade (given a stable signer, R10.2). | `app/build.gradle.kts` | build |
