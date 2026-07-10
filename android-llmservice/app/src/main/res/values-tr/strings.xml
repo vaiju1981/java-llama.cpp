@@ -20,4 +20,26 @@ SPDX-License-Identifier: MIT
     <string name="toast_session_saved">Sohbet kaydedildi</string>
     <string name="toast_session_loaded">Sohbet yüklendi</string>
     <string name="toast_session_none">Kayıtlı sohbet yok</string>
+    <!-- Settings sheet (sampling knobs). Top-K/Top-P/Min-P are technical terms kept as-is. -->
+    <string name="cd_settings">Ayarlar</string>
+    <string name="settings_title">Üretim ayarları</string>
+    <string name="settings_temperature">Sıcaklık</string>
+    <string name="settings_top_k">Top-K</string>
+    <string name="settings_top_p">Top-P</string>
+    <string name="settings_min_p">Min-P</string>
+    <string name="settings_repeat_penalty">Tekrar cezası</string>
+    <string name="settings_repeat_last_n">Tekrar aralığı</string>
+    <string name="settings_max_tokens">Maks. jeton</string>
+    <string name="settings_reset">Varsayılanlara sıfırla</string>
+    <string name="action_close">Kapat</string>
+
+    <!-- Log strip + log viewer -->
+    <string name="cd_log">Günlük</string>
+    <string name="log_title">Günlük</string>
+    <string name="log_empty">Henüz günlük çıktısı yok.</string>
+    <string name="log_copy_all">Tümünü kopyala</string>
+    <string name="log_save_as">Farklı kaydet…</string>
+    <string name="log_clear">Temizle</string>
+    <string name="toast_log_copied">Günlük kopyalandı</string>
+    <string name="toast_log_saved">Günlük kaydedildi</string>
 </resources>

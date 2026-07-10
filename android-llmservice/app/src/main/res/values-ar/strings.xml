@@ -20,4 +20,26 @@ SPDX-License-Identifier: MIT
     <string name="toast_session_saved">تم حفظ المحادثة</string>
     <string name="toast_session_loaded">تم تحميل المحادثة</string>
     <string name="toast_session_none">لا توجد محادثة محفوظة</string>
+    <!-- Settings sheet (sampling knobs). Top-K/Top-P/Min-P are technical terms kept as-is. -->
+    <string name="cd_settings">الإعدادات</string>
+    <string name="settings_title">إعدادات التوليد</string>
+    <string name="settings_temperature">درجة الحرارة</string>
+    <string name="settings_top_k">Top-K</string>
+    <string name="settings_top_p">Top-P</string>
+    <string name="settings_min_p">Min-P</string>
+    <string name="settings_repeat_penalty">عقوبة التكرار</string>
+    <string name="settings_repeat_last_n">نطاق التكرار</string>
+    <string name="settings_max_tokens">الحد الأقصى للرموز</string>
+    <string name="settings_reset">إعادة التعيين إلى الافتراضي</string>
+    <string name="action_close">إغلاق</string>
+
+    <!-- Log strip + log viewer -->
+    <string name="cd_log">السجل</string>
+    <string name="log_title">السجل</string>
+    <string name="log_empty">لا يوجد إخراج للسجل بعد.</string>
+    <string name="log_copy_all">نسخ الكل</string>
+    <string name="log_save_as">حفظ باسم…</string>
+    <string name="log_clear">مسح</string>
+    <string name="toast_log_copied">تم نسخ السجل</string>
+    <string name="toast_log_saved">تم حفظ السجل</string>
 </resources>

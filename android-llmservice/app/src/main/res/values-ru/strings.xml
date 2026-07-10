@@ -20,4 +20,26 @@ SPDX-License-Identifier: MIT
     <string name="toast_session_saved">Чат сохранён</string>
     <string name="toast_session_loaded">Чат загружен</string>
     <string name="toast_session_none">Нет сохранённого чата</string>
+    <!-- Settings sheet (sampling knobs). Top-K/Top-P/Min-P are technical terms kept as-is. -->
+    <string name="cd_settings">Настройки</string>
+    <string name="settings_title">Параметры генерации</string>
+    <string name="settings_temperature">Температура</string>
+    <string name="settings_top_k">Top-K</string>
+    <string name="settings_top_p">Top-P</string>
+    <string name="settings_min_p">Min-P</string>
+    <string name="settings_repeat_penalty">Штраф за повтор</string>
+    <string name="settings_repeat_last_n">Диапазон повтора</string>
+    <string name="settings_max_tokens">Макс. токенов</string>
+    <string name="settings_reset">Сбросить настройки</string>
+    <string name="action_close">Закрыть</string>
+
+    <!-- Log strip + log viewer -->
+    <string name="cd_log">Журнал</string>
+    <string name="log_title">Журнал</string>
+    <string name="log_empty">Пока нет записей журнала.</string>
+    <string name="log_copy_all">Копировать всё</string>
+    <string name="log_save_as">Сохранить как…</string>
+    <string name="log_clear">Очистить</string>
+    <string name="toast_log_copied">Журнал скопирован</string>
+    <string name="toast_log_saved">Журнал сохранён</string>
 </resources>

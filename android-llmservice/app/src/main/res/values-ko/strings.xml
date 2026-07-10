@@ -20,4 +20,26 @@ SPDX-License-Identifier: MIT
     <string name="toast_session_saved">채팅이 저장되었습니다</string>
     <string name="toast_session_loaded">채팅을 불러왔습니다</string>
     <string name="toast_session_none">저장된 채팅이 없습니다</string>
+    <!-- Settings sheet (sampling knobs). Top-K/Top-P/Min-P are technical terms kept as-is. -->
+    <string name="cd_settings">설정</string>
+    <string name="settings_title">생성 설정</string>
+    <string name="settings_temperature">온도</string>
+    <string name="settings_top_k">Top-K</string>
+    <string name="settings_top_p">Top-P</string>
+    <string name="settings_min_p">Min-P</string>
+    <string name="settings_repeat_penalty">반복 페널티</string>
+    <string name="settings_repeat_last_n">반복 범위</string>
+    <string name="settings_max_tokens">최대 토큰</string>
+    <string name="settings_reset">기본값으로 재설정</string>
+    <string name="action_close">닫기</string>
+
+    <!-- Log strip + log viewer -->
+    <string name="cd_log">로그</string>
+    <string name="log_title">로그</string>
+    <string name="log_empty">아직 로그 출력이 없습니다.</string>
+    <string name="log_copy_all">모두 복사</string>
+    <string name="log_save_as">다른 이름으로 저장…</string>
+    <string name="log_clear">지우기</string>
+    <string name="toast_log_copied">로그 복사됨</string>
+    <string name="toast_log_saved">로그 저장됨</string>
 </resources>

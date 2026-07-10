@@ -20,4 +20,26 @@ SPDX-License-Identifier: MIT
     <string name="toast_session_saved">チャットを保存しました</string>
     <string name="toast_session_loaded">チャットを読み込みました</string>
     <string name="toast_session_none">保存されたチャットはありません</string>
+    <!-- Settings sheet (sampling knobs). Top-K/Top-P/Min-P are technical terms kept as-is. -->
+    <string name="cd_settings">設定</string>
+    <string name="settings_title">生成設定</string>
+    <string name="settings_temperature">温度</string>
+    <string name="settings_top_k">Top-K</string>
+    <string name="settings_top_p">Top-P</string>
+    <string name="settings_min_p">Min-P</string>
+    <string name="settings_repeat_penalty">繰り返しペナルティ</string>
+    <string name="settings_repeat_last_n">繰り返し範囲</string>
+    <string name="settings_max_tokens">最大トークン数</string>
+    <string name="settings_reset">デフォルトに戻す</string>
+    <string name="action_close">閉じる</string>
+
+    <!-- Log strip + log viewer -->
+    <string name="cd_log">ログ</string>
+    <string name="log_title">ログ</string>
+    <string name="log_empty">まだログ出力がありません。</string>
+    <string name="log_copy_all">すべてコピー</string>
+    <string name="log_save_as">名前を付けて保存…</string>
+    <string name="log_clear">クリア</string>
+    <string name="toast_log_copied">ログをコピーしました</string>
+    <string name="toast_log_saved">ログを保存しました</string>
 </resources>
