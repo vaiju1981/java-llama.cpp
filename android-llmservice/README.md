@@ -50,6 +50,16 @@ on-device path — to a single JSON file in the app's **private internal storage
 (nothing autosaves) and fully local, keeping the "nothing leaves the device" promise.
 Loading restores the messages and re-opens the model if its file is still present.
 
+## Ephemeral by default (privacy)
+
+Nothing lingers between sessions. The copied model (`current-model.gguf`, which can be several
+GB) and the app cache are **wiped on every cold start** (`LlmServiceApp.onCreate`) — a guarantee
+that holds no matter how the app was last closed (swipe-away, low-memory kill, crash) — and are
+also cleared best-effort when the app is finished (`MainActivity.onDestroy`). So after you fully
+close the app you re-pick the model on next launch, and no large data sits around. The **only**
+thing that persists is the session you **explicitly Save** (see below) — everything else is
+transient. (A language switch recreates the activity but does *not* wipe the in-use model.)
+
 ## Why a `content://` URI is copied to a real path
 
 llama.cpp memory-maps the model from a **real filesystem path**, but the file picker
@@ -199,7 +209,8 @@ android-llmservice/
         ├── main/res/values/{strings,themes}.xml + values-*/strings.xml (13 languages)
         ├── main/res/xml/locales_config.xml
         ├── main/kotlin/net/ladenthin/android/llmservice/
-        │   ├── MainActivity.kt      # Compose UI + SAF picker + flag menu + save/load + settings + log + chat actions (stop/copy/regenerate/clear)
+        │   ├── MainActivity.kt      # Compose UI (two-row app bar) + SAF picker + flag menu + save/load + settings + log + chat actions (stop/copy/regenerate/clear)
+        │   ├── LlmServiceApp.kt     # Application: wipes transient working data (model copy + cache) on cold start (privacy)
         │   ├── ChatViewModel.kt     # model load + streaming chat (stop/regenerate) + sampling settings + in-app log + session (the logic)
         │   ├── Languages.kt         # the flag/language list
         │   └── SessionStore.kt      # private local JSON persistence (filesDir)
