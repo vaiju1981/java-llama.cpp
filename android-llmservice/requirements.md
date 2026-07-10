@@ -94,7 +94,7 @@ by hand only (no automated test); `build` = enforced at build/resource-compile t
 
 | ID | Requirement | Source | Verified by |
 |---|---|---|---|
-| R7.1 | An **always-visible one-line log strip** sits at the very bottom (🧾, small font, may wrap to 2 display lines) showing the newest log line, or an empty-state string. | `MainActivity.LogStrip` | manual |
+| R7.1 | An **always-visible one-line log strip** sits at the very bottom (🧾, small font, may wrap to 2 display lines) showing the newest log line, or an empty-state string. Under edge-to-edge (`enableEdgeToEdge`) its content is padded **above the system navigation bar** (`navigationBarsPadding`) so it is never covered by the back/home/recents bar. | `MainActivity.onCreate`; `MainActivity.LogStrip` | manual |
 | R7.2 | Tapping the strip opens a **full-screen log viewer** with **Copy all**, **Save as…** (writes a `.txt` via SAF `CreateDocument`), and **Clear**; ✕ (top-right) closes it. | `MainActivity.LogDialog` | manual |
 | R7.3 | The log is a **rolling buffer capped at 500 lines**, each entry prefixed with a local wall-clock time. | `ChatViewModel.log` (`MAX_LOG_LINES`) | manual |
 | R7.4 | Logged events include: model loading/ready/load-failure, generation start (with the effective sampling knobs), reply-complete (char count), generation-stopped, generation-failure, regenerate, chat-cleared, settings-reset, and session save/load. | `ChatViewModel` (`log(...)` call sites) | manual |

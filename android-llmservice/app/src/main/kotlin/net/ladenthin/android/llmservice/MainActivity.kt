@@ -11,6 +11,7 @@ import android.provider.OpenableColumns
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -84,6 +86,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Edge-to-edge is forced on Android 15 (targetSdk 35); enable it explicitly on every version
+        // so window-inset handling is consistent. The bottom log strip then pads itself above the
+        // system navigation bar (see LogStrip) instead of being drawn behind it.
+        enableEdgeToEdge()
 
         // Test / automation hook: preload a model straight from an absolute path, bypassing the
         // interactive SAF picker (a separate system process the UI test can't drive). The shipping
@@ -233,8 +239,11 @@ private fun LogStrip(viewModel: ChatViewModel, onOpen: () -> Unit) {
     val log by viewModel.log.collectAsStateWithLifecycle()
     val last = log.lastOrNull() ?: stringResource(R.string.log_empty)
     Surface(tonalElevation = 2.dp) {
+        // navigationBarsPadding keeps the strip's content above the system nav bar (back / home /
+        // recents) under edge-to-edge; the Surface background still fills to the screen edge behind it.
         Row(
             modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen).testTag("logStrip")
+                .navigationBarsPadding()
                 .padding(horizontal = 12.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
