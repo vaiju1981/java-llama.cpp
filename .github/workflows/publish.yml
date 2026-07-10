@@ -1084,6 +1084,16 @@ jobs:
           path: models/
           key: gguf-models-${{ hashFiles('.github/models.csv') }}
           enableCrossOsArchive: true
+      - name: Free disk space for the emulator (only the draft model is needed on-device)
+        # Same guard as build-android-llmservice: the AVD userdata partition needs ~7.4 GB; drop the
+        # rest of the restored ~10 GB GGUF cache (this job adb-pushes only the tiny draft model) plus
+        # large preinstalled toolchains so the emulator can create userdata and boot.
+        run: |
+          echo "Disk before cleanup:"; df -h / | tail -1
+          find models -type f ! -name "${DRAFT_MODEL_NAME}" -delete 2>/dev/null || true
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/powershell /opt/hostedtoolcache/CodeQL 2>/dev/null || true
+          docker image prune -af 2>/dev/null || true
+          echo "Disk after cleanup:"; df -h / | tail -1
       - name: Run on-emulator instrumentation (connectedDebugAndroidTest)
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -1199,6 +1209,18 @@ jobs:
           path: models/
           key: gguf-models-${{ hashFiles('.github/models.csv') }}
           enableCrossOsArchive: true
+      - name: Free disk space for the emulator (only the draft model is needed on-device)
+        # The AVD userdata partition needs ~7.4 GB; the release R8 build + the full ~10 GB GGUF
+        # cache restore left too little free, so the emulator FATALs ("Not enough space to create
+        # userdata partition") and the boot poll loops until timeout. This job only adb-pushes the
+        # tiny draft model, so drop the rest of the restored cache plus large preinstalled
+        # toolchains this Android job never uses.
+        run: |
+          echo "Disk before cleanup:"; df -h / | tail -1
+          find models -type f ! -name "${DRAFT_MODEL_NAME}" -delete 2>/dev/null || true
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/powershell /opt/hostedtoolcache/CodeQL 2>/dev/null || true
+          docker image prune -af 2>/dev/null || true
+          echo "Disk after cleanup:"; df -h / | tail -1
       - name: Run LLM Service UI test on emulator (connectedDebugAndroidTest)
         uses: reactivecircus/android-emulator-runner@v2
         with:
