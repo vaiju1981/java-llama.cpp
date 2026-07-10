@@ -28,6 +28,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <mutex>
 #include <regex>
 #include <string>
 #include <vector>
@@ -44,6 +45,9 @@ struct tts_engine {
     const llama_vocab *vocab = nullptr;
     outetts_version tts_version = OUTETTS_V0_2;
     int n_threads = 4;
+    // Serializes engine_synthesize: it drives llama_decode/llama_encode on the shared
+    // ctx_ttc/ctx_cts contexts, so two threads on one engine would race (M5).
+    std::mutex synthesize_mutex;
 };
 
 tts_engine *engine_init(const std::string &ttc_model_path, const std::string &cts_model_path, int n_gpu_layers,
@@ -98,6 +102,8 @@ bool engine_synthesize(tts_engine *engine, const std::string &text, int n_predic
         err = "engine is null";
         return false;
     }
+    // Serialize against concurrent calls on the same engine (M5).
+    std::lock_guard<std::mutex> engine_lock(engine->synthesize_mutex);
     const llama_vocab *vocab = engine->vocab;
 
     common_params_sampling sparams;
@@ -185,12 +191,10 @@ bool engine_synthesize(tts_engine *engine, const std::string &text, int n_predic
     llama_batch_free(batch);
     common_sampler_free(smpl);
 
-    // Keep only audio codec tokens (151672..155772) and rebase to codec ids.
-    codes.erase(std::remove_if(codes.begin(), codes.end(), [](llama_token t) { return t < 151672 || t > 155772; }),
-                codes.end());
-    for (auto &token : codes) {
-        token -= 151672;
-    }
+    // Keep only audio codec tokens and rebase to 0-based codec ids. The window is identical
+    // for OuteTTS V0_2 and V0_3 (verified against upstream tools/tts/tts.cpp, see M3 in
+    // docs/plan-bugs-and-issues.md) — delegated to the pure filter_ouetts_codec_tokens helper.
+    filter_ouetts_codec_tokens(codes);
     if (codes.empty()) {
         err = "no audio codes were generated";
         return false;

@@ -211,8 +211,8 @@ final class OllamaApiSupport {
             }
             JsonNode usage = completion.path("usage");
             if (usage.isObject()) {
-                root.put("prompt_eval_count", usage.path("prompt_tokens").asInt(0));
-                root.put("eval_count", usage.path("completion_tokens").asInt(0));
+                root.put("prompt_eval_count", usage.path("prompt_tokens").asLong(0));
+                root.put("eval_count", usage.path("completion_tokens").asLong(0));
             }
         } catch (IOException e) {
             // Defensive: an unexpected body still yields a valid, empty Ollama "done" response.

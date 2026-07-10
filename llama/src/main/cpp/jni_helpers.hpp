@@ -29,6 +29,7 @@
 #include "nlohmann/json.hpp"
 
 #include <atomic>
+#include <condition_variable>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -73,6 +74,24 @@ struct jllama_context {
     // that removes the map entry must not free a reader still in use — the receiver's copy
     // keeps it alive until next() returns.
     std::map<int, std::shared_ptr<server_response_reader>> readers;
+
+    // In-flight JNI call reference count, for safe teardown. close() waits for this to reach 0
+    // before deleting the context, so a concurrent inference/receive call can never dereference
+    // a freed jllama_context (fixes the close()-vs-inference use-after-free, H2, and the
+    // close()-during-streaming hang, M4). acquire_jllama_context_impl increments it; the
+    // jllama_context_guard (set up by REQUIRE_SERVER_CONTEXT) decrements it on scope exit.
+    std::atomic<int> users{0};
+    // Set by delete() (teardown) before terminating the worker, so any in-flight
+    // reader parked in next()/wait_for_all() observes a stop signal and unwinds
+    // instead of polling forever (which would otherwise keep `users` > 0 and hang
+    // close()). The streaming/blocking should_stop lambdas read this.
+    std::atomic<bool> closing{false};
+    // Serializes the "last user released" notification (paired with cv). The users
+    // decrement in release_jllama_context_impl happens UNDER this lock so delete()'s
+    // cv.wait cannot observe users==0 and free m/cv before the releaser finishes
+    // touching them (otherwise a use-after-free on the condvar/mutex themselves).
+    std::mutex m;
+    std::condition_variable cv;
 };
 
 // Removes the streaming reader entry for `id_task` under the readers_mutex.
@@ -111,6 +130,55 @@ inline void erase_reader(jllama_context *jctx, int id_task) {
     }
     return reinterpret_cast<jllama_context *>(handle); // NOLINT(*-no-int-to-ptr)
 }
+
+// ---------------------------------------------------------------------------
+// acquire / release_jllama_context_impl  +  jllama_context_guard
+//
+// Reference-count in-flight JNI calls against the jllama_context so that
+// close() can wait for all of them to drain before deleting the context. Every
+// entry point that dereferences jctx goes through REQUIRE_SERVER_CONTEXT, which
+// constructs a jllama_context_guard; the guard's destructor calls
+// release_jllama_context_impl (even on early return), decrementing users.
+//
+// close() (delete()) first nulls the Java handle under g_ctx_mutex so no NEW
+// acquire can succeed, terminates+joins the worker, then waits on jctx->cv for
+// users to reach 0 — guaranteeing no call is mid-use when the context is freed
+// (fixes H2 use-after-free and M4 close()-during-streaming hang). g_ctx_mutex is
+// defined in jllama.cpp and declared extern here.
+// ---------------------------------------------------------------------------
+extern std::mutex g_ctx_mutex;
+
+[[nodiscard]] inline jllama_context *acquire_jllama_context_impl(JNIEnv *env, jobject obj, jfieldID field_id) {
+    std::lock_guard<std::mutex> lk(g_ctx_mutex);
+    const jlong handle = env->GetLongField(obj, field_id);
+    if (handle == 0) {
+        return nullptr;
+    }
+    auto *jctx = reinterpret_cast<jllama_context *>(handle); // NOLINT(*-no-int-to-ptr)
+    jctx->users.fetch_add(1, std::memory_order_relaxed);
+    return jctx;
+}
+
+inline void release_jllama_context_impl(jllama_context *jctx) {
+    if (jctx == nullptr) {
+        return;
+    }
+    // Decrement under jctx->m so delete()'s cv.wait (which holds jctx->m while checking the
+    // predicate) cannot observe users==0 and free m/cv before this releaser has finished
+    // notifying — that would be a use-after-free on the condvar/mutex themselves (H2/H3).
+    std::lock_guard<std::mutex> lk(jctx->m);
+    // fetch_sub returns the previous value; when it was 1 we just dropped the last reference.
+    if (jctx->users.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+        jctx->cv.notify_all();
+    }
+}
+
+// RAII guard: releases the jllama_context user reference at scope exit, including
+// on early return. REQUIRE_SERVER_CONTEXT uses this so every entry point is covered.
+struct jllama_context_guard {
+    jllama_context *ptr;
+    ~jllama_context_guard() { release_jllama_context_impl(ptr); }
+};
 
 // ---------------------------------------------------------------------------
 // require_json_field_impl

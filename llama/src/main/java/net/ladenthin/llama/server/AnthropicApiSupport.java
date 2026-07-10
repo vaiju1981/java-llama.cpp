@@ -254,14 +254,14 @@ final class AnthropicApiSupport {
             stopReason = anthropicStopReason(choice.path("finish_reason").asText("stop"));
             JsonNode openAiUsage = completion.path("usage");
             if (openAiUsage.isObject()) {
-                int promptTokens = openAiUsage.path("prompt_tokens").asInt(0);
-                int cachedTokens = openAiUsage
+                long promptTokens = openAiUsage.path("prompt_tokens").asLong(0);
+                long cachedTokens = openAiUsage
                         .path("prompt_tokens_details")
                         .path("cached_tokens")
-                        .asInt(0);
-                usage.put("input_tokens", Math.max(0, promptTokens - cachedTokens));
+                        .asLong(0);
+                usage.put("input_tokens", Math.max(0L, promptTokens - cachedTokens));
                 usage.put("cache_read_input_tokens", cachedTokens);
-                usage.put("output_tokens", openAiUsage.path("completion_tokens").asInt(0));
+                usage.put("output_tokens", openAiUsage.path("completion_tokens").asLong(0));
             }
         } catch (IOException e) {
             stopReason = "end_turn";
@@ -401,7 +401,7 @@ final class AnthropicApiSupport {
     }
 
     /** Final message delta carrying token usage collected from the trailing OpenAI usage chunk. */
-    static String messageDeltaEvent(String stopReason, int inputTokens, int outputTokens, int cachedTokens) {
+    static String messageDeltaEvent(String stopReason, long inputTokens, long outputTokens, long cachedTokens) {
         ObjectNode data = OBJECT_MAPPER.createObjectNode();
         data.put("type", "message_delta");
         ObjectNode delta = data.putObject("delta");

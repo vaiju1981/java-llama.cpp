@@ -324,7 +324,10 @@ public class LlamaModel implements AutoCloseable {
      * @return the text generated up to the point of stop or cancellation
      */
     public String complete(InferenceParameters parameters, CancellationToken token) {
-        token.reset();
+        // NOTE: do not reset the token here. A caller may pre-cancel it (or reuse one that
+        // carries a cancel from a previous aborted run that never reached finally); wiping it
+        // at entry would defeat cooperative cancellation. The finally block below resets the
+        // token after the call returns, so it stays reusable for the next call.
         InferenceParameters streaming = parameters.withStream(true);
         int taskId = requestCompletion(streaming.toString());
         StringBuilder sb = new StringBuilder();
@@ -789,8 +792,8 @@ public class LlamaModel implements AutoCloseable {
     /**
      * Run {@link #complete(InferenceParameters)} constrained to the supplied JSON Schema
      * and deserialize the result into an instance of {@code type}. The schema is applied
-     * via {@link net.ladenthin.llama.parameters.InferenceParameters#withJsonSchema(String)} for the duration of this call;
-     * the supplied {@code parameters} object is mutated.
+     * via {@link net.ladenthin.llama.parameters.InferenceParameters#withJsonSchema(String)} for the duration of this call.
+     * The supplied {@code parameters} object is NOT mutated — a new derivation carrying the schema is used internally.
      * <p>
      * Callers are responsible for producing a JSON Schema that matches the target type;
      * this project intentionally does not pull in a schema-from-POJO generator. Use the

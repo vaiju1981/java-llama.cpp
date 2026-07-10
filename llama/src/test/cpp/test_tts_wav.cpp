@@ -12,6 +12,8 @@
 #include <gtest/gtest.h>
 #include <vector>
 
+#include "tts_engine.h"
+
 using namespace jllama_tts;
 
 namespace {
@@ -50,4 +52,43 @@ TEST(TtsWav, ClampsAndEncodesSamplesLittleEndian) {
     EXPECT_EQ(sample(1), 32767);
     EXPECT_EQ(sample(2), -32767);
     EXPECT_EQ(sample(3), -32768);
+}
+
+// ============================================================
+// filter_ouetts_codec_tokens (M3 — V0_2 / V0_3 codec window)
+// ============================================================
+
+// The OuteTTS codec window is identical for V0_2 and V0_3 (verified against upstream
+// tools/tts/tts.cpp). In-range tokens are kept and rebased to 0-based codec ids.
+TEST(OuteTtsCodecFilter, InRangeTokensAreRebased) {
+    std::vector<int32_t> codes = {151672, 151673, 155772};
+    filter_ouetts_codec_tokens(codes);
+    ASSERT_EQ(codes.size(), 3u);
+    EXPECT_EQ(codes[0], 0);
+    EXPECT_EQ(codes[1], 1);
+    EXPECT_EQ(codes[2], 155772 - 151672);
+}
+
+// Tokens below / above the window (e.g. text, control, or speaker tokens) are dropped.
+TEST(OuteTtsCodecFilter, OutOfRangeTokensAreDropped) {
+    std::vector<int32_t> codes = {151671, 198 /*newline*/, 155773, 151672};
+    filter_ouetts_codec_tokens(codes);
+    ASSERT_EQ(codes.size(), 1u);
+    EXPECT_EQ(codes[0], 0);
+}
+
+TEST(OuteTtsCodecFilter, EmptyInput_StaysEmpty) {
+    std::vector<int32_t> codes;
+    filter_ouetts_codec_tokens(codes);
+    EXPECT_TRUE(codes.empty());
+}
+
+TEST(OuteTtsCodecFilter, V02AndV03ShareWindow) {
+    // Whatever the engine version, the same window applies (M3). Exercise both boundaries.
+    std::vector<int32_t> v02 = {151672, 153000, 155772};
+    std::vector<int32_t> v03 = {151672, 153000, 155772};
+    filter_ouetts_codec_tokens(v02);
+    filter_ouetts_codec_tokens(v03);
+    EXPECT_EQ(v02, v03);
+    EXPECT_EQ(v02, (std::vector<int32_t>{0, 153000 - 151672, 155772 - 151672}));
 }
