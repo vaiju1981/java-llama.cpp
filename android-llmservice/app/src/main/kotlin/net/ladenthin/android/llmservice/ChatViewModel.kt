@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import java.io.File
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -202,9 +203,35 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (text.isEmpty() || active == null || _uiState.value.generating) {
             return
         }
+        startGeneration(active, _uiState.value.messages + Message("user", text), systemPrompt)
+    }
 
-        val history = _uiState.value.messages + Message("user", text)
-        // Append an empty assistant message that grows as tokens arrive.
+    /**
+     * Regenerates the reply to the most recent user turn: drops the trailing assistant reply and
+     * re-runs generation from the conversation up to and including that user turn. No-op if busy,
+     * no model, or there is no user turn yet. Useful after tuning the sampling settings.
+     *
+     * @param systemPrompt the localized system prompt (resolved from resources by the UI)
+     */
+    fun regenerate(systemPrompt: String) {
+        val active = model
+        if (active == null || _uiState.value.generating) {
+            return
+        }
+        val messages = _uiState.value.messages
+        val lastUserIdx = messages.indexOfLast { it.role == "user" }
+        if (lastUserIdx < 0) {
+            return
+        }
+        log("Regenerating reply")
+        startGeneration(active, messages.subList(0, lastUserIdx + 1).toList(), systemPrompt)
+    }
+
+    /**
+     * Shared streaming path for [send] and [regenerate]. [history] must already end with the user
+     * turn to answer; this appends the empty assistant message that grows as tokens arrive.
+     */
+    private fun startGeneration(active: LlamaModel, history: List<Message>, systemPrompt: String) {
         _uiState.update { it.copy(messages = history + Message("assistant", ""), generating = true, error = null) }
 
         val s = _uiState.value.settings
@@ -233,6 +260,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         _uiState.update { state -> state.replaceLastAssistant(reply.toString()) }
                     }
                 log("Reply complete (${reply.length} chars)")
+            } catch (t: CancellationException) {
+                // User pressed Stop: keep the partial reply, no error. Rethrow to honour cancellation.
+                _uiState.update { state -> state.replaceLastAssistant(reply.toString()) }
+                throw t
             } catch (t: Throwable) {
                 log("Generation failed: ${t.message ?: "generation failed"}")
                 _uiState.update { state ->
@@ -243,6 +274,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _uiState.update { it.copy(generating = false) }
             }
         }
+    }
+
+    /** Cancels an in-flight generation, keeping whatever partial reply has streamed so far. */
+    fun stopGeneration() {
+        if (_uiState.value.generating) {
+            log("Generation stopped")
+            generation?.cancel()
+        }
+    }
+
+    /** Clears the current conversation. No-op while generating (the UI disables it then). */
+    fun clearChat() {
+        if (_uiState.value.generating) {
+            return
+        }
+        _uiState.update { it.copy(messages = emptyList(), error = null) }
+        log("Chat cleared")
     }
 
     /** Saves the current conversation (and its model path) to private local storage. */

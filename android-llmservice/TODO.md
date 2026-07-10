@@ -72,7 +72,7 @@ Everything else in the brief is feasible with standard AndroidX + the existing b
 | Battery level / charging | Warn on heavy inference | XS | ⬜ | `BatteryManager` |
 | GPU acceleration available? | Show if Adreno/OpenCL usable | M | ⬜ | only the OpenCL/Adreno AAR path (see §7); detect ICD presence |
 | Recommended model size heuristic | Approachable guidance | S | ⬜ | derive from free RAM + quant table |
-| Offline-mode status badge | Reinforce privacy | XS | ✅/🔧 | app is already offline; surface it |
+| Offline-mode status badge | Reinforce privacy | XS | ✅ | "🔒 Offline · fully on-device" chip on the model-picker screen |
 
 ## 3. Chat screen
 
@@ -81,7 +81,7 @@ Everything else in the brief is feasible with standard AndroidX + the existing b
 | Streaming responses + bubbles | Core chat | S | ✅ | polish to pastel user bubbles / larger AI cards |
 | Top bar: model chip · "Local" · RAM indicator · offline badge · switch | Context + control | M | 🔧 | model name shown (now horizontally draggable so long names are fully readable); RAM/switch/offline todo |
 | Markdown rendering (code, lists, tables, headings) | Readable answers | M | ⬜ | add a Compose Markdown renderer (e.g. compose-markdown) |
-| Copy / regenerate / stop / clear-chat actions | Standard chat UX | M | 🔧 | **stop** = `CancellationToken` (façade wires it; `completeSuspend`/flow cancel) |
+| Copy / regenerate / stop / clear-chat actions | Standard chat UX | M | ✅ | **stop** cancels the streaming coroutine (façade closes the source); **copy**/**regenerate** act on the last reply; **clear** in the top bar with a confirm. Per-message copy (any bubble) is a possible follow-up |
 | Prompt shortcut chips (Summarize / Explain code / Translate / …) | Fast starts | S | ⬜ | localized prompt templates |
 | Attachment button → image input (vision) | Multimodal chat | L | ⬜ | `ContentPart.imageFile(...)` + a **vision GGUF + mmproj**; SAF image picker |
 | Audio input (speech) | Multimodal chat | L | ⬜ | `ContentPart.audioFile(...)` + an audio-capable model + mmproj |
@@ -123,7 +123,7 @@ See decision #1. All rows below assume a new in-app Ktor/NanoHTTPD HTTP layer wr
 | Feature | Purpose | Effort | Status | Notes |
 |---|---|---|---|---|
 | Offline mode toggle | Reinforce/lock offline | XS | 🔧 | app is already networkless; make it explicit |
-| Clear chat history | Control | XS | ⬜ | complements save/load |
+| Clear chat history | Control | XS | ✅ | 🗑 in the top bar (confirm dialog); complements save/load |
 | Encrypt local conversations | Protect the saved session | M | ⬜ | Jetpack `security-crypto` `EncryptedFile` |
 | "No analytics / no tracking" transparency | Trust | XS | ✅ | trivially true today; surface it |
 | Require biometric unlock | Protect the app | M | ⬜ | `androidx.biometric` |

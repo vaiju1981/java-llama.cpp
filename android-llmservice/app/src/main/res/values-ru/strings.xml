@@ -42,4 +42,15 @@ SPDX-License-Identifier: MIT
     <string name="log_clear">Очистить</string>
     <string name="toast_log_copied">Журнал скопирован</string>
     <string name="toast_log_saved">Журнал сохранён</string>
+    <!-- Chat actions -->
+    <string name="action_stop">Стоп</string>
+    <string name="action_copy">Копировать</string>
+    <string name="action_regenerate">Перегенерировать</string>
+    <string name="action_clear">Очистить</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="cd_clear">Очистить чат</string>
+    <string name="toast_copied">Скопировано</string>
+    <string name="clear_confirm_title">Очистить чат?</string>
+    <string name="clear_confirm_message">Это удалит все сообщения в текущем разговоре.</string>
+    <string name="badge_offline">🔒 Офлайн · полностью на устройстве</string>
 </resources>

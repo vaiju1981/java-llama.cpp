@@ -42,4 +42,15 @@ SPDX-License-Identifier: MIT
     <string name="log_clear">清除</string>
     <string name="toast_log_copied">日志已复制</string>
     <string name="toast_log_saved">日志已保存</string>
+    <!-- Chat actions -->
+    <string name="action_stop">停止</string>
+    <string name="action_copy">复制</string>
+    <string name="action_regenerate">重新生成</string>
+    <string name="action_clear">清除</string>
+    <string name="action_cancel">取消</string>
+    <string name="cd_clear">清除对话</string>
+    <string name="toast_copied">已复制</string>
+    <string name="clear_confirm_title">清除对话？</string>
+    <string name="clear_confirm_message">这将删除当前对话中的所有消息。</string>
+    <string name="badge_offline">🔒 离线 · 完全在设备上</string>
 </resources>

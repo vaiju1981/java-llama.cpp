@@ -42,4 +42,15 @@ SPDX-License-Identifier: MIT
     <string name="log_clear">Cancella</string>
     <string name="toast_log_copied">Registro copiato</string>
     <string name="toast_log_saved">Registro salvato</string>
+    <!-- Chat actions -->
+    <string name="action_stop">Ferma</string>
+    <string name="action_copy">Copia</string>
+    <string name="action_regenerate">Rigenera</string>
+    <string name="action_clear">Cancella</string>
+    <string name="action_cancel">Annulla</string>
+    <string name="cd_clear">Cancella chat</string>
+    <string name="toast_copied">Copiato</string>
+    <string name="clear_confirm_title">Cancellare la chat?</string>
+    <string name="clear_confirm_message">Rimuove tutti i messaggi della conversazione attuale.</string>
+    <string name="badge_offline">🔒 Offline · completamente sul dispositivo</string>
 </resources>
