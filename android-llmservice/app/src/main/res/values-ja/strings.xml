@@ -53,4 +53,22 @@ SPDX-License-Identifier: MIT
     <string name="clear_confirm_title">チャットをクリアしますか？</string>
     <string name="clear_confirm_message">現在の会話のすべてのメッセージを削除します。</string>
     <string name="badge_offline">🔒 オフライン · 完全にデバイス上</string>
+    <!-- Device readiness card -->
+    <string name="cd_device">デバイス</string>
+    <string name="device_ram">RAM</string>
+    <string name="device_storage">ストレージ</string>
+    <string name="device_battery">バッテリー</string>
+    <string name="device_free_of">%2$s 中 %1$s 空き</string>
+    <string name="device_charging">充電中</string>
+
+    <!-- Prompt shortcut chips -->
+    <string name="chip_summarize">これを要約</string>
+    <string name="chip_explain">手順ごとに説明</string>
+    <string name="chip_ideas">アイデアをください</string>
+
+    <!-- Model (load-time) settings -->
+    <string name="settings_model_section">モデル（適用するには再読み込み）</string>
+    <string name="settings_threads">CPU スレッド</string>
+    <string name="settings_context">コンテキスト長</string>
+    <string name="settings_reload">モデルを再読み込み</string>
 </resources>

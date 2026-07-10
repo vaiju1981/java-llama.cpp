@@ -53,4 +53,22 @@ SPDX-License-Identifier: MIT
     <string name="clear_confirm_title">Cancellare la chat?</string>
     <string name="clear_confirm_message">Rimuove tutti i messaggi della conversazione attuale.</string>
     <string name="badge_offline">🔒 Offline · completamente sul dispositivo</string>
+    <!-- Device readiness card -->
+    <string name="cd_device">Dispositivo</string>
+    <string name="device_ram">RAM</string>
+    <string name="device_storage">Archiviazione</string>
+    <string name="device_battery">Batteria</string>
+    <string name="device_free_of">%1$s liberi su %2$s</string>
+    <string name="device_charging">in carica</string>
+
+    <!-- Prompt shortcut chips -->
+    <string name="chip_summarize">Riassumi questo</string>
+    <string name="chip_explain">Spiega passo passo</string>
+    <string name="chip_ideas">Dammi delle idee</string>
+
+    <!-- Model (load-time) settings -->
+    <string name="settings_model_section">Modello (ricarica per applicare)</string>
+    <string name="settings_threads">Thread CPU</string>
+    <string name="settings_context">Lunghezza contesto</string>
+    <string name="settings_reload">Ricarica modello</string>
 </resources>

@@ -53,4 +53,22 @@ SPDX-License-Identifier: MIT
     <string name="clear_confirm_title">Effacer la conversation ?</string>
     <string name="clear_confirm_message">Cela supprime tous les messages de la conversation actuelle.</string>
     <string name="badge_offline">🔒 Hors ligne · entièrement sur l\'appareil</string>
+    <!-- Device readiness card -->
+    <string name="cd_device">Appareil</string>
+    <string name="device_ram">RAM</string>
+    <string name="device_storage">Stockage</string>
+    <string name="device_battery">Batterie</string>
+    <string name="device_free_of">%1$s libres sur %2$s</string>
+    <string name="device_charging">en charge</string>
+
+    <!-- Prompt shortcut chips -->
+    <string name="chip_summarize">Résume ceci</string>
+    <string name="chip_explain">Explique étape par étape</string>
+    <string name="chip_ideas">Donne-moi des idées</string>
+
+    <!-- Model (load-time) settings -->
+    <string name="settings_model_section">Modèle (recharger pour appliquer)</string>
+    <string name="settings_threads">Threads CPU</string>
+    <string name="settings_context">Longueur de contexte</string>
+    <string name="settings_reload">Recharger le modèle</string>
 </resources>
