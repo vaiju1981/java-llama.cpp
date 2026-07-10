@@ -18,7 +18,13 @@ SPDX-License-Identifier: MIT
       disabling backup keeps them out of adb backup and cloud auto-backup so nothing leaves the
       device that way. Also resolves the CodeQL "Application backup allowed" alert.
     -->
+    <!--
+      android:name=".LlmServiceApp" wipes transient working data (the copied model + cache) on every
+      cold start so nothing lingers between sessions (privacy). Only the user's explicitly saved
+      session survives.
+    -->
     <application
+        android:name=".LlmServiceApp"
         android:allowBackup="false"
         android:label="@string/app_name"
         android:localeConfig="@xml/locales_config"

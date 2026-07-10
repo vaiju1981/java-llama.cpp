@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -51,7 +52,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -107,6 +107,17 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        // Prompt privacy cleanup when the app is actually closing (not on a config-change / locale
+        // recreation). The cold-start wipe in LlmServiceApp is the reliable guarantee; this just
+        // removes the copied model sooner. isFinishing is false on config changes, so the in-use
+        // model survives a language switch.
+        if (isFinishing) {
+            LlmServiceApp.clearWorkingData(this)
+        }
+    }
+
     companion object {
         /** Absolute on-device GGUF path to preload (test hook). */
         const val EXTRA_MODEL_PATH = "net.ladenthin.android.llmservice.MODEL_PATH"
@@ -146,39 +157,48 @@ private fun ChatScreen(viewModel: ChatViewModel) {
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = {
-                    // Horizontally scrollable so a long model name can be dragged into view in full,
-                    // without an auto-scrolling marquee that would "wobble" constantly.
+            // Two-row app bar: the model name gets its own full-width line (so a long name is
+            // readable / draggable), and all the action icons sit on a second line below it.
+            Surface(shadowElevation = 3.dp) {
+                Column(modifier = Modifier.fillMaxWidth().statusBarsPadding()) {
+                    // Row 1: model name, horizontally scrollable (drag a long name into view; no
+                    // auto-marquee wobble).
                     Text(
                         text = state.modelName ?: stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.titleLarge,
                         maxLines = 1,
                         softWrap = false,
-                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                        modifier = Modifier.fillMaxWidth()
+                            .horizontalScroll(rememberScrollState())
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
                     )
-                },
-                actions = {
-                    IconButton(
-                        onClick = { viewModel.saveSession() },
-                        enabled = state.messages.isNotEmpty(),
+                    // Row 2: all action icons on their own line.
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("💾", modifier = Modifier.testTag("saveButton"))
+                        IconButton(
+                            onClick = { viewModel.saveSession() },
+                            enabled = state.messages.isNotEmpty(),
+                        ) {
+                            Text("💾", modifier = Modifier.testTag("saveButton"))
+                        }
+                        IconButton(onClick = { viewModel.loadSession() }) {
+                            Text("📂", modifier = Modifier.testTag("loadButton"))
+                        }
+                        IconButton(
+                            onClick = { showClearConfirm = true },
+                            enabled = state.messages.isNotEmpty() && !state.generating,
+                        ) {
+                            Text("🗑", modifier = Modifier.testTag("clearButton"))
+                        }
+                        IconButton(onClick = { showSettings = true }) {
+                            Text("⚙️", modifier = Modifier.testTag("settingsButton"))
+                        }
+                        LanguageMenu()
                     }
-                    IconButton(onClick = { viewModel.loadSession() }) {
-                        Text("📂", modifier = Modifier.testTag("loadButton"))
-                    }
-                    IconButton(
-                        onClick = { showClearConfirm = true },
-                        enabled = state.messages.isNotEmpty() && !state.generating,
-                    ) {
-                        Text("🗑", modifier = Modifier.testTag("clearButton"))
-                    }
-                    IconButton(onClick = { showSettings = true }) {
-                        Text("⚙️", modifier = Modifier.testTag("settingsButton"))
-                    }
-                    LanguageMenu()
-                },
-            )
+                }
+            }
         },
         bottomBar = { LogStrip(viewModel = viewModel, onOpen = { showLog = true }) },
         snackbarHost = { SnackbarHost(snackbarHostState) },

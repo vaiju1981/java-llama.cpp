@@ -1666,10 +1666,14 @@ Structure (mirrors the consumer-test's plumbing):
   the partial reply, not an error) and **regenerate** (drop the trailing reply, re-run the last user turn,
   shared `startGeneration` path); keeps a capped rolling in-app **log**. **`SessionStore.kt`** — private
   local save/load: the conversation + model path as JSON in `filesDir/session.json` (`org.json`, no dep
-  added), readable only by the app. **`MainActivity.kt`** — Compose UI + SAF picker + flag menu +
-  Save/Load + the ⚙️ Settings sheet + the 🧾 log strip/viewer + Stop/Copy/Regenerate/Clear chat actions +
-  the offline badge + the horizontally-scrollable model-name title; reads optional `MODEL_PATH` /
-  `CHAT_TEMPLATE` intent extras as a **test hook** (the shipping UI never sets them).
+  added), readable only by the app. **`LlmServiceApp.kt`** — `Application` that **wipes the transient
+  working data** (the copied model `current-model.gguf` + cache) on every **cold start**
+  (`onCreate`) — a privacy guarantee independent of the OS calling `onDestroy`; `MainActivity` also
+  wipes best-effort on finish. Only the **opt-in saved session** persists. **`MainActivity.kt`** —
+  Compose UI with a **two-row app bar** (row 1 = horizontally-scrollable model name on its own line,
+  row 2 = all action icons) + SAF picker + flag menu + Save/Load + the ⚙️ Settings sheet + the 🧾 log
+  strip/viewer + Stop/Copy/Regenerate/Clear chat actions + the offline badge; reads optional
+  `MODEL_PATH` / `CHAT_TEMPLATE` intent extras as a **test hook** (the shipping UI never sets them).
 - **`app/src/androidTest/kotlin/.../ChatFlowInstrumentedTest.kt`** — the real end-to-end test:
   launches the activity with a preloaded model (bypassing the system SAF dialog, which only
   UiAutomator could drive), types a prompt, taps Send, asserts a non-empty streamed reply.

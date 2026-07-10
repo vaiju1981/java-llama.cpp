@@ -28,6 +28,12 @@ import net.ladenthin.llama.parameters.ModelParameters
 import net.ladenthin.llama.value.Pair
 
 /**
+ * File name of the SAF-picked model copied into `filesDir`. Transient working data — wiped on cold
+ * start (and best-effort on close) by [LlmServiceApp] so nothing lingers between sessions.
+ */
+const val MODEL_COPY_NAME: String = "current-model.gguf"
+
+/**
  * Holds the loaded [LlamaModel] and drives streaming chat over the llama-kotlin
  * [generateChatFlow] facade. All native work runs on [Dispatchers.IO]; the UI observes
  * [uiState]. This is the whole "brain" of the app — the Compose layer is pure rendering.
@@ -340,7 +346,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun copyToInternal(uri: Uri): String {
         val resolver = getApplication<Application>().contentResolver
-        val target = File(getApplication<Application>().filesDir, "current-model.gguf")
+        val target = File(getApplication<Application>().filesDir, MODEL_COPY_NAME)
         resolver.openInputStream(uri).use { input ->
             requireNotNull(input) { "content resolver returned no stream for $uri" }
             target.outputStream().use { output -> input.copyTo(output, bufferSize = 1 shl 20) }

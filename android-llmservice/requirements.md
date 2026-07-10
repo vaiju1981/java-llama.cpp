@@ -47,13 +47,14 @@ by hand only (no automated test); `build` = enforced at build/resource-compile t
 | R2.2 | `allowBackup=false` — conversation data is not included in system backups. | `AndroidManifest.xml` | build |
 | R2.3 | All inference runs **on-device** (CPU); no request is ever made to a remote server by the app. | `ChatViewModel` (no network calls) | manual |
 | R2.4 | A **"🔒 Offline · fully on-device"** badge is shown on the model-picker screen. | `MainActivity.OfflineBadge`; `badge_offline` | manual |
+| R2.5 | **Transient working data is ephemeral:** the copied model (`current-model.gguf`) and the cache dir are **wiped on every cold start** (`LlmServiceApp.onCreate`) — guaranteeing a fresh start regardless of how the app was last killed — and best-effort on finish (`MainActivity.onDestroy` when `isFinishing`). The **only** data that persists is the user's **explicitly saved** session (`session.json`, opt-in). | `LlmServiceApp`; `MainActivity.onDestroy` | manual |
 
 ## R3 — Model selection & loading
 
 | ID | Requirement | Source | Verified by |
 |---|---|---|---|
 | R3.1 | The user picks a GGUF via the **Storage Access Framework** (`ACTION_OPEN_DOCUMENT`, `*/*`) — no storage permission. | `MainActivity` picker | manual |
-| R3.2 | A picked `content://` model is **copied into app-private `filesDir`** (`current-model.gguf`) and loaded **by real path** (llama.cpp mmaps a real path, not a `content://` URI). | `ChatViewModel.copyToInternal` | manual |
+| R3.2 | A picked `content://` model is **copied into app-private `filesDir`** (`current-model.gguf` = `MODEL_COPY_NAME`) and loaded **by real path** (llama.cpp mmaps a real path, not a `content://` URI). The copy is **ephemeral** (wiped on cold start / close — see R2.5), so a model is re-picked after the app is fully closed. | `ChatViewModel.copyToInternal` | manual |
 | R3.3 | The model loads **CPU-only** (`setGpuLayers(0)`) with context size **2048**, portable across every device. | `ChatViewModel.openModel` (`CONTEXT_SIZE`) | manual |
 | R3.4 | While loading, a **LOADING** state is shown (spinner + "Loading model…"); on failure a localized load error is shown and state returns to NONE. | `ChatViewModel.ModelState`; `error_load_model` | manual |
 | R3.5 | Loading a new model **closes** the previously loaded one (native memory is not GC-managed). | `ChatViewModel.openModel` | manual |
@@ -122,7 +123,7 @@ by hand only (no automated test); `build` = enforced at build/resource-compile t
 
 | ID | Requirement | Source | Verified by |
 |---|---|---|---|
-| R10.1 | The top-bar **model-name title is horizontally scrollable** (draggable), so a long name can be read in full — single line, no auto-marquee. | `MainActivity` top bar | manual |
+| R10.1 | The app bar is **two rows**: row 1 is the **model-name title on its own full-width line**, **horizontally scrollable** (draggable) so a long name can be read in full (single line, no auto-marquee); row 2 holds **all action icons** (save / load / clear / settings / language) on their own line below it. | `MainActivity` top bar | manual |
 | R10.2 | The release `signingConfig` reads an **upload keystore** from env vars / `-P` props, and **falls back to debug signing** when none is set (so forks/PRs/local builds stay green). **Upgrade caveat:** the debug fallback uses an ephemeral per-runner key, so debug-signed CI APKs are **not** mutually upgradeable (a signer change is rejected → uninstall required); stable in-place upgrades need the upload-key secrets. | `app/build.gradle.kts` | build |
 | R10.3 | The build produces a release **`.aab`** (for Play) and an installable release **`.apk`** (sideload); the Maven Central GPG key cannot sign these — Android needs a Java keystore upload key. | `app/build.gradle.kts`; `README.md` | build |
 | R10.4 | `versionCode` is **monotonic** (derived from `GITHUB_RUN_NUMBER` in CI, strictly increasing per run; `-PappVersionCode` overrides; local hand builds use `1`), so successive release APKs advertise a higher version and Android accepts the in-place upgrade (given a stable signer, R10.2). | `app/build.gradle.kts` | build |
