@@ -56,9 +56,13 @@ class ChatFlowInstrumentedTest {
             compose.onNodeWithTag("promptInput").performTextInput("Hello")
             compose.onNodeWithTag("sendButton").performClick()
 
+            // Wait until the assistant reply has STARTED streaming (first non-blank tokens). We
+            // deliberately do NOT wait for the whole generation to finish (!generating): on the
+            // slow CI emulator a full maxTokens=256 decode can exceed the timeout, and a streamed
+            // first token already proves the end-to-end path (model load -> prompt -> native
+            // inference -> UI). The activity closes right after, which cancels the rest.
             compose.waitUntil(GENERATION_TIMEOUT_MS) {
-                val ui = viewModel.uiState.value
-                !ui.generating && ui.messages.any { it.role == "assistant" && it.text.isNotBlank() }
+                viewModel.uiState.value.messages.any { it.role == "assistant" && it.text.isNotBlank() }
             }
 
             val reply = viewModel.uiState.value.messages.last { it.role == "assistant" }

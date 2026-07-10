@@ -1699,17 +1699,28 @@ cryptosystem). Android needs a Java keystore (PKCS12/JKS + RSA) **upload key**; 
 manages the final app-signing key. CI wires it from the optional `ANDROID_UPLOAD_KEYSTORE_BASE64`
 + password/alias secrets.
 
-**CI wiring** (mirrors `test-android-emulator`): the **`build-android-llmservice`** job
-(`.github/workflows/publish.yml`, `needs: [crosscompile-android-aarch64, crosscompile-android-x86_64,
-verify-model-cache]`) installs the core + `llama-kotlin` to mavenLocal (`llama-kotlin`'s core dep is
-provided-scope, so the desktop JAR is never pulled into the APK), stages the CI-built Android natives,
-publishes the CPU AAR to mavenLocal, builds a **release `.aab`** (signed with the upload key when the
-secret is present, else debug-signed; uploaded as `android-llmservice-aab`), then runs the Compose
-UI test on the KVM x86_64 emulator via **`.github/run-android-llmservice-test.sh`** (adb-pushes the
-cached `AMD-Llama-135m` draft model, `connectedDebugAndroidTest`). It is **NOT yet a publish gate**
-(not in the `publish-snapshot`/`publish-release` `needs:` graphs) so a Compose/AGP version-pin hiccup
-can't block a library release — promote it into those graphs once it has run flake-free (same policy
-that made `test-android-emulator` a gate in PR #298). `android-llmservice/**/build/` is git-ignored.
+**CI wiring** — **two split jobs** in `.github/workflows/publish.yml` (both `needs:` the two Android
+native jobs; the test job additionally `needs: verify-model-cache`), so the installable artifacts are
+**always** produced even when the on-device UI test is flaky/slow:
+- **`build-android-llmservice`** — installs the core + `llama-kotlin` to mavenLocal (`llama-kotlin`'s
+  core dep is provided-scope, so the desktop JAR is never pulled into the APK), stages the CI-built
+  Android natives, publishes the CPU AAR to mavenLocal, builds the **release `.aab`** (signed with the
+  upload key when the `ANDROID_UPLOAD_KEYSTORE_BASE64` secret is present, else debug-signed) + the
+  installable **`.apk`**, and uploads them (`android-llmservice-aab` / `android-llmservice-apk`).
+  **No emulator** — a flaky emulator can never block getting the APK.
+- **`test-android-llmservice`** — a **separate, non-gating** check that repeats the setup, then boots
+  the KVM x86_64 emulator and runs the Compose UI test via **`.github/run-android-llmservice-test.sh`**
+  (adb-pushes the cached `AMD-Llama-135m` draft model, `connectedDebugAndroidTest`). It can go **red on
+  its own** without stopping the build/artifacts; keep it **non-required** in branch protection to keep
+  it optional (visible-but-non-blocking).
+
+Both emulator jobs (`test-android-llmservice` + `test-android-emulator`) prepend a **free-disk step**
+before the emulator (delete every restored model except `DRAFT_MODEL_NAME` + large unused preinstalled
+toolchains) because the AVD userdata partition needs ~7.4 GB and the full ~10 GB GGUF cache restore
+otherwise FATALs the emulator ("Not enough space to create userdata partition"). Neither
+llmservice job is **yet a publish gate** (not in the `publish-snapshot`/`publish-release` `needs:`
+graphs) so a Compose/AGP version-pin hiccup can't block a library release.
+`android-llmservice/**/build/` is git-ignored.
 
 ## Open TODOs
 

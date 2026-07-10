@@ -1085,7 +1085,7 @@ jobs:
           key: gguf-models-${{ hashFiles('.github/models.csv') }}
           enableCrossOsArchive: true
       - name: Free disk space for the emulator (only the draft model is needed on-device)
-        # Same guard as build-android-llmservice: the AVD userdata partition needs ~7.4 GB; drop the
+        # Same guard as test-android-llmservice: the AVD userdata partition needs ~7.4 GB; drop the
         # rest of the restored ~10 GB GGUF cache (this job adb-pushes only the tiny draft model) plus
         # large preinstalled toolchains so the emulator can create userdata and boot.
         run: |
@@ -1114,24 +1114,23 @@ jobs:
           if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------
-  # The shippable Android app "LLM Service" (android-llmservice): a KISS, fully-offline
-  # on-device chat app consuming the llama-android AAR + llama-kotlin facade (Compose UI,
-  # SAF model picker, 13-language flag picker, local save/load). This job proves the whole
-  # "real app" story end to end: it builds a Play-shaped release bundle (signed release AAB
-  # — with a real upload key when the ANDROID_UPLOAD_KEYSTORE_BASE64 secret is set, else
-  # debug-signed so forks/PRs stay green) and runs the app's Compose UI test on the same KVM
-  # x86_64 emulator as test-android-emulator, driving the actual UI (type a prompt, tap Send)
-  # against real on-device inference.
-  # NOT yet a publish gate (unlike test-android-emulator): it runs on every push/PR so it is
-  # validated, but a version-pin hiccup in the Compose/AGP toolchain must not block a Maven
-  # Central release of the library. Promote it into the publish-snapshot / publish-release
-  # needs graphs once it has run flake-free (same policy that made test-android-emulator a
-  # gate in PR #298).
+  # The shippable Android app "LLM Service" (android-llmservice) — a KISS, fully-offline
+  # on-device chat app consuming the llama-android AAR + llama-kotlin facade. Split into TWO jobs
+  # so the installable artifacts are ALWAYS produced even when the on-device UI test is flaky/slow:
+  #   * build-android-llmservice — builds the signed release AAB (real upload key when the
+  #     ANDROID_UPLOAD_KEYSTORE_BASE64 secret is set, else debug-signed) + the installable APK and
+  #     uploads both. No emulator, so a flaky/slow emulator can NEVER block getting the APK.
+  #   * test-android-llmservice — a SEPARATE, non-gating check that boots the KVM x86_64 emulator
+  #     and runs the app's Compose UI test (type a prompt, tap Send) against real on-device
+  #     inference. It can go red on its own without stopping the build/artifacts.
+  # Neither is a publish gate (unlike test-android-emulator): a Compose/AGP toolchain hiccup must
+  # not block a Maven Central release of the library. Keep test-android-llmservice non-required in
+  # branch protection to keep the emulator test optional (visible-but-non-blocking).
   # ---------------------------------------------------------------------------
 
   build-android-llmservice:
-    name: Build + emulator-test the LLM Service Android app
-    needs: [crosscompile-android-aarch64, crosscompile-android-x86_64, verify-model-cache]
+    name: Build the LLM Service Android app (AAB + APK)
+    needs: [crosscompile-android-aarch64, crosscompile-android-x86_64]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -1145,11 +1144,6 @@ jobs:
           # Android plugin, so bump this job to 8.14.4 (also carries two security fixes). The
           # AAR/lib jobs stay on the more-compatible 8.14.3 — they use no Kotlin Gradle plugin.
           gradle-version: "8.14.4"
-      - name: Enable KVM group permissions (GitHub-hosted runner)
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
       - name: Build core jar + install llama-kotlin facade to mavenLocal
         # install (not package) so the app's Gradle build resolves llama-kotlin +
         # the core POM from mavenLocal. llama-kotlin's core dep is provided-scope, so the
@@ -1190,7 +1184,7 @@ jobs:
           else
             echo "No ANDROID_UPLOAD_KEYSTORE_BASE64 secret -> release AAB will be debug-signed."
           fi
-      - name: Build release bundle (AAB) + installable APK (release + debug)
+      - name: Build release bundle (AAB) + installable APK
         env:
           JLLAMA_UPLOAD_STORE_PASSWORD: ${{ secrets.ANDROID_UPLOAD_STORE_PASSWORD }}
           JLLAMA_UPLOAD_KEY_ALIAS: ${{ secrets.ANDROID_UPLOAD_KEY_ALIAS }}
@@ -1199,10 +1193,66 @@ jobs:
           VERSION=$(mvn -q -DforceStdout help:evaluate -Dexpression=project.version | tail -n1)
           # bundleRelease -> app-release.aab (Play upload, NOT directly installable);
           # assembleRelease -> app-release.apk (sideloadable installable, debug-signed unless the
-          # upload-key secrets are set); assembleDebug -> app-debug.apk (for the emulator test).
-          gradle -p android-llmservice bundleRelease assembleRelease assembleDebug "-PjllamaVersion=${VERSION}"
+          # upload-key secrets are set). The debug + androidTest APKs are built by the emulator
+          # test job (test-android-llmservice), not here — this job never touches the emulator.
+          gradle -p android-llmservice bundleRelease assembleRelease "-PjllamaVersion=${VERSION}"
           test -f android-llmservice/app/build/outputs/bundle/release/app-release.aab
           test -f android-llmservice/app/build/outputs/apk/release/app-release.apk
+      - name: Upload release bundle (AAB — for Play upload)
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-llmservice-aab
+          path: android-llmservice/app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
+      - name: Upload installable APK (release — sideload / adb install)
+        # Directly installable APK, downloadable from this run's Artifacts (independent of any
+        # release). Debug-signed unless the ANDROID_UPLOAD_* secrets are set. This is the file to
+        # grab to try the app on a phone; the .aab above is only for the Play Console.
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-llmservice-apk
+          path: android-llmservice/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+
+  test-android-llmservice:
+    name: LLM Service app UI test on emulator (non-gating)
+    needs: [crosscompile-android-aarch64, crosscompile-android-x86_64, verify-model-cache]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.14.4"
+      - name: Enable KVM group permissions (GitHub-hosted runner)
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Build core jar + install llama-kotlin facade to mavenLocal
+        run: >
+          mvn -B --no-transfer-progress -pl llama,llama-kotlin -am -DskipTests -Denforcer.skip=true
+          -Dspotless.check.skip=true -Dspotbugs.skip=true
+          -Dmaven.javadoc.skip=true -Dmaven.source.skip=true -Dgpg.skip=true install
+      - name: Download Android CPU natives (arm64)
+        uses: actions/download-artifact@v8
+        with:
+          name: Linux-Android-aarch64-libraries
+          path: stage/cpu/
+      - name: Download Android CPU natives (x86_64)
+        uses: actions/download-artifact@v8
+        with:
+          name: Linux-Android-x86_64-libraries
+          path: stage/cpu-x86_64/
+      - name: Stage natives + publish the CPU AAR to mavenLocal
+        run: |
+          mkdir -p llama-android/natives/cpu/arm64-v8a llama-android/natives/cpu/x86_64
+          cp stage/cpu/Linux-Android/aarch64/libjllama.so llama-android/natives/cpu/arm64-v8a/
+          cp stage/cpu-x86_64/Linux-Android/x86_64/libjllama.so llama-android/natives/cpu/x86_64/
+          gradle -p llama-android publishLlamaAndroidPublicationToMavenLocal
       - name: Restore shared GGUF model cache (populated by download-models; no re-download)
         uses: actions/cache/restore@v6
         with:
@@ -1210,11 +1260,10 @@ jobs:
           key: gguf-models-${{ hashFiles('.github/models.csv') }}
           enableCrossOsArchive: true
       - name: Free disk space for the emulator (only the draft model is needed on-device)
-        # The AVD userdata partition needs ~7.4 GB; the release R8 build + the full ~10 GB GGUF
-        # cache restore left too little free, so the emulator FATALs ("Not enough space to create
-        # userdata partition") and the boot poll loops until timeout. This job only adb-pushes the
-        # tiny draft model, so drop the rest of the restored cache plus large preinstalled
-        # toolchains this Android job never uses.
+        # The AVD userdata partition needs ~7.4 GB; the full ~10 GB GGUF cache restore leaves too
+        # little free, so the emulator FATALs ("Not enough space to create userdata partition") and
+        # the boot poll loops until timeout. This job only adb-pushes the tiny draft model, so drop
+        # the rest of the restored cache plus large preinstalled toolchains it never uses.
         run: |
           echo "Disk before cleanup:"; df -h / | tail -1
           find models -type f ! -name "${DRAFT_MODEL_NAME}" -delete 2>/dev/null || true
@@ -1231,21 +1280,6 @@ jobs:
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           # One line on purpose: the emulator-runner executes `script:` LINE BY LINE via sh.
           script: .github/run-android-llmservice-test.sh
-      - name: Upload release bundle (AAB — for Play upload)
-        uses: actions/upload-artifact@v7
-        with:
-          name: android-llmservice-aab
-          path: android-llmservice/app/build/outputs/bundle/release/*.aab
-          if-no-files-found: error
-      - name: Upload installable APK (release — sideload / adb install)
-        # Directly installable APK, downloadable from this run's Artifacts (independent of any
-        # release). Debug-signed unless the ANDROID_UPLOAD_* secrets are set. This is the file to
-        # grab to try the app on a phone; the .aab above is only for the Play Console.
-        uses: actions/upload-artifact@v7
-        with:
-          name: android-llmservice-apk
-          path: android-llmservice/app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
       - name: Upload instrumentation reports (on failure)
         if: failure()
         uses: actions/upload-artifact@v7
