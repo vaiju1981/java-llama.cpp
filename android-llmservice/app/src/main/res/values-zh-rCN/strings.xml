@@ -71,4 +71,8 @@ SPDX-License-Identifier: MIT
     <string name="settings_threads">CPU 线程</string>
     <string name="settings_context">上下文长度</string>
     <string name="settings_reload">重新加载模型</string>
+    <!-- Quit + clean up (from the main screen) -->
+    <string name="action_quit">退出</string>
+    <string name="quit_confirm_title">退出并清理？</string>
+    <string name="quit_confirm_message">关闭应用并删除工作数据（已复制的模型 + 缓存）。已保存的对话会保留。</string>
 </resources>

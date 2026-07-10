@@ -4,6 +4,7 @@
 
 package net.ladenthin.android.llmservice
 
+import android.app.Activity
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
@@ -157,6 +158,7 @@ private fun ChatScreen(viewModel: ChatViewModel) {
     var showSettings by remember { mutableStateOf(false) }
     var showLog by remember { mutableStateOf(false) }
     var showClearConfirm by remember { mutableStateOf(false) }
+    var showQuitConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -220,7 +222,11 @@ private fun ChatScreen(viewModel: ChatViewModel) {
                     LoadingView()
 
                 !hasConversation ->
-                    ChooseModelView(error = errorText(state.error), onChoose = onChoose)
+                    ChooseModelView(
+                        error = errorText(state.error),
+                        onChoose = onChoose,
+                        onRequestQuit = { showQuitConfirm = true },
+                    )
 
                 else ->
                     Conversation(
@@ -247,6 +253,26 @@ private fun ChatScreen(viewModel: ChatViewModel) {
             },
             dismissButton = {
                 TextButton(onClick = { showClearConfirm = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
+    if (showQuitConfirm) {
+        AlertDialog(
+            onDismissRequest = { showQuitConfirm = false },
+            title = { Text(stringResource(R.string.quit_confirm_title)) },
+            text = { Text(stringResource(R.string.quit_confirm_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showQuitConfirm = false
+                    // Wipe the transient working data (model copy + cache) — the saved session
+                    // (session.json) is deliberately NOT touched — then close the app and drop it
+                    // from Recents.
+                    LlmServiceApp.clearWorkingData(context)
+                    (context as? Activity)?.finishAndRemoveTask()
+                }) { Text(stringResource(R.string.action_quit)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showQuitConfirm = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -476,23 +502,32 @@ private fun LoadingView() {
 }
 
 @Composable
-private fun ChooseModelView(error: String?, onChoose: () -> Unit) {
-    Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        OfflineBadge(modifier = Modifier.padding(bottom = 16.dp))
-        Text(text = stringResource(R.string.intro_pick_model), textAlign = TextAlign.Center)
-        Button(
-            onClick = onChoose,
-            modifier = Modifier.padding(top = 24.dp).testTag("chooseModelButton"),
+private fun ChooseModelView(error: String?, onChoose: () -> Unit, onRequestQuit: () -> Unit) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier.fillMaxSize().padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
         ) {
-            Text(stringResource(R.string.action_choose_model))
+            OfflineBadge(modifier = Modifier.padding(bottom = 16.dp))
+            Text(text = stringResource(R.string.intro_pick_model), textAlign = TextAlign.Center)
+            Button(
+                onClick = onChoose,
+                modifier = Modifier.padding(top = 24.dp).testTag("chooseModelButton"),
+            ) {
+                Text(stringResource(R.string.action_choose_model))
+            }
+            DeviceCard(modifier = Modifier.padding(top = 24.dp))
+            if (error != null) {
+                Text(text = error, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 16.dp))
+            }
         }
-        DeviceCard(modifier = Modifier.padding(top = 24.dp))
-        if (error != null) {
-            Text(text = error, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 16.dp))
+        // Quit + clean up (keeps saved chats) — a "close app" ❌ at the top-right of the main screen.
+        IconButton(
+            onClick = onRequestQuit,
+            modifier = Modifier.align(Alignment.TopEnd).testTag("quitButton"),
+        ) {
+            Text("❌")
         }
     }
 }

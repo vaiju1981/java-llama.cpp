@@ -71,4 +71,8 @@ SPDX-License-Identifier: MIT
     <string name="settings_threads">CPU iş parçacıkları</string>
     <string name="settings_context">Bağlam uzunluğu</string>
     <string name="settings_reload">Modeli yeniden yükle</string>
+    <!-- Quit + clean up (from the main screen) -->
+    <string name="action_quit">Çık</string>
+    <string name="quit_confirm_title">Çıkılsın ve temizlensin mi?</string>
+    <string name="quit_confirm_message">Uygulamayı kapatır ve çalışma verilerini siler (kopyalanan model + önbellek). Kaydedilen sohbetler korunur.</string>
 </resources>

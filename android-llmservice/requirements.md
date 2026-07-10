@@ -48,6 +48,7 @@ by hand only (no automated test); `build` = enforced at build/resource-compile t
 | R2.3 | All inference runs **on-device** (CPU); no request is ever made to a remote server by the app. | `ChatViewModel` (no network calls) | manual |
 | R2.4 | A **"🔒 Offline · fully on-device"** badge is shown on the model-picker screen. | `MainActivity.OfflineBadge`; `badge_offline` | manual |
 | R2.5 | **Transient working data is ephemeral:** the copied model (`current-model.gguf`) and the cache dir are **wiped on every cold start** (`LlmServiceApp.onCreate`) — guaranteeing a fresh start regardless of how the app was last killed — and best-effort on finish (`MainActivity.onDestroy` when `isFinishing`). The **only** data that persists is the user's **explicitly saved** session (`session.json`, opt-in). | `LlmServiceApp`; `MainActivity.onDestroy` | manual |
+| R2.6 | **Quit & clean up:** a ❌ button on the model-picker (main) screen opens a confirm dialog that, on confirm, **wipes the working data** (model copy + cache, keeping the saved session) and **closes the app** (`finishAndRemoveTask` — removed from Recents). | `MainActivity` (`quitButton`; `LlmServiceApp.clearWorkingData` + `finishAndRemoveTask`) | manual |
 
 ## R3 — Model selection & loading
 

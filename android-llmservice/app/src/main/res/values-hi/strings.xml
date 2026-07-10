@@ -71,4 +71,8 @@ SPDX-License-Identifier: MIT
     <string name="settings_threads">CPU थ्रेड्स</string>
     <string name="settings_context">संदर्भ लंबाई</string>
     <string name="settings_reload">मॉडल पुनः लोड करें</string>
+    <!-- Quit + clean up (from the main screen) -->
+    <string name="action_quit">बंद करें</string>
+    <string name="quit_confirm_title">बंद करें और साफ़ करें?</string>
+    <string name="quit_confirm_message">ऐप बंद करता है और कार्यशील डेटा (कॉपी किया गया मॉडल + कैश) हटाता है। सहेजी गई चैट बनी रहती हैं।</string>
 </resources>

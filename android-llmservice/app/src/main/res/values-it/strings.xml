@@ -71,4 +71,8 @@ SPDX-License-Identifier: MIT
     <string name="settings_threads">Thread CPU</string>
     <string name="settings_context">Lunghezza contesto</string>
     <string name="settings_reload">Ricarica modello</string>
+    <!-- Quit + clean up (from the main screen) -->
+    <string name="action_quit">Esci</string>
+    <string name="quit_confirm_title">Uscire e ripulire?</string>
+    <string name="quit_confirm_message">Chiude l\'app ed elimina i dati di lavoro (il modello copiato + la cache). Le chat salvate vengono mantenute.</string>
 </resources>
