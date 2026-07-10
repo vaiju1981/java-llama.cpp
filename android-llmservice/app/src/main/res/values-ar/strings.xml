@@ -42,4 +42,15 @@ SPDX-License-Identifier: MIT
     <string name="log_clear">مسح</string>
     <string name="toast_log_copied">تم نسخ السجل</string>
     <string name="toast_log_saved">تم حفظ السجل</string>
+    <!-- Chat actions -->
+    <string name="action_stop">إيقاف</string>
+    <string name="action_copy">نسخ</string>
+    <string name="action_regenerate">إعادة توليد</string>
+    <string name="action_clear">مسح</string>
+    <string name="action_cancel">إلغاء</string>
+    <string name="cd_clear">مسح المحادثة</string>
+    <string name="toast_copied">تم النسخ</string>
+    <string name="clear_confirm_title">مسح المحادثة؟</string>
+    <string name="clear_confirm_message">يؤدي هذا إلى إزالة جميع الرسائل في المحادثة الحالية.</string>
+    <string name="badge_offline">🔒 دون اتصال · بالكامل على الجهاز</string>
 </resources>

@@ -42,4 +42,15 @@ SPDX-License-Identifier: MIT
     <string name="log_clear">지우기</string>
     <string name="toast_log_copied">로그 복사됨</string>
     <string name="toast_log_saved">로그 저장됨</string>
+    <!-- Chat actions -->
+    <string name="action_stop">중지</string>
+    <string name="action_copy">복사</string>
+    <string name="action_regenerate">다시 생성</string>
+    <string name="action_clear">지우기</string>
+    <string name="action_cancel">취소</string>
+    <string name="cd_clear">채팅 지우기</string>
+    <string name="toast_copied">복사됨</string>
+    <string name="clear_confirm_title">채팅을 지우시겠어요?</string>
+    <string name="clear_confirm_message">현재 대화의 모든 메시지가 삭제됩니다.</string>
+    <string name="badge_offline">🔒 오프라인 · 완전히 기기에서</string>
 </resources>

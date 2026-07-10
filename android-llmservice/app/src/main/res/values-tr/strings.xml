@@ -42,4 +42,15 @@ SPDX-License-Identifier: MIT
     <string name="log_clear">Temizle</string>
     <string name="toast_log_copied">Günlük kopyalandı</string>
     <string name="toast_log_saved">Günlük kaydedildi</string>
+    <!-- Chat actions -->
+    <string name="action_stop">Durdur</string>
+    <string name="action_copy">Kopyala</string>
+    <string name="action_regenerate">Yeniden oluştur</string>
+    <string name="action_clear">Temizle</string>
+    <string name="action_cancel">İptal</string>
+    <string name="cd_clear">Sohbeti temizle</string>
+    <string name="toast_copied">Kopyalandı</string>
+    <string name="clear_confirm_title">Sohbet temizlensin mi?</string>
+    <string name="clear_confirm_message">Bu, mevcut sohbetteki tüm mesajları kaldırır.</string>
+    <string name="badge_offline">🔒 Çevrimdışı · tamamen cihazda</string>
 </resources>

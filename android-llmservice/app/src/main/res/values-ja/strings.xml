@@ -42,4 +42,15 @@ SPDX-License-Identifier: MIT
     <string name="log_clear">クリア</string>
     <string name="toast_log_copied">ログをコピーしました</string>
     <string name="toast_log_saved">ログを保存しました</string>
+    <!-- Chat actions -->
+    <string name="action_stop">停止</string>
+    <string name="action_copy">コピー</string>
+    <string name="action_regenerate">再生成</string>
+    <string name="action_clear">クリア</string>
+    <string name="action_cancel">キャンセル</string>
+    <string name="cd_clear">チャットをクリア</string>
+    <string name="toast_copied">コピーしました</string>
+    <string name="clear_confirm_title">チャットをクリアしますか？</string>
+    <string name="clear_confirm_message">現在の会話のすべてのメッセージを削除します。</string>
+    <string name="badge_offline">🔒 オフライン · 完全にデバイス上</string>
 </resources>

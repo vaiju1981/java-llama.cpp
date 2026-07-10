@@ -33,6 +33,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -135,6 +136,7 @@ private fun ChatScreen(viewModel: ChatViewModel) {
 
     var showSettings by remember { mutableStateOf(false) }
     var showLog by remember { mutableStateOf(false) }
+    var showClearConfirm by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -159,6 +161,12 @@ private fun ChatScreen(viewModel: ChatViewModel) {
                     IconButton(onClick = { viewModel.loadSession() }) {
                         Text("📂", modifier = Modifier.testTag("loadButton"))
                     }
+                    IconButton(
+                        onClick = { showClearConfirm = true },
+                        enabled = state.messages.isNotEmpty() && !state.generating,
+                    ) {
+                        Text("🗑", modifier = Modifier.testTag("clearButton"))
+                    }
                     IconButton(onClick = { showSettings = true }) {
                         Text("⚙️", modifier = Modifier.testTag("settingsButton"))
                     }
@@ -179,11 +187,33 @@ private fun ChatScreen(viewModel: ChatViewModel) {
                     ChooseModelView(error = errorText(state.error), onChoose = onChoose)
 
                 else ->
-                    Conversation(state = state, onSend = viewModel::send, onChoose = onChoose)
+                    Conversation(
+                        state = state,
+                        onSend = viewModel::send,
+                        onStop = viewModel::stopGeneration,
+                        onRegenerate = viewModel::regenerate,
+                        onChoose = onChoose,
+                    )
             }
         }
     }
 
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text(stringResource(R.string.clear_confirm_title)) },
+            text = { Text(stringResource(R.string.clear_confirm_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.clearChat()
+                    showClearConfirm = false
+                }) { Text(stringResource(R.string.action_clear)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirm = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
     if (showSettings) {
         SettingsDialog(
             settings = state.settings,
@@ -387,6 +417,7 @@ private fun ChooseModelView(error: String?, onChoose: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
+        OfflineBadge(modifier = Modifier.padding(bottom = 16.dp))
         Text(text = stringResource(R.string.intro_pick_model), textAlign = TextAlign.Center)
         Button(
             onClick = onChoose,
@@ -404,9 +435,14 @@ private fun ChooseModelView(error: String?, onChoose: () -> Unit) {
 private fun Conversation(
     state: ChatViewModel.UiState,
     onSend: (String, String) -> Unit,
+    onStop: () -> Unit,
+    onRegenerate: (String) -> Unit,
     onChoose: () -> Unit,
 ) {
     val systemPrompt = stringResource(R.string.system_prompt)
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    val copiedMsg = stringResource(R.string.toast_copied)
     Column(modifier = Modifier.fillMaxSize()) {
         val listState = rememberLazyListState()
         LaunchedEffect(state.messages.size, state.messages.lastOrNull()?.text) {
@@ -420,6 +456,33 @@ private fun Conversation(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             items(state.messages) { message -> MessageBubble(message) }
+        }
+
+        // Copy / Regenerate act on the last assistant reply, shown only when it's a finished,
+        // non-empty reply and we're idle.
+        val lastReply = state.messages.lastOrNull()?.takeIf { it.role == "assistant" && it.text.isNotBlank() }
+        if (lastReply != null && !state.generating && state.modelState == ChatViewModel.ModelState.READY) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(
+                    onClick = {
+                        clipboard.setText(AnnotatedString(lastReply.text))
+                        Toast.makeText(context, copiedMsg, Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.testTag("copyButton"),
+                ) {
+                    Text(stringResource(R.string.action_copy))
+                }
+                TextButton(
+                    onClick = { onRegenerate(systemPrompt) },
+                    modifier = Modifier.testTag("regenerateButton"),
+                ) {
+                    Text(stringResource(R.string.action_regenerate))
+                }
+            }
         }
 
         if (state.modelState != ChatViewModel.ModelState.READY) {
@@ -447,17 +510,43 @@ private fun Conversation(
                 placeholder = { Text(stringResource(R.string.hint_message)) },
                 enabled = ready && !state.generating,
             )
-            Button(
-                onClick = {
-                    onSend(draft, systemPrompt)
-                    draft = ""
-                },
-                enabled = ready && !state.generating && draft.isNotBlank(),
-                modifier = Modifier.padding(start = 8.dp).testTag("sendButton"),
-            ) {
-                Text(stringResource(R.string.action_send))
+            if (state.generating) {
+                // Swap Send for Stop while a reply streams, so a runaway/repetitive reply can be cut off.
+                Button(
+                    onClick = onStop,
+                    modifier = Modifier.padding(start = 8.dp).testTag("stopButton"),
+                ) {
+                    Text(stringResource(R.string.action_stop))
+                }
+            } else {
+                Button(
+                    onClick = {
+                        onSend(draft, systemPrompt)
+                        draft = ""
+                    },
+                    enabled = ready && draft.isNotBlank(),
+                    modifier = Modifier.padding(start = 8.dp).testTag("sendButton"),
+                ) {
+                    Text(stringResource(R.string.action_send))
+                }
             }
         }
+    }
+}
+
+/** Small "fully on-device" chip reinforcing the app's zero-network, nothing-leaves-the-device posture. */
+@Composable
+private fun OfflineBadge(modifier: Modifier = Modifier) {
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        shape = MaterialTheme.shapes.small,
+        modifier = modifier,
+    ) {
+        Text(
+            text = stringResource(R.string.badge_offline),
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+        )
     }
 }
 

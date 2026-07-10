@@ -42,4 +42,15 @@ SPDX-License-Identifier: MIT
     <string name="log_clear">साफ़ करें</string>
     <string name="toast_log_copied">लॉग कॉपी किया गया</string>
     <string name="toast_log_saved">लॉग सहेजा गया</string>
+    <!-- Chat actions -->
+    <string name="action_stop">रोकें</string>
+    <string name="action_copy">कॉपी करें</string>
+    <string name="action_regenerate">फिर से बनाएँ</string>
+    <string name="action_clear">साफ़ करें</string>
+    <string name="action_cancel">रद्द करें</string>
+    <string name="cd_clear">चैट साफ़ करें</string>
+    <string name="toast_copied">कॉपी किया गया</string>
+    <string name="clear_confirm_title">चैट साफ़ करें?</string>
+    <string name="clear_confirm_message">यह वर्तमान बातचीत के सभी संदेश हटा देता है।</string>
+    <string name="badge_offline">🔒 ऑफ़लाइन · पूरी तरह डिवाइस पर</string>
 </resources>

@@ -174,8 +174,8 @@ android-llmservice/
         ├── main/res/values/{strings,themes}.xml + values-*/strings.xml (13 languages)
         ├── main/res/xml/locales_config.xml
         ├── main/kotlin/net/ladenthin/android/llmservice/
-        │   ├── MainActivity.kt      # Compose UI + SAF picker + flag menu + save/load + settings + log viewer
-        │   ├── ChatViewModel.kt     # model load + streaming chat + sampling settings + in-app log + session (the logic)
+        │   ├── MainActivity.kt      # Compose UI + SAF picker + flag menu + save/load + settings + log + chat actions (stop/copy/regenerate/clear)
+        │   ├── ChatViewModel.kt     # model load + streaming chat (stop/regenerate) + sampling settings + in-app log + session (the logic)
         │   ├── Languages.kt         # the flag/language list
         │   └── SessionStore.kt      # private local JSON persistence (filesDir)
         └── androidTest/kotlin/net/ladenthin/android/llmservice/
