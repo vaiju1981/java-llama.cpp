@@ -311,3 +311,13 @@ if (signingKey != null) {
         sign(publishing.publications)
     }
 }
+
+// The two publications (llamaAndroid / llamaAndroidOpencl) share the SAME sourcesJar/javadocJar,
+// so signing produces those shared *.asc files: e.g. the OpenCL publish task reads the CPU
+// publication's Sign output without an inferred dependency, which Gradle 8's task-output
+// validation rejects as an "implicit dependency" (fails: ":publishLlamaAndroidOpencl…" uses the
+// output of ":signLlamaAndroidPublication"). Make every publish task depend on every signing task
+// so the ordering is explicit. No-op when signing is off (tasks.withType<Sign>() is then empty).
+tasks.withType<org.gradle.api.publish.maven.tasks.AbstractPublishToMaven>().configureEach {
+    dependsOn(tasks.withType<org.gradle.plugins.signing.Sign>())
+}
