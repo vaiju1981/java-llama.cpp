@@ -71,4 +71,8 @@ SPDX-License-Identifier: MIT
     <string name="settings_threads">خيوط المعالج</string>
     <string name="settings_context">طول السياق</string>
     <string name="settings_reload">إعادة تحميل النموذج</string>
+    <!-- Quit + clean up (from the main screen) -->
+    <string name="action_quit">خروج</string>
+    <string name="quit_confirm_title">الخروج والتنظيف؟</string>
+    <string name="quit_confirm_message">يغلق التطبيق ويحذف بيانات العمل (النموذج المنسوخ + ذاكرة التخزين المؤقت). تُحفظ المحادثات المخزنة.</string>
 </resources>

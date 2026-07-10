@@ -71,4 +71,8 @@ SPDX-License-Identifier: MIT
     <string name="settings_threads">CPU 스레드</string>
     <string name="settings_context">컨텍스트 길이</string>
     <string name="settings_reload">모델 다시 로드</string>
+    <!-- Quit + clean up (from the main screen) -->
+    <string name="action_quit">종료</string>
+    <string name="quit_confirm_title">종료하고 정리할까요?</string>
+    <string name="quit_confirm_message">앱을 닫고 작업 데이터(복사된 모델 + 캐시)를 삭제합니다. 저장된 채팅은 유지됩니다.</string>
 </resources>
