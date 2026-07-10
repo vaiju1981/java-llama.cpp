@@ -166,6 +166,8 @@ gradle -p android-llmservice connectedDebugAndroidTest -PjllamaVersion="$VERSION
 android-llmservice/
 ├── settings.gradle.kts          # AGP 8.7.3 + Kotlin 2.4.0 + Compose plugin, mavenLocal first
 ├── gradle.properties
+├── requirements.md              # spec of record: every feature the app implements today (no unit tests)
+├── TODO.md                      # roadmap: not-yet-built features
 └── app/
     ├── build.gradle.kts         # minSdk 28, Compose, release signingConfig (upload key/debug fallback)
     ├── proguard-rules.pro       # stub — the AAR ships the JNI keep rules
