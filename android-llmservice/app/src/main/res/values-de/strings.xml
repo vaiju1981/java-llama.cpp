@@ -53,4 +53,22 @@ SPDX-License-Identifier: MIT
     <string name="clear_confirm_title">Chat löschen?</string>
     <string name="clear_confirm_message">Dies entfernt alle Nachrichten in der aktuellen Unterhaltung.</string>
     <string name="badge_offline">🔒 Offline · vollständig auf dem Gerät</string>
+    <!-- Device readiness card -->
+    <string name="cd_device">Gerät</string>
+    <string name="device_ram">RAM</string>
+    <string name="device_storage">Speicher</string>
+    <string name="device_battery">Akku</string>
+    <string name="device_free_of">%1$s frei von %2$s</string>
+    <string name="device_charging">lädt</string>
+
+    <!-- Prompt shortcut chips -->
+    <string name="chip_summarize">Das zusammenfassen</string>
+    <string name="chip_explain">Schritt für Schritt erklären</string>
+    <string name="chip_ideas">Gib mir Ideen</string>
+
+    <!-- Model (load-time) settings -->
+    <string name="settings_model_section">Modell (neu laden zum Übernehmen)</string>
+    <string name="settings_threads">CPU-Threads</string>
+    <string name="settings_context">Kontextlänge</string>
+    <string name="settings_reload">Modell neu laden</string>
 </resources>

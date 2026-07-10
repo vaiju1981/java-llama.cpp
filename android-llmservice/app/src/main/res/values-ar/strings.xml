@@ -53,4 +53,22 @@ SPDX-License-Identifier: MIT
     <string name="clear_confirm_title">مسح المحادثة؟</string>
     <string name="clear_confirm_message">يؤدي هذا إلى إزالة جميع الرسائل في المحادثة الحالية.</string>
     <string name="badge_offline">🔒 دون اتصال · بالكامل على الجهاز</string>
+    <!-- Device readiness card -->
+    <string name="cd_device">الجهاز</string>
+    <string name="device_ram">الذاكرة</string>
+    <string name="device_storage">التخزين</string>
+    <string name="device_battery">البطارية</string>
+    <string name="device_free_of">%1$s متاح من %2$s</string>
+    <string name="device_charging">قيد الشحن</string>
+
+    <!-- Prompt shortcut chips -->
+    <string name="chip_summarize">لخّص هذا</string>
+    <string name="chip_explain">اشرح خطوة بخطوة</string>
+    <string name="chip_ideas">أعطني أفكارًا</string>
+
+    <!-- Model (load-time) settings -->
+    <string name="settings_model_section">النموذج (أعد التحميل للتطبيق)</string>
+    <string name="settings_threads">خيوط المعالج</string>
+    <string name="settings_context">طول السياق</string>
+    <string name="settings_reload">إعادة تحميل النموذج</string>
 </resources>

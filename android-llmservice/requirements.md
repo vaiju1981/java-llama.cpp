@@ -59,6 +59,7 @@ by hand only (no automated test); `build` = enforced at build/resource-compile t
 | R3.4 | While loading, a **LOADING** state is shown (spinner + "Loading model…"); on failure a localized load error is shown and state returns to NONE. | `ChatViewModel.ModelState`; `error_load_model` | manual |
 | R3.5 | Loading a new model **closes** the previously loaded one (native memory is not GC-managed). | `ChatViewModel.openModel` | manual |
 | R3.6 | Recommended real model for coherent replies: an instruct GGUF (default **Gemma 3 4B Instruct**); base/completion models still run. | `README.md` | manual |
+| R3.7 | The model-picker screen shows a **device-readiness card**: free/total **RAM** (`ActivityManager.MemoryInfo`), free **storage** (`StatFs`), and **battery** level + charging (`BatteryManager`) — so the user can gauge whether a model fits before loading. Read once at composition. | `DeviceInfo`; `MainActivity.DeviceCard` | manual |
 
 ## R4 — Chat & streaming
 
@@ -70,6 +71,7 @@ by hand only (no automated test); `build` = enforced at build/resource-compile t
 | R4.4 | `send` is a **no-op** when the input is blank, no model is loaded, or a generation is already in flight. | `ChatViewModel.send` | manual |
 | R4.5 | An optional **chat-template override** (e.g. `chatml`) is supported for template-less GGUFs (used by the test hook; real instruct models carry their own template). | `ChatViewModel.chatTemplate` | instrumented |
 | R4.6 | A generation error keeps the partial reply and surfaces a localized generation error. | `ChatViewModel.startGeneration`; `error_generation` | manual |
+| R4.7 | **Prompt shortcut chips** (localized `SuggestionChip`s) appear above the input when ready/idle and the input is empty; tapping one fills the draft with a quick-start prompt. | `MainActivity.Conversation` (`promptChip`); `chip_*` | manual |
 
 ## R5 — Generation settings (sampling)
 
@@ -80,6 +82,7 @@ by hand only (no automated test); `build` = enforced at build/resource-compile t
 | R5.3 | All seven knobs are forwarded verbatim to `InferenceParameters` on every generation. | `ChatViewModel.startGeneration` | manual |
 | R5.4 | The **repeat penalty > 1 with a non-zero repeat range is required** — it is what prevents the degenerate repetition loop small on-device models fall into with a bare decode. | `ChatViewModel.startGeneration` (comment) | manual |
 | R5.5 | Slider ranges: temperature `0–2`, Top-K `0–100`, Top-P/Min-P `0–1`, repeat penalty `1–2`, repeat range `0–256`, max tokens `16–1024`. | `MainActivity.SettingsDialog` | manual |
+| R5.6 | The Settings sheet also has a **"Model" section** for the **load-time** params **CPU threads** (`1–16`, default 4) and **Context length** (`512–8192`, default 2048). These are **not** live — a **Reload model** button (enabled only when a model is loaded) reopens the current model with the new values. | `MainActivity.SettingsDialog`; `ChatViewModel.ModelConfig` / `reloadModel` | manual |
 
 ## R6 — Chat actions
 
@@ -90,6 +93,7 @@ by hand only (no automated test); `build` = enforced at build/resource-compile t
 | R6.3 | **Regenerate:** re-runs the last user turn — drops the trailing assistant reply and regenerates from the conversation up to that user turn (using the current sampling settings). | `MainActivity` (`regenerateButton`); `ChatViewModel.regenerate` | manual |
 | R6.4 | Copy/Regenerate appear only when idle and the last message is a **non-empty assistant reply**. | `MainActivity.Conversation` | manual |
 | R6.5 | **Clear chat:** 🗑 in the top bar (enabled only with messages present and not generating) clears the conversation after a **confirm dialog**. | `MainActivity` (`clearButton`); `ChatViewModel.clearChat` | manual |
+| R6.6 | **Long-press any message bubble** copies that message's text to the clipboard (with a "Copied" toast) — complements the last-reply Copy button (R6.2). | `MainActivity.MessageBubble` (`combinedClickable`) | manual |
 
 ## R7 — In-app log
 

@@ -81,6 +81,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * Model **load-time** parameters (unlike [GenerationSettings], which apply per request). Changing
+     * these only takes effect when the model is (re)loaded — see [reloadModel].
+     */
+    data class ModelConfig(
+        val threads: Int = DEFAULT_THREADS,
+        val contextSize: Int = DEFAULT_CONTEXT_SIZE,
+    ) {
+        companion object {
+            /** A portable CPU-thread default; users tune it in Settings. */
+            const val DEFAULT_THREADS = 4
+
+            /** Default context window (tokens). */
+            const val DEFAULT_CONTEXT_SIZE = 2048
+
+            /** The shipped defaults. */
+            val DEFAULT = ModelConfig()
+        }
+    }
+
     /** Immutable snapshot the Compose UI renders. */
     data class UiState(
         val modelState: ModelState = ModelState.NONE,
@@ -90,6 +110,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val error: ErrorInfo? = null,
         val notice: Notice? = null,
         val settings: GenerationSettings = GenerationSettings.DEFAULT,
+        val modelConfig: ModelConfig = ModelConfig.DEFAULT,
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -115,8 +136,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var chatTemplate: String? = null
 
     private companion object {
-        const val CONTEXT_SIZE = 2048
         const val MAX_LOG_LINES = 500
+    }
+
+    /** Replaces the model load-time config (threads / context). Applies on the next [reloadModel]. */
+    fun updateModelConfig(config: ModelConfig) {
+        _uiState.update { it.copy(modelConfig = config) }
+    }
+
+    /**
+     * Reopens the currently loaded model with the current [ModelConfig] (threads / context), so a
+     * changed thread count or context size takes effect. No-op if no model is loaded or busy.
+     */
+    fun reloadModel() {
+        val path = modelPath
+        if (path == null || _uiState.value.generating || _uiState.value.modelState == ModelState.LOADING) {
+            return
+        }
+        val name = _uiState.value.modelName ?: File(path).name
+        val template = chatTemplate
+        _uiState.update { it.copy(modelState = ModelState.LOADING, error = null) }
+        viewModelScope.launch { openModel(path, name, template) }
     }
 
     /** Appends one timestamped line to the rolling [log] (trimmed to [MAX_LOG_LINES]). */
@@ -171,13 +211,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun openModel(path: String, displayName: String, template: String?) {
+        val config = _uiState.value.modelConfig
         log("Loading model: $displayName")
         try {
             val loaded = withContext(Dispatchers.IO) {
                 LlamaModel(
                     ModelParameters()
                         .setModel(path)
-                        .setCtxSize(CONTEXT_SIZE)
+                        .setCtxSize(config.contextSize)
+                        .setThreads(config.threads)
                         .setGpuLayers(0), // CPU-only: portable across every device
                 )
             }
@@ -188,7 +230,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update {
                 it.copy(modelState = ModelState.READY, modelName = displayName, error = null)
             }
-            log("Model ready: $displayName (ctx=$CONTEXT_SIZE, CPU)")
+            log("Model ready: $displayName (ctx=${config.contextSize}, threads=${config.threads}, CPU)")
         } catch (t: Throwable) {
             log("Load failed: ${t.message ?: "load failed"}")
             _uiState.update {

@@ -53,4 +53,22 @@ SPDX-License-Identifier: MIT
     <string name="clear_confirm_title">Очистить чат?</string>
     <string name="clear_confirm_message">Это удалит все сообщения в текущем разговоре.</string>
     <string name="badge_offline">🔒 Офлайн · полностью на устройстве</string>
+    <!-- Device readiness card -->
+    <string name="cd_device">Устройство</string>
+    <string name="device_ram">ОЗУ</string>
+    <string name="device_storage">Хранилище</string>
+    <string name="device_battery">Батарея</string>
+    <string name="device_free_of">%1$s свободно из %2$s</string>
+    <string name="device_charging">заряжается</string>
+
+    <!-- Prompt shortcut chips -->
+    <string name="chip_summarize">Кратко изложи это</string>
+    <string name="chip_explain">Объясни пошагово</string>
+    <string name="chip_ideas">Дай мне идеи</string>
+
+    <!-- Model (load-time) settings -->
+    <string name="settings_model_section">Модель (перезагрузить для применения)</string>
+    <string name="settings_threads">Потоки ЦП</string>
+    <string name="settings_context">Длина контекста</string>
+    <string name="settings_reload">Перезагрузить модель</string>
 </resources>

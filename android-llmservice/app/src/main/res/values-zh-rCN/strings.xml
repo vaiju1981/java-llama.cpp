@@ -53,4 +53,22 @@ SPDX-License-Identifier: MIT
     <string name="clear_confirm_title">清除对话？</string>
     <string name="clear_confirm_message">这将删除当前对话中的所有消息。</string>
     <string name="badge_offline">🔒 离线 · 完全在设备上</string>
+    <!-- Device readiness card -->
+    <string name="cd_device">设备</string>
+    <string name="device_ram">内存</string>
+    <string name="device_storage">存储</string>
+    <string name="device_battery">电池</string>
+    <string name="device_free_of">%2$s 中可用 %1$s</string>
+    <string name="device_charging">充电中</string>
+
+    <!-- Prompt shortcut chips -->
+    <string name="chip_summarize">总结这段内容</string>
+    <string name="chip_explain">逐步解释</string>
+    <string name="chip_ideas">给我一些想法</string>
+
+    <!-- Model (load-time) settings -->
+    <string name="settings_model_section">模型（重新加载以应用）</string>
+    <string name="settings_threads">CPU 线程</string>
+    <string name="settings_context">上下文长度</string>
+    <string name="settings_reload">重新加载模型</string>
 </resources>

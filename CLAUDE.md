@@ -1671,9 +1671,12 @@ Structure (mirrors the consumer-test's plumbing):
   (`onCreate`) — a privacy guarantee independent of the OS calling `onDestroy`; `MainActivity` also
   wipes best-effort on finish. Only the **opt-in saved session** persists. **`MainActivity.kt`** —
   Compose UI with a **two-row app bar** (row 1 = horizontally-scrollable model name on its own line,
-  row 2 = all action icons) + SAF picker + flag menu + Save/Load + the ⚙️ Settings sheet + the 🧾 log
-  strip/viewer + Stop/Copy/Regenerate/Clear chat actions + the offline badge; reads optional
-  `MODEL_PATH` / `CHAT_TEMPLATE` intent extras as a **test hook** (the shipping UI never sets them).
+  row 2 = all action icons) + SAF picker + flag menu + Save/Load + the ⚙️ Settings sheet
+  (sampling knobs + a **Model** section: CPU threads / context length applied via **Reload model**) +
+  the 🧾 log strip/viewer + Stop/Copy/Regenerate/Clear chat actions (+ **long-press any bubble to
+  copy**) + **prompt shortcut chips** + a **device-readiness card** (free RAM / storage / battery via
+  `DeviceInfo`) on the picker + the offline badge; reads optional `MODEL_PATH` / `CHAT_TEMPLATE`
+  intent extras as a **test hook** (the shipping UI never sets them).
 - **`app/src/androidTest/kotlin/.../ChatFlowInstrumentedTest.kt`** — the real end-to-end test:
   launches the activity with a preloaded model (bypassing the system SAF dialog, which only
   UiAutomator could drive), types a prompt, taps Send, asserts a non-empty streamed reply.

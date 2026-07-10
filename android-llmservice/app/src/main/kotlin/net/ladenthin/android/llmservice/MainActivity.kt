@@ -16,8 +16,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -49,6 +51,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -243,8 +246,12 @@ private fun ChatScreen(viewModel: ChatViewModel) {
     if (showSettings) {
         SettingsDialog(
             settings = state.settings,
+            modelConfig = state.modelConfig,
+            modelLoaded = state.modelState == ChatViewModel.ModelState.READY,
             onChange = viewModel::updateSettings,
+            onModelConfigChange = viewModel::updateModelConfig,
             onReset = viewModel::resetSettings,
+            onReload = viewModel::reloadModel,
             onClose = { showSettings = false },
         )
     }
@@ -339,12 +346,19 @@ private fun LogDialog(viewModel: ChatViewModel, onClose: () -> Unit) {
     }
 }
 
-/** Sampling-knobs sheet. Changes apply live; "Reset defaults" restores the shipped values. */
+/**
+ * Settings sheet. The **sampling** knobs apply live (per request); the **model** knobs
+ * (threads / context) are load-time and take effect via **Reload model**.
+ */
 @Composable
 private fun SettingsDialog(
     settings: ChatViewModel.GenerationSettings,
+    modelConfig: ChatViewModel.ModelConfig,
+    modelLoaded: Boolean,
     onChange: (ChatViewModel.GenerationSettings) -> Unit,
+    onModelConfigChange: (ChatViewModel.ModelConfig) -> Unit,
     onReset: () -> Unit,
+    onReload: () -> Unit,
     onClose: () -> Unit,
 ) {
     Dialog(onDismissRequest = onClose) {
@@ -367,8 +381,23 @@ private fun SettingsDialog(
                 IntSetting(R.string.settings_max_tokens, settings.maxTokens, 16..1024) {
                     onChange(settings.copy(maxTokens = it))
                 }
+
+                // Load-time model knobs: only take effect on (re)load, so they carry an explicit
+                // Reload button (enabled when a model is loaded).
+                Spacer(Modifier.height(12.dp))
+                Text(stringResource(R.string.settings_model_section), style = MaterialTheme.typography.titleMedium)
+                IntSetting(R.string.settings_threads, modelConfig.threads, 1..16) {
+                    onModelConfigChange(modelConfig.copy(threads = it))
+                }
+                IntSetting(R.string.settings_context, modelConfig.contextSize, 512..8192) {
+                    onModelConfigChange(modelConfig.copy(contextSize = it))
+                }
+
                 Spacer(Modifier.height(8.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onReload, enabled = modelLoaded) {
+                        Text(stringResource(R.string.settings_reload))
+                    }
                     TextButton(onClick = onReset) { Text(stringResource(R.string.settings_reset)) }
                     TextButton(onClick = onClose) { Text(stringResource(R.string.action_close)) }
                 }
@@ -454,8 +483,51 @@ private fun ChooseModelView(error: String?, onChoose: () -> Unit) {
         ) {
             Text(stringResource(R.string.action_choose_model))
         }
+        DeviceCard(modifier = Modifier.padding(top = 24.dp))
         if (error != null) {
             Text(text = error, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 16.dp))
+        }
+    }
+}
+
+/** A small readiness card: free RAM / storage / battery — so the user can gauge if a model fits. */
+@Composable
+private fun DeviceCard(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    // One-shot read at composition; the picker screen is short-lived, so live updates aren't needed.
+    val device = remember { DeviceInfo.read(context) }
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.medium,
+        modifier = modifier,
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(stringResource(R.string.cd_device), style = MaterialTheme.typography.titleSmall)
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "${stringResource(R.string.device_ram)}: " +
+                    stringResource(
+                        R.string.device_free_of,
+                        formatBytes(device.availMemBytes),
+                        formatBytes(device.totalMemBytes),
+                    ),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                "${stringResource(R.string.device_storage)}: ${formatBytes(device.availStorageBytes)}",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            val battery =
+                if (device.batteryPercent >= 0) {
+                    val charging = if (device.charging) " (${stringResource(R.string.device_charging)})" else ""
+                    "${device.batteryPercent}%$charging"
+                } else {
+                    "—"
+                }
+            Text(
+                "${stringResource(R.string.device_battery)}: $battery",
+                style = MaterialTheme.typography.bodyMedium,
+            )
         }
     }
 }
@@ -528,6 +600,26 @@ private fun Conversation(
 
         val ready = state.modelState == ChatViewModel.ModelState.READY
         var draft by remember { mutableStateOf("") }
+
+        // Prompt shortcut chips: quick starters that fill the input (localized). Shown only when
+        // ready, idle, and the input is still empty, so they don't clutter an in-progress message.
+        if (ready && !state.generating && draft.isBlank()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                for (chip in intArrayOf(R.string.chip_summarize, R.string.chip_explain, R.string.chip_ideas)) {
+                    val label = stringResource(chip)
+                    SuggestionChip(
+                        onClick = { draft = "$label " },
+                        label = { Text(label) },
+                        modifier = Modifier.testTag("promptChip"),
+                    )
+                }
+            }
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -598,11 +690,15 @@ private fun NotReadyBanner(modelState: ChatViewModel.ModelState, onChoose: () ->
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MessageBubble(message: ChatViewModel.Message) {
     val isUser = message.role == "user"
     val bubbleColor =
         if (isUser) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    val copiedMsg = stringResource(R.string.toast_copied)
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
@@ -610,7 +706,18 @@ private fun MessageBubble(message: ChatViewModel.Message) {
         Surface(
             color = bubbleColor,
             shape = MaterialTheme.shapes.medium,
-            modifier = Modifier.testTag(if (isUser) "userMessage" else "assistantMessage"),
+            modifier = Modifier
+                .testTag(if (isUser) "userMessage" else "assistantMessage")
+                // Long-press any bubble to copy its text (complements the last-reply Copy button).
+                .combinedClickable(
+                    onClick = {},
+                    onLongClick = {
+                        if (message.text.isNotBlank()) {
+                            clipboard.setText(AnnotatedString(message.text))
+                            Toast.makeText(context, copiedMsg, Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                ),
         ) {
             Text(text = message.text.ifEmpty { "…" }, modifier = Modifier.padding(12.dp))
         }

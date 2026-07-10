@@ -53,4 +53,22 @@ SPDX-License-Identifier: MIT
     <string name="clear_confirm_title">채팅을 지우시겠어요?</string>
     <string name="clear_confirm_message">현재 대화의 모든 메시지가 삭제됩니다.</string>
     <string name="badge_offline">🔒 오프라인 · 완전히 기기에서</string>
+    <!-- Device readiness card -->
+    <string name="cd_device">기기</string>
+    <string name="device_ram">RAM</string>
+    <string name="device_storage">저장공간</string>
+    <string name="device_battery">배터리</string>
+    <string name="device_free_of">%2$s 중 %1$s 사용 가능</string>
+    <string name="device_charging">충전 중</string>
+
+    <!-- Prompt shortcut chips -->
+    <string name="chip_summarize">이것을 요약</string>
+    <string name="chip_explain">단계별로 설명</string>
+    <string name="chip_ideas">아이디어를 줘</string>
+
+    <!-- Model (load-time) settings -->
+    <string name="settings_model_section">모델 (적용하려면 다시 로드)</string>
+    <string name="settings_threads">CPU 스레드</string>
+    <string name="settings_context">컨텍스트 길이</string>
+    <string name="settings_reload">모델 다시 로드</string>
 </resources>

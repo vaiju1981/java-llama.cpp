@@ -66,10 +66,10 @@ Everything else in the brief is feasible with standard AndroidX + the existing b
 | Feature | Purpose | Effort | Status | Notes |
 |---|---|---|---|---|
 | 3-card onboarding (Private by Design / Choose model / Chat or Serve) | First-run trust + orientation | S–M | ⬜ | one-time, persisted flag |
-| Device readiness check | Set expectations before a model fails | M | ⬜ | see rows below; single screen after onboarding |
-| Free RAM | Recommend model size | S | ⬜ | `ActivityManager.MemoryInfo` (`availMem`/`totalMem`) |
-| Free storage | Can the model be stored? | XS | ⬜ | `StatFs` on `filesDir` |
-| Battery level / charging | Warn on heavy inference | XS | ⬜ | `BatteryManager` |
+| Device readiness check | Set expectations before a model fails | M | 🔧 | RAM/storage/battery shipped as a card on the model-picker screen; a dedicated onboarding readiness screen + GPU/heuristic rows still todo |
+| Free RAM | Recommend model size | S | ✅ | `ActivityManager.MemoryInfo` (`availMem`/`totalMem`) — shown in the device card (`DeviceInfo`/`DeviceCard`) |
+| Free storage | Can the model be stored? | XS | ✅ | `StatFs` on `filesDir` — device card |
+| Battery level / charging | Warn on heavy inference | XS | ✅ | `BatteryManager` — device card (level + charging) |
 | GPU acceleration available? | Show if Adreno/OpenCL usable | M | ⬜ | only the OpenCL/Adreno AAR path (see §7); detect ICD presence |
 | Recommended model size heuristic | Approachable guidance | S | ⬜ | derive from free RAM + quant table |
 | Offline-mode status badge | Reinforce privacy | XS | ✅ | "🔒 Offline · fully on-device" chip on the model-picker screen |
@@ -81,8 +81,8 @@ Everything else in the brief is feasible with standard AndroidX + the existing b
 | Streaming responses + bubbles | Core chat | S | ✅ | polish to pastel user bubbles / larger AI cards |
 | Top bar: model chip · "Local" · RAM indicator · offline badge · switch | Context + control | M | 🔧 | model name shown (now horizontally draggable so long names are fully readable); RAM/switch/offline todo |
 | Markdown rendering (code, lists, tables, headings) | Readable answers | M | ⬜ | add a Compose Markdown renderer (e.g. compose-markdown) |
-| Copy / regenerate / stop / clear-chat actions | Standard chat UX | M | ✅ | **stop** cancels the streaming coroutine (façade closes the source); **copy**/**regenerate** act on the last reply; **clear** in the top bar with a confirm. Per-message copy (any bubble) is a possible follow-up |
-| Prompt shortcut chips (Summarize / Explain code / Translate / …) | Fast starts | S | ⬜ | localized prompt templates |
+| Copy / regenerate / stop / clear-chat actions | Standard chat UX | M | ✅ | **stop** cancels the streaming coroutine (façade closes the source); **copy**/**regenerate** act on the last reply; **long-press any bubble** copies that message; **clear** in the top bar with a confirm |
+| Prompt shortcut chips (Summarize / Explain code / Translate / …) | Fast starts | S | ✅ | localized `SuggestionChip`s above the input (fill the draft); 3 chips × 13 languages |
 | Attachment button → image input (vision) | Multimodal chat | L | ⬜ | `ContentPart.imageFile(...)` + a **vision GGUF + mmproj**; SAF image picker |
 | Audio input (speech) | Multimodal chat | L | ⬜ | `ContentPart.audioFile(...)` + an audio-capable model + mmproj |
 | Explicit states: loading / generating / stopped / unavailable / "too large for RAM" | Transparency | S | 🔧 | basic states exist; add the rest + messages |
@@ -132,8 +132,8 @@ See decision #1. All rows below assume a new in-app Ktor/NanoHTTPD HTTP layer wr
 
 | Feature | Purpose | Effort | Status | Notes |
 |---|---|---|---|---|
-| CPU threads | Tune speed | S | ⬜ | `ModelParameters.setThreads` / `setThreadsBatch` |
-| Context length | Memory vs. history | S | ⬜ | `setCtxSize` |
+| CPU threads | Tune speed | S | ✅ | `ModelParameters.setThreads` — in the ⚙️ Settings "Model" section; applies on **Reload model** |
+| Context length | Memory vs. history | S | ✅ | `setCtxSize` — Settings "Model" section; applies on **Reload model** |
 | Temperature / Max tokens / Top-K / Top-P / Min-P / **repeat penalty** + range | Sampling control | S | ✅ | shipped in the ⚙️ Generation settings sheet (live sliders + reset); `withTemperature`/`withNPredict`/`withTopK`/`withTopP`/`withMinP`/`withRepeatPenalty`/`withRepeatLastN`. The repeat-penalty default is what stops the small-model repetition loop |
 | GPU acceleration toggle | Speed on Adreno | M | 🔧 | `setGpuLayers`; **Adreno/OpenCL AAR only** (see §7) |
 | Battery saver mode | Protect battery | M | ⬜ | throttle threads / ngl on low battery |

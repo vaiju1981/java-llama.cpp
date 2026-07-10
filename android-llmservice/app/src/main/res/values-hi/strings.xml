@@ -53,4 +53,22 @@ SPDX-License-Identifier: MIT
     <string name="clear_confirm_title">चैट साफ़ करें?</string>
     <string name="clear_confirm_message">यह वर्तमान बातचीत के सभी संदेश हटा देता है।</string>
     <string name="badge_offline">🔒 ऑफ़लाइन · पूरी तरह डिवाइस पर</string>
+    <!-- Device readiness card -->
+    <string name="cd_device">डिवाइस</string>
+    <string name="device_ram">RAM</string>
+    <string name="device_storage">संग्रहण</string>
+    <string name="device_battery">बैटरी</string>
+    <string name="device_free_of">%2$s में से %1$s खाली</string>
+    <string name="device_charging">चार्ज हो रहा</string>
+
+    <!-- Prompt shortcut chips -->
+    <string name="chip_summarize">इसका सारांश दें</string>
+    <string name="chip_explain">चरण दर चरण समझाएँ</string>
+    <string name="chip_ideas">मुझे विचार दें</string>
+
+    <!-- Model (load-time) settings -->
+    <string name="settings_model_section">मॉडल (लागू करने हेतु पुनः लोड करें)</string>
+    <string name="settings_threads">CPU थ्रेड्स</string>
+    <string name="settings_context">संदर्भ लंबाई</string>
+    <string name="settings_reload">मॉडल पुनः लोड करें</string>
 </resources>

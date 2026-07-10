@@ -209,9 +209,10 @@ android-llmservice/
         ├── main/res/values/{strings,themes}.xml + values-*/strings.xml (13 languages)
         ├── main/res/xml/locales_config.xml
         ├── main/kotlin/net/ladenthin/android/llmservice/
-        │   ├── MainActivity.kt      # Compose UI (two-row app bar) + SAF picker + flag menu + save/load + settings + log + chat actions (stop/copy/regenerate/clear)
+        │   ├── MainActivity.kt      # Compose UI (two-row app bar) + SAF picker + flag menu + save/load + settings + log + chat actions + prompt chips + device card
         │   ├── LlmServiceApp.kt     # Application: wipes transient working data (model copy + cache) on cold start (privacy)
-        │   ├── ChatViewModel.kt     # model load + streaming chat (stop/regenerate) + sampling settings + in-app log + session (the logic)
+        │   ├── ChatViewModel.kt     # model load + streaming chat (stop/regenerate) + sampling & model settings + in-app log + session (the logic)
+        │   ├── DeviceInfo.kt        # device-readiness snapshot (free RAM / storage / battery) for the picker card
         │   ├── Languages.kt         # the flag/language list
         │   └── SessionStore.kt      # private local JSON persistence (filesDir)
         └── androidTest/kotlin/net/ladenthin/android/llmservice/

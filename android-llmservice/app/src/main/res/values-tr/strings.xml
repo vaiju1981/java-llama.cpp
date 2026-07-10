@@ -53,4 +53,22 @@ SPDX-License-Identifier: MIT
     <string name="clear_confirm_title">Sohbet temizlensin mi?</string>
     <string name="clear_confirm_message">Bu, mevcut sohbetteki tüm mesajları kaldırır.</string>
     <string name="badge_offline">🔒 Çevrimdışı · tamamen cihazda</string>
+    <!-- Device readiness card -->
+    <string name="cd_device">Cihaz</string>
+    <string name="device_ram">RAM</string>
+    <string name="device_storage">Depolama</string>
+    <string name="device_battery">Pil</string>
+    <string name="device_free_of">%2$s içinden %1$s boş</string>
+    <string name="device_charging">şarj oluyor</string>
+
+    <!-- Prompt shortcut chips -->
+    <string name="chip_summarize">Bunu özetle</string>
+    <string name="chip_explain">Adım adım açıkla</string>
+    <string name="chip_ideas">Bana fikir ver</string>
+
+    <!-- Model (load-time) settings -->
+    <string name="settings_model_section">Model (uygulamak için yeniden yükle)</string>
+    <string name="settings_threads">CPU iş parçacıkları</string>
+    <string name="settings_context">Bağlam uzunluğu</string>
+    <string name="settings_reload">Modeli yeniden yükle</string>
 </resources>
