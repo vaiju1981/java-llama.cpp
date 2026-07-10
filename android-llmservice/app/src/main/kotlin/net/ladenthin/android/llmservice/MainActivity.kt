@@ -8,23 +8,31 @@ import android.content.Context
 import android.net.Uri
 import android.os.Bundle
 import android.provider.OpenableColumns
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -34,6 +42,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -48,13 +57,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import java.util.Locale
+import kotlin.math.roundToInt
 
 /**
  * Single-screen KISS demo: pick a GGUF from the file system, then chat with it fully on-device.
@@ -117,10 +133,22 @@ private fun ChatScreen(viewModel: ChatViewModel) {
         }
     }
 
+    var showSettings by remember { mutableStateOf(false) }
+    var showLog by remember { mutableStateOf(false) }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(state.modelName ?: stringResource(R.string.app_name)) },
+                title = {
+                    // Horizontally scrollable so a long model name can be dragged into view in full,
+                    // without an auto-scrolling marquee that would "wobble" constantly.
+                    Text(
+                        text = state.modelName ?: stringResource(R.string.app_name),
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    )
+                },
                 actions = {
                     IconButton(
                         onClick = { viewModel.saveSession() },
@@ -131,10 +159,14 @@ private fun ChatScreen(viewModel: ChatViewModel) {
                     IconButton(onClick = { viewModel.loadSession() }) {
                         Text("📂", modifier = Modifier.testTag("loadButton"))
                     }
+                    IconButton(onClick = { showSettings = true }) {
+                        Text("⚙️", modifier = Modifier.testTag("settingsButton"))
+                    }
                     LanguageMenu()
                 },
             )
         },
+        bottomBar = { LogStrip(viewModel = viewModel, onOpen = { showLog = true }) },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -150,6 +182,161 @@ private fun ChatScreen(viewModel: ChatViewModel) {
                     Conversation(state = state, onSend = viewModel::send, onChoose = onChoose)
             }
         }
+    }
+
+    if (showSettings) {
+        SettingsDialog(
+            settings = state.settings,
+            onChange = viewModel::updateSettings,
+            onReset = viewModel::resetSettings,
+            onClose = { showSettings = false },
+        )
+    }
+    if (showLog) {
+        LogDialog(viewModel = viewModel, onClose = { showLog = false })
+    }
+}
+
+/** The always-visible one-line log strip at the very bottom; tap to open the full [LogDialog]. */
+@Composable
+private fun LogStrip(viewModel: ChatViewModel, onOpen: () -> Unit) {
+    val log by viewModel.log.collectAsStateWithLifecycle()
+    val last = log.lastOrNull() ?: stringResource(R.string.log_empty)
+    Surface(tonalElevation = 2.dp) {
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen).testTag("logStrip")
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("🧾", modifier = Modifier.padding(end = 8.dp))
+            Text(
+                text = last,
+                style = MaterialTheme.typography.labelSmall,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/** Full-screen log viewer with copy-all, save-as-txt (SAF) and clear; ✕ (top-right) closes it. */
+@Composable
+private fun LogDialog(viewModel: ChatViewModel, onClose: () -> Unit) {
+    val context = LocalContext.current
+    val clipboard = LocalClipboardManager.current
+    val log by viewModel.log.collectAsStateWithLifecycle()
+    val text = log.joinToString("\n")
+    val copiedMsg = stringResource(R.string.toast_log_copied)
+    val savedMsg = stringResource(R.string.toast_log_saved)
+
+    val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri: Uri? ->
+        if (uri != null) {
+            context.contentResolver.openOutputStream(uri)?.use { it.write(text.toByteArray(Charsets.UTF_8)) }
+            Toast.makeText(context, savedMsg, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(modifier = Modifier.fillMaxSize().padding(12.dp), shape = MaterialTheme.shapes.large) {
+            Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = stringResource(R.string.log_title),
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.weight(1f),
+                    )
+                    IconButton(onClick = onClose) { Text("✕", modifier = Modifier.testTag("logClose")) }
+                }
+                SelectionContainer(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                        Text(
+                            text = text.ifEmpty { stringResource(R.string.log_empty) },
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    TextButton(onClick = { viewModel.clearLog() }) { Text(stringResource(R.string.log_clear)) }
+                    TextButton(
+                        onClick = {
+                            clipboard.setText(AnnotatedString(text))
+                            Toast.makeText(context, copiedMsg, Toast.LENGTH_SHORT).show()
+                        },
+                        enabled = text.isNotEmpty(),
+                    ) {
+                        Text(stringResource(R.string.log_copy_all))
+                    }
+                    TextButton(onClick = { saver.launch("llm-service-log.txt") }, enabled = text.isNotEmpty()) {
+                        Text(stringResource(R.string.log_save_as))
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Sampling-knobs sheet. Changes apply live; "Reset defaults" restores the shipped values. */
+@Composable
+private fun SettingsDialog(
+    settings: ChatViewModel.GenerationSettings,
+    onChange: (ChatViewModel.GenerationSettings) -> Unit,
+    onReset: () -> Unit,
+    onClose: () -> Unit,
+) {
+    Dialog(onDismissRequest = onClose) {
+        Surface(shape = MaterialTheme.shapes.large, tonalElevation = 6.dp) {
+            Column(modifier = Modifier.padding(20.dp).verticalScroll(rememberScrollState())) {
+                Text(stringResource(R.string.settings_title), style = MaterialTheme.typography.titleLarge)
+                Spacer(Modifier.height(12.dp))
+                FloatSetting(R.string.settings_temperature, settings.temperature, 0f..2f) {
+                    onChange(settings.copy(temperature = it))
+                }
+                IntSetting(R.string.settings_top_k, settings.topK, 0..100) { onChange(settings.copy(topK = it)) }
+                FloatSetting(R.string.settings_top_p, settings.topP, 0f..1f) { onChange(settings.copy(topP = it)) }
+                FloatSetting(R.string.settings_min_p, settings.minP, 0f..1f) { onChange(settings.copy(minP = it)) }
+                FloatSetting(R.string.settings_repeat_penalty, settings.repeatPenalty, 1f..2f) {
+                    onChange(settings.copy(repeatPenalty = it))
+                }
+                IntSetting(R.string.settings_repeat_last_n, settings.repeatLastN, 0..256) {
+                    onChange(settings.copy(repeatLastN = it))
+                }
+                IntSetting(R.string.settings_max_tokens, settings.maxTokens, 16..1024) {
+                    onChange(settings.copy(maxTokens = it))
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onReset) { Text(stringResource(R.string.settings_reset)) }
+                    TextButton(onClick = onClose) { Text(stringResource(R.string.action_close)) }
+                }
+            }
+        }
+    }
+}
+
+/** A labelled float slider showing its current value (2 decimals, locale-independent). */
+@Composable
+private fun FloatSetting(labelRes: Int, value: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text("${stringResource(labelRes)}: ${String.format(Locale.US, "%.2f", value)}", style = MaterialTheme.typography.bodyMedium)
+        Slider(value = value, onValueChange = onChange, valueRange = range)
+    }
+}
+
+/** A labelled integer slider (rounds the slider's float to the nearest int). */
+@Composable
+private fun IntSetting(labelRes: Int, value: Int, range: IntRange, onChange: (Int) -> Unit) {
+    Column(modifier = Modifier.padding(vertical = 4.dp)) {
+        Text("${stringResource(labelRes)}: $value", style = MaterialTheme.typography.bodyMedium)
+        Slider(
+            value = value.toFloat(),
+            onValueChange = { onChange(it.roundToInt()) },
+            valueRange = range.first.toFloat()..range.last.toFloat(),
+        )
     }
 }
 

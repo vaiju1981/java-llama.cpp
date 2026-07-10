@@ -9,6 +9,8 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import java.io.File
+import java.time.LocalTime
+import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -50,6 +52,28 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     /** A localized-at-the-UI error: the [type] selects the template, [detail] fills it in. */
     data class ErrorInfo(val type: ErrorType, val detail: String)
 
+    /**
+     * Sampling / generation knobs surfaced in the Settings sheet. The defaults are chosen to give
+     * a coherent reply on small on-device models: a [repeatPenalty] > 1 with a non-zero
+     * [repeatLastN] is what stops the degenerate "…spezifischen spezifischen…" repetition loop that
+     * a bare greedy/no-penalty decode falls into (the reported SmolVLM-500M behaviour). All are
+     * forwarded verbatim to [InferenceParameters]; see [GenerationSettings.DEFAULT].
+     */
+    data class GenerationSettings(
+        val temperature: Float = 0.7f,
+        val topK: Int = 40,
+        val topP: Float = 0.95f,
+        val minP: Float = 0.05f,
+        val repeatPenalty: Float = 1.1f,
+        val repeatLastN: Int = 64,
+        val maxTokens: Int = 256,
+    ) {
+        companion object {
+            /** The shipped defaults (also the "Reset" target). */
+            val DEFAULT = GenerationSettings()
+        }
+    }
+
     /** Immutable snapshot the Compose UI renders. */
     data class UiState(
         val modelState: ModelState = ModelState.NONE,
@@ -58,10 +82,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val generating: Boolean = false,
         val error: ErrorInfo? = null,
         val notice: Notice? = null,
+        val settings: GenerationSettings = GenerationSettings.DEFAULT,
     )
 
     private val _uiState = MutableStateFlow(UiState())
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
+
+    /**
+     * Rolling in-app log (newest last), shown as a one-line strip at the bottom and in full in the
+     * log viewer. Kept separate from [uiState] so per-token chat updates don't re-emit the whole
+     * log list. Capped at [MAX_LOG_LINES]; entries are prefixed with a local wall-clock time.
+     */
+    private val _log = MutableStateFlow<List<String>>(emptyList())
+    val log: StateFlow<List<String>> = _log.asStateFlow()
 
     private var model: LlamaModel? = null
     private var modelPath: String? = null
@@ -75,8 +108,30 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private var chatTemplate: String? = null
 
     private companion object {
-        const val MAX_TOKENS = 256
         const val CONTEXT_SIZE = 2048
+        const val MAX_LOG_LINES = 500
+    }
+
+    /** Appends one timestamped line to the rolling [log] (trimmed to [MAX_LOG_LINES]). */
+    private fun log(line: String) {
+        val ts = LocalTime.now().truncatedTo(ChronoUnit.SECONDS)
+        _log.update { (it + "$ts  $line").takeLast(MAX_LOG_LINES) }
+    }
+
+    /** Replaces the sampling settings (from the Settings sheet). */
+    fun updateSettings(settings: GenerationSettings) {
+        _uiState.update { it.copy(settings = settings) }
+    }
+
+    /** Restores the shipped default sampling settings. */
+    fun resetSettings() {
+        _uiState.update { it.copy(settings = GenerationSettings.DEFAULT) }
+        log("Settings reset to defaults")
+    }
+
+    /** Clears the in-app log buffer. */
+    fun clearLog() {
+        _log.value = emptyList()
     }
 
     /**
@@ -109,6 +164,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private suspend fun openModel(path: String, displayName: String, template: String?) {
+        log("Loading model: $displayName")
         try {
             val loaded = withContext(Dispatchers.IO) {
                 LlamaModel(
@@ -125,7 +181,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update {
                 it.copy(modelState = ModelState.READY, modelName = displayName, error = null)
             }
+            log("Model ready: $displayName (ctx=$CONTEXT_SIZE, CPU)")
         } catch (t: Throwable) {
+            log("Load failed: ${t.message ?: "load failed"}")
             _uiState.update {
                 it.copy(modelState = ModelState.NONE, error = ErrorInfo(ErrorType.LOAD, t.message ?: "load failed"))
             }
@@ -149,13 +207,23 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         // Append an empty assistant message that grows as tokens arrive.
         _uiState.update { it.copy(messages = history + Message("assistant", ""), generating = true, error = null) }
 
+        val s = _uiState.value.settings
         generation = viewModelScope.launch {
             val pairs = history.map { Pair(it.role, it.text) }
+            // Apply the sampling knobs. repeatPenalty (> 1) + repeatLastN are the ones that break
+            // the degenerate repetition loop small on-device models fall into with a bare decode.
             var params = InferenceParameters("")
                 .withMessages(systemPrompt, pairs)
-                .withNPredict(MAX_TOKENS)
+                .withNPredict(s.maxTokens)
+                .withTemperature(s.temperature)
+                .withTopK(s.topK)
+                .withTopP(s.topP)
+                .withMinP(s.minP)
+                .withRepeatPenalty(s.repeatPenalty)
+                .withRepeatLastN(s.repeatLastN)
             chatTemplate?.let { params = params.withChatTemplate(it) }
 
+            log("Generating (temp=${s.temperature}, repeat=${s.repeatPenalty}/${s.repeatLastN}, maxTokens=${s.maxTokens})")
             val reply = StringBuilder()
             try {
                 active.generateChatFlow(params)
@@ -164,7 +232,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         reply.append(output.text)
                         _uiState.update { state -> state.replaceLastAssistant(reply.toString()) }
                     }
+                log("Reply complete (${reply.length} chars)")
             } catch (t: Throwable) {
+                log("Generation failed: ${t.message ?: "generation failed"}")
                 _uiState.update { state ->
                     state.replaceLastAssistant(reply.toString())
                         .copy(error = ErrorInfo(ErrorType.GENERATION, t.message ?: "generation failed"))
@@ -185,6 +255,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             withContext(Dispatchers.IO) {
                 SessionStore.save(getApplication(), pathAtSave, nameAtSave, messagesAtSave)
             }
+            log("Session saved (${messagesAtSave.size} messages)")
             _uiState.update { it.copy(notice = Notice.SESSION_SAVED) }
         }
     }
@@ -194,9 +265,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val saved = withContext(Dispatchers.IO) { SessionStore.load(getApplication()) }
             if (saved == null) {
+                log("Load session: no saved chat")
                 _uiState.update { it.copy(notice = Notice.NO_SESSION) }
                 return@launch
             }
+            log("Session loaded (${saved.messages.size} messages)")
             _uiState.update { it.copy(messages = saved.messages, notice = Notice.SESSION_LOADED) }
             val path = saved.modelPath
             if (path != null && File(path).canRead() && modelPath != path) {

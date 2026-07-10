@@ -45,6 +45,9 @@ Everything else in the brief is feasible with standard AndroidX + the existing b
 | Private local save / load session | ✅ | JSON in `filesDir`, app-private, nothing uploaded |
 | `allowBackup=false` (data stays on device) | ✅ | resolves CodeQL alert; privacy posture |
 | minSdk 28, arm64-v8a + x86_64, signed release `.aab`, on-device emulator UI test | ✅ | |
+| Generation settings sheet (temperature, Top-K/P, Min-P, **repeat penalty**, repeat range, max tokens) | ✅ | ⚙️ in the top bar; live sliders + reset. The repeat-penalty default (1.1) fixes the degenerate repetition loop on small models |
+| In-app log: always-visible one-line strip + full viewer (copy-all, save-as-txt via SAF, clear) | ✅ | 🧾 strip at the bottom; tap to open, ✕ to close |
+| Draggable (horizontally scrollable) model-name title | ✅ | long names can be dragged into view — no auto-marquee wobble |
 
 ---
 
@@ -56,7 +59,7 @@ Everything else in the brief is feasible with standard AndroidX + the existing b
 | Material 3 theme + brand palette (indigo `#476EAC`, lavender, charcoal, cream) | Polished, on-brand look | S–M | 🔧 | currently default `MaterialTheme`; add color scheme + shapes/elevation |
 | Light + dark ("technical dark" / "soft light") | Brief's hybrid direction | S | 🔧 | Compose supports; wire dynamic + manual toggle |
 | Smooth transitions / motion polish | "more polished than a dev demo" | S | ⬜ | Compose animations, shared-element nav |
-| Optional 5th destination: Tools / Logs | Advanced users | S | ⬜ | keep out of bottom bar to avoid crowding (overflow/menu) |
+| Optional 5th destination: Tools / Logs | Advanced users | S | 🔧 | **log** shipped as a bottom strip + full viewer (copy/save-txt/clear); a dedicated Tools destination is still todo |
 
 ## 2. Onboarding & device readiness
 
@@ -76,7 +79,7 @@ Everything else in the brief is feasible with standard AndroidX + the existing b
 | Feature | Purpose | Effort | Status | Notes |
 |---|---|---|---|---|
 | Streaming responses + bubbles | Core chat | S | ✅ | polish to pastel user bubbles / larger AI cards |
-| Top bar: model chip · "Local" · RAM indicator · offline badge · switch | Context + control | M | 🔧 | model name shown; RAM/switch/offline todo |
+| Top bar: model chip · "Local" · RAM indicator · offline badge · switch | Context + control | M | 🔧 | model name shown (now horizontally draggable so long names are fully readable); RAM/switch/offline todo |
 | Markdown rendering (code, lists, tables, headings) | Readable answers | M | ⬜ | add a Compose Markdown renderer (e.g. compose-markdown) |
 | Copy / regenerate / stop / clear-chat actions | Standard chat UX | M | 🔧 | **stop** = `CancellationToken` (façade wires it; `completeSuspend`/flow cancel) |
 | Prompt shortcut chips (Summarize / Explain code / Translate / …) | Fast starts | S | ⬜ | localized prompt templates |
@@ -131,7 +134,7 @@ See decision #1. All rows below assume a new in-app Ktor/NanoHTTPD HTTP layer wr
 |---|---|---|---|---|
 | CPU threads | Tune speed | S | ⬜ | `ModelParameters.setThreads` / `setThreadsBatch` |
 | Context length | Memory vs. history | S | ⬜ | `setCtxSize` |
-| Temperature / Max tokens | Sampling control | S | ⬜ | `withTemperature` / `withNPredict` (+ TopK/TopP/MinP available) |
+| Temperature / Max tokens / Top-K / Top-P / Min-P / **repeat penalty** + range | Sampling control | S | ✅ | shipped in the ⚙️ Generation settings sheet (live sliders + reset); `withTemperature`/`withNPredict`/`withTopK`/`withTopP`/`withMinP`/`withRepeatPenalty`/`withRepeatLastN`. The repeat-penalty default is what stops the small-model repetition loop |
 | GPU acceleration toggle | Speed on Adreno | M | 🔧 | `setGpuLayers`; **Adreno/OpenCL AAR only** (see §7) |
 | Battery saver mode | Protect battery | M | ⬜ | throttle threads / ngl on low battery |
 | Thermal protection | Prevent overheating | M | ⬜ | `PowerManager.getCurrentThermalStatus()` → pause/throttle |

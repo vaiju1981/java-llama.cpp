@@ -23,4 +23,27 @@ SPDX-License-Identifier: MIT
     <string name="toast_session_saved">Chat saved</string>
     <string name="toast_session_loaded">Chat loaded</string>
     <string name="toast_session_none">No saved chat</string>
+
+    <!-- Settings sheet (sampling knobs). Top-K/Top-P/Min-P are technical terms kept as-is. -->
+    <string name="cd_settings">Settings</string>
+    <string name="settings_title">Generation settings</string>
+    <string name="settings_temperature">Temperature</string>
+    <string name="settings_top_k">Top-K</string>
+    <string name="settings_top_p">Top-P</string>
+    <string name="settings_min_p">Min-P</string>
+    <string name="settings_repeat_penalty">Repeat penalty</string>
+    <string name="settings_repeat_last_n">Repeat range</string>
+    <string name="settings_max_tokens">Max tokens</string>
+    <string name="settings_reset">Reset defaults</string>
+    <string name="action_close">Close</string>
+
+    <!-- Log strip + log viewer -->
+    <string name="cd_log">Log</string>
+    <string name="log_title">Log</string>
+    <string name="log_empty">No log output yet.</string>
+    <string name="log_copy_all">Copy all</string>
+    <string name="log_save_as">Save as…</string>
+    <string name="log_clear">Clear</string>
+    <string name="toast_log_copied">Log copied</string>
+    <string name="toast_log_saved">Log saved</string>
 </resources>

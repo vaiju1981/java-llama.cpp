@@ -20,4 +20,26 @@ SPDX-License-Identifier: MIT
     <string name="toast_session_saved">चैट सहेजी गई</string>
     <string name="toast_session_loaded">चैट लोड हो गई</string>
     <string name="toast_session_none">कोई सहेजी गई चैट नहीं</string>
+    <!-- Settings sheet (sampling knobs). Top-K/Top-P/Min-P are technical terms kept as-is. -->
+    <string name="cd_settings">सेटिंग्स</string>
+    <string name="settings_title">जनरेशन सेटिंग्स</string>
+    <string name="settings_temperature">तापमान</string>
+    <string name="settings_top_k">Top-K</string>
+    <string name="settings_top_p">Top-P</string>
+    <string name="settings_min_p">Min-P</string>
+    <string name="settings_repeat_penalty">दोहराव दंड</string>
+    <string name="settings_repeat_last_n">दोहराव सीमा</string>
+    <string name="settings_max_tokens">अधिकतम टोकन</string>
+    <string name="settings_reset">डिफ़ॉल्ट रीसेट करें</string>
+    <string name="action_close">बंद करें</string>
+
+    <!-- Log strip + log viewer -->
+    <string name="cd_log">लॉग</string>
+    <string name="log_title">लॉग</string>
+    <string name="log_empty">अभी तक कोई लॉग आउटपुट नहीं।</string>
+    <string name="log_copy_all">सभी कॉपी करें</string>
+    <string name="log_save_as">इस रूप में सहेजें…</string>
+    <string name="log_clear">साफ़ करें</string>
+    <string name="toast_log_copied">लॉग कॉपी किया गया</string>
+    <string name="toast_log_saved">लॉग सहेजा गया</string>
 </resources>
