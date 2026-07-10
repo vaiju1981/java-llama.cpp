@@ -1629,9 +1629,12 @@ releases as a signed Central Portal bundle upload (staging repo → zip → Publ
 A shippable, **KISS fully-offline on-device chat app** consuming the `llama-android` AAR +
 `llama-kotlin` façade. App label **"LLM Service"**, applicationId/namespace/package
 **`net.ladenthin.android.llmservice`**. One Compose screen: pick a GGUF from the file system
-(Storage Access Framework), stream a chat reply fully on-device, switch UI language via a
-**flag picker (13 languages)**, and **Save/Load** the conversation to **private local storage**.
-No `INTERNET`/storage permission — nothing leaves the device. Like `llama-android/` and
+(Storage Access Framework), stream a chat reply fully on-device, **tune sampling** via a Settings
+sheet (⚙️ — temperature/Top-K/Top-P/Min-P/**repeat penalty**/repeat range/max tokens; the
+repeat-penalty default is what stops the small-model repetition loop), **Stop/Copy/Regenerate/Clear**
+the chat, watch an **in-app log** (bottom strip + full viewer with copy-all / save-as-`.txt` / clear),
+switch UI language via a **flag picker (13 languages)**, and **Save/Load** the conversation to
+**private local storage**. No `INTERNET`/storage permission — nothing leaves the device. Like `llama-android/` and
 `.github/android-consumer-test/`, it is a **standalone plain-Gradle/AGP build, NOT a Maven
 reactor module** (and NOT published to Maven Central — it is an app, not a library). It is the
 "real app" counterpart to the headless `.github/android-consumer-test/` fixture (which only
@@ -1658,15 +1661,27 @@ Structure (mirrors the consumer-test's plumbing):
   ViewModel survives the locale-change recreation, so the chat isn't lost. `app_name` ("LLM Service")
   is the one string deliberately NOT translated.
 - **`ChatViewModel.kt`** — the logic: loads a `LlamaModel` (SAF `content://` copied into `filesDir`
-  because llama.cpp mmaps a real path), streams via `generateChatFlow`; the localized system prompt is
-  passed in from the UI. **`SessionStore.kt`** — private local save/load: the conversation + model path
-  as JSON in `filesDir/session.json` (`org.json`, no dep added), readable only by the app.
-  **`MainActivity.kt`** — Compose UI + SAF picker + flag menu + Save/Load buttons; reads optional
-  `MODEL_PATH` / `CHAT_TEMPLATE` intent extras as a **test hook** (the shipping UI never sets them).
+  because llama.cpp mmaps a real path), streams via `generateChatFlow` and forwards the `GenerationSettings`
+  sampling knobs to `InferenceParameters`; supports **stop** (`generation?.cancel()` — cancellation keeps
+  the partial reply, not an error) and **regenerate** (drop the trailing reply, re-run the last user turn,
+  shared `startGeneration` path); keeps a capped rolling in-app **log**. **`SessionStore.kt`** — private
+  local save/load: the conversation + model path as JSON in `filesDir/session.json` (`org.json`, no dep
+  added), readable only by the app. **`MainActivity.kt`** — Compose UI + SAF picker + flag menu +
+  Save/Load + the ⚙️ Settings sheet + the 🧾 log strip/viewer + Stop/Copy/Regenerate/Clear chat actions +
+  the offline badge + the horizontally-scrollable model-name title; reads optional `MODEL_PATH` /
+  `CHAT_TEMPLATE` intent extras as a **test hook** (the shipping UI never sets them).
 - **`app/src/androidTest/kotlin/.../ChatFlowInstrumentedTest.kt`** — the real end-to-end test:
   launches the activity with a preloaded model (bypassing the system SAF dialog, which only
   UiAutomator could drive), types a prompt, taps Send, asserts a non-empty streamed reply.
   Self-skips (JUnit `Assume`) when the adb-pushed model is absent.
+
+**Requirements / roadmap docs (keep in sync with the code).** The app has **no unit tests** for its
+logic (only the one on-device `ChatFlowInstrumentedTest` above), so
+[`android-llmservice/requirements.md`](android-llmservice/requirements.md) is the **spec of record** —
+it enumerates, with stable `Rn.m` IDs, every feature the app implements today. Any change to app
+behavior must update `requirements.md` in the same commit (add/amend/retire a row); the roadmap of
+not-yet-built features lives in [`android-llmservice/TODO.md`](android-llmservice/TODO.md), and
+`README.md`'s feature claims must match `requirements.md`.
 
 **Recommended real model: Gemma 3 4B Instruct** (a `*-it` GGUF; carries its own chat template, so
 no override needed). Any instruct GGUF works. The CI on-device test uses the tiny cached draft model

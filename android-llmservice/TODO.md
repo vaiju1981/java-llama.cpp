@@ -182,4 +182,6 @@ See decision #1. All rows below assume a new in-app Ktor/NanoHTTPD HTTP layer wr
   JNI core, OpenAI/Ollama routes, API key + LAN toggle + warnings, WebUI, foreground service. This is
   the largest single effort and the brief's flagship differentiator.
 
-> Repo-wide TODOs live in the root [`TODO.md`](../TODO.md); this file scopes only the `android-llmservice` app.
+> This file is the **roadmap** (not-yet-built features). What the app **currently implements** is
+> specified in [`requirements.md`](requirements.md) — when a TODO item ships, flip it to ✅ here **and**
+> add/expand its requirement there. Repo-wide TODOs live in the root [`TODO.md`](../TODO.md).
