@@ -204,7 +204,7 @@ jobs:
         with:
           java-version: '21'
           distribution: temurin
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.14.3"
       - name: Sign a throwaway artifact via useInMemoryPgpKeys (BouncyCastle)
@@ -915,7 +915,7 @@ jobs:
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: temurin
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.14.3"
       - name: Build core jar (byte-identical classes payload for the AAR)
@@ -1045,7 +1045,7 @@ jobs:
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: temurin
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.14.3"
       - name: Enable KVM group permissions (GitHub-hosted runner)
@@ -1138,7 +1138,7 @@ jobs:
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: temurin
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           # Kotlin 2.4's Gradle plugin deprecates Gradle < 8.14.4; the app uses the Kotlin
           # Android plugin, so bump this job to 8.14.4 (also carries two security fixes). The
@@ -1224,7 +1224,7 @@ jobs:
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: temurin
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.14.4"
       - name: Enable KVM group permissions (GitHub-hosted runner)
@@ -3140,7 +3140,7 @@ jobs:
       # the plain-Gradle build in llama-android/ — Maven cannot deploy
       # <packaging>aar</packaging>. Natives are already on disk from the artifact
       # downloads above; the core jar was just built by the reactor deploy.
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.14.3"
       - name: Publish Android AAR snapshots (llama-android + llama-android-opencl)
@@ -3329,7 +3329,7 @@ jobs:
       # the deployment publishes as soon as portal validation passes). Natives are
       # already on disk from the artifact downloads above; the core jar was just
       # built by the reactor deploy.
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.14.3"
       - name: Publish Android AAR release bundle to Central Portal
