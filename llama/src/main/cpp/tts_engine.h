@@ -9,6 +9,7 @@
 #ifndef JLLAMA_TTS_ENGINE_H
 #define JLLAMA_TTS_ENGINE_H
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -30,6 +31,26 @@ bool engine_synthesize(tts_engine *engine, const std::string &text, int n_predic
 
 // Release both models / contexts. Safe on nullptr.
 void engine_free(tts_engine *engine);
+
+// ---------------------------------------------------------------------------
+// OuteTTS audio-codec token filtering (pure transform, testable without a model).
+//
+// The TTC model emits codec tokens in a high id window; the CTS vocoder only
+// understands the 0-based codec ids inside [k_ouetts_codec_lo, k_ouetts_codec_hi].
+// This window is identical for OuteTTS V0_2 and V0_3 (verified against upstream
+// tools/tts/tts.cpp — see M3 in docs/plan-bugs-and-issues.md), so it is NOT gated
+// on tts_version. Keep only tokens in the window and rebase them to 0-based ids.
+constexpr int32_t k_ouetts_codec_lo = 151672;
+constexpr int32_t k_ouetts_codec_hi = 155772;
+
+inline void filter_ouetts_codec_tokens(std::vector<int32_t> &tokens) {
+    tokens.erase(std::remove_if(tokens.begin(), tokens.end(),
+                                [](int32_t t) { return t < k_ouetts_codec_lo || t > k_ouetts_codec_hi; }),
+                 tokens.end());
+    for (auto &t : tokens) {
+        t -= k_ouetts_codec_lo;
+    }
+}
 
 } // namespace jllama_tts
 

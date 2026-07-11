@@ -202,8 +202,8 @@ final class ResponsesApiSupport {
             }
             JsonNode openAiUsage = completion.path("usage");
             if (openAiUsage.isObject()) {
-                int in = openAiUsage.path("prompt_tokens").asInt(0);
-                int out = openAiUsage.path("completion_tokens").asInt(0);
+                long in = openAiUsage.path("prompt_tokens").asLong(0);
+                long out = openAiUsage.path("completion_tokens").asLong(0);
                 usage.put("input_tokens", in);
                 usage.put("output_tokens", out);
                 usage.put("total_tokens", in + out);
@@ -212,7 +212,7 @@ final class ResponsesApiSupport {
                         openAiUsage
                                 .path("prompt_tokens_details")
                                 .path("cached_tokens")
-                                .asInt(0));
+                                .asLong(0));
             }
         } catch (IOException e) {
             // Defensive: an unexpected body still yields a valid, empty completed response.

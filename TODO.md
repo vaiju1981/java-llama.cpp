@@ -149,10 +149,14 @@ Feel free to contribute fixes — PRs welcome.
   `synchronized` guard (or `compareAndSet`) on the Java side so `close()` is idempotent and
   the native pointer is nulled before the second caller can reach it.
 
-- **`ServerMetrics.getCumulativeTimings()` truncates cumulative token totals to `int`.** The
-  cumulative token counters are stored as `long` in the JSON but cast to `int` when
-  constructing `ServerMetrics`, silently truncating values above `Integer.MAX_VALUE`
-  (~2.1 billion tokens). Fix: widen the field and constructor parameter to `long`.
+- **`ServerMetrics.getCumulativeTimings()` truncation — STALE / REFUTED.** This claim was
+  verified false: `getCumulativeTimings` reads `n_prompt_tokens_processed_total` /
+  `n_tokens_predicted_total` via `asLong(0L)` into `long` fields and constructs a `Timings`
+  with `long promptN` / `predictedN` (`ServerMetrics.java` / `Timings.java`) — no int cast
+  occurs. The real token-count truncation (now fixed) lived in the protocol shims
+  (`ResponsesStreamTranslator`, `AnthropicStreamTranslator`, `ResponsesApiSupport`,
+  `AnthropicApiSupport`, `OllamaApiSupport`, `ChatResponseParser.extractUsageField`), which used
+  `.asInt(0)`; those now use `.asLong(0L)` so sessions above ~2.1B tokens no longer overflow.
 
 - **Unbounded request-body read → OOM DoS.** The HTTP handler reads the entire request body
   into a `String`/`byte[]` before parsing it, with no size cap. A client that streams a

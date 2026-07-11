@@ -36,6 +36,7 @@
 
 #include "nlohmann/json.hpp"
 
+#include <cmath>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -90,7 +91,15 @@
     json arr = json::array();
     for (const auto &result : results) {
         const auto out = result->to_json();
-        int index = out["index"].get<int>();
+        // Defensive: a malformed/absent "index" or an out-of-range value would otherwise
+        // throw json::type_error or index documents[] out of bounds (M2).
+        if (!out.contains("index")) {
+            throw std::invalid_argument("rerank result is missing the 'index' field");
+        }
+        const int index = out["index"].get<int>();
+        if (index < 0 || static_cast<size_t>(index) >= documents.size()) {
+            throw std::invalid_argument("rerank result index " + std::to_string(index) + " out of range");
+        }
         float score = out["score"].get<float>();
         arr.push_back({{"document", documents[index]}, {"index", index}, {"score", score}});
     }
@@ -168,11 +177,13 @@
     if (!config.contains("slot_prompt_similarity")) {
         return std::nullopt;
     }
-    const float v = config["slot_prompt_similarity"].get<float>();
-    if (v < 0.0f || v > 1.0f) {
+    // Coerce via double so an integer-valued config (e.g. 0 or 1) is accepted rather than
+    // throwing json::type_error; the range check below preserves the [0.0, 1.0] contract (L5).
+    const double v = config["slot_prompt_similarity"].get<double>();
+    if (v < 0.0 || v > 1.0) {
         throw std::invalid_argument("slot_prompt_similarity must be between 0.0 and 1.0");
     }
-    return v;
+    return static_cast<float>(v);
 }
 
 // ---------------------------------------------------------------------------
@@ -188,11 +199,15 @@
     if (!config.contains(key)) {
         return std::nullopt;
     }
-    const int v = config[key].get<int>();
-    if (v <= 0) {
-        throw std::invalid_argument(std::string(key) + " must be greater than 0");
+    // Coerce via double so an integer-valued config is accepted rather than throwing
+    // json::type_error; require a positive integer per the documented contract (L5).
+    const double raw = config[key].get<double>();
+    // Reject non-positive, non-integer, or > INT_MAX values: a whole-number JSON value above
+    // INT_MAX would overflow static_cast<int> (UB).
+    if (raw <= 0.0 || raw != std::floor(raw) || raw > 2147483647.0) {
+        throw std::invalid_argument(std::string(key) + " must be a positive integer");
     }
-    return v;
+    return static_cast<int>(raw);
 }
 
 // ---------------------------------------------------------------------------

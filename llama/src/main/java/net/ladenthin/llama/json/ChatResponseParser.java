@@ -119,10 +119,10 @@ public class ChatResponseParser {
      *
      * @param node  the parsed chat completion response
      * @param field the field name within {@code "usage"}
-     * @return the integer value, or {@code 0} if the field or the {@code "usage"} object is absent
+     * @return the long value, or {@code 0} if the field or the {@code "usage"} object is absent
      */
-    public int extractUsageField(JsonNode node, String field) {
-        return node.path("usage").path(field).asInt(0);
+    public long extractUsageField(JsonNode node, String field) {
+        return node.path("usage").path(field).asLong(0);
     }
 
     /**

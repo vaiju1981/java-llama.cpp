@@ -46,6 +46,9 @@ struct native_server {
     int exit_code = -1;
 };
 
+// Standard-UTF8 extraction used for argv/commands (declared here; defined below).
+static std::string jstring_to_utf8(JNIEnv *env, jstring js);
+
 // Copies the forwarded Java argv into srv->args/argv with a synthetic argv[0]. The argv pointers
 // reference the std::string storage in `args`, which is filled once (with reserve) and never
 // mutated afterwards, so the pointers stay valid for the worker's lifetime.
@@ -56,11 +59,7 @@ void fill_native_server_args(JNIEnv *env, jobjectArray jargs, native_server *srv
     for (jsize i = 0; i < n; ++i) {
         auto js = static_cast<jstring>(env->GetObjectArrayElement(jargs, i));
         if (js != nullptr) {
-            const char *chars = env->GetStringUTFChars(js, nullptr);
-            srv->args.emplace_back(chars != nullptr ? chars : "");
-            if (chars != nullptr) {
-                env->ReleaseStringUTFChars(js, chars);
-            }
+            srv->args.emplace_back(jstring_to_utf8(env, js));
             env->DeleteLocalRef(js);
         } else {
             srv->args.emplace_back("");
@@ -80,6 +79,62 @@ void throw_llama_exception(JNIEnv *env, const char *message) {
     if (exception_class != nullptr) {
         env->ThrowNew(exception_class, message);
     }
+}
+
+// Standard-UTF8 extraction (mirrors jllama.cpp parse_jstring): GetStringUTFChars yields
+// Modified-UTF8 (CESU-8), which mangles non-BMP chars (emoji, CJK extensions) in argv such as
+// model paths. We go through String.getBytes("UTF-8") instead (H1).
+std::string jstring_to_utf8(JNIEnv *env, jstring js) {
+    if (js == nullptr) {
+        return "";
+    }
+    // Resolve and cache the JNI class/method/field IDs once (server-startup is the only caller,
+    // but it can run many times — e.g. once per forwarded argv element). FindClass returns a
+    // frame-local ref, so promote the reused handles to global refs for caching (MED #6).
+    static jclass str_cls = nullptr;
+    static jmethodID get_bytes = nullptr;
+    static jobject utf8 = nullptr;
+    static std::once_flag init_flag;
+    std::call_once(init_flag, [&]() {
+        jclass local = env->FindClass("java/lang/String");
+        if (local == nullptr) {
+            return;
+        }
+        jmethodID gb = env->GetMethodID(local, "getBytes", "(Ljava/nio/charset/Charset;)[B");
+        jclass charset_cls = env->FindClass("java/nio/charset/StandardCharsets");
+        jfieldID utf8_f =
+            charset_cls ? env->GetStaticFieldID(charset_cls, "UTF_8", "Ljava/nio/charset/Charset;") : nullptr;
+        if (gb == nullptr || charset_cls == nullptr || utf8_f == nullptr) {
+            if (charset_cls != nullptr) {
+                env->DeleteLocalRef(charset_cls);
+            }
+            env->DeleteLocalRef(local);
+            return;
+        }
+        jobject u = env->GetStaticObjectField(charset_cls, utf8_f);
+        env->DeleteLocalRef(charset_cls);
+        str_cls = static_cast<jclass>(env->NewGlobalRef(local));
+        get_bytes = gb;
+        utf8 = env->NewGlobalRef(u);
+        env->DeleteLocalRef(local);
+        env->DeleteLocalRef(u);
+    });
+    if (str_cls == nullptr || get_bytes == nullptr || utf8 == nullptr) {
+        return "";
+    }
+
+    jbyteArray bytes = (jbyteArray)env->CallObjectMethod(js, get_bytes, utf8);
+    std::string out;
+    if (bytes != nullptr) {
+        const jsize blen = env->GetArrayLength(bytes);
+        jbyte *elems = env->GetByteArrayElements(bytes, nullptr);
+        if (elems != nullptr) {
+            out.assign(reinterpret_cast<char *>(elems), static_cast<size_t>(blen));
+            env->ReleaseByteArrayElements(bytes, elems, JNI_ABORT);
+        }
+        env->DeleteLocalRef(bytes);
+    }
+    return out;
 }
 
 } // namespace
@@ -151,6 +206,13 @@ JNIEXPORT jlong JNICALL Java_net_ladenthin_llama_server_NativeServer_startAttach
     }
     auto *jctx = reinterpret_cast<jllama_context *>(model_handle); // NOLINT(*-no-int-to-ptr)
 
+    // Contract (M6): llama_server_attach drives the HTTP frontend on a NEW worker thread but
+    // must NOT start a second task-processing loop on the shared server_context — the model's
+    // own worker (spawned in load_model_impl) already runs start_loop(). Likewise,
+    // stopNativeServer's llama_server_request_shutdown() must terminate only the HTTP frontend,
+    // not the attached model's worker, so the LlamaModel remains usable after the server closes
+    // (documented order: close server first, then model). If a future upstream change breaks
+    // either assumption, this attach path needs revisiting.
     auto *srv = new native_server();
     fill_native_server_args(env, jargs, srv);
 
@@ -159,9 +221,15 @@ JNIEXPORT jlong JNICALL Java_net_ladenthin_llama_server_NativeServer_startAttach
     llama_server_set_embedded(true);
 
     server_context *ctx_server = &jctx->server;
-    srv->worker = std::thread([srv, ctx_server]() {
+    // Take a jllama_context user reference for the lifetime of the attach worker so that
+    // LlamaModel.close() cannot free jctx (and thus ctx_server) out from under the running
+    // HTTP frontend (use-after-free, MED #2). delete() in jllama.cpp waits on the user-count
+    // condition variable, so close() blocks until this thread exits.
+    jctx->users.fetch_add(1, std::memory_order_relaxed);
+    srv->worker = std::thread([srv, ctx_server, jctx]() {
         srv->exit_code = llama_server_attach(static_cast<int>(srv->argv.size()), srv->argv.data(), *ctx_server);
         srv->finished.store(true);
+        release_jllama_context_impl(jctx);
     });
 
     return reinterpret_cast<jlong>(srv);
@@ -173,11 +241,7 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_server_NativeServer_setWorkerCom
     // model manager (server-models.cpp, patches/0008) reads when spawning worker instances.
     std::string value;
     if (jcommand != nullptr) {
-        const char *chars = env->GetStringUTFChars(jcommand, nullptr);
-        if (chars != nullptr) {
-            value = chars;
-            env->ReleaseStringUTFChars(jcommand, chars);
-        }
+        value = jstring_to_utf8(env, jcommand);
     }
 #if defined(_WIN32)
     _putenv_s("LLAMA_SERVER_WORKER_CMD", value.c_str()); // empty value removes the variable

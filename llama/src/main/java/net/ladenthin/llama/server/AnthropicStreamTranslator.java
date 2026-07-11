@@ -32,9 +32,9 @@ final class AnthropicStreamTranslator {
     private int textBlockIndex = -1;
     private int nextIndex;
     private String finishReason = "stop";
-    private int inputTokens;
-    private int outputTokens;
-    private int cachedTokens;
+    private long inputTokens;
+    private long outputTokens;
+    private long cachedTokens;
 
     AnthropicStreamTranslator(String id, String model) {
         this.id = id;
@@ -65,12 +65,12 @@ final class AnthropicStreamTranslator {
             accumulator.accept(chunk);
             JsonNode usage = chunk.path("usage");
             if (usage.isObject()) {
-                int promptTokens = usage.path("prompt_tokens").asInt(0);
+                long promptTokens = usage.path("prompt_tokens").asLong(0);
                 cachedTokens = usage.path("prompt_tokens_details")
                         .path("cached_tokens")
-                        .asInt(0);
-                inputTokens = Math.max(0, promptTokens - cachedTokens);
-                outputTokens = usage.path("completion_tokens").asInt(0);
+                        .asLong(0);
+                inputTokens = Math.max(0L, promptTokens - cachedTokens);
+                outputTokens = usage.path("completion_tokens").asLong(0);
             }
             JsonNode choice = chunk.path("choices").path(0);
             JsonNode content = choice.path("delta").path("content");

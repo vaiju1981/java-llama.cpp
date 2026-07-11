@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import net.ladenthin.llama.args.LogFormat;
 import net.ladenthin.llama.callback.CancellationToken;
@@ -338,8 +339,57 @@ public class LlamaModelTest {
     }
 
     /**
-     * Regression: {@link LlamaModel#completeAsync(InferenceParameters)} must
-     * complete with the same text {@link LlamaModel#complete(InferenceParameters)}
+     * Regression (H2 / M4 in docs/plan-bugs-and-issues.md): a {@link LlamaModel#close()}
+     * racing an in-flight {@link LlamaModel#complete(InferenceParameters)} on another thread
+     * must not crash the JVM (use-after-free) or hang. The native layer ref-counts in-flight
+     * JNI entry points and waits for them to drain before freeing the context, so close()
+     * either lets the in-flight call finish or surfaces a clean {@link LlamaException} — never
+     * a use-after-free. The in-flight thread must always terminate.
+     * <p>
+     * Uses its own model instance (not the shared {@code model}) so closing it here does not
+     * perturb the other tests in this class.
+     */
+    @Test
+    public void testCloseDuringInference() throws Exception {
+        Assumptions.assumeTrue(
+                new java.io.File("models/codellama-7b.Q2_K.gguf").exists(), "Model file not found, skipping");
+        int gpuLayers = Integer.getInteger(TestConstants.PROP_TEST_NGL, TestConstants.DEFAULT_TEST_NGL);
+        try (LlamaModel localModel = new LlamaModel(new ModelParameters()
+                .setCtxSize(128)
+                .setModel(TestConstants.MODEL_PATH)
+                .setGpuLayers(gpuLayers)
+                .setFit(false))) {
+
+            InferenceParameters params = new InferenceParameters(prefix).withNPredict(256);
+            AtomicReference<Throwable> inferenceError = new AtomicReference<>();
+            Thread inferer = new Thread(() -> {
+                try {
+                    localModel.complete(params);
+                } catch (Throwable t) {
+                    // A clean LlamaException (context torn down mid-loop) is an acceptable
+                    // degraded outcome; a hard Error (e.g. a JVM-level crash) is not.
+                    inferenceError.set(t);
+                }
+            });
+            inferer.start();
+            // Let generation get underway, then close() from this (different) thread.
+            Thread.sleep(150);
+            localModel.close();
+
+            inferer.join(30000);
+            assertFalse(inferer.isAlive(), "in-flight inference thread must not hang after close()");
+            Throwable t = inferenceError.get();
+            if (t != null) {
+                assertFalse(t instanceof Error, "in-flight inference crashed: " + t);
+            }
+            // close() must remain idempotent and safe to call again.
+            localModel.close();
+        }
+    }
+
+    /**
+     * Regression: {@link LlamaModel#completeAsync(InferenceParameters)}
+     * must complete with the same text {@link LlamaModel#complete(InferenceParameters)}
      * would have produced, on a background thread.
      */
     @Test

@@ -21,7 +21,6 @@ endif()
 
 include(FetchContent)
 
-set(BUILD_SHARED_LIBS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(BUILD_SHARED_LIBS OFF)
 # Android NDK only declares posix_spawn_file_actions_t as a type alias but

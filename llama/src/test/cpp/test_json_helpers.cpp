@@ -241,6 +241,44 @@ TEST(RerankResultsToJson, PreservesInputOrder) {
     EXPECT_FLOAT_EQ(out[2].value("score", 0.0f), 0.6f);
 }
 
+// A rerank result whose to_json() omits the "index" field entirely. The real
+// upstream formatter always emits it, but a malformed/future result may not, and
+// rerank_results_to_json must reject it rather than throw json::type_error (M2).
+struct fake_rerank_result_no_index : server_task_result {
+    float score;
+    explicit fake_rerank_result_no_index(int id_, float sc) : score(sc) { id = id_; }
+    json to_json() override { return {{"score", score}}; }
+};
+
+static server_task_result_ptr make_rerank_no_index(int id_, float sc) {
+    return std::make_unique<fake_rerank_result_no_index>(id_, sc);
+}
+
+TEST(RerankResultsToJson, MissingIndex_ThrowsInvalidArgument) {
+    std::vector<server_task_result_ptr> results;
+    results.push_back(make_rerank_no_index(1, 0.5f));
+    std::vector<std::string> docs = {"doc A"};
+
+    EXPECT_THROW((void)rerank_results_to_json(results, docs), std::invalid_argument);
+}
+
+TEST(RerankResultsToJson, IndexAboveRange_ThrowsInvalidArgument) {
+    // index 5 with only 2 documents is out of bounds — must throw, not OOB-index.
+    std::vector<server_task_result_ptr> results;
+    results.push_back(make_rerank(1, 5, 0.5f));
+    std::vector<std::string> docs = {"doc zero", "doc one"};
+
+    EXPECT_THROW((void)rerank_results_to_json(results, docs), std::invalid_argument);
+}
+
+TEST(RerankResultsToJson, NegativeIndex_ThrowsInvalidArgument) {
+    std::vector<server_task_result_ptr> results;
+    results.push_back(make_rerank(1, -1, 0.5f));
+    std::vector<std::string> docs = {"only doc"};
+
+    EXPECT_THROW((void)rerank_results_to_json(results, docs), std::invalid_argument);
+}
+
 // ============================================================
 // parse_encoding_format
 // ============================================================

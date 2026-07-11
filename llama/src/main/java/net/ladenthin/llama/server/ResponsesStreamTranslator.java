@@ -39,9 +39,9 @@ final class ResponsesStreamTranslator {
     private boolean messageOpen;
     private int nextOutputIndex;
     private int messageOutputIndex = -1;
-    private int inputTokens;
-    private int outputTokens;
-    private int cachedTokens;
+    private long inputTokens;
+    private long outputTokens;
+    private long cachedTokens;
 
     ResponsesStreamTranslator(String model, String responseId) {
         this.model = model;
@@ -160,9 +160,9 @@ final class ResponsesStreamTranslator {
         if (!usage.isObject()) {
             return;
         }
-        inputTokens = usage.path("prompt_tokens").asInt(0);
-        outputTokens = usage.path("completion_tokens").asInt(0);
-        cachedTokens = usage.path("prompt_tokens_details").path("cached_tokens").asInt(0);
+        inputTokens = usage.path("prompt_tokens").asLong(0);
+        outputTokens = usage.path("completion_tokens").asLong(0);
+        cachedTokens = usage.path("prompt_tokens_details").path("cached_tokens").asLong(0);
     }
 
     private ObjectNode messageItemShell() {
