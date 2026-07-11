@@ -243,7 +243,7 @@ TEST(RerankResultsToJson, PreservesInputOrder) {
 
 // A rerank result whose to_json() omits the "index" field entirely. The real
 // upstream formatter always emits it, but a malformed/future result may not, and
-// rerank_results_to_json must reject it rather than throw json::type_error (M2).
+// rerank_results_to_json must reject it rather than throw json::type_error.
 struct fake_rerank_result_no_index : server_task_result {
     float score;
     explicit fake_rerank_result_no_index(int id_, float sc) : score(sc) { id = id_; }

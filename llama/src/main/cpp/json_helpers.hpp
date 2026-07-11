@@ -92,7 +92,7 @@
     for (const auto &result : results) {
         const auto out = result->to_json();
         // Defensive: a malformed/absent "index" or an out-of-range value would otherwise
-        // throw json::type_error or index documents[] out of bounds (M2).
+        // throw json::type_error or index documents[] out of bounds.
         if (!out.contains("index")) {
             throw std::invalid_argument("rerank result is missing the 'index' field");
         }
@@ -178,7 +178,7 @@
         return std::nullopt;
     }
     // Coerce via double so an integer-valued config (e.g. 0 or 1) is accepted rather than
-    // throwing json::type_error; the range check below preserves the [0.0, 1.0] contract (L5).
+    // throwing json::type_error; the range check below preserves the [0.0, 1.0] contract.
     const double v = config["slot_prompt_similarity"].get<double>();
     if (v < 0.0 || v > 1.0) {
         throw std::invalid_argument("slot_prompt_similarity must be between 0.0 and 1.0");
@@ -200,7 +200,7 @@
         return std::nullopt;
     }
     // Coerce via double so an integer-valued config is accepted rather than throwing
-    // json::type_error; require a positive integer per the documented contract (L5).
+    // json::type_error; require a positive integer per the documented contract.
     const double raw = config[key].get<double>();
     // Reject non-positive, non-integer, or > INT_MAX values: a whole-number JSON value above
     // INT_MAX would overflow static_cast<int> (UB).

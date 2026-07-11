@@ -339,7 +339,7 @@ public class LlamaModelTest {
     }
 
     /**
-     * Regression (H2 / M4 in docs/plan-bugs-and-issues.md): a {@link LlamaModel#close()}
+     * Regression for the close()-vs-inference race: a {@link LlamaModel#close()}
      * racing an in-flight {@link LlamaModel#complete(InferenceParameters)} on another thread
      * must not crash the JVM (use-after-free) or hang. The native layer ref-counts in-flight
      * JNI entry points and waits for them to drain before freeing the context, so close()

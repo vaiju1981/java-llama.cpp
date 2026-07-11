@@ -76,15 +76,15 @@ struct jllama_context {
     std::map<int, std::shared_ptr<server_response_reader>> readers;
 
     // In-flight JNI call reference count, for safe teardown. close() waits for this to reach 0
-    // before deleting the context, so a concurrent inference/receive call can never dereference
-    // a freed jllama_context (fixes the close()-vs-inference use-after-free, H2, and the
-    // close()-during-streaming hang, M4). acquire_jllama_context_impl increments it; the
-    // jllama_context_guard (set up by REQUIRE_SERVER_CONTEXT) decrements it on scope exit.
+    // before tearing down the worker/models and deleting the context, so a concurrent
+    // inference/receive call can never dereference freed state (close()-vs-inference
+    // use-after-free, close()-during-streaming hang). acquire_jllama_context_impl increments
+    // it; the jllama_context_guard (set up by REQUIRE_SERVER_CONTEXT) decrements it on scope
+    // exit.
     std::atomic<int> users{0};
-    // Set by delete() (teardown) before terminating the worker, so any in-flight
-    // reader parked in next()/wait_for_all() observes a stop signal and unwinds
-    // instead of polling forever (which would otherwise keep `users` > 0 and hang
-    // close()). The streaming/blocking should_stop lambdas read this.
+    // Set by delete() (teardown) so any in-flight reader parked in next()/wait_for_all()
+    // observes a stop signal and unwinds instead of polling forever (which would otherwise
+    // keep `users` > 0 and hang close()). The streaming/blocking should_stop lambdas read this.
     std::atomic<bool> closing{false};
     // Serializes the "last user released" notification (paired with cv). The users
     // decrement in release_jllama_context_impl happens UNDER this lock so delete()'s
@@ -141,10 +141,10 @@ inline void erase_reader(jllama_context *jctx, int id_task) {
 // release_jllama_context_impl (even on early return), decrementing users.
 //
 // close() (delete()) first nulls the Java handle under g_ctx_mutex so no NEW
-// acquire can succeed, terminates+joins the worker, then waits on jctx->cv for
-// users to reach 0 — guaranteeing no call is mid-use when the context is freed
-// (fixes H2 use-after-free and M4 close()-during-streaming hang). g_ctx_mutex is
-// defined in jllama.cpp and declared extern here.
+// acquire can succeed, sets the closing flag so parked readers unwind, waits on
+// jctx->cv for users to reach 0, and only then tears down the worker/models and
+// frees the context — guaranteeing no call is mid-use during any part of the
+// teardown. g_ctx_mutex is defined in jllama.cpp and declared extern here.
 // ---------------------------------------------------------------------------
 extern std::mutex g_ctx_mutex;
 
@@ -165,7 +165,7 @@ inline void release_jllama_context_impl(jllama_context *jctx) {
     }
     // Decrement under jctx->m so delete()'s cv.wait (which holds jctx->m while checking the
     // predicate) cannot observe users==0 and free m/cv before this releaser has finished
-    // notifying — that would be a use-after-free on the condvar/mutex themselves (H2/H3).
+    // notifying — that would be a use-after-free on the condvar/mutex themselves.
     std::lock_guard<std::mutex> lk(jctx->m);
     // fetch_sub returns the previous value; when it was 1 we just dropped the last reference.
     if (jctx->users.fetch_sub(1, std::memory_order_acq_rel) == 1) {

@@ -125,8 +125,10 @@ public final class NativeServer implements AutoCloseable {
      *
      * <p><strong>Lifecycle contract:</strong> the caller keeps full ownership of {@code model}.
      * The model must stay open for as long as the server runs — close the server first, then the
-     * model. Closing the model while attached leaves the HTTP routes pointing at freed native
-     * state.</p>
+     * model. The attached server holds a native usage reference on the model, so a
+     * {@link LlamaModel#close()} issued while the server is still running does not free native
+     * state out from under the HTTP routes — instead it <em>blocks indefinitely</em> until the
+     * server is stopped. Always {@link #close()} this server before closing the model.</p>
      *
      * @param model the loaded model whose native server context this server should serve; must
      *              not be {@code null} and must not be closed while the server runs
