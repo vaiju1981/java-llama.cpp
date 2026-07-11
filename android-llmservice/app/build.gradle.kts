@@ -6,7 +6,8 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
+    // AGP 9.0+ built-in Kotlin support replaces the standalone kotlin-android plugin —
+    // see the note in settings.gradle.kts.
     id("org.jetbrains.kotlin.plugin.compose")
 }
 

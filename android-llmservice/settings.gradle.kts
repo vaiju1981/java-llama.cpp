@@ -14,11 +14,14 @@ pluginManagement {
         gradlePluginPortal()
     }
     // Versions pinned here (KISS: no version catalog). AGP matches the consumer-test
-    // fixture; Kotlin matches llama-kotlin (2.4.0). AGP 9.x requires Gradle >= 9.4.1 —
-    // see the gradle-version pins on the CI jobs that build this project in publish.yml.
+    // fixture. AGP 9.x requires Gradle >= 9.4.1 — see the gradle-version pins on the CI
+    // jobs that build this project in publish.yml. AGP 9.0+ has built-in Kotlin support
+    // (runtime dependency on Kotlin Gradle plugin 2.2.10+), so the standalone
+    // org.jetbrains.kotlin.android plugin is no longer applied/needed — see
+    // https://developer.android.com/build/migrate-to-built-in-kotlin. The Compose
+    // compiler plugin (2.4.0) still applies separately and exceeds AGP's 2.2.10 floor.
     plugins {
         id("com.android.application") version "9.2.0"
-        id("org.jetbrains.kotlin.android") version "2.4.0"
         id("org.jetbrains.kotlin.plugin.compose") version "2.4.0"
     }
 }
