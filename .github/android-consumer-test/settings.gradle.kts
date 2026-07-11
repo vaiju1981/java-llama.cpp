@@ -14,7 +14,9 @@ pluginManagement {
         gradlePluginPortal()
     }
     plugins {
-        id("com.android.application") version "8.7.3"
+        // AGP 9.x requires Gradle >= 9.4.1 — see the gradle-version pins on the CI jobs
+        // that build this fixture in publish.yml (package-android-aar, test-android-emulator).
+        id("com.android.application") version "9.2.0"
     }
 }
 
