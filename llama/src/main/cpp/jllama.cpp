@@ -40,6 +40,11 @@ std::mutex g_ctx_mutex;
 // early on if anything can't be found. This happens when the JVM loads the shared library (see `JNI_OnLoad`).
 // The references remain valid throughout the whole life of the shared library, on `JNI_OnUnload` they are released.
 
+// Forward-declared here (defined with external linkage below, after the anonymous namespace
+// closes) so the in-namespace call sites below can see it before its definition point, and so
+// native_server.cpp — which forward-declares it the same way — can link against it.
+std::string parse_jstring(JNIEnv *env, jstring java_string);
+
 namespace {
 
 // Sentinel value used by llama.cpp (since b7433) to indicate that n_parallel
@@ -306,40 +311,6 @@ static void populate_completion_task(server_task &task, jllama_context *jctx, in
 }
 
 /**
- * Convert a Java string to a std::string
- */
-std::string parse_jstring(JNIEnv *env, jstring java_string) {
-    // A null receiver would make CallObjectMethod raise a pending JNI exception; bail out
-    // cleanly so callers (e.g. parse_json_params) can surface their own error instead of
-    // invoking ThrowNew under an already-pending exception.
-    if (java_string == nullptr) {
-        return std::string();
-    }
-
-    auto *const string_bytes = (jbyteArray)env->CallObjectMethod(java_string, m_get_bytes, o_utf_8);
-
-    // CallObjectMethod may have raised a pending exception (e.g. OOM) leaving string_bytes
-    // null; dereferencing it via GetArrayLength would be undefined behaviour. Clear the pending
-    // exception (calling arbitrary JNI functions — including the caller's ThrowNew — with one
-    // pending is not allowed by the JNI spec) and bail out so the caller (parse_json_params)
-    // surfaces a parse error as a LlamaException instead of crashing.
-    if (env->ExceptionCheck() || string_bytes == nullptr) {
-        env->ExceptionClear();
-        return std::string();
-    }
-
-    auto length = (size_t)env->GetArrayLength(string_bytes);
-    jbyte *byte_elements = env->GetByteArrayElements(string_bytes, nullptr);
-
-    std::string string = std::string((char *)byte_elements, length);
-
-    env->ReleaseByteArrayElements(string_bytes, byte_elements, JNI_ABORT);
-    env->DeleteLocalRef(string_bytes);
-
-    return string;
-}
-
-/**
  * Convert a Java string to a parsed JSON object.
  * Combines parse_jstring + json::parse, which every parameter-taking JNI
  * function needs before it can read its arguments.
@@ -575,6 +546,44 @@ void log_callback_trampoline(ggml_log_level level, const char *text, void *user_
     }
 }
 } // namespace
+
+/**
+ * Convert a Java string to a std::string
+ *
+ * External linkage on purpose: native_server.cpp forward-declares this and calls it, so it
+ * must live outside the anonymous namespace above (whose members have internal linkage and
+ * are invisible to other translation units).
+ */
+std::string parse_jstring(JNIEnv *env, jstring java_string) {
+    // A null receiver would make CallObjectMethod raise a pending JNI exception; bail out
+    // cleanly so callers (e.g. parse_json_params) can surface their own error instead of
+    // invoking ThrowNew under an already-pending exception.
+    if (java_string == nullptr) {
+        return std::string();
+    }
+
+    auto *const string_bytes = (jbyteArray)env->CallObjectMethod(java_string, m_get_bytes, o_utf_8);
+
+    // CallObjectMethod may have raised a pending exception (e.g. OOM) leaving string_bytes
+    // null; dereferencing it via GetArrayLength would be undefined behaviour. Clear the pending
+    // exception (calling arbitrary JNI functions — including the caller's ThrowNew — with one
+    // pending is not allowed by the JNI spec) and bail out so the caller (parse_json_params)
+    // surfaces a parse error as a LlamaException instead of crashing.
+    if (env->ExceptionCheck() || string_bytes == nullptr) {
+        env->ExceptionClear();
+        return std::string();
+    }
+
+    auto length = (size_t)env->GetArrayLength(string_bytes);
+    jbyte *byte_elements = env->GetByteArrayElements(string_bytes, nullptr);
+
+    std::string string = std::string((char *)byte_elements, length);
+
+    env->ReleaseByteArrayElements(string_bytes, byte_elements, JNI_ABORT);
+    env->DeleteLocalRef(string_bytes);
+
+    return string;
+}
 
 // Validates the jllama_context at every JNI entry point.  Declares both
 // `jctx` and `ctx_server` in the caller's scope; returns the given sentinel
