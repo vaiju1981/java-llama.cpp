@@ -197,7 +197,7 @@ gradle -p android-llmservice connectedDebugAndroidTest -PjllamaVersion="$VERSION
 
 ```
 android-llmservice/
-├── settings.gradle.kts          # AGP 9.2.0 + Kotlin 2.4.0 + Compose plugin, mavenLocal first
+├── settings.gradle.kts          # AGP 9.2.1 (built-in Kotlin) + Compose plugin 2.4.0, mavenLocal first
 ├── gradle.properties
 ├── requirements.md              # spec of record: every feature the app implements today (no unit tests)
 ├── TODO.md                      # roadmap: not-yet-built features
