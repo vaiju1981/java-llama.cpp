@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9957**
+Current llama.cpp pinned version: **b9959**
 
 ## Upgrading CUDA Version
 
@@ -421,7 +421,7 @@ needs no extra step here, `build-webui` re-reads the tag and rebuilds the matchi
 ships no UI):
 ```bash
 # needs node/npm + network; embed.cpp is plain C++17 (no npm)
-git clone --depth 1 --branch b9957 https://github.com/ggml-org/llama.cpp /tmp/lc
+git clone --depth 1 --branch b9959 https://github.com/ggml-org/llama.cpp /tmp/lc
 ( cd /tmp/lc/tools/ui && npm ci && npm run build \
   && ( cd dist && find . -type f -not -path './_gzip/*' \
        | while read -r f; do mkdir -p "_gzip/$(dirname "$f")"; gzip -9 -c "$f" > "_gzip/$f"; done ) \
@@ -461,7 +461,7 @@ cache lives in **Depot Cache** over sccache's **WebDAV** backend:
 - `SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}` — a Depot **organization** token, stored
   as the repo secret **`DEPOT_TOKEN`**.
 
-Because `sccache` is **content-addressed** and llama.cpp is pinned (`GIT_TAG b9957`), the
+Because `sccache` is **content-addressed** and llama.cpp is pinned (`GIT_TAG b9959`), the
 ~280 upstream object files are byte-identical every run, so a warm cache recompiles only the
 *changed* files. Depot's cache is **shared across all branches** (unlike GitHub's
 per-branch `actions/cache`), so every branch builds incrementally; a `b<nnnn>` version bump
@@ -622,18 +622,27 @@ else step through the largest intermediate tag still under the threshold), the
 `.github/scripts/llama-next-version.sh` helper that computes the next reviewable step, and the
 edit/verify/commit loop below. Use it for any non-trivial bump; the steps here are the mechanical core.
 
-To change the llama.cpp version, update the following **three** files (and re-verify `patches/`):
+To change the llama.cpp version, update the following **four** files (and re-verify `patches/`):
 
-1. **llama/CMakeLists.txt** — the `GIT_TAG` line for llama.cpp: `GIT_TAG        b8831`
+1. **llama/CMakeLists.txt** — the `GIT_TAG` line for llama.cpp: `GIT_TAG        b8831` (and the
+   cosmetic `-DLLAMA_TAG=b8831` a few lines below, passed to the TTS generator — keep them equal)
 2. **README.md** — the badge and link line with the version number
 3. **CLAUDE.md** — the "Current llama.cpp pinned version" line
+4. **llama/src/main/java/net/ladenthin/llama/value/LlamaCppVersion.java** — the
+   `LLAMA_CPP_VERSION` constant (the compile-time pin exposed to Java/Kotlin consumers, e.g. the
+   Android version badge). It is the *pure-Java mirror* of `GIT_TAG` and must stay equal to it —
+   the native `LlamaModel.getLlamaCppBuildInfo()` getter reports the actually-linked build
+   (`b<number>-<commit>`), and `NativeLibraryLoadSmokeTest.nativeBuildInfoMatchesPinnedVersionConstant`
+   **fails the build** if this constant and the linked binary drift apart.
 
 Example: To upgrade from b8808 to b8831:
 ```bash
-# Edit llama/CMakeLists.txt: change GIT_TAG b8808 to b8831
+# Edit llama/CMakeLists.txt: change GIT_TAG b8808 to b8831 (and the -DLLAMA_TAG line)
 # Edit README.md: change b8808 to b8831 (in both badge and link)
 # Edit CLAUDE.md: change b8808 to b8831
-git add llama/CMakeLists.txt README.md CLAUDE.md
+# Edit LlamaCppVersion.java: change LLAMA_CPP_VERSION "b8808" to "b8831"
+git add llama/CMakeLists.txt README.md CLAUDE.md \
+        llama/src/main/java/net/ladenthin/llama/value/LlamaCppVersion.java
 git commit -m "Upgrade llama.cpp from b8808 to b8831"
 git push -u origin <your-branch>
 ```
@@ -1228,7 +1237,7 @@ ctest --test-dir build --output-on-failure -R "ResultsToJson"
 
 #### Upstream source location (in CMake build tree)
 
-llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9957`.
+llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9959`.
 
 **GoogleTest** is a separate `BUILD_TESTING`-only FetchContent (`GIT_TAG v1.17.0`), used solely
 by the `jllama_test` C++ unit-test binary — not by the shipped library, and not coupled to the

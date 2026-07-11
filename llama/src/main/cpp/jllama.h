@@ -100,6 +100,13 @@ JNIEXPORT jbyteArray JNICALL Java_net_ladenthin_llama_LlamaModel_jsonSchemaToGra
 
 /*
  * Class:     net_ladenthin_llama_LlamaModel
+ * Method:    nativeLlamaCppBuildInfo
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_nativeLlamaCppBuildInfo(JNIEnv *, jclass);
+
+/*
+ * Class:     net_ladenthin_llama_LlamaModel
  * Method:    handleRerank
  * Signature: (Ljava/lang/String;[Ljava/lang/String;)Ljava/lang/String;
  */

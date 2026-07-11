@@ -1362,6 +1362,13 @@ JNIEXPORT jbyteArray JNICALL Java_net_ladenthin_llama_LlamaModel_jsonSchemaToGra
     }
 }
 
+// Returns llama.cpp's own build identifier ("b<number>-<commit>") from the linked-in build-info
+// symbols. Pure-ASCII, so NewStringUTF is safe here (the modified-UTF-8 caveat only applies to
+// model-generated payload text).
+JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_nativeLlamaCppBuildInfo(JNIEnv *env, jclass clazz) {
+    return env->NewStringUTF(llama_build_info());
+}
+
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleCompletions(JNIEnv *env, jobject obj,
                                                                                 jstring jparams) {
     REQUIRE_SERVER_CONTEXT(nullptr);

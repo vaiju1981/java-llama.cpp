@@ -109,11 +109,16 @@ Once you have the `b<cur> -> b<next>` step, apply it exactly as
 [`CLAUDE.md § Upgrading/Downgrading`](../../CLAUDE.md#upgradingdowngrading-llamacpp-version) describes.
 Concretely:
 
-1. **Edit the pin — three files:**
+1. **Edit the pin — four files:**
    - `llama/CMakeLists.txt` — the `GIT_TAG b<cur>` line **and** the `-DLLAMA_TAG=b<cur>` used by the
      WebUI/TTS extraction (both must move together).
    - `README.md` — the llama.cpp badge and link (version appears twice).
    - `CLAUDE.md` — the "Current llama.cpp pinned version" line (and any build-example `b<nnnn>`).
+   - `llama/src/main/java/net/ladenthin/llama/value/LlamaCppVersion.java` — the `LLAMA_CPP_VERSION`
+     constant (the pure-Java pin consumers read for a version badge/log line). It mirrors `GIT_TAG`;
+     if you forget it, `NativeLibraryLoadSmokeTest.nativeBuildInfoMatchesPinnedVersionConstant` fails
+     the build (it cross-checks the constant against `LlamaModel.getLlamaCppBuildInfo()`, which reads
+     llama.cpp's own linked-in `build-info`).
 2. **Re-verify `patches/`** — a clean configure re-runs the fail-loud `PATCH_COMMAND`, so every patch
    `0001`–`0006` must still apply. Use a **fresh** build dir (a stale one re-applies over an
    already-patched tree and reports a false "does not apply"):
@@ -127,7 +132,8 @@ Concretely:
    `b<cur> -> b<next>` range (what broke / what was new; "no source change" is a valid row).
 4. **Commit + push** on the working branch (do not open a new PR if one already tracks the branch):
    ```bash
-   git add llama/CMakeLists.txt README.md CLAUDE.md docs/history/llama-cpp-breaking-changes.md
+   git add llama/CMakeLists.txt README.md CLAUDE.md docs/history/llama-cpp-breaking-changes.md \
+           llama/src/main/java/net/ladenthin/llama/value/LlamaCppVersion.java
    git commit -m "Upgrade llama.cpp from b<cur> to b<next>"
    git push -u origin <your-branch>
    ```
