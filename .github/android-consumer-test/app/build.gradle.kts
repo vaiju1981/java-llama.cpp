@@ -47,6 +47,6 @@ dependencies {
     implementation("net.ladenthin:llama-android:$jllamaVersion")
 
     // On-emulator instrumentation (test-android-emulator CI job).
-    androidTestImplementation("androidx.test.ext:junit:1.2.1")
-    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.3.0")
+    androidTestImplementation("androidx.test:runner:1.7.0")
 }

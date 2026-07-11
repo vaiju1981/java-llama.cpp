@@ -55,7 +55,7 @@ SPDX-License-Identifier: MIT
 
 	<properties>
 		<sonar.organization>bernardladenthin</sonar.organization>
-		<jna.version>5.19.0</jna.version>
+		<jna.version>5.19.1</jna.version>
 		<jspecify.version>1.0.0</jspecify.version>
 		<lombok.version>1.18.46</lombok.version>
 		<errorprone.version>2.50.0</errorprone.version>
@@ -64,7 +64,7 @@ SPDX-License-Identifier: MIT
 		<jackson.version>2.22.1</jackson.version>
 		<reactor.version>3.8.6</reactor.version>
 		<slf4j.version>2.0.18</slf4j.version>
-		<logback.version>1.5.37</logback.version>
+		<logback.version>1.5.38</logback.version>
 		<animal-sniffer.version>1.27</animal-sniffer.version>
 		<junit.version>6.1.1</junit.version>
 		<hamcrest.version>3.0</hamcrest.version>

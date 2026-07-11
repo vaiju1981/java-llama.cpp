@@ -1652,9 +1652,11 @@ compiles/loads the API); this one has a UI and is driven end-to-end. The name is
 domain is the only string that must be globally unique.
 
 Structure (mirrors the consumer-test's plumbing):
-- **`settings.gradle.kts`** — `rootProject.name = "android-llmservice"`; pins AGP `8.7.3` + Kotlin
+- **`settings.gradle.kts`** — `rootProject.name = "android-llmservice"`; pins AGP `9.2.0` + Kotlin
   `2.4.0` + the Compose plugin; `mavenLocal()` first so the freshly-built AAR + façade resolve there
-  in CI (Maven Central for real users).
+  in CI (Maven Central for real users). AGP 9.x requires Gradle >= 9.4.1 and JDK 17+; CI already
+  runs JDK 21 everywhere (`env.JAVA_VERSION`), so only the `gradle-version` pin on the jobs that
+  build this project (and the `.github/android-consumer-test` fixture) needed bumping.
 - **`app/build.gradle.kts`** — `namespace`/`applicationId` `net.ladenthin.android.llmservice`,
   `minSdk 28` (AAR floor), `compileSdk/targetSdk 35`, Jetpack Compose, `androidx.appcompat` (only for
   the per-app language API), ABIs `arm64-v8a` + `x86_64`. Depends on `net.ladenthin:llama-android` +
