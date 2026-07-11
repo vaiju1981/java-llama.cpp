@@ -622,18 +622,27 @@ else step through the largest intermediate tag still under the threshold), the
 `.github/scripts/llama-next-version.sh` helper that computes the next reviewable step, and the
 edit/verify/commit loop below. Use it for any non-trivial bump; the steps here are the mechanical core.
 
-To change the llama.cpp version, update the following **three** files (and re-verify `patches/`):
+To change the llama.cpp version, update the following **four** files (and re-verify `patches/`):
 
-1. **llama/CMakeLists.txt** — the `GIT_TAG` line for llama.cpp: `GIT_TAG        b8831`
+1. **llama/CMakeLists.txt** — the `GIT_TAG` line for llama.cpp: `GIT_TAG        b8831` (and the
+   cosmetic `-DLLAMA_TAG=b8831` a few lines below, passed to the TTS generator — keep them equal)
 2. **README.md** — the badge and link line with the version number
 3. **CLAUDE.md** — the "Current llama.cpp pinned version" line
+4. **llama/src/main/java/net/ladenthin/llama/value/LlamaCppVersion.java** — the
+   `LLAMA_CPP_VERSION` constant (the compile-time pin exposed to Java/Kotlin consumers, e.g. the
+   Android version badge). It is the *pure-Java mirror* of `GIT_TAG` and must stay equal to it —
+   the native `LlamaModel.getLlamaCppBuildInfo()` getter reports the actually-linked build
+   (`b<number>-<commit>`), and `NativeLibraryLoadSmokeTest.nativeBuildInfoMatchesPinnedVersionConstant`
+   **fails the build** if this constant and the linked binary drift apart.
 
 Example: To upgrade from b8808 to b8831:
 ```bash
-# Edit llama/CMakeLists.txt: change GIT_TAG b8808 to b8831
+# Edit llama/CMakeLists.txt: change GIT_TAG b8808 to b8831 (and the -DLLAMA_TAG line)
 # Edit README.md: change b8808 to b8831 (in both badge and link)
 # Edit CLAUDE.md: change b8808 to b8831
-git add llama/CMakeLists.txt README.md CLAUDE.md
+# Edit LlamaCppVersion.java: change LLAMA_CPP_VERSION "b8808" to "b8831"
+git add llama/CMakeLists.txt README.md CLAUDE.md \
+        llama/src/main/java/net/ladenthin/llama/value/LlamaCppVersion.java
 git commit -m "Upgrade llama.cpp from b8808 to b8831"
 git push -u origin <your-branch>
 ```

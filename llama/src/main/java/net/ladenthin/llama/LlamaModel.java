@@ -440,6 +440,21 @@ public class LlamaModel implements AutoCloseable {
      */
     public static native void setLogger(LogFormat format, BiConsumer<LogLevel, String> callback);
 
+    /**
+     * Returns the upstream llama.cpp build identifier actually linked into the loaded native
+     * library, composed as {@code "b<build-number>-<commit>"} (e.g. {@code "b9959-0badc06ab"}).
+     *
+     * <p>Unlike the compile-time constant {@link net.ladenthin.llama.value.LlamaCppVersion#LLAMA_CPP_VERSION}
+     * (a pure-Java string that can be read without the native library), this reads llama.cpp's own
+     * {@code build-info} through JNI, so it reports the genuine build number and resolved commit of
+     * the binary and cannot silently drift from it. It requires {@code libjllama} to be loaded.</p>
+     *
+     * @return the linked llama.cpp build info string, e.g. {@code "b9959-0badc06ab"}
+     */
+    public static String getLlamaCppBuildInfo() {
+        return nativeLlamaCppBuildInfo();
+    }
+
     @Override
     public synchronized void close() {
         // synchronized so two concurrent close() calls cannot both observe a live native
@@ -485,6 +500,8 @@ public class LlamaModel implements AutoCloseable {
     native void releaseTask(int taskId);
 
     private static native byte[] jsonSchemaToGrammarBytes(String schema);
+
+    private static native String nativeLlamaCppBuildInfo();
 
     /**
      * Converts a JSON schema to a grammar string usable by {@link net.ladenthin.llama.parameters.ModelParameters#setGrammar(String)}.

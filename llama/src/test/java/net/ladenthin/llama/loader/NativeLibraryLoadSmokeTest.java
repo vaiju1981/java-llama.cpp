@@ -5,9 +5,13 @@
 package net.ladenthin.llama.loader;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import net.ladenthin.llama.ClaudeGenerated;
+import net.ladenthin.llama.LlamaModel;
+import net.ladenthin.llama.value.LlamaCppVersion;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -58,5 +62,25 @@ class NativeLibraryLoadSmokeTest {
                 () -> Class.forName("net.ladenthin.llama.LlamaModel"),
                 "LlamaModel.<clinit> must load the native library and JNI_OnLoad must resolve "
                         + "every FindClass'd Java class");
+    }
+
+    /**
+     * The native build-info getter must resolve (proving the {@code nativeLlamaCppBuildInfo} JNI
+     * symbol has C linkage and is reachable) and its value must agree with the compile-time
+     * {@link LlamaCppVersion#LLAMA_CPP_VERSION} pin — catching the exact drift the "Upgrading
+     * llama.cpp Version" checklist warns about (a {@code GIT_TAG} bump that forgets the constant).
+     * {@code llama_build_info()} returns {@code "b<number>-<commit>"}, so it must start with the
+     * pinned tag followed by {@code '-'}.
+     */
+    @Test
+    void nativeBuildInfoMatchesPinnedVersionConstant() {
+        assumeTrue(nativeLibraryOnClasspath(), "libjllama not on classpath — skipping native build-info check");
+        String buildInfo = LlamaModel.getLlamaCppBuildInfo();
+        assertNotNull(buildInfo, "getLlamaCppBuildInfo() must return the linked llama.cpp build identifier");
+        assertTrue(
+                buildInfo.startsWith(LlamaCppVersion.LLAMA_CPP_VERSION + "-"),
+                "Linked build-info \"" + buildInfo + "\" must start with the pinned tag \""
+                        + LlamaCppVersion.LLAMA_CPP_VERSION + "-\"; if this fails, GIT_TAG in "
+                        + "llama/CMakeLists.txt and LlamaCppVersion.LLAMA_CPP_VERSION have drifted apart");
     }
 }
