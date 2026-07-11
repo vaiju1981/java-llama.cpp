@@ -15,13 +15,17 @@ pluginManagement {
     }
     // Versions pinned here (KISS: no version catalog). AGP matches the consumer-test
     // fixture. AGP 9.x requires Gradle >= 9.4.1 — see the gradle-version pins on the CI
-    // jobs that build this project in publish.yml. AGP 9.0+ has built-in Kotlin support
-    // (runtime dependency on Kotlin Gradle plugin 2.2.10+), so the standalone
-    // org.jetbrains.kotlin.android plugin is no longer applied/needed — see
-    // https://developer.android.com/build/migrate-to-built-in-kotlin. The Compose
-    // compiler plugin (2.4.0) still applies separately and exceeds AGP's 2.2.10 floor.
+    // jobs that build this project in publish.yml. 9.2.1 (not 9.2.0) is pinned: it fixes
+    // a real R8 regression (java.lang.ClassNotFoundException on
+    // com.android.tools.r8.RecordTag after upgrading Gradle to 9.x with AGP 9.2.0) that
+    // hits this project directly since buildTypes.release sets isMinifyEnabled = true.
+    // AGP 9.0+ has built-in Kotlin support (runtime dependency on Kotlin Gradle plugin
+    // 2.2.10+), so the standalone org.jetbrains.kotlin.android plugin is no longer
+    // applied/needed — see https://developer.android.com/build/migrate-to-built-in-kotlin.
+    // The Compose compiler plugin (2.4.0) still applies separately and exceeds AGP's
+    // 2.2.10 floor.
     plugins {
-        id("com.android.application") version "9.2.0"
+        id("com.android.application") version "9.2.1"
         id("org.jetbrains.kotlin.plugin.compose") version "2.4.0"
     }
 }

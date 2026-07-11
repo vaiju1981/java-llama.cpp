@@ -16,7 +16,11 @@ pluginManagement {
     plugins {
         // AGP 9.x requires Gradle >= 9.4.1 — see the gradle-version pins on the CI jobs
         // that build this fixture in publish.yml (package-android-aar, test-android-emulator).
-        id("com.android.application") version "9.2.0"
+        // 9.2.1 (not 9.2.0) is pinned: it fixes a real R8 regression
+        // (java.lang.ClassNotFoundException on com.android.tools.r8.RecordTag after
+        // upgrading Gradle to 9.x with AGP 9.2.0) that hits this fixture directly since
+        // buildTypes.release sets isMinifyEnabled = true.
+        id("com.android.application") version "9.2.1"
     }
 }
 
