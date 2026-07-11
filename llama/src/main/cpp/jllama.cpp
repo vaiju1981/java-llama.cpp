@@ -24,10 +24,12 @@
 
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <ctime>
 #include <functional>
 #include <stdexcept>
 #include <thread>
+#include <vector>
 
 // Guards the Java -> native jllama_context handle so acquire_jllama_context_impl (every entry
 // point) and delete() (close) cannot race on the same field. Declared extern in jni_helpers.hpp.
@@ -309,7 +311,7 @@ static void populate_completion_task(server_task &task, jllama_context *jctx, in
 std::string parse_jstring(JNIEnv *env, jstring java_string) {
     // A null receiver would make CallObjectMethod raise a pending JNI exception; bail out
     // cleanly so callers (e.g. parse_json_params) can surface their own error instead of
-    // invoking ThrowNew under an already-pending exception (L6).
+    // invoking ThrowNew under an already-pending exception.
     if (java_string == nullptr) {
         return std::string();
     }
@@ -317,10 +319,12 @@ std::string parse_jstring(JNIEnv *env, jstring java_string) {
     auto *const string_bytes = (jbyteArray)env->CallObjectMethod(java_string, m_get_bytes, o_utf_8);
 
     // CallObjectMethod may have raised a pending exception (e.g. OOM) leaving string_bytes
-    // null; dereferencing it via GetArrayLength would be undefined behaviour. Bail out so the
-    // caller (parse_json_params) surfaces a parse error as a LlamaException instead of crashing
-    // (MED #5).
+    // null; dereferencing it via GetArrayLength would be undefined behaviour. Clear the pending
+    // exception (calling arbitrary JNI functions — including the caller's ThrowNew — with one
+    // pending is not allowed by the JNI spec) and bail out so the caller (parse_json_params)
+    // surfaces a parse error as a LlamaException instead of crashing.
     if (env->ExceptionCheck() || string_bytes == nullptr) {
+        env->ExceptionClear();
         return std::string();
     }
 
@@ -413,35 +417,43 @@ char **parse_string_array(JNIEnv *env, const jobjectArray string_array, const js
     for (jsize i = 0; i < length; i++) {
         // Default to a null slot so an OOM/early-exit path below (e.g. GetByteArrayElements
         // returning nullptr) cannot leave result[i] as uninitialized malloc garbage that
-        // free_string_array would later free() (MED #3).
+        // free_string_array would later free().
         result[i] = nullptr;
         auto *const javaString = static_cast<jstring>(env->GetObjectArrayElement(string_array, i));
-        // A null array element (legal from a Java String[]) must not reach GetStringUTFChars.
+        // A null array element (legal from a Java String[]) must not reach the getBytes call.
         if (javaString == nullptr) {
             result[i] = strdup("");
             continue;
         }
         // Use the standard-UTF-8 byte path (String.getBytes("UTF-8")), NOT GetStringUTFChars
         // which yields Modified-UTF8 (CESU-8) and would mangle non-BMP chars (emoji, many CJK
-        // extensions) in model paths and rerank documents (H1).
+        // extensions) in model paths and rerank documents.
         jbyteArray bytes = (jbyteArray)env->CallObjectMethod(javaString, m_get_bytes, o_utf_8);
+        // Clear any pending exception from the call (e.g. OOM) before making further JNI calls
+        // in this loop — the JNI spec forbids most calls while an exception is pending. The
+        // element degrades to "" like the other failure paths.
+        if (env->ExceptionCheck()) {
+            env->ExceptionClear();
+            if (bytes != nullptr) {
+                env->DeleteLocalRef(bytes);
+                bytes = nullptr;
+            }
+        }
         if (bytes == nullptr) {
             result[i] = strdup("");
         } else {
             const jsize blen = env->GetArrayLength(bytes);
             jbyte *bytesElems = env->GetByteArrayElements(bytes, nullptr);
-            if (bytesElems != nullptr && blen >= 0) {
+            if (bytesElems != nullptr) {
                 result[i] = static_cast<char *>(malloc(static_cast<size_t>(blen) + 1));
                 if (result[i] != nullptr) {
                     memcpy(result[i], bytesElems, static_cast<size_t>(blen));
                     result[i][blen] = '\0';
                 }
+                env->ReleaseByteArrayElements(bytes, bytesElems, JNI_ABORT);
             }
             if (result[i] == nullptr) {
                 result[i] = strdup("");
-            }
-            if (bytesElems != nullptr) {
-                env->ReleaseByteArrayElements(bytes, bytesElems, JNI_ABORT);
             }
         }
         // Each GetObjectArrayElement returns a fresh local ref; release it so a large
@@ -520,9 +532,15 @@ JNIEnv *get_jni_env_or_null() noexcept {
 
 bool log_json;
 std::function<void(ggml_log_level, const char *, void *)> log_callback;
-// Guards the logger globals below so concurrent setLogger calls (and the
-// trampoline reading them from arbitrary worker threads) cannot race (L4).
+// Guards the logger globals so concurrent setLogger calls (and the trampoline
+// reading them from arbitrary worker threads) cannot race.
 static std::mutex g_log_mutex;
+// Number of trampolines currently invoking a copied callback OUTSIDE the lock.
+// setLogger drains this to 0 before DeleteGlobalRef-ing the old callback ref —
+// without the drain, a trampoline that copied the old std::function could still
+// call into a just-deleted global ref (a use-after-free on the JNI ref).
+static int g_log_active = 0;
+static std::condition_variable g_log_cv;
 
 /**
  * Invoke the log callback if there is any. When JSON mode is enabled,
@@ -530,13 +548,17 @@ static std::mutex g_log_mutex;
  */
 void log_callback_trampoline(ggml_log_level level, const char *text, void *user_data) {
     // Copy the (small) callback state under the lock so we don't hold it across the
-    // user-provided callback, which may itself do arbitrary work.
+    // user-provided callback, which may itself do arbitrary work. While the copy is
+    // in use, g_log_active keeps setLogger from deleting the captured global ref.
     std::function<void(ggml_log_level, const char *, void *)> cb;
     bool json_mode;
     {
         std::lock_guard<std::mutex> lk(g_log_mutex);
         cb = log_callback;
         json_mode = log_json;
+        if (cb != nullptr) {
+            ++g_log_active;
+        }
     }
     if (cb != nullptr) {
         if (json_mode) {
@@ -545,6 +567,11 @@ void log_callback_trampoline(ggml_log_level level, const char *text, void *user_
         } else {
             cb(level, text, user_data);
         }
+        {
+            std::lock_guard<std::mutex> lk(g_log_mutex);
+            --g_log_active;
+        }
+        g_log_cv.notify_all();
     }
 }
 } // namespace
@@ -553,7 +580,7 @@ void log_callback_trampoline(ggml_log_level level, const char *text, void *user_
 // `jctx` and `ctx_server` in the caller's scope; returns the given sentinel
 // (omit for void functions) if the model is not loaded.
 #define REQUIRE_SERVER_CONTEXT(...)                                                                                    \
-    jllama_context_guard _jctx_guard{acquire_jllama_context_impl(env, obj, f_model_pointer)};                         \
+    jllama_context_guard _jctx_guard{acquire_jllama_context_impl(env, obj, f_model_pointer)};                          \
     if (!_jctx_guard.ptr) {                                                                                            \
         env->ThrowNew(c_llama_error, "Model is not loaded");                                                           \
         return __VA_ARGS__;                                                                                            \
@@ -881,14 +908,17 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_getModelMetaJson(J
     auto m = ctx_server->get_meta();
     // Read general.architecture from GGUF metadata via the llama C API. Size the buffer
     // dynamically: llama_model_meta_val_str returns the required length when given a null/0
-    // buffer, so a long architecture name is never silently truncated (L3).
+    // buffer, so a long architecture name is never silently truncated. A char vector (not a
+    // std::string written in place) keeps the API's terminating '\0' write off the string's
+    // internal terminator slot, which the standard does not allow to be written.
     std::string arch;
     const llama_model *mdl = llama_get_model(ctx_server->get_llama_context());
     if (mdl) {
         const int need = llama_model_meta_val_str(mdl, "general.architecture", nullptr, 0);
         if (need > 0) {
-            arch.resize(static_cast<size_t>(need));
-            llama_model_meta_val_str(mdl, "general.architecture", arch.data(), arch.size() + 1);
+            std::vector<char> buf(static_cast<size_t>(need) + 1, '\0');
+            llama_model_meta_val_str(mdl, "general.architecture", buf.data(), buf.size());
+            arch.assign(buf.data());
         }
     }
     json j = {
@@ -987,7 +1017,9 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveCompletionJ
             break;
         }
     } catch (const std::exception &e) {
-        // A throwing to_json() must surface as a LlamaException, not abort the JVM.
+        // A throwing to_json() must surface as a LlamaException, not abort the JVM. The task is
+        // over for the Java caller, so release its reader entry like the other error paths.
+        erase_reader(jctx, id_task);
         env->ThrowNew(c_llama_error, e.what());
         return nullptr;
     }
@@ -1041,6 +1073,9 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveChatComplet
             break;
         }
     } catch (const std::exception &e) {
+        // A throwing to_json() must surface as a LlamaException, not abort the JVM. The task is
+        // over for the Java caller, so release its reader entry like the other error paths.
+        erase_reader(jctx, id_task);
         env->ThrowNew(c_llama_error, e.what());
         return nullptr;
     }
@@ -1127,7 +1162,7 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleRerank(JNIEn
     if (!batch_ok_or_throw(env, br))
         return nullptr;
     // rerank_results_to_json throws std::invalid_argument on a malformed/out-of-range
-    // result index (M2); unwrap it into a LlamaException instead of letting it cross
+    // result index; unwrap it into a LlamaException instead of letting it cross
     // the JNI boundary (undefined behaviour / JVM abort).
     try {
         return json_to_jstring(env, rerank_results_to_json(br.results, document_vector));
@@ -1257,18 +1292,29 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_delete(JNIEnv *env, j
         env->SetLongField(obj, f_model_pointer, 0);
     }
 
+    // Signal teardown to any in-flight reader. The streaming / blocking should_stop lambdas
+    // observe this and make next()/wait_for_all() return within one poll (~1s), so the
+    // in-flight JNI call unwinds and releases its user reference — otherwise the reader would
+    // poll forever (the worker only stops the task queue, not the results queue) and close()
+    // would hang.
+    jctx->closing.store(true, std::memory_order_release);
     if (!jctx->vocab_only) {
-        // Signal teardown to any in-flight reader BEFORE stopping the worker. The streaming /
-        // blocking should_stop lambdas observe this and make next()/wait_for_all() return
-        // within one poll (~1s), so the in-flight JNI call unwinds and releases its user
-        // reference — otherwise the reader would poll forever (worker only stops the task
-        // queue, not the results queue) and close() would hang (M4).
-        jctx->closing.store(true, std::memory_order_release);
         // Cancel any pending streaming readers before stopping the server.
-        {
-            std::lock_guard<std::mutex> lk(jctx->readers_mutex);
-            jctx->readers.clear();
-        }
+        std::lock_guard<std::mutex> lk(jctx->readers_mutex);
+        jctx->readers.clear();
+    }
+
+    // Wait for every in-flight JNI call (an entry point still inside its jllama_context_guard)
+    // to release its user reference BEFORE tearing anything down — a concurrent call could
+    // otherwise still be using the worker, the server_context, or the vocab-only model while
+    // they are being stopped/freed (use-after-free). New calls cannot start (the handle is
+    // already nulled above), and the closing flag bounds this wait to ~1s.
+    {
+        std::unique_lock<std::mutex> lk(jctx->m);
+        jctx->cv.wait(lk, [&] { return jctx->users.load() == 0; });
+    }
+
+    if (!jctx->vocab_only) {
         while (!jctx->worker_ready.load()) {
             std::this_thread::yield();
         }
@@ -1287,15 +1333,6 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_delete(JNIEnv *env, j
         llama_model_free(jctx->vocab_only_model);
     }
 
-    // Wait for any in-flight JNI call (an entry point still inside its jllama_context_guard)
-    // to release its user reference before we free the context. The closing flag set above makes
-    // those calls unwind (rd->next()/wait_for_all() return early), so this wait is bounded to
-    // ~1s. Without it a concurrent complete()/receiveCompletionJson() could still be
-    // dereferencing jctx when delete runs (use-after-free, H2 / M4).
-    {
-        std::unique_lock<std::mutex> lk(jctx->m);
-        jctx->cv.wait(lk, [&] { return jctx->users.load() == 0; });
-    }
     delete jctx;
 }
 
@@ -1306,11 +1343,15 @@ JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_cancelCompletion(JNIE
 
 JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_setLogger(JNIEnv *env, jclass clazz, jobject log_format,
                                                                      jobject jcallback) {
-    // Serialize the whole swap under the logger mutex (L4): first clear the live callback so
-    // no in-flight trampoline can copy a lambda that still references the global ref we are
-    // about to delete, then delete the old ref, then install the new one.
-    std::lock_guard<std::mutex> lk(g_log_mutex);
+    // Serialize the whole swap under the logger mutex: first clear the live callback so no NEW
+    // trampoline invocation can copy a lambda that still references the global ref we are about
+    // to delete, then DRAIN trampolines already executing a copied callback (g_log_active), then
+    // delete the old ref, then install the new one. Without the drain, an in-flight trampoline
+    // could still call into the just-deleted global ref. Note: this makes setLogger block until
+    // running log callbacks return — do not call setLogger from within a log callback.
+    std::unique_lock<std::mutex> lk(g_log_mutex);
     log_callback = nullptr;
+    g_log_cv.wait(lk, [] { return g_log_active == 0; });
     if (o_log_callback != nullptr) {
         env->DeleteGlobalRef(o_log_callback);
         o_log_callback = nullptr;
@@ -1689,9 +1730,9 @@ JNIEXPORT jboolean JNICALL Java_net_ladenthin_llama_LlamaModel_configureParallel
     // throws for out-of-range values, preserving the existing exception
     // contract).  Live mutation uses server_context::set_slot_prompt_similarity(),
     // added upstream by https://github.com/ggml-org/llama.cpp/pull/22393 and carried
-    // in this repo as patches/0003-pr22393-... until it merges upstream (the pinned
-    // llama.cpp is now b9941, which the patch applies against).  not thread-safe per
-    // the upstream contract — main-thread only, which this JNI call is.
+    // in this repo as patches/0003-pr22393-... until it merges upstream (the patch
+    // applies against the pinned llama.cpp GIT_TAG in CMakeLists.txt).  not thread-safe
+    // per the upstream contract — main-thread only, which this JNI call is.
     if (slot_sim_opt.has_value()) {
         ctx_server->set_slot_prompt_similarity(*slot_sim_opt);
     }

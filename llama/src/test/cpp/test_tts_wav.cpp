@@ -55,40 +55,32 @@ TEST(TtsWav, ClampsAndEncodesSamplesLittleEndian) {
 }
 
 // ============================================================
-// filter_ouetts_codec_tokens (M3 — V0_2 / V0_3 codec window)
+// filter_outetts_codec_tokens (OuteTTS V0_2 / V0_3 codec window)
 // ============================================================
 
 // The OuteTTS codec window is identical for V0_2 and V0_3 (verified against upstream
-// tools/tts/tts.cpp). In-range tokens are kept and rebased to 0-based codec ids.
+// tools/tts/tts.cpp). In-range tokens — including both window boundaries — are kept
+// and rebased to 0-based codec ids.
 TEST(OuteTtsCodecFilter, InRangeTokensAreRebased) {
-    std::vector<int32_t> codes = {151672, 151673, 155772};
-    filter_ouetts_codec_tokens(codes);
+    std::vector<int32_t> codes = {k_outetts_codec_lo, k_outetts_codec_lo + 1, k_outetts_codec_hi};
+    filter_outetts_codec_tokens(codes);
     ASSERT_EQ(codes.size(), 3u);
     EXPECT_EQ(codes[0], 0);
     EXPECT_EQ(codes[1], 1);
-    EXPECT_EQ(codes[2], 155772 - 151672);
+    EXPECT_EQ(codes[2], k_outetts_codec_hi - k_outetts_codec_lo);
 }
 
-// Tokens below / above the window (e.g. text, control, or speaker tokens) are dropped.
+// Tokens just below / just above the window (e.g. text, control, or speaker tokens)
+// are dropped — the off-by-one boundary cases on both ends.
 TEST(OuteTtsCodecFilter, OutOfRangeTokensAreDropped) {
-    std::vector<int32_t> codes = {151671, 198 /*newline*/, 155773, 151672};
-    filter_ouetts_codec_tokens(codes);
+    std::vector<int32_t> codes = {k_outetts_codec_lo - 1, 198 /*newline*/, k_outetts_codec_hi + 1, k_outetts_codec_lo};
+    filter_outetts_codec_tokens(codes);
     ASSERT_EQ(codes.size(), 1u);
     EXPECT_EQ(codes[0], 0);
 }
 
 TEST(OuteTtsCodecFilter, EmptyInput_StaysEmpty) {
     std::vector<int32_t> codes;
-    filter_ouetts_codec_tokens(codes);
+    filter_outetts_codec_tokens(codes);
     EXPECT_TRUE(codes.empty());
-}
-
-TEST(OuteTtsCodecFilter, V02AndV03ShareWindow) {
-    // Whatever the engine version, the same window applies (M3). Exercise both boundaries.
-    std::vector<int32_t> v02 = {151672, 153000, 155772};
-    std::vector<int32_t> v03 = {151672, 153000, 155772};
-    filter_ouetts_codec_tokens(v02);
-    filter_ouetts_codec_tokens(v03);
-    EXPECT_EQ(v02, v03);
-    EXPECT_EQ(v02, (std::vector<int32_t>{0, 153000 - 151672, 155772 - 151672}));
 }
