@@ -75,4 +75,8 @@ SPDX-License-Identifier: MIT
     <string name="action_quit">Sair</string>
     <string name="quit_confirm_title">Sair e limpar?</string>
     <string name="quit_confirm_message">Fecha a app e elimina os dados de trabalho (o modelo copiado + a cache). As conversas guardadas são mantidas.</string>
+
+    <!-- Vision (mmproj) model + image attachment -->
+    <string name="action_choose_vision_model">Adicionar visão (opcional)</string>
+    <string name="action_vision_model_set">Visão: %1$s</string>
 </resources>

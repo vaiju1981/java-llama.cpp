@@ -82,4 +82,8 @@ SPDX-License-Identifier: MIT
     <string name="action_quit">Quit</string>
     <string name="quit_confirm_title">Quit and clean up?</string>
     <string name="quit_confirm_message">Closes the app and deletes working data (the copied model + cache). Saved chats are kept.</string>
+
+    <!-- Vision (mmproj) model + image attachment -->
+    <string name="action_choose_vision_model">Add vision (optional)</string>
+    <string name="action_vision_model_set">Vision: %1$s</string>
 </resources>

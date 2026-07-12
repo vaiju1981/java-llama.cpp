@@ -75,4 +75,8 @@ SPDX-License-Identifier: MIT
     <string name="action_quit">Beenden</string>
     <string name="quit_confirm_title">Beenden und aufräumen?</string>
     <string name="quit_confirm_message">Schließt die App und löscht Arbeitsdaten (kopiertes Modell + Cache). Gespeicherte Chats bleiben erhalten.</string>
+
+    <!-- Vision (mmproj) model + image attachment -->
+    <string name="action_choose_vision_model">Sehen hinzufügen (optional)</string>
+    <string name="action_vision_model_set">Sehen: %1$s</string>
 </resources>

@@ -47,7 +47,7 @@ by hand only (no automated test); `build` = enforced at build/resource-compile t
 | R2.2 | `allowBackup=false` — conversation data is not included in system backups. | `AndroidManifest.xml` | build |
 | R2.3 | All inference runs **on-device** (CPU); no request is ever made to a remote server by the app. | `ChatViewModel` (no network calls) | manual |
 | R2.4 | A **"🔒 Offline · fully on-device"** badge is shown on the model-picker screen. | `MainActivity.OfflineBadge`; `badge_offline` | manual |
-| R2.5 | **Transient working data is ephemeral:** the copied model (`current-model.gguf`) and the cache dir are **wiped on every cold start** (`LlmServiceApp.onCreate`) — guaranteeing a fresh start regardless of how the app was last killed — and best-effort on finish (`MainActivity.onDestroy` when `isFinishing`). The **only** data that persists is the user's **explicitly saved** session (`session.json`, opt-in). | `LlmServiceApp`; `MainActivity.onDestroy` | manual |
+| R2.5 | **Transient working data is ephemeral:** the copied model (`current-model.gguf`), the copied vision projector (`current-mmproj.gguf`, see R12), and the cache dir are **wiped on every cold start** (`LlmServiceApp.onCreate`) — guaranteeing a fresh start regardless of how the app was last killed — and best-effort on finish (`MainActivity.onDestroy` when `isFinishing`). The **only** data that persists is the user's **explicitly saved** session (`session.json`, opt-in). | `LlmServiceApp`; `MainActivity.onDestroy` | manual |
 | R2.6 | **Quit & clean up:** a ❌ button on the model-picker (main) screen opens a confirm dialog that, on confirm, **wipes the working data** (model copy + cache, keeping the saved session) and **closes the app** (`finishAndRemoveTask` — removed from Recents). | `MainActivity` (`quitButton`; `LlmServiceApp.clearWorkingData` + `finishAndRemoveTask`) | manual |
 
 ## R3 — Model selection & loading
@@ -55,7 +55,7 @@ by hand only (no automated test); `build` = enforced at build/resource-compile t
 | ID | Requirement | Source | Verified by |
 |---|---|---|---|
 | R3.1 | The user picks a GGUF via the **Storage Access Framework** (`ACTION_OPEN_DOCUMENT`, `*/*`) — no storage permission. | `MainActivity` picker | manual |
-| R3.2 | A picked `content://` model is **copied into app-private `filesDir`** (`current-model.gguf` = `MODEL_COPY_NAME`) and loaded **by real path** (llama.cpp mmaps a real path, not a `content://` URI). The copy is **ephemeral** (wiped on cold start / close — see R2.5), so a model is re-picked after the app is fully closed. | `ChatViewModel.copyToInternal` | manual |
+| R3.2 | A picked `content://` model is **copied into app-private `filesDir`** (`current-model.gguf` = `MODEL_COPY_NAME`) and loaded **by real path** (llama.cpp mmaps a real path, not a `content://` URI). The copy is **ephemeral** (wiped on cold start / close — see R2.5), so a model is re-picked after the app is fully closed. | `ChatViewModel.copyUriToInternal` | manual |
 | R3.3 | The model loads **CPU-only** (`setGpuLayers(0)`) with context size **2048**, portable across every device. | `ChatViewModel.openModel` (`CONTEXT_SIZE`) | manual |
 | R3.4 | While loading, a **LOADING** state is shown (spinner + "Loading model…"); on failure a localized load error is shown and state returns to NONE. | `ChatViewModel.ModelState`; `error_load_model` | manual |
 | R3.5 | Loading a new model **closes** the previously loaded one (native memory is not GC-managed). | `ChatViewModel.openModel` | manual |
@@ -141,6 +141,18 @@ by hand only (no automated test); `build` = enforced at build/resource-compile t
 | R11.1 | `MainActivity` reads optional `EXTRA_MODEL_PATH` / `EXTRA_CHAT_TEMPLATE` intent extras to preload a model by absolute path, bypassing the SAF picker — a **test hook** the shipping UI never sets. | `MainActivity` companion | instrumented |
 | R11.2 | `ChatFlowInstrumentedTest` launches the app with a preloaded model, types a prompt, taps Send, and asserts a **non-empty streamed assistant reply**; it self-skips when the adb-pushed model is absent. | `androidTest/.../ChatFlowInstrumentedTest.kt` | instrumented |
 | R11.3 | **Coverage gap:** there are currently **no unit tests** for `ChatViewModel`, `SessionStore`, `Languages`, or the settings/log/chat-action logic. This file is the spec of record until such tests exist. | — | — |
+
+## R12 — Vision (mmproj) model + image attachment
+
+| ID | Requirement | Source | Verified by |
+|---|---|---|---|
+| R12.1 | The model-picker screen has an **optional** "Add vision" button that picks a vision projector (**mmproj**) GGUF via SAF, independent of and in either order relative to the main model. Once set, the button shows the projector's file name and a ✕ to clear it. | `MainActivity.ChooseModelView` (`chooseMmprojButton`/`clearMmprojButton`); `ChatViewModel.loadMmprojFromUri`/`clearMmproj` | manual |
+| R12.2 | The picked mmproj is **copied into app-private `filesDir`** (`current-mmproj.gguf` = `MMPROJ_COPY_NAME`, same real-path-not-URI reasoning as R3.2) and passed to `ModelParameters.setMmproj(...)` (+ `setDevices("none")` + `setMmprojOffload(false)`, mirroring the CPU-only config `MultimodalIntegrationTest` validates) the next time a model is loaded. | `ChatViewModel.openModel` | manual |
+| R12.3 | Once a vision projector is loaded, a **📎 attach** button appears in the chat input row; tapping it picks an image (`image/*`) via SAF and stages it as a **pending attachment chip** (🖼️ filename + ✕ to remove) above the input. | `MainActivity.Conversation` (`attachImageButton`/`pendingImageChip`/`removeAttachmentButton`); `ChatViewModel.attachImage`/`clearPendingImage` | manual |
+| R12.4 | **Send** accepts either non-blank text, a pending image, or both; a message with an image is built as a multimodal `ChatMessage` (`ContentPart.text` + `ContentPart.imageBytes`) instead of plain text. | `ChatViewModel.send`/`Message.toChatMessage` | manual |
+| R12.5 | Attached images are **session-transient**: shown in the message bubble (🖼️ prefix) for the lifetime of the app process, but **not** persisted by `SessionStore` (save/load keeps text only) and not copied to disk (read into memory only). | `ChatViewModel.Message`; `SessionStore` | manual |
+| R12.6 | **Unloading the model** (R3.8) also clears the selected vision projector (path + copied file) and any pending image attachment — picking a new model starts vision selection fresh. | `ChatViewModel.unloadModel` | manual |
+| R12.7 | The vision projector copy is included in the same **privacy wipe** as the model copy: deleted on cold start (`LlmServiceApp.onCreate`) and on `clearMmproj`/`unloadModel`. | `LlmServiceApp.clearWorkingData` | manual |
 
 ---
 

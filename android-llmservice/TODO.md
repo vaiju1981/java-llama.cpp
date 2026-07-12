@@ -83,7 +83,7 @@ Everything else in the brief is feasible with standard AndroidX + the existing b
 | Markdown rendering (code, lists, tables, headings) | Readable answers | M | ⬜ | add a Compose Markdown renderer (e.g. compose-markdown) |
 | Copy / regenerate / stop / clear-chat actions | Standard chat UX | M | ✅ | **stop** cancels the streaming coroutine (façade closes the source); **copy**/**regenerate** act on the last reply; **long-press any bubble** copies that message; **clear** in the top bar with a confirm |
 | Prompt shortcut chips (Summarize / Explain code / Translate / …) | Fast starts | S | ✅ | localized `SuggestionChip`s above the input (fill the draft); 3 chips × 13 languages |
-| Attachment button → image input (vision) | Multimodal chat | L | ⬜ | `ContentPart.imageFile(...)` + a **vision GGUF + mmproj**; SAF image picker |
+| Attachment button → image input (vision) | Multimodal chat | L | ✅ | SAF pickers for both a vision **mmproj** GGUF (model-picker screen) and a query **image** (📎 in the chat input, shown only once a vision projector is loaded); wired through `ContentPart.imageBytes(...)` + `ChatMessage`. Attached images are session-transient (not saved to `session.json`) |
 | Audio input (speech) | Multimodal chat | L | ⬜ | `ContentPart.audioFile(...)` + an audio-capable model + mmproj |
 | Explicit states: loading / generating / stopped / unavailable / "too large for RAM" | Transparency | S | 🔧 | basic states exist; add the rest + messages |
 
@@ -154,7 +154,7 @@ See decision #1. All rows below assume a new in-app Ktor/NanoHTTPD HTTP layer wr
 | Item | Reality today | Effort to adopt |
 |---|---|---|
 | GPU acceleration | **OpenCL/Adreno only** via the separate `net.ladenthin:llama-android-opencl` AAR (Qualcomm Snapdragon/Adreno; device must supply an OpenCL ICD). **No Vulkan** Android artifact exists. | M — swap/offer the OpenCL AAR flavor + runtime detection; non-Adreno devices stay CPU |
-| Vision / audio input | Supported by the binding (`ContentPart.imageFile`/`audioFile`), needs a multimodal GGUF + matching mmproj | L (see §3) |
+| Audio input | Supported by the binding (`ContentPart.audioFile`), needs an audio-capable GGUF + matching mmproj | L (see §3) |
 | 16 KB page size / dlopen-clean `.so` | Already guaranteed by the AAR (CI-enforced) | — |
 
 ## 8. Branding & store
@@ -175,7 +175,7 @@ See decision #1. All rows below assume a new in-app Ktor/NanoHTTPD HTTP layer wr
   icon, helper tooltips.
 - **Phase 2 — the model manager:** managed import library → `GgufInspector` model cards → RAM/compat
   badges → filters → multi-model switch/delete. Then decide on the **download manager** (`INTERNET`).
-- **Phase 3 — multimodal:** image (then audio) input with a vision/audio GGUF + mmproj.
+- **Phase 3 — multimodal:** image input ✅ shipped; audio input with an audio-capable GGUF + mmproj remains.
 - **Phase 4 — hardening/perf:** encrypted conversations, biometric lock, battery-saver + thermal
   throttling, optional Adreno/OpenCL GPU flavor.
 - **Phase 5 — the local API server (`XL`, foundational):** in-app Ktor/NanoHTTPD server wrapping the

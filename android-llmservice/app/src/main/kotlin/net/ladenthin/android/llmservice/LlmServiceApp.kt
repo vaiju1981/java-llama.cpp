@@ -13,8 +13,9 @@ import java.io.File
  * working data on every **cold start**, so the app always begins fresh regardless of how it was last
  * killed (swipe-away, low-memory kill, crash — none of which reliably call `onDestroy`).
  *
- * "Working data" = the copied model ([MODEL_COPY_NAME], which can be gigabytes) and the cache dir.
- * The **only** thing that intentionally survives is the user's explicitly saved session
+ * "Working data" = the copied model ([MODEL_COPY_NAME], which can be gigabytes), the copied vision
+ * projector ([MMPROJ_COPY_NAME]), and the cache dir. The **only** thing that intentionally survives
+ * is the user's explicitly saved session
  * ([SessionStore]) — it exists precisely so the user can opt in to keeping a chat; everything else is
  * ephemeral. `MainActivity` additionally calls [clearWorkingData] on finish for prompt cleanup, but
  * this cold-start wipe is the reliable guarantee.
@@ -36,6 +37,7 @@ class LlmServiceApp : Application() {
          */
         fun clearWorkingData(context: Context) {
             File(context.filesDir, MODEL_COPY_NAME).delete()
+            File(context.filesDir, MMPROJ_COPY_NAME).delete()
             context.cacheDir?.listFiles()?.forEach { it.deleteRecursively() }
         }
     }
