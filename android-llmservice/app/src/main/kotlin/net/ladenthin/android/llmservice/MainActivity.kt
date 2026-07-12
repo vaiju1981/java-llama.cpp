@@ -218,15 +218,19 @@ private fun ChatScreen(viewModel: ChatViewModel) {
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             val hasConversation = state.messages.isNotEmpty() || state.modelState == ChatViewModel.ModelState.READY
             when {
-                state.modelState == ChatViewModel.ModelState.LOADING && !hasConversation ->
-                    LoadingView()
-
-                !hasConversation ->
+                // No model loaded (fresh start, or after unloadModel()/a failed load) always goes
+                // to the picker screen — regardless of leftover chat history — so its ❌ quit
+                // button and "choose a model" action are reachable. Leftover messages are kept in
+                // state and simply reappear once a model becomes READY again (R3.8).
+                state.modelState == ChatViewModel.ModelState.NONE ->
                     ChooseModelView(
                         error = errorText(state.error),
                         onChoose = onChoose,
                         onRequestQuit = { showQuitConfirm = true },
                     )
+
+                state.modelState == ChatViewModel.ModelState.LOADING && !hasConversation ->
+                    LoadingView()
 
                 else ->
                     Conversation(
