@@ -154,7 +154,13 @@ public enum ModelFlag {
     PROMPT_CACHE_ALL("--prompt-cache-all"),
 
     /** Automatically load models referenced by agents from the local model pool. */
-    MODELS_AUTOLOAD("--models-autoload");
+    MODELS_AUTOLOAD("--models-autoload"),
+
+    /** Disable KV-cache repacking (enabled by default). */
+    NO_REPACK("--no-repack"),
+
+    /** Disable reranking op offload to the device (enabled by default). */
+    NO_OP_OFFLOAD("--no-op-offload");
 
     private final String cliFlag;
 

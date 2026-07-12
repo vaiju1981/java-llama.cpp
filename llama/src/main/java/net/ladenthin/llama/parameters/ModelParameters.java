@@ -1872,6 +1872,199 @@ public final class ModelParameters extends CliParameters {
     }
 
     /**
+     * Set the draft model's KV cache data type for K (mirrors {@link #setCacheTypeK(CacheType)}
+     * for the draft model).
+     *
+     * @param type the draft-model KV cache data type for K
+     * @return this builder
+     */
+    public ModelParameters setCacheTypeKDraft(CacheType type) {
+        return putEnum("--cache-type-k-draft", type);
+    }
+
+    /**
+     * Set the draft model's KV cache data type for V (mirrors {@link #setCacheTypeV(CacheType)}
+     * for the draft model).
+     *
+     * @param type the draft-model KV cache data type for V
+     * @return this builder
+     */
+    public ModelParameters setCacheTypeVDraft(CacheType type) {
+        return putEnum("--cache-type-v-draft", type);
+    }
+
+    /**
+     * Set the number of draft-model Mixture-of-Experts (MoE) layers to offload to the CPU
+     * (default: 0 = disabled). Distinct from {@link #setCpuMoeLayers(int)} which targets the
+     * main model.
+     *
+     * @param layers the number of draft-model MoE layers to offload to the CPU
+     * @return this builder
+     */
+    public ModelParameters setCpuMoeDraftLayers(int layers) {
+        return putScalar("--n-cpu-moe-draft", layers);
+    }
+
+    /**
+     * Set the draft-model CPU affinity mask: arbitrarily long hex (complements
+     * {@link #setCpuRangeDraft(String)}).
+     *
+     * @param mask the draft-model CPU affinity mask as an arbitrarily long hex string
+     * @return this builder
+     */
+    public ModelParameters setCpuMaskDraft(String mask) {
+        parameters.put("--cpu-mask-draft", mask);
+        return this;
+    }
+
+    /**
+     * Set the range of CPUs for draft-model affinity (complements
+     * {@link #setCpuMaskDraft(String)}).
+     *
+     * @param range the range of CPUs for draft-model affinity
+     * @return this builder
+     */
+    public ModelParameters setCpuRangeDraft(String range) {
+        parameters.put("--cpu-range-draft", range);
+        return this;
+    }
+
+    /**
+     * Use strict CPU placement for the draft model (default: 0).
+     *
+     * @param strictCpuDraft 1 to enable strict CPU placement for the draft model, 0 to disable
+     * @return this builder
+     */
+    public ModelParameters setCpuStrictDraft(int strictCpuDraft) {
+        return putScalar("--cpu-strict-draft", strictCpuDraft);
+    }
+
+    /**
+     * Set the draft-model CPU affinity mask for batch processing: arbitrarily long hex
+     * (complements {@link #setCpuRangeBatchDraft(String)}).
+     *
+     * @param mask the draft-model CPU affinity mask for batch processing
+     * @return this builder
+     */
+    public ModelParameters setCpuMaskBatchDraft(String mask) {
+        parameters.put("--cpu-mask-batch-draft", mask);
+        return this;
+    }
+
+    /**
+     * Set the ranges of CPUs for draft-model batch affinity (complements
+     * {@link #setCpuMaskBatchDraft(String)}).
+     *
+     * @param range the ranges of CPUs for draft-model batch affinity
+     * @return this builder
+     */
+    public ModelParameters setCpuRangeBatchDraft(String range) {
+        parameters.put("--cpu-range-batch-draft", range);
+        return this;
+    }
+
+    /**
+     * Use strict CPU placement for draft-model batch processing (default: same as
+     * {@link #setCpuStrictDraft(int)}).
+     *
+     * @param strictCpuBatchDraft 1 to enable strict CPU placement for draft-model batch processing,
+     *                                0 to disable
+     * @return this builder
+     */
+    public ModelParameters setCpuStrictBatchDraft(int strictCpuBatchDraft) {
+        return putScalar("--cpu-strict-batch-draft", strictCpuBatchDraft);
+    }
+
+    /**
+     * Set the speculative draft p-split probability (default: 0.1). Splits the draft at the
+     * token where the model's confidence drops below this threshold.
+     *
+     * @param pSplit the draft p-split probability
+     * @return this builder
+     */
+    public ModelParameters setDraftPSplit(float pSplit) {
+        return putScalar("--draft-p-split", pSplit);
+    }
+
+    /**
+     * Set the Hugging Face repository for the draft model (default: unused).
+     *
+     * @param hfRepoDraft the Hugging Face repository identifier for the draft model
+     * @return this builder
+     */
+    public ModelParameters setHfRepoDraft(String hfRepoDraft) {
+        parameters.put("--hf-repo-draft", hfRepoDraft);
+        return this;
+    }
+
+    /**
+     * Set the embedding separator string (default: empty, i.e. no separator). Inserted between
+     * concatenated inputs before embedding.
+     *
+     * @param separator the embedding separator string
+     * @return this builder
+     */
+    public ModelParameters setEmbdSeparator(String separator) {
+        parameters.put("--embd-separator", separator);
+        return this;
+    }
+
+    /**
+     * Set the attention implementation to use (default: auto).
+     * Permitted values include {@code causal} and {@code non-causal}.
+     *
+     * @param attention the attention implementation selection
+     * @return this builder
+     */
+    public ModelParameters setAttention(String attention) {
+        parameters.put("--attention", attention);
+        return this;
+    }
+
+    /**
+     * Enable or disable KV-cache repacking (enabled by default upstream).
+     *
+     * @param repack {@code true} to keep repacking on (the upstream default),
+     *                {@code false} to disable it via {@code --no-repack}
+     * @return this builder
+     */
+    public ModelParameters setRepack(boolean repack) {
+        if (repack) {
+            clearFlag(ModelFlag.NO_REPACK);
+        } else {
+            setFlag(ModelFlag.NO_REPACK);
+        }
+        return this;
+    }
+
+    /**
+     * Enable or disable reranking op offload to the device (enabled by default upstream).
+     *
+     * @param opOffload {@code true} to keep op offload on (the upstream default),
+     *                  {@code false} to disable it via {@code --no-op-offload}
+     * @return this builder
+     */
+    public ModelParameters setOpOffload(boolean opOffload) {
+        if (opOffload) {
+            clearFlag(ModelFlag.NO_OP_OFFLOAD);
+        } else {
+            setFlag(ModelFlag.NO_OP_OFFLOAD);
+        }
+        return this;
+    }
+
+    /**
+     * Alias of {@link #setPredict(int)}: the maximum number of tokens to predict
+     * (default: -1 = infinity, -2 = until context filled).
+     *
+     * @param nPredict the maximum number of tokens to predict (-1 = infinity, -2 = until context filled)
+     * @return this builder
+     */
+    public ModelParameters setNPredict(int nPredict) {
+        return putScalar("--predict", nPredict);
+    }
+
+    /**
      * Enable the given flag, adding it to the active parameter set.
      * Equivalent to calling the specific named method (e.g. {@link #enableFlashAttn()}
      * for {@link net.ladenthin.llama.args.ModelFlag#FLASH_ATTN}).

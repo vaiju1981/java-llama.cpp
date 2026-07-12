@@ -701,4 +701,117 @@ public class ModelParametersTest {
                         .get("--models-preset"),
                 is("/tmp/preset.json"));
     }
+
+    // -------------------------------------------------------------------------
+    // Plan gap-analysis round 2: additional draft/cache/attention flags (within b9941)
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void testSetCacheTypeKDraft() {
+        assertThat(
+                new ModelParameters()
+                        .setCacheTypeKDraft(CacheType.F16)
+                        .parameters
+                        .get("--cache-type-k-draft"),
+                is("f16"));
+    }
+
+    @Test
+    public void testSetCacheTypeVDraft() {
+        assertThat(
+                new ModelParameters()
+                        .setCacheTypeVDraft(CacheType.F16)
+                        .parameters
+                        .get("--cache-type-v-draft"),
+                is("f16"));
+    }
+
+    @Test
+    public void testSetCpuMoeDraftLayers() {
+        assertThat(new ModelParameters().setCpuMoeDraftLayers(4).parameters.get("--n-cpu-moe-draft"), is("4"));
+    }
+
+    @Test
+    public void testSetCpuMaskDraft() {
+        assertThat(new ModelParameters().setCpuMaskDraft("0xff").parameters.get("--cpu-mask-draft"), is("0xff"));
+    }
+
+    @Test
+    public void testSetCpuRangeDraft() {
+        assertThat(new ModelParameters().setCpuRangeDraft("0-3").parameters.get("--cpu-range-draft"), is("0-3"));
+    }
+
+    @Test
+    public void testSetCpuStrictDraft() {
+        assertThat(new ModelParameters().setCpuStrictDraft(1).parameters.get("--cpu-strict-draft"), is("1"));
+    }
+
+    @Test
+    public void testSetCpuMaskBatchDraft() {
+        assertThat(
+                new ModelParameters().setCpuMaskBatchDraft("0xff").parameters.get("--cpu-mask-batch-draft"),
+                is("0xff"));
+    }
+
+    @Test
+    public void testSetCpuRangeBatchDraft() {
+        assertThat(
+                new ModelParameters().setCpuRangeBatchDraft("0-3").parameters.get("--cpu-range-batch-draft"),
+                is("0-3"));
+    }
+
+    @Test
+    public void testSetCpuStrictBatchDraft() {
+        assertThat(new ModelParameters().setCpuStrictBatchDraft(1).parameters.get("--cpu-strict-batch-draft"), is("1"));
+    }
+
+    @Test
+    public void testSetDraftPSplit() {
+        assertThat(new ModelParameters().setDraftPSplit(0.2f).parameters.get("--draft-p-split"), is("0.2"));
+    }
+
+    @Test
+    public void testSetHfRepoDraft() {
+        assertThat(
+                new ModelParameters()
+                        .setHfRepoDraft("user/draft-model:Q4_0")
+                        .parameters
+                        .get("--hf-repo-draft"),
+                is("user/draft-model:Q4_0"));
+    }
+
+    @Test
+    public void testSetEmbdSeparator() {
+        assertThat(new ModelParameters().setEmbdSeparator("\n").parameters.get("--embd-separator"), is("\n"));
+    }
+
+    @Test
+    public void testSetAttention() {
+        assertThat(new ModelParameters().setAttention("non-causal").parameters.get("--attention"), is("non-causal"));
+    }
+
+    @Test
+    public void testSetRepack_true_clearsNoRepack() {
+        assertThat(new ModelParameters().setRepack(true).parameters, not(hasKey("--no-repack")));
+    }
+
+    @Test
+    public void testSetRepack_false_setsNoRepack() {
+        assertThat(new ModelParameters().setRepack(false).parameters, hasKey("--no-repack"));
+    }
+
+    @Test
+    public void testSetOpOffload_true_clearsNoOpOffload() {
+        assertThat(new ModelParameters().setOpOffload(true).parameters, not(hasKey("--no-op-offload")));
+    }
+
+    @Test
+    public void testSetOpOffload_false_setsNoOpOffload() {
+        assertThat(new ModelParameters().setOpOffload(false).parameters, hasKey("--no-op-offload"));
+    }
+
+    @Test
+    public void testSetNPredict_aliasOfPredict() {
+        assertThat(new ModelParameters().setNPredict(42).parameters.get("--predict"), is("42"));
+    }
 }
