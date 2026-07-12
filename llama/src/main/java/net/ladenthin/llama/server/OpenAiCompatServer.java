@@ -50,6 +50,12 @@ import org.slf4j.LoggerFactory;
  *   <li>{@code GET /metrics} — server and per-slot token/cache counters as JSON.</li>
  *   <li>{@code GET /slots} — the per-slot metrics array as JSON.</li>
  *   <li>{@code GET /health} — liveness probe returning {@code {"status":"ok"}} (no authentication).</li>
+ *   <li>{@code POST /tokenize}, {@code POST /detokenize}, {@code POST /apply-template} —
+ *       llama.cpp-native utility endpoints (text &lt;&gt; token ids, chat-template application).</li>
+ *   <li>{@code GET /lora-adapters}, {@code POST /lora-adapters} — list / apply LoRA adapters.</li>
+ *   <li>{@code POST /count_tokens} (plus {@code /v1/chat/completions/input_tokens},
+ *       {@code /v1/responses/input_tokens}, {@code /v1/messages/count_tokens}) — token-count a
+ *       request would consume.</li>
  * </ul>
  *
  * <p>During streaming, the server emits SSE comment heartbeats on a timer so a long prompt prefill on
@@ -124,6 +130,21 @@ public final class OpenAiCompatServer implements AutoCloseable {
 
     /** Ollama-native generate route (prompt completion / fill-in-the-middle). */
     public static final String PATH_OLLAMA_GENERATE = "/api/generate";
+
+    /** Tokenize text to token ids (llama.cpp-native {@code /tokenize}). */
+    public static final String PATH_TOKENIZE = "/tokenize";
+
+    /** Detokenize token ids back to text (llama.cpp-native {@code /detokenize}). */
+    public static final String PATH_DETOKENIZE = "/detokenize";
+
+    /** Apply the model's chat template to a request (llama.cpp-native {@code /apply-template}). */
+    public static final String PATH_APPLY_TEMPLATE = "/apply-template";
+
+    /** LoRA adapter list / apply (llama.cpp-native {@code /lora-adapters}). */
+    public static final String PATH_LORA_ADAPTERS = "/lora-adapters";
+
+    /** Count the tokens a request would consume (llama.cpp-native {@code /count_tokens}). */
+    public static final String PATH_COUNT_TOKENS = "/count_tokens";
 
     private static final String CONTENT_TYPE_NDJSON = "application/x-ndjson";
 
@@ -209,6 +230,18 @@ public final class OpenAiCompatServer implements AutoCloseable {
         register(PATH_OLLAMA_SHOW, this::handleOllamaShow);
         register(PATH_OLLAMA_CHAT, this::handleOllamaChat);
         register(PATH_OLLAMA_GENERATE, this::handleOllamaGenerate);
+        // Tokenize / detokenize / apply-template / LoRA-adapters / count-tokens —
+        // llama.cpp-native utility endpoints, previously only reachable via NativeServer.
+        // These paths carry no /v1 prefix, so the canonical constant is the only form.
+        register(PATH_TOKENIZE, this::handleTokenize);
+        register(PATH_DETOKENIZE, this::handleDetokenize);
+        register(PATH_APPLY_TEMPLATE, this::handleApplyTemplate);
+        register(PATH_LORA_ADAPTERS, this::handleLoraAdapters);
+        // Token-counting — the per-API aliases all funnel to the same counter.
+        register(PATH_COUNT_TOKENS, this::handleCountTokens);
+        register("/v1/chat/completions/input_tokens", this::handleCountTokens);
+        register("/v1/responses/input_tokens", this::handleCountTokens);
+        register("/v1/messages/count_tokens", this::handleCountTokens);
         http.setExecutor(requestExecutor);
     }
 
@@ -693,6 +726,94 @@ public final class OpenAiCompatServer implements AutoCloseable {
                 }
                 sendJson(exchange, HTTP_OK, ResponsesApiSupport.toResponsesResponse(body, model, responseId));
             }
+        } finally {
+            exchange.close();
+        }
+    }
+
+    // ----- llama.cpp-native utility routes (M1 route parity) -----
+
+    private void handleTokenize(HttpExchange exchange) throws IOException {
+        try {
+            JsonNode request = requirePostJson(exchange);
+            if (request == null) {
+                return;
+            }
+            sendJson(exchange, HTTP_OK, backend.tokenize(request));
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("tokenize failed", e);
+            sendError(exchange, HTTP_SERVER_ERROR, ERROR_TYPE_SERVER, message(e));
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void handleDetokenize(HttpExchange exchange) throws IOException {
+        try {
+            JsonNode request = requirePostJson(exchange);
+            if (request == null) {
+                return;
+            }
+            sendJson(exchange, HTTP_OK, backend.detokenize(request));
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("detokenize failed", e);
+            sendError(exchange, HTTP_SERVER_ERROR, ERROR_TYPE_SERVER, message(e));
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void handleApplyTemplate(HttpExchange exchange) throws IOException {
+        try {
+            JsonNode request = requirePostJson(exchange);
+            if (request == null) {
+                return;
+            }
+            sendJson(exchange, HTTP_OK, backend.applyTemplate(request));
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("apply-template failed", e);
+            sendError(exchange, HTTP_SERVER_ERROR, ERROR_TYPE_SERVER, message(e));
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void handleLoraAdapters(HttpExchange exchange) throws IOException {
+        try {
+            String method = exchange.getRequestMethod();
+            if ("GET".equalsIgnoreCase(method)) {
+                if (!authorized(exchange)) {
+                    sendError(exchange, HTTP_UNAUTHORIZED, ERROR_TYPE_REQUEST, "Missing or invalid API key");
+                    return;
+                }
+                sendJson(exchange, HTTP_OK, backend.loraAdapters());
+            } else if ("POST".equalsIgnoreCase(method)) {
+                JsonNode request = requirePostJson(exchange);
+                if (request == null) {
+                    return;
+                }
+                sendJson(exchange, HTTP_OK, backend.setLoraAdapters(request));
+            } else {
+                sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only GET and POST are supported");
+            }
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("lora-adapters failed", e);
+            sendError(exchange, HTTP_SERVER_ERROR, ERROR_TYPE_SERVER, message(e));
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void handleCountTokens(HttpExchange exchange) throws IOException {
+        try {
+            JsonNode request = requirePostJson(exchange);
+            if (request == null) {
+                return;
+            }
+            sendJson(exchange, HTTP_OK, backend.countTokens(request));
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("count_tokens failed", e);
+            sendError(exchange, HTTP_SERVER_ERROR, ERROR_TYPE_SERVER, message(e));
         } finally {
             exchange.close();
         }

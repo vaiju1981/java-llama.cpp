@@ -112,4 +112,83 @@ interface OpenAiBackend {
      * @throws IOException if generation fails in a way the caller should surface as a server error
      */
     String infill(JsonNode request) throws IOException;
+
+    /**
+     * Tokenize text to token ids ({@code POST /tokenize}). The request carries {@code content}
+     * (string), optional {@code add_special} (boolean, default true) and {@code with_pieces}
+     * (boolean, default false). The native call returns the upstream llama.cpp {@code /tokenize}
+     * JSON (a {@code tokens} array plus optional piece strings) verbatim.
+     *
+     * @param request the parsed {@code /tokenize} request
+     * @return the tokenize response serialized as JSON
+     * @throws IOException if tokenization fails
+     */
+    default String tokenize(JsonNode request) throws IOException {
+        throw new UnsupportedOperationException("/tokenize is not supported by this backend");
+    }
+
+    /**
+     * Detokenize token ids back to text ({@code POST /detokenize}). The request carries
+     * {@code tokens} (array of integer ids); the native call returns the upstream llama.cpp
+     * {@code /detokenize} JSON verbatim.
+     *
+     * @param request the parsed {@code /detokenize} request
+     * @return the detokenize response serialized as JSON
+     * @throws IOException if detokenization fails
+     */
+    default String detokenize(JsonNode request) throws IOException {
+        throw new UnsupportedOperationException("/detokenize is not supported by this backend");
+    }
+
+    /**
+     * Apply the model's chat template to a request ({@code POST /apply-template}). The request body
+     * is the full OpenAI-style parameter blob; the native call returns the templated prompt string,
+     * wrapped as {@code {"content": "..."}} for a stable JSON contract.
+     *
+     * @param request the parsed {@code /apply-template} request
+     * @return the templated prompt as {@code {"content": "..."}} JSON
+     * @throws IOException if the template cannot be applied
+     */
+    default String applyTemplate(JsonNode request) throws IOException {
+        throw new UnsupportedOperationException("/apply-template is not supported by this backend");
+    }
+
+    /**
+     * List the LoRA adapters currently applied to the model ({@code GET /lora-adapters}).
+     * Returns the upstream llama.cpp {@code /lora-adapters} JSON verbatim.
+     *
+     * @return the LoRA adapter list serialized as JSON
+     * @throws IOException if the adapter list cannot be read
+     */
+    default String loraAdapters() throws IOException {
+        throw new UnsupportedOperationException("/lora-adapters is not supported by this backend");
+    }
+
+    /**
+     * Apply a set of LoRA adapters ({@code POST /lora-adapters}). The request carries an
+     * {@code adapters} array of {@code {id, scale}} objects; each is forwarded to
+     * {@link net.ladenthin.llama.LlamaModel#setLoraAdapter(int, float)}.
+     *
+     * @param request the parsed {@code /lora-adapters} request
+     * @return a {@code {"status":"ok"}} JSON acknowledgement
+     * @throws IOException if the adapters cannot be applied
+     */
+    default String setLoraAdapters(JsonNode request) throws IOException {
+        throw new UnsupportedOperationException("/lora-adapters is not supported by this backend");
+    }
+
+    /**
+     * Count the tokens a request would consume ({@code POST /count_tokens}, plus the per-API
+     * aliases {@code /v1/chat/completions/input_tokens},
+     * {@code /v1/responses/input_tokens} and {@code /v1/messages/count_tokens}). The text is
+     * taken from {@code messages} (concatenated text content), otherwise {@code prompt} /
+     * {@code input}; the native tokenizer returns the count, wrapped as {@code {"count": N}}.
+     *
+     * @param request the parsed count-tokens request
+     * @return the token count as {@code {"count": N}} JSON
+     * @throws IOException if tokenization fails
+     */
+    default String countTokens(JsonNode request) throws IOException {
+        throw new UnsupportedOperationException("/count_tokens is not supported by this backend");
+    }
 }

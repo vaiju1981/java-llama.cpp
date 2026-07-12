@@ -5,6 +5,8 @@
 package net.ladenthin.llama.server;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.util.UUID;
 import net.ladenthin.llama.LlamaIterable;
@@ -12,6 +14,8 @@ import net.ladenthin.llama.LlamaModel;
 import net.ladenthin.llama.parameters.InferenceParameters;
 import net.ladenthin.llama.value.LlamaOutput;
 import net.ladenthin.llama.value.StopReason;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Production {@link OpenAiBackend} that runs requests against a loaded {@link LlamaModel}.
@@ -30,8 +34,11 @@ import net.ladenthin.llama.value.StopReason;
  */
 final class LlamaModelBackend implements OpenAiBackend {
 
+    private static final Logger LOG = LoggerFactory.getLogger(LlamaModelBackend.class);
+
     private final LlamaModel model;
     private final OpenAiRequestMapper mapper;
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     /**
      * Create a backend over the given model.
@@ -125,6 +132,86 @@ final class LlamaModelBackend implements OpenAiBackend {
         // The native /infill handler parses the body itself (input_prefix/input_suffix/...) and applies
         // the model's FIM tokens from GGUF metadata; forward verbatim.
         return model.handleInfill(request.toString());
+    }
+
+    @Override
+    public String tokenize(JsonNode request) {
+        String content = request.path("content").asText("");
+        boolean addSpecial = request.path("add_special").asBoolean(true);
+        boolean withPieces = request.path("with_pieces").asBoolean(false);
+        return model.handleTokenize(content, addSpecial, withPieces);
+    }
+
+    @Override
+    public String detokenize(JsonNode request) {
+        JsonNode tokens = request.path("tokens");
+        int[] ids = new int[tokens.size()];
+        for (int i = 0; i < tokens.size(); i++) {
+            ids[i] = tokens.get(i).asInt();
+        }
+        return model.handleDetokenize(ids);
+    }
+
+    @Override
+    public String applyTemplate(JsonNode request) {
+        // The native call returns the raw templated prompt string; wrap it so the HTTP
+        // contract is stable JSON rather than bare text.
+        ObjectNode response = OBJECT_MAPPER.createObjectNode();
+        response.put("content", model.applyTemplate(request.toString()));
+        return response.toString();
+    }
+
+    @Override
+    public String loraAdapters() {
+        return model.getLoraAdaptersJson();
+    }
+
+    @Override
+    public String setLoraAdapters(JsonNode request) {
+        JsonNode adapters = request.path("adapters");
+        for (JsonNode adapter : adapters) {
+            int id = adapter.path("id").asInt();
+            float scale = (float) adapter.path("scale").asDouble(1.0);
+            model.setLoraAdapter(id, scale);
+        }
+        ObjectNode response = OBJECT_MAPPER.createObjectNode();
+        response.put("status", "ok");
+        return response.toString();
+    }
+
+    @Override
+    public String countTokens(JsonNode request) {
+        StringBuilder text = new StringBuilder();
+        JsonNode messages = request.path("messages");
+        if (messages.isArray()) {
+            for (JsonNode message : messages) {
+                JsonNode content = message.path("content");
+                if (content.isTextual()) {
+                    text.append(content.asText());
+                }
+            }
+        } else {
+            String prompt = request.path("prompt").asText("");
+            if (!prompt.isEmpty()) {
+                text.append(prompt);
+            } else {
+                text.append(request.path("input").asText(""));
+            }
+        }
+        // Native tokenizer returns a {"tokens":[...]} JSON; count its array length.
+        int count = 0;
+        try {
+            JsonNode tokenized = OBJECT_MAPPER.readTree(model.handleTokenize(text.toString(), true, false));
+            JsonNode tokens = tokenized.path("tokens");
+            if (tokens.isArray()) {
+                count = tokens.size();
+            }
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("count_tokens tokenization failed", e);
+        }
+        ObjectNode response = OBJECT_MAPPER.createObjectNode();
+        response.put("count", count);
+        return response.toString();
     }
 
     @Override
