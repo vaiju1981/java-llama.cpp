@@ -78,11 +78,50 @@ public class OpenAiCompatServerM1RoutesTest extends OpenAiServerTestSupport {
         public String countTokens(JsonNode request) {
             return "{\"count\":7}";
         }
+
+        @Override
+        public String audioTranscriptions(JsonNode request) {
+            return "{\"text\":\"hello world\"}";
+        }
+
+        @Override
+        public String control(JsonNode request) {
+            return "{\"status\":\"ok\"}";
+        }
+
+        @Override
+        public String streamsLookup() {
+            return "{\"streams\":[]}";
+        }
+
+        @Override
+        public String streamGet(String convId) {
+            return "{\"conv_id\":\"" + convId + "\",\"text\":\"partial\"}";
+        }
+
+        @Override
+        public String streamDelete(String convId) {
+            return "{\"conv_id\":\"" + convId + "\",\"status\":\"cancelled\"}";
+        }
     }
 
     private OpenAiCompatServer startServer() throws Exception {
         OpenAiServerConfig config = OpenAiServerConfig.builder().port(0).build();
         return new OpenAiCompatServer(new FakeM1Backend(), config).start();
+    }
+
+    @Test
+    public void testModelsListsMultipleIds() throws Exception {
+        OpenAiServerConfig config = OpenAiServerConfig.builder()
+                .port(0)
+                .modelIds("model-a", "model-b")
+                .build();
+        try (OpenAiCompatServer server = new OpenAiCompatServer(new FakeM1Backend(), config).start()) {
+            Response response = get(server.getPort(), "/models", "");
+            assertThat(response.code, is(200));
+            assertThat(response.body, containsString("\"model-a\""));
+            assertThat(response.body, containsString("\"model-b\""));
+        }
     }
 
     @Test
@@ -143,6 +182,60 @@ public class OpenAiCompatServerM1RoutesTest extends OpenAiServerTestSupport {
     public void testTokenize_rejectsGetWith405() throws Exception {
         try (OpenAiCompatServer server = startServer()) {
             assertThat(get(server.getPort(), "/tokenize", "").code, is(405));
+        }
+    }
+
+    @Test
+    public void testAudioTranscriptions_passthrough() throws Exception {
+        try (OpenAiCompatServer server = startServer()) {
+            assertThat(
+                    post(server.getPort(), "/v1/audio/transcriptions", "{\"model\":\"x\"}", "").body,
+                    containsString("\"text\""));
+        }
+    }
+
+    @Test
+    public void testAudioTranscriptions_rejectsGetWith405() throws Exception {
+        try (OpenAiCompatServer server = startServer()) {
+            assertThat(get(server.getPort(), "/v1/audio/transcriptions", "").code, is(405));
+        }
+    }
+
+    @Test
+    public void testControl_passthrough() throws Exception {
+        try (OpenAiCompatServer server = startServer()) {
+            assertThat(
+                    post(server.getPort(), "/v1/chat/completions/control", "{\"action\":\"pause\"}", "").body,
+                    containsString("\"status\""));
+        }
+    }
+
+    @Test
+    public void testStreamsLookup_passthrough() throws Exception {
+        try (OpenAiCompatServer server = startServer()) {
+            assertThat(get(server.getPort(), "/v1/streams/lookup", "").body, containsString("\"streams\""));
+        }
+    }
+
+    @Test
+    public void testStreamGet_passthrough() throws Exception {
+        try (OpenAiCompatServer server = startServer()) {
+            assertThat(get(server.getPort(), "/v1/stream/abc", "").body, containsString("\"conv_id\""));
+            assertThat(get(server.getPort(), "/v1/stream/abc", "").body, containsString("abc"));
+        }
+    }
+
+    @Test
+    public void testStreamDelete_passthrough() throws Exception {
+        try (OpenAiCompatServer server = startServer()) {
+            assertThat(delete(server.getPort(), "/v1/stream/abc", "").body, containsString("\"status\""));
+        }
+    }
+
+    @Test
+    public void testStream_missingConvIdReturns404() throws Exception {
+        try (OpenAiCompatServer server = startServer()) {
+            assertThat(get(server.getPort(), "/v1/stream/", "").code, is(404));
         }
     }
 }

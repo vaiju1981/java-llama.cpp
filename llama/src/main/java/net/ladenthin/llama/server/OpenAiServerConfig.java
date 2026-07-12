@@ -56,6 +56,7 @@ public final class OpenAiServerConfig {
     private final boolean supportsVision;
     private final int maxRequestBodyBytes;
     private final String modelFtype;
+    private final java.util.List<String> modelIds;
 
     private OpenAiServerConfig(Builder builder) {
         this.host = builder.host;
@@ -69,6 +70,7 @@ public final class OpenAiServerConfig {
         this.supportsVision = builder.supportsVision;
         this.maxRequestBodyBytes = builder.maxRequestBodyBytes;
         this.modelFtype = builder.modelFtype;
+        this.modelIds = builder.modelIds;
     }
 
     /**
@@ -183,6 +185,16 @@ public final class OpenAiServerConfig {
     }
 
     /**
+     * The advertised model ids. Defaults to a single-element list of {@link #getModelId()}
+     * so a single-model server and a multi-model (router) server share one advertisement path.
+     *
+     * @return the advertised model ids (never empty)
+     */
+    public java.util.List<String> getModelIds() {
+        return modelIds;
+    }
+
+    /**
      * Whether bearer-token authentication is enabled (an API key is configured).
      *
      * @return {@code true} if requests must present a matching bearer token
@@ -214,6 +226,8 @@ public final class OpenAiServerConfig {
                 + heartbeatMillis
                 + ", corsAllowOrigin="
                 + corsAllowOrigin
+                + ", modelIds="
+                + modelIds
                 + '}';
     }
 
@@ -231,6 +245,7 @@ public final class OpenAiServerConfig {
         private boolean supportsVision;
         private int maxRequestBodyBytes = DEFAULT_MAX_REQUEST_BODY_BYTES;
         private String modelFtype = "";
+        private java.util.List<String> modelIds = java.util.Collections.singletonList(DEFAULT_MODEL_ID);
 
         private Builder() {}
 
@@ -342,6 +357,22 @@ public final class OpenAiServerConfig {
          */
         public Builder modelFtype(@Nullable String modelFtype) {
             this.modelFtype = modelFtype == null ? "" : modelFtype;
+            return this;
+        }
+
+        /**
+         * Sets the advertised model ids. Defaults to a single-element list of
+         * {@link #modelId(String)} so a single-model server and a multi-model (router) server
+         * share one {@code GET /v1/models} advertisement path.
+         *
+         * @param modelIds the model ids to advertise (must not be empty)
+         * @return this builder
+         */
+        public Builder modelIds(String... modelIds) {
+            if (modelIds.length == 0) {
+                throw new IllegalArgumentException("modelIds must not be empty");
+            }
+            this.modelIds = java.util.Arrays.asList(modelIds);
             return this;
         }
 

@@ -56,6 +56,12 @@ import org.slf4j.LoggerFactory;
  *   <li>{@code POST /count_tokens} (plus {@code /v1/chat/completions/input_tokens},
  *       {@code /v1/responses/input_tokens}, {@code /v1/messages/count_tokens}) — token-count a
  *       request would consume.</li>
+ *   <li>{@code POST /v1/audio/transcriptions} — Whisper audio transcription (requires backend
+ *       support gated on the {@code GIT_TAG} bump in the serving-server plan).</li>
+ *   <li>{@code POST /v1/chat/completions/control} — real-time control channel
+ *       (pause/resume/abort/set-parameters); backend support gated on the same plan.</li>
+ *   <li>{@code GET /v1/streams/lookup}, {@code GET /v1/stream/:conv_id},
+ *       {@code DELETE /v1/stream/:conv_id} — streaming conversation-handle registry.</li>
  * </ul>
  *
  * <p>During streaming, the server emits SSE comment heartbeats on a timer so a long prompt prefill on
@@ -146,6 +152,18 @@ public final class OpenAiCompatServer implements AutoCloseable {
     /** Count the tokens a request would consume (llama.cpp-native {@code /count_tokens}). */
     public static final String PATH_COUNT_TOKENS = "/count_tokens";
 
+    /** Audio transcription (Whisper) — llama.cpp-native {@code /v1/audio/transcriptions}. */
+    public static final String PATH_AUDIO_TRANSCRIPTIONS = "/v1/audio/transcriptions";
+
+    /** Real-time control channel (pause/resume/abort/set-parameters) — llama.cpp-native. */
+    public static final String PATH_CONTROL = "/v1/chat/completions/control";
+
+    /** List the active streaming conversation handles. */
+    public static final String PATH_STREAMS_LOOKUP = "/v1/streams/lookup";
+
+    /** Prefix for per-conversation stream handles: {@code /v1/stream/:conv_id}. */
+    public static final String PATH_STREAM_PREFIX = "/v1/stream/";
+
     private static final String CONTENT_TYPE_NDJSON = "application/x-ndjson";
 
     private static final int HTTP_OK = 200;
@@ -155,6 +173,7 @@ public final class OpenAiCompatServer implements AutoCloseable {
     private static final int HTTP_METHOD_NOT_ALLOWED = 405;
     private static final int HTTP_SERVER_ERROR = 500;
     private static final int HTTP_PAYLOAD_TOO_LARGE = 413;
+    private static final int HTTP_NOT_IMPLEMENTED = 501;
 
     private static final String CONTENT_TYPE_JSON = "application/json; charset=utf-8";
     private static final String CONTENT_TYPE_SSE = "text/event-stream; charset=utf-8";
@@ -242,6 +261,14 @@ public final class OpenAiCompatServer implements AutoCloseable {
         register("/v1/chat/completions/input_tokens", this::handleCountTokens);
         register("/v1/responses/input_tokens", this::handleCountTokens);
         register("/v1/messages/count_tokens", this::handleCountTokens);
+        // Audio transcription / real-time control / streaming conversation-handle registry —
+        // llama.cpp-native utility endpoints, previously only reachable via NativeServer's
+        // embedded upstream frontend. The stream registry is a pure-Java route; audio and control
+        // require backend support gated on the §4 GIT_TAG bump.
+        register(PATH_AUDIO_TRANSCRIPTIONS, this::handleAudioTranscriptions);
+        register(PATH_CONTROL, this::handleControl);
+        register(PATH_STREAMS_LOOKUP, this::handleStreamsLookup);
+        register(PATH_STREAM_PREFIX, this::handleStream);
         http.setExecutor(requestExecutor);
     }
 
@@ -819,6 +846,108 @@ public final class OpenAiCompatServer implements AutoCloseable {
         }
     }
 
+    // ----- llama.cpp-native utility routes, cont. (M1 route parity) -----
+
+    private void handleAudioTranscriptions(HttpExchange exchange) throws IOException {
+        try {
+            if (!"POST".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only POST is supported");
+                return;
+            }
+            if (!authorized(exchange)) {
+                sendError(exchange, HTTP_UNAUTHORIZED, ERROR_TYPE_REQUEST, "Missing or invalid API key");
+                return;
+            }
+            JsonNode request = readBody(exchange);
+            if (request == null || !request.isObject()) {
+                // /v1/audio/transcriptions is multipart/form-data (audio file + params); a non-JSON
+                // body is the expected shape. The backend parses the multipart payload itself.
+                sendError(
+                        exchange,
+                        HTTP_BAD_REQUEST,
+                        ERROR_TYPE_REQUEST,
+                        "Expected multipart/form-data (audio file + optional parameters)");
+                return;
+            }
+            sendJson(exchange, HTTP_OK, backend.audioTranscriptions(request));
+        } catch (UnsupportedOperationException e) {
+            sendError(exchange, HTTP_NOT_IMPLEMENTED, ERROR_TYPE_REQUEST, message(e));
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("audio/transcriptions failed", e);
+            sendError(exchange, HTTP_SERVER_ERROR, ERROR_TYPE_SERVER, message(e));
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void handleControl(HttpExchange exchange) throws IOException {
+        try {
+            JsonNode request = requirePostJson(exchange);
+            if (request == null) {
+                return;
+            }
+            sendJson(exchange, HTTP_OK, backend.control(request));
+        } catch (UnsupportedOperationException e) {
+            sendError(exchange, HTTP_NOT_IMPLEMENTED, ERROR_TYPE_REQUEST, message(e));
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("control failed", e);
+            sendError(exchange, HTTP_SERVER_ERROR, ERROR_TYPE_SERVER, message(e));
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void handleStreamsLookup(HttpExchange exchange) throws IOException {
+        try {
+            if (!"GET".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only GET is supported");
+                return;
+            }
+            if (!authorized(exchange)) {
+                sendError(exchange, HTTP_UNAUTHORIZED, ERROR_TYPE_REQUEST, "Missing or invalid API key");
+                return;
+            }
+            sendJson(exchange, HTTP_OK, backend.streamsLookup());
+        } catch (UnsupportedOperationException e) {
+            sendError(exchange, HTTP_NOT_IMPLEMENTED, ERROR_TYPE_REQUEST, message(e));
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("streams lookup failed", e);
+            sendError(exchange, HTTP_SERVER_ERROR, ERROR_TYPE_SERVER, message(e));
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void handleStream(HttpExchange exchange) throws IOException {
+        try {
+            String path = exchange.getRequestURI().getPath();
+            String convId = path.substring(PATH_STREAM_PREFIX.length());
+            if (convId.isEmpty()) {
+                sendError(exchange, HTTP_NOT_FOUND, ERROR_TYPE_REQUEST, "Missing conversation id");
+                return;
+            }
+            if (!authorized(exchange)) {
+                sendError(exchange, HTTP_UNAUTHORIZED, ERROR_TYPE_REQUEST, "Missing or invalid API key");
+                return;
+            }
+            String method = exchange.getRequestMethod();
+            if ("GET".equalsIgnoreCase(method)) {
+                sendJson(exchange, HTTP_OK, backend.streamGet(convId));
+            } else if ("DELETE".equalsIgnoreCase(method)) {
+                sendJson(exchange, HTTP_OK, backend.streamDelete(convId));
+            } else {
+                sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only GET and DELETE are supported");
+            }
+        } catch (UnsupportedOperationException e) {
+            sendError(exchange, HTTP_NOT_IMPLEMENTED, ERROR_TYPE_REQUEST, message(e));
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("stream handle failed", e);
+            sendError(exchange, HTTP_SERVER_ERROR, ERROR_TYPE_SERVER, message(e));
+        } finally {
+            exchange.close();
+        }
+    }
+
     /** Stream a Responses {@code /v1/responses} reply as the Responses SSE event sequence. */
     private void streamResponses(HttpExchange exchange, JsonNode openAiRequest, String model, String responseId)
             throws IOException {
@@ -869,7 +998,7 @@ public final class OpenAiCompatServer implements AutoCloseable {
                 sendError(exchange, HTTP_UNAUTHORIZED, ERROR_TYPE_REQUEST, "Missing or invalid API key");
                 return;
             }
-            sendJson(exchange, HTTP_OK, OpenAiSseFormatter.modelsJson(config.getModelId(), config.getModelFtype()));
+            sendJson(exchange, HTTP_OK, OpenAiSseFormatter.modelsJson(config.getModelIds(), config.getModelFtype()));
         } finally {
             exchange.close();
         }

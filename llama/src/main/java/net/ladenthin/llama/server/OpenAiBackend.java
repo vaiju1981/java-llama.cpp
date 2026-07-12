@@ -191,4 +191,64 @@ interface OpenAiBackend {
     default String countTokens(JsonNode request) throws IOException {
         throw new UnsupportedOperationException("/count_tokens is not supported by this backend");
     }
+
+    /**
+     * Transcribe an audio file to text ({@code POST /v1/audio/transcriptions}). The upstream llama.cpp
+     * endpoint expects {@code multipart/form-data} (an audio file plus optional parameters such as
+     * {@code language} and {@code temperature}); the backend parses the multipart payload itself. Native
+     * Whisper support is gated on the {@code GIT_TAG} bump in the serving-server plan, so the default
+     * throws.
+     *
+     * @param request the parsed request object (a JSON object in tests; the production body is multipart)
+     * @return the transcription, typically {@code {"text": "..."}}
+     * @throws IOException if transcription fails
+     */
+    default String audioTranscriptions(JsonNode request) throws IOException {
+        throw new UnsupportedOperationException("/v1/audio/transcriptions is not supported by this backend");
+    }
+
+    /**
+     * Real-time control channel ({@code POST /v1/chat/completions/control}): pause, resume, reset, abort
+     * or reconfigure an in-flight task. Native support is gated on the {@code GIT_TAG} bump in the
+     * serving-server plan, so the default throws.
+     *
+     * @param request the control request ({@code action}, optional {@code id} / {@code data})
+     * @return the control acknowledgement JSON
+     * @throws IOException if the control request cannot be applied
+     */
+    default String control(JsonNode request) throws IOException {
+        throw new UnsupportedOperationException("/v1/chat/completions/control is not supported by this backend");
+    }
+
+    /**
+     * List the active streaming conversation handles ({@code GET /v1/streams/lookup}).
+     *
+     * @return the active-stream list as JSON
+     * @throws IOException if the registry cannot be read
+     */
+    default String streamsLookup() throws IOException {
+        throw new UnsupportedOperationException("/v1/streams/lookup is not supported by this backend");
+    }
+
+    /**
+     * Fetch the partial output of an in-flight stream ({@code GET /v1/stream/:conv_id}).
+     *
+     * @param convId the conversation id of the stream to read
+     * @return the stream's partial output as JSON
+     * @throws IOException if the stream cannot be read
+     */
+    default String streamGet(String convId) throws IOException {
+        throw new UnsupportedOperationException("/v1/stream/:conv_id is not supported by this backend");
+    }
+
+    /**
+     * Cancel and forget an in-flight stream ({@code DELETE /v1/stream/:conv_id}).
+     *
+     * @param convId the conversation id of the stream to cancel
+     * @return the cancellation acknowledgement JSON
+     * @throws IOException if the stream cannot be cancelled
+     */
+    default String streamDelete(String convId) throws IOException {
+        throw new UnsupportedOperationException("/v1/stream/:conv_id DELETE is not supported by this backend");
+    }
 }

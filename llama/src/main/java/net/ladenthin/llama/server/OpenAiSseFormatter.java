@@ -121,29 +121,32 @@ final class OpenAiSseFormatter {
      * @param modelId the model id to advertise
      * @return an OpenAI model-list object serialized as JSON
      */
-    static String modelsJson(String modelId) {
-        return modelsJson(modelId, "");
+    static String modelsJson(String modelId, @Nullable String ftype) {
+        return modelsJson(java.util.Collections.singletonList(modelId), ftype);
     }
 
     /**
-     * Build the {@code GET /v1/models} body advertising a single model, including the model's file
-     * type (quantization) as a {@code data[].ftype} field when known — mirroring the upstream
-     * llama.cpp server's {@code get_model_info()}.
+     * Build the {@code GET /v1/models} body advertising one or more models, each with the
+     * model's file type (quantization) as a {@code data[].ftype} field when known — mirroring
+     * the upstream llama.cpp server's {@code get_model_info()}. A multi-model (router) server
+     * advertises every loaded model id here.
      *
-     * @param modelId the model id to advertise
+     * @param modelIds the model ids to advertise (never empty)
      * @param ftype the model's file-type (quantization) label, or {@code ""}/{@code null} to omit it
      * @return an OpenAI model-list object serialized as JSON
      */
-    static String modelsJson(String modelId, @Nullable String ftype) {
-        ObjectNode model = OBJECT_MAPPER.createObjectNode();
-        model.put("id", modelId);
-        model.put("object", "model");
-        model.put("owned_by", "llama.cpp");
-        if (ftype != null && !ftype.isEmpty()) {
-            model.put("ftype", ftype);
-        }
+    static String modelsJson(java.util.List<String> modelIds, @Nullable String ftype) {
         ArrayNode data = OBJECT_MAPPER.createArrayNode();
-        data.add(model);
+        for (String modelId : modelIds) {
+            ObjectNode model = OBJECT_MAPPER.createObjectNode();
+            model.put("id", modelId);
+            model.put("object", "model");
+            model.put("owned_by", "llama.cpp");
+            if (ftype != null && !ftype.isEmpty()) {
+                model.put("ftype", ftype);
+            }
+            data.add(model);
+        }
         ObjectNode root = OBJECT_MAPPER.createObjectNode();
         root.put("object", "list");
         root.set("data", data);

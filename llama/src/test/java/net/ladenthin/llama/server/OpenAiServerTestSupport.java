@@ -61,6 +61,21 @@ abstract class OpenAiServerTestSupport {
     }
 
     /**
+     * Send a {@code DELETE} to {@code path}.
+     *
+     * @param port the server port
+     * @param path the request path
+     * @param auth an {@code Authorization} header value, or {@code ""} to send none
+     * @return the captured response
+     * @throws IOException on transport failure
+     */
+    Response delete(int port, String path, String auth) throws IOException {
+        HttpURLConnection conn = open(port, path, auth);
+        conn.setRequestMethod("DELETE");
+        return read(conn);
+    }
+
+    /**
      * Send a CORS preflight ({@code OPTIONS}) to {@code path}.
      *
      * @param port the server port
