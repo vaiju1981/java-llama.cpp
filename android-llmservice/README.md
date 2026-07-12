@@ -13,7 +13,9 @@ what it says:
 1. **Pick a GGUF model** from the device's file system (Storage Access Framework — no
    storage permission, Google-Play compliant).
 2. **Chat** with it, fully **on-device**, tokens streaming into a Jetpack Compose UI.
-3. **Switch language** via a flag picker, and **Save/Load** the conversation locally.
+3. Optionally add a **vision projector (mmproj)** and attach an **image** (📎) to a
+   message — for multimodal GGUFs such as Gemma 3 4B (vision) or SmolVLM2.
+4. **Switch language** via a flag picker, and **Save/Load** the conversation locally.
 
 - **App label:** `LLM Service`
 - **applicationId / package:** `net.ladenthin.android.llmservice`

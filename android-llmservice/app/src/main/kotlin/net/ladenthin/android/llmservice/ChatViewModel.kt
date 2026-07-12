@@ -25,13 +25,20 @@ import net.ladenthin.llama.LlamaModel
 import net.ladenthin.llama.kotlin.generateChatFlow
 import net.ladenthin.llama.parameters.InferenceParameters
 import net.ladenthin.llama.parameters.ModelParameters
-import net.ladenthin.llama.value.Pair
+import net.ladenthin.llama.value.ChatMessage
+import net.ladenthin.llama.value.ContentPart
 
 /**
  * File name of the SAF-picked model copied into `filesDir`. Transient working data — wiped on cold
  * start (and best-effort on close) by [LlmServiceApp] so nothing lingers between sessions.
  */
 const val MODEL_COPY_NAME: String = "current-model.gguf"
+
+/**
+ * File name of the SAF-picked vision projector (mmproj) copied into `filesDir`. Same transient
+ * lifecycle as [MODEL_COPY_NAME] — wiped on cold start and on [ChatViewModel.unloadModel].
+ */
+const val MMPROJ_COPY_NAME: String = "current-mmproj.gguf"
 
 /**
  * Holds the loaded [LlamaModel] and drives streaming chat over the llama-kotlin
@@ -44,8 +51,20 @@ const val MODEL_COPY_NAME: String = "current-model.gguf"
  */
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
-    /** One chat turn. [text] grows token-by-token while an assistant reply streams. */
-    data class Message(val role: String, val text: String)
+    /**
+     * One chat turn. [text] grows token-by-token while an assistant reply streams. A user turn may
+     * carry an image ([imageBytes] + [imageMimeType]) attached via the 🖼️ button; both are null for
+     * every other turn. Images are session-transient — [SessionStore] persists text only.
+     */
+    data class Message(
+        val role: String,
+        val text: String,
+        val imageBytes: ByteArray? = null,
+        val imageMimeType: String? = null,
+    )
+
+    /** An image picked via the attach button, staged in memory until [send] consumes it. */
+    data class PendingImage(val bytes: ByteArray, val mimeType: String, val displayName: String)
 
     /** Lifecycle of the model load. */
     enum class ModelState { NONE, LOADING, READY }
@@ -111,6 +130,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val notice: Notice? = null,
         val settings: GenerationSettings = GenerationSettings.DEFAULT,
         val modelConfig: ModelConfig = ModelConfig.DEFAULT,
+        /** Display name of the selected vision projector (mmproj), or null when text-only. */
+        val visionModelName: String? = null,
+        /** An image staged via the attach button, waiting for the next [send]. */
+        val pendingImage: PendingImage? = null,
     )
 
     private val _uiState = MutableStateFlow(UiState())
@@ -126,6 +149,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private var model: LlamaModel? = null
     private var modelPath: String? = null
+    private var mmprojPath: String? = null
     private var generation: Job? = null
 
     /**
@@ -189,7 +213,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(modelState = ModelState.LOADING, error = null) }
         viewModelScope.launch {
             try {
-                val path = withContext(Dispatchers.IO) { copyToInternal(uri) }
+                val path = withContext(Dispatchers.IO) { copyUriToInternal(uri, MODEL_COPY_NAME) }
                 openModel(path, displayName, template = null)
             } catch (t: Throwable) {
                 _uiState.update {
@@ -197,6 +221,63 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
             }
         }
+    }
+
+    /**
+     * Copies a SAF-picked vision projector (mmproj) GGUF into app-internal storage and records its
+     * path. Takes effect the next time a model is (re)loaded — pick it before or after the main
+     * model, in either order. No-op error path mirrors [loadModelFromUri].
+     */
+    fun loadMmprojFromUri(uri: Uri, displayName: String) {
+        viewModelScope.launch {
+            try {
+                val path = withContext(Dispatchers.IO) { copyUriToInternal(uri, MMPROJ_COPY_NAME) }
+                mmprojPath = path
+                _uiState.update { it.copy(visionModelName = displayName, error = null) }
+                log("Vision model set: $displayName")
+            } catch (t: Throwable) {
+                _uiState.update { it.copy(error = ErrorInfo(ErrorType.LOAD, t.message ?: "I/O error")) }
+            }
+        }
+    }
+
+    /** Clears the selected vision projector; the next model load is text-only again. */
+    fun clearMmproj() {
+        mmprojPath = null
+        _uiState.update { it.copy(visionModelName = null) }
+        log("Vision model cleared")
+        viewModelScope.launch(Dispatchers.IO) {
+            File(getApplication<Application>().filesDir, MMPROJ_COPY_NAME).delete()
+        }
+    }
+
+    /**
+     * Stages a SAF-picked image as the pending attachment for the next [send]. Read fully into
+     * memory rather than copied to [android.content.Context.getFilesDir]: unlike the model/mmproj
+     * GGUFs (which llama.cpp must mmap by real path),
+     * [net.ladenthin.llama.value.ContentPart.imageBytes] consumes raw bytes directly.
+     */
+    fun attachImage(uri: Uri, displayName: String) {
+        viewModelScope.launch {
+            try {
+                val resolver = getApplication<Application>().contentResolver
+                val (mimeType, bytes) = withContext(Dispatchers.IO) {
+                    val type = resolver.getType(uri) ?: "image/jpeg"
+                    val data = resolver.openInputStream(uri)?.use { it.readBytes() }
+                        ?: throw java.io.IOException("content resolver returned no stream for $uri")
+                    type to data
+                }
+                _uiState.update { it.copy(pendingImage = PendingImage(bytes, mimeType, displayName), error = null) }
+                log("Image attached: $displayName")
+            } catch (t: Throwable) {
+                _uiState.update { it.copy(error = ErrorInfo(ErrorType.LOAD, t.message ?: "I/O error")) }
+            }
+        }
+    }
+
+    /** Removes the pending image attachment before it's sent. */
+    fun clearPendingImage() {
+        _uiState.update { it.copy(pendingImage = null) }
     }
 
     /**
@@ -212,16 +293,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private suspend fun openModel(path: String, displayName: String, template: String?) {
         val config = _uiState.value.modelConfig
+        val mmproj = mmprojPath
         log("Loading model: $displayName")
         try {
             val loaded = withContext(Dispatchers.IO) {
-                LlamaModel(
-                    ModelParameters()
-                        .setModel(path)
-                        .setCtxSize(config.contextSize)
-                        .setThreads(config.threads)
-                        .setGpuLayers(0), // CPU-only: portable across every device
-                )
+                val parameters = ModelParameters()
+                    .setModel(path)
+                    .setCtxSize(config.contextSize)
+                    .setThreads(config.threads)
+                    .setGpuLayers(0) // CPU-only: portable across every device
+                if (mmproj != null) {
+                    // Mirrors the CPU-only + mmproj config validated by MultimodalIntegrationTest:
+                    // no GPU device selection, no mmproj offload attempt.
+                    parameters.setMmproj(mmproj).setDevices("none").setMmprojOffload(false)
+                }
+                LlamaModel(parameters)
             }
             withContext(Dispatchers.IO) { model?.close() }
             model = loaded
@@ -230,7 +316,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _uiState.update {
                 it.copy(modelState = ModelState.READY, modelName = displayName, error = null)
             }
-            log("Model ready: $displayName (ctx=${config.contextSize}, threads=${config.threads}, CPU)")
+            log(
+                "Model ready: $displayName (ctx=${config.contextSize}, threads=${config.threads}, " +
+                    "CPU${if (mmproj != null) ", vision" else ""})",
+            )
         } catch (t: Throwable) {
             log("Load failed: ${t.message ?: "load failed"}")
             _uiState.update {
@@ -248,10 +337,18 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun send(userText: String, systemPrompt: String) {
         val text = userText.trim()
         val active = model
-        if (text.isEmpty() || active == null || _uiState.value.generating) {
+        val attachment = _uiState.value.pendingImage
+        if ((text.isEmpty() && attachment == null) || active == null || _uiState.value.generating) {
             return
         }
-        startGeneration(active, _uiState.value.messages + Message("user", text), systemPrompt)
+        val userMessage = Message(
+            role = "user",
+            text = text,
+            imageBytes = attachment?.bytes,
+            imageMimeType = attachment?.mimeType,
+        )
+        _uiState.update { it.copy(pendingImage = null) }
+        startGeneration(active, _uiState.value.messages + userMessage, systemPrompt)
     }
 
     /**
@@ -284,11 +381,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         val s = _uiState.value.settings
         generation = viewModelScope.launch {
-            val pairs = history.map { Pair(it.role, it.text) }
+            val chatMessages = mutableListOf<ChatMessage>()
+            if (systemPrompt.isNotEmpty()) {
+                chatMessages.add(ChatMessage("system", systemPrompt))
+            }
+            history.forEach { chatMessages.add(it.toChatMessage()) }
             // Apply the sampling knobs. repeatPenalty (> 1) + repeatLastN are the ones that break
             // the degenerate repetition loop small on-device models fall into with a bare decode.
             var params = InferenceParameters("")
-                .withMessages(systemPrompt, pairs)
+                .withMessages(chatMessages)
                 .withNPredict(s.maxTokens)
                 .withTemperature(s.temperature)
                 .withTopK(s.topK)
@@ -357,15 +458,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         model = null
         modelPath = null
         chatTemplate = null
+        mmprojPath = null
         _uiState.update {
-            it.copy(modelState = ModelState.NONE, modelName = null, generating = false, error = null)
+            it.copy(
+                modelState = ModelState.NONE,
+                modelName = null,
+                visionModelName = null,
+                generating = false,
+                error = null,
+                pendingImage = null,
+            )
         }
         log("Model unloaded")
         viewModelScope.launch(Dispatchers.IO) {
             toClose?.close()
-            // Drop the copied working model (frees storage; nothing lingers). A model loaded by an
-            // absolute path (test / session restore) has no copy here, so this is then a no-op.
+            // Drop the copied working model + mmproj (frees storage; nothing lingers). A model
+            // loaded by an absolute path (test / session restore) has no copy here, so this is then
+            // a no-op; likewise when no vision projector was ever selected.
             File(getApplication<Application>().filesDir, MODEL_COPY_NAME).delete()
+            File(getApplication<Application>().filesDir, MMPROJ_COPY_NAME).delete()
         }
     }
 
@@ -407,6 +518,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(notice = null) }
     }
 
+    /** Converts one turn to the wire type: multimodal (text + image parts) when an image is attached. */
+    private fun Message.toChatMessage(): ChatMessage {
+        val bytes = imageBytes
+        val mime = imageMimeType
+        if (bytes != null && mime != null) {
+            val parts = mutableListOf<ContentPart>()
+            if (text.isNotBlank()) {
+                parts.add(ContentPart.text(text))
+            }
+            parts.add(ContentPart.imageBytes(bytes, mime))
+            return ChatMessage(role, parts)
+        }
+        return ChatMessage(role, text)
+    }
+
     private fun UiState.replaceLastAssistant(newText: String): UiState {
         if (messages.isEmpty()) return this
         val updated = messages.toMutableList()
@@ -414,9 +540,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         return copy(messages = updated)
     }
 
-    private fun copyToInternal(uri: Uri): String {
+    /** Copies a `content://` URI into `filesDir/targetName` (llama.cpp mmaps a real path, not a URI). */
+    private fun copyUriToInternal(uri: Uri, targetName: String): String {
         val resolver = getApplication<Application>().contentResolver
-        val target = File(getApplication<Application>().filesDir, MODEL_COPY_NAME)
+        val target = File(getApplication<Application>().filesDir, targetName)
         resolver.openInputStream(uri).use { input ->
             requireNotNull(input) { "content resolver returned no stream for $uri" }
             target.outputStream().use { output -> input.copyTo(output, bufferSize = 1 shl 20) }

@@ -145,6 +145,23 @@ private fun ChatScreen(viewModel: ChatViewModel) {
     }
     val onChoose: () -> Unit = { picker.launch(arrayOf("*/*")) }
 
+    // Vision projector (mmproj) picker — optional, sets or replaces the vision model for the next load.
+    val mmprojPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.loadMmprojFromUri(uri, queryDisplayName(context, uri))
+        }
+    }
+    val onChooseMmproj: () -> Unit = { mmprojPicker.launch(arrayOf("*/*")) }
+
+    // Image attachment picker — stages one image for the next Send; only usable once a vision
+    // model is loaded (the attach button in Conversation is gated on that).
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.attachImage(uri, queryDisplayName(context, uri))
+        }
+    }
+    val onAttachImage: () -> Unit = { imagePicker.launch(arrayOf("image/*")) }
+
     // One-shot notices (saved / loaded / none) -> snackbar. Resolve the localized text in
     // composable scope, then show it from the effect.
     val noticeText = state.notice?.let { stringResource(noticeRes(it)) }
@@ -218,15 +235,22 @@ private fun ChatScreen(viewModel: ChatViewModel) {
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
             val hasConversation = state.messages.isNotEmpty() || state.modelState == ChatViewModel.ModelState.READY
             when {
-                state.modelState == ChatViewModel.ModelState.LOADING && !hasConversation ->
-                    LoadingView()
-
-                !hasConversation ->
+                // No model loaded (fresh start, or after unloadModel()/a failed load) always goes
+                // to the picker screen — regardless of leftover chat history — so its ❌ quit
+                // button and "choose a model" action are reachable. Leftover messages are kept in
+                // state and simply reappear once a model becomes READY again (R3.8).
+                state.modelState == ChatViewModel.ModelState.NONE ->
                     ChooseModelView(
                         error = errorText(state.error),
+                        visionModelName = state.visionModelName,
                         onChoose = onChoose,
+                        onChooseMmproj = onChooseMmproj,
+                        onClearMmproj = viewModel::clearMmproj,
                         onRequestQuit = { showQuitConfirm = true },
                     )
+
+                state.modelState == ChatViewModel.ModelState.LOADING && !hasConversation ->
+                    LoadingView()
 
                 else ->
                     Conversation(
@@ -235,6 +259,8 @@ private fun ChatScreen(viewModel: ChatViewModel) {
                         onStop = viewModel::stopGeneration,
                         onRegenerate = viewModel::regenerate,
                         onChoose = onChoose,
+                        onAttachImage = onAttachImage,
+                        onClearAttachment = viewModel::clearPendingImage,
                     )
             }
         }
@@ -502,7 +528,14 @@ private fun LoadingView() {
 }
 
 @Composable
-private fun ChooseModelView(error: String?, onChoose: () -> Unit, onRequestQuit: () -> Unit) {
+private fun ChooseModelView(
+    error: String?,
+    visionModelName: String?,
+    onChoose: () -> Unit,
+    onChooseMmproj: () -> Unit,
+    onClearMmproj: () -> Unit,
+    onRequestQuit: () -> Unit,
+) {
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier.fillMaxSize().padding(24.dp),
@@ -516,6 +549,24 @@ private fun ChooseModelView(error: String?, onChoose: () -> Unit, onRequestQuit:
                 modifier = Modifier.padding(top = 24.dp).testTag("chooseModelButton"),
             ) {
                 Text(stringResource(R.string.action_choose_model))
+            }
+            // Optional vision projector (mmproj): picked independently of the main model, applied on
+            // the next load. Shows the selected file's name with a ✕ to clear it once set.
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
+                TextButton(onClick = onChooseMmproj, modifier = Modifier.testTag("chooseMmprojButton")) {
+                    Text(
+                        if (visionModelName != null) {
+                            stringResource(R.string.action_vision_model_set, visionModelName)
+                        } else {
+                            stringResource(R.string.action_choose_vision_model)
+                        },
+                    )
+                }
+                if (visionModelName != null) {
+                    IconButton(onClick = onClearMmproj, modifier = Modifier.testTag("clearMmprojButton")) {
+                        Text("✕")
+                    }
+                }
             }
             DeviceCard(modifier = Modifier.padding(top = 24.dp))
             if (error != null) {
@@ -581,6 +632,8 @@ private fun Conversation(
     onStop: () -> Unit,
     onRegenerate: (String) -> Unit,
     onChoose: () -> Unit,
+    onAttachImage: () -> Unit,
+    onClearAttachment: () -> Unit,
 ) {
     val systemPrompt = stringResource(R.string.system_prompt)
     val context = LocalContext.current
@@ -662,10 +715,38 @@ private fun Conversation(
             }
         }
 
+        // Pending image attachment: a small removable chip shown above the input once one is staged.
+        state.pendingImage?.let { pending ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                SuggestionChip(
+                    onClick = {},
+                    label = { Text("🖼️ ${pending.displayName}") },
+                    modifier = Modifier.weight(1f, fill = false).testTag("pendingImageChip"),
+                )
+                IconButton(onClick = onClearAttachment, modifier = Modifier.testTag("removeAttachmentButton")) {
+                    Text("✕")
+                }
+            }
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            // Attach an image for the loaded vision model; hidden entirely when no vision projector
+            // is loaded (attaching an image to a text-only model would just be ignored).
+            if (state.visionModelName != null) {
+                IconButton(
+                    onClick = onAttachImage,
+                    enabled = ready && !state.generating,
+                    modifier = Modifier.testTag("attachImageButton"),
+                ) {
+                    Text("📎")
+                }
+            }
             OutlinedTextField(
                 value = draft,
                 onValueChange = { draft = it },
@@ -687,7 +768,7 @@ private fun Conversation(
                         onSend(draft, systemPrompt)
                         draft = ""
                     },
-                    enabled = ready && draft.isNotBlank(),
+                    enabled = ready && (draft.isNotBlank() || state.pendingImage != null),
                     modifier = Modifier.padding(start = 8.dp).testTag("sendButton"),
                 ) {
                     Text(stringResource(R.string.action_send))
@@ -761,7 +842,8 @@ private fun MessageBubble(message: ChatViewModel.Message) {
                     },
                 ),
         ) {
-            Text(text = message.text.ifEmpty { "…" }, modifier = Modifier.padding(12.dp))
+            val prefix = if (message.imageBytes != null) "🖼️ " else ""
+            Text(text = prefix + message.text.ifEmpty { "…" }, modifier = Modifier.padding(12.dp))
         }
     }
 }

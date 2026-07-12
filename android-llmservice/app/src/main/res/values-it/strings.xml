@@ -75,4 +75,8 @@ SPDX-License-Identifier: MIT
     <string name="action_quit">Esci</string>
     <string name="quit_confirm_title">Uscire e ripulire?</string>
     <string name="quit_confirm_message">Chiude l\'app ed elimina i dati di lavoro (il modello copiato + la cache). Le chat salvate vengono mantenute.</string>
+
+    <!-- Vision (mmproj) model + image attachment -->
+    <string name="action_choose_vision_model">Aggiungi visione (opzionale)</string>
+    <string name="action_vision_model_set">Visione: %1$s</string>
 </resources>

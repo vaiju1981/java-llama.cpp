@@ -75,4 +75,8 @@ SPDX-License-Identifier: MIT
     <string name="action_quit">退出</string>
     <string name="quit_confirm_title">退出并清理？</string>
     <string name="quit_confirm_message">关闭应用并删除工作数据（已复制的模型 + 缓存）。已保存的对话会保留。</string>
+
+    <!-- Vision (mmproj) model + image attachment -->
+    <string name="action_choose_vision_model">添加视觉功能（可选）</string>
+    <string name="action_vision_model_set">视觉模型：%1$s</string>
 </resources>

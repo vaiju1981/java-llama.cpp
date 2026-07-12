@@ -75,4 +75,8 @@ SPDX-License-Identifier: MIT
     <string name="action_quit">Çık</string>
     <string name="quit_confirm_title">Çıkılsın ve temizlensin mi?</string>
     <string name="quit_confirm_message">Uygulamayı kapatır ve çalışma verilerini siler (kopyalanan model + önbellek). Kaydedilen sohbetler korunur.</string>
+
+    <!-- Vision (mmproj) model + image attachment -->
+    <string name="action_choose_vision_model">Görme ekle (isteğe bağlı)</string>
+    <string name="action_vision_model_set">Görme: %1$s</string>
 </resources>
