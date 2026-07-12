@@ -251,4 +251,28 @@ interface OpenAiBackend {
     default String streamDelete(String convId) throws IOException {
         throw new UnsupportedOperationException("/v1/stream/:conv_id DELETE is not supported by this backend");
     }
+
+    /**
+     * Persist a slot's KV-cache state to disk ({@code POST /slots}). Native support is gated on the
+     * {@code GIT_TAG} bump in the serving-server plan, so the default throws.
+     *
+     * @param request the save request ({@code slot_id} and optional {@code filename})
+     * @return the save acknowledgement JSON
+     * @throws IOException if the slot cannot be saved
+     */
+    default String saveSlots(JsonNode request) throws IOException {
+        throw new UnsupportedOperationException("POST /slots is not supported by this backend");
+    }
+
+    /**
+     * Erase a slot's KV-cache state ({@code DELETE /slots/:id}). Native support is gated on the
+     * {@code GIT_TAG} bump in the serving-server plan, so the default throws.
+     *
+     * @param id the slot id to erase
+     * @return the erase acknowledgement JSON
+     * @throws IOException if the slot cannot be erased
+     */
+    default String eraseSlot(int id) throws IOException {
+        throw new UnsupportedOperationException("DELETE /slots/:id is not supported by this backend");
+    }
 }

@@ -48,7 +48,9 @@ import org.slf4j.LoggerFactory;
  *       mode).</li>
  *   <li>{@code GET /v1/models} — advertises the single configured model.</li>
  *   <li>{@code GET /metrics} — server and per-slot token/cache counters as JSON.</li>
- *   <li>{@code GET /slots} — the per-slot metrics array as JSON.</li>
+ *   <li>{@code GET /slots} — the per-slot metrics array as JSON. {@code POST /slots} saves a slot's
+ *       KV-cache state and {@code DELETE /slots/:id} erases it (backend support gated on the
+ *       {@code GIT_TAG} bump in the serving-server plan).</li>
  *   <li>{@code GET /health} — liveness probe returning {@code {"status":"ok"}} (no authentication).</li>
  *   <li>{@code POST /tokenize}, {@code POST /detokenize}, {@code POST /apply-template} —
  *       llama.cpp-native utility endpoints (text &lt;&gt; token ids, chat-template application).</li>
@@ -121,6 +123,9 @@ public final class OpenAiCompatServer implements AutoCloseable {
 
     /** llama.cpp slot state array as JSON. */
     public static final String PATH_SLOTS = "/slots";
+
+    /** Prefix for a single slot: {@code /slots/:id} (erase). */
+    public static final String PATH_SLOTS_PREFIX = "/slots/";
 
     /** Ollama-native discovery route (version). */
     public static final String PATH_OLLAMA_VERSION = "/api/version";
@@ -224,6 +229,7 @@ public final class OpenAiCompatServer implements AutoCloseable {
         register(PATH_PROPS, this::handleProps);
         register(PATH_METRICS, this::handleMetrics);
         register(PATH_SLOTS, this::handleSlots);
+        register(PATH_SLOTS_PREFIX, this::handleSlot);
         // Each route is registered under its canonical path and a bare alias (clients disagree on
         // whether to include the /v1 prefix), so both forms resolve to the same handler.
         register(PATH_MODELS, this::handleModels);
@@ -1022,7 +1028,64 @@ public final class OpenAiCompatServer implements AutoCloseable {
     }
 
     private void handleSlots(HttpExchange exchange) throws IOException {
-        handleMetricsView(exchange, true);
+        try {
+            String method = exchange.getRequestMethod();
+            if ("GET".equalsIgnoreCase(method)) {
+                handleMetricsView(exchange, true);
+                return;
+            }
+            if ("POST".equalsIgnoreCase(method)) {
+                if (!authorized(exchange)) {
+                    sendError(exchange, HTTP_UNAUTHORIZED, ERROR_TYPE_REQUEST, "Missing or invalid API key");
+                    return;
+                }
+                JsonNode request = readBody(exchange);
+                if (request == null || !request.isObject()) {
+                    sendError(exchange, HTTP_BAD_REQUEST, ERROR_TYPE_REQUEST, "Request body must be a JSON object");
+                    return;
+                }
+                sendJson(exchange, HTTP_OK, backend.saveSlots(request));
+                return;
+            }
+            sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only GET and POST are supported");
+        } catch (UnsupportedOperationException e) {
+            sendError(exchange, HTTP_NOT_IMPLEMENTED, ERROR_TYPE_REQUEST, message(e));
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("slots request failed", e);
+            sendError(exchange, HTTP_SERVER_ERROR, ERROR_TYPE_SERVER, message(e));
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void handleSlot(HttpExchange exchange) throws IOException {
+        try {
+            String path = exchange.getRequestURI().getPath();
+            String idPart = path.substring(PATH_SLOTS_PREFIX.length());
+            int id;
+            try {
+                id = Integer.parseInt(idPart);
+            } catch (NumberFormatException e) {
+                sendError(exchange, HTTP_NOT_FOUND, ERROR_TYPE_REQUEST, "Invalid slot id: " + idPart);
+                return;
+            }
+            if (!authorized(exchange)) {
+                sendError(exchange, HTTP_UNAUTHORIZED, ERROR_TYPE_REQUEST, "Missing or invalid API key");
+                return;
+            }
+            if ("DELETE".equalsIgnoreCase(exchange.getRequestMethod())) {
+                sendJson(exchange, HTTP_OK, backend.eraseSlot(id));
+            } else {
+                sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only DELETE is supported");
+            }
+        } catch (UnsupportedOperationException e) {
+            sendError(exchange, HTTP_NOT_IMPLEMENTED, ERROR_TYPE_REQUEST, message(e));
+        } catch (IOException | RuntimeException e) {
+            LOG.warn("slot request failed", e);
+            sendError(exchange, HTTP_SERVER_ERROR, ERROR_TYPE_SERVER, message(e));
+        } finally {
+            exchange.close();
+        }
     }
 
     private void handleMetricsView(HttpExchange exchange, boolean slotsOnly) throws IOException {

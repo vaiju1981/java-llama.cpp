@@ -103,6 +103,16 @@ public class OpenAiCompatServerM1RoutesTest extends OpenAiServerTestSupport {
         public String streamDelete(String convId) {
             return "{\"conv_id\":\"" + convId + "\",\"status\":\"cancelled\"}";
         }
+
+        @Override
+        public String saveSlots(JsonNode request) {
+            return "{\"status\":\"ok\"}";
+        }
+
+        @Override
+        public String eraseSlot(int id) {
+            return "{\"id\":" + id + ",\"status\":\"erased\"}";
+        }
     }
 
     private OpenAiCompatServer startServer() throws Exception {
@@ -236,6 +246,30 @@ public class OpenAiCompatServerM1RoutesTest extends OpenAiServerTestSupport {
     public void testStream_missingConvIdReturns404() throws Exception {
         try (OpenAiCompatServer server = startServer()) {
             assertThat(get(server.getPort(), "/v1/stream/", "").code, is(404));
+        }
+    }
+
+    @Test
+    public void testSlots_postSave_passthrough() throws Exception {
+        try (OpenAiCompatServer server = startServer()) {
+            assertThat(
+                    post(server.getPort(), "/slots", "{\"slot_id\":0,\"filename\":\"slot.bin\"}", "").body,
+                    containsString("\"status\""));
+        }
+    }
+
+    @Test
+    public void testSlots_deleteErase_passthrough() throws Exception {
+        try (OpenAiCompatServer server = startServer()) {
+            assertThat(delete(server.getPort(), "/slots/0", "").body, containsString("\"status\""));
+            assertThat(delete(server.getPort(), "/slots/0", "").body, containsString("\"id\""));
+        }
+    }
+
+    @Test
+    public void testSlots_deleteInvalidId_returns404() throws Exception {
+        try (OpenAiCompatServer server = startServer()) {
+            assertThat(delete(server.getPort(), "/slots/not-a-number", "").code, is(404));
         }
     }
 }
