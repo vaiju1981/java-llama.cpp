@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.sun.net.httpserver.Filter;
+import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -191,8 +192,10 @@ public final class OpenAiCompatServer implements AutoCloseable {
     private final OpenAiBackend backend;
     private final HttpServer http;
     private final Filter corsFilter;
+    private final RateLimitFilter rateLimitFilter;
     private final ExecutorService requestExecutor;
     private final ScheduledExecutorService heartbeatExecutor;
+    private volatile @Nullable String effectiveApiKey;
 
     /**
      * Create a server backed by a loaded model.
@@ -224,6 +227,9 @@ public final class OpenAiCompatServer implements AutoCloseable {
                 Math.max(2, Runtime.getRuntime().availableProcessors()), namedFactory("jllama-openai-hb"));
         this.http = HttpServer.create(new InetSocketAddress(config.getHost(), config.getPort()), 0);
         this.corsFilter = buildCorsFilter(config.getCorsAllowOrigin());
+        this.rateLimitFilter =
+                new RateLimitFilter(config.getRateLimitRps(), config.getMaxConcurrentClients(), config.getApiKey());
+        this.effectiveApiKey = config.getApiKey();
         register("/", this::handleNotFound);
         register(PATH_HEALTH, this::handleHealth);
         register(PATH_PROPS, this::handleProps);
@@ -298,6 +304,16 @@ public final class OpenAiCompatServer implements AutoCloseable {
         return http.getAddress().getPort();
     }
 
+    /**
+     * Rotate the bearer API key at runtime. Updates the key checked by {@link #authorized(HttpExchange)}
+     * without restarting the server. Pass {@code null} or an empty string to disable authentication.
+     *
+     * @param apiKey the new bearer token, or {@code null}/empty to disable authentication
+     */
+    public void setApiKey(@Nullable String apiKey) {
+        this.effectiveApiKey = (apiKey == null) ? null : apiKey;
+    }
+
     /** Stop the server and release its thread pools. The backing model is not closed. */
     @Override
     public void close() {
@@ -311,7 +327,11 @@ public final class OpenAiCompatServer implements AutoCloseable {
      * cross-cutting CORS/preflight wiring applies uniformly to every route (including the catch-all).
      */
     private void register(String path, HttpHandler handler) {
-        http.createContext(path, handler).getFilters().add(corsFilter);
+        HttpContext ctx = http.createContext(path, handler);
+        ctx.getFilters().add(corsFilter);
+        if (rateLimitFilter.isEnabled()) {
+            ctx.getFilters().add(rateLimitFilter);
+        }
     }
 
     /**
@@ -1180,11 +1200,8 @@ public final class OpenAiCompatServer implements AutoCloseable {
     }
 
     private boolean authorized(HttpExchange exchange) {
-        if (!config.isAuthenticationEnabled()) {
-            return true;
-        }
-        String expected = config.getApiKey();
-        if (expected == null) {
+        String expected = effectiveApiKey;
+        if (expected == null || expected.isEmpty()) {
             return true;
         }
         String header = exchange.getRequestHeaders().getFirst("Authorization");

@@ -45,6 +45,17 @@ public final class OpenAiServerConfig {
     /** Default maximum accepted request-body size, in bytes (16 MiB). */
     public static final int DEFAULT_MAX_REQUEST_BODY_BYTES = 16 * 1024 * 1024;
 
+    /**
+     * Default per-client rate limit, in requests per second. {@code 0.0} disables rate limiting.
+     */
+    public static final double DEFAULT_RATE_LIMIT_RPS = 0.0;
+
+    /**
+     * Default maximum number of concurrently-served clients. {@code 0} disables the concurrency gate
+     * (bounded only by the model's {@code --parallel} slot count).
+     */
+    public static final int DEFAULT_MAX_CONCURRENT_CLIENTS = 0;
+
     private final String host;
     private final int port;
     private final @Nullable String apiKey;
@@ -57,6 +68,8 @@ public final class OpenAiServerConfig {
     private final int maxRequestBodyBytes;
     private final String modelFtype;
     private final java.util.List<String> modelIds;
+    private final double rateLimitRps;
+    private final int maxConcurrentClients;
 
     private OpenAiServerConfig(Builder builder) {
         this.host = builder.host;
@@ -71,6 +84,8 @@ public final class OpenAiServerConfig {
         this.maxRequestBodyBytes = builder.maxRequestBodyBytes;
         this.modelFtype = builder.modelFtype;
         this.modelIds = builder.modelIds;
+        this.rateLimitRps = builder.rateLimitRps;
+        this.maxConcurrentClients = builder.maxConcurrentClients;
     }
 
     /**
@@ -195,6 +210,28 @@ public final class OpenAiServerConfig {
     }
 
     /**
+     * Per-client request rate limit, in requests per second. Requests that exceed the limit for their
+     * bucket (bearer token when authentication is on, otherwise client address) receive HTTP 429. A
+     * value of {@code 0.0} disables rate limiting.
+     *
+     * @return the rate limit in requests per second
+     */
+    public double getRateLimitRps() {
+        return rateLimitRps;
+    }
+
+    /**
+     * Maximum number of requests served concurrently. Requests that arrive while the gate is full
+     * receive HTTP 429; the actual parallelism is still bounded by the model's {@code --parallel}
+     * slot count. A value of {@code 0} disables the gate.
+     *
+     * @return the concurrency cap, or {@code 0} when unlimited
+     */
+    public int getMaxConcurrentClients() {
+        return maxConcurrentClients;
+    }
+
+    /**
      * Whether bearer-token authentication is enabled (an API key is configured).
      *
      * @return {@code true} if requests must present a matching bearer token
@@ -228,6 +265,10 @@ public final class OpenAiServerConfig {
                 + corsAllowOrigin
                 + ", modelIds="
                 + modelIds
+                + ", rateLimitRps="
+                + rateLimitRps
+                + ", maxConcurrentClients="
+                + maxConcurrentClients
                 + '}';
     }
 
@@ -246,6 +287,8 @@ public final class OpenAiServerConfig {
         private int maxRequestBodyBytes = DEFAULT_MAX_REQUEST_BODY_BYTES;
         private String modelFtype = "";
         private java.util.List<String> modelIds = java.util.Collections.singletonList(DEFAULT_MODEL_ID);
+        private double rateLimitRps = DEFAULT_RATE_LIMIT_RPS;
+        private int maxConcurrentClients = DEFAULT_MAX_CONCURRENT_CLIENTS;
 
         private Builder() {}
 
@@ -373,6 +416,36 @@ public final class OpenAiServerConfig {
                 throw new IllegalArgumentException("modelIds must not be empty");
             }
             this.modelIds = java.util.Arrays.asList(modelIds);
+            return this;
+        }
+
+        /**
+         * Sets the per-client rate limit, in requests per second. Pass {@code 0.0} (the default) to
+         * disable rate limiting.
+         *
+         * @param rateLimitRps the rate limit in requests per second (must be non-negative)
+         * @return this builder
+         */
+        public Builder rateLimitRps(double rateLimitRps) {
+            if (rateLimitRps < 0.0) {
+                throw new IllegalArgumentException("rateLimitRps must not be negative");
+            }
+            this.rateLimitRps = rateLimitRps;
+            return this;
+        }
+
+        /**
+         * Sets the maximum number of concurrently-served clients. Pass {@code 0} (the default) to
+         * disable the concurrency gate.
+         *
+         * @param maxConcurrentClients the concurrency cap (must be non-negative)
+         * @return this builder
+         */
+        public Builder maxConcurrentClients(int maxConcurrentClients) {
+            if (maxConcurrentClients < 0) {
+                throw new IllegalArgumentException("maxConcurrentClients must not be negative");
+            }
+            this.maxConcurrentClients = maxConcurrentClients;
             return this;
         }
 
