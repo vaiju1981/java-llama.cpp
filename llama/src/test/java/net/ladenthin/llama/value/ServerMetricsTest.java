@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.ladenthin.llama.ClaudeGenerated;
 import org.junit.jupiter.api.Test;
 
@@ -165,5 +166,63 @@ public class ServerMetricsTest {
         ServerMetrics m = parse(SAMPLE);
         // Assert content (not just non-null) so the empty-string return mutant on toString is killed.
         assertTrue(m.toString().contains("idle"));
+    }
+
+    @Test
+    public void queueDepthMirrorsDeferred() throws Exception {
+        ServerMetrics m = parse(SAMPLE);
+        assertEquals(3, m.getQueueDepth());
+    }
+
+    @Test
+    public void promptCacheHitsAggregatedAcrossSlots() throws Exception {
+        ServerMetrics m = parse(SAMPLE);
+        // slot 0 has n_prompt_tokens_cache=80, slot 1 has none.
+        assertEquals(80L, m.getPromptCacheHits());
+    }
+
+    @Test
+    public void kvCacheUsageDerivedFromSlots() throws Exception {
+        ServerMetrics m = parse(SAMPLE);
+        // used = sum(n_prompt_tokens) = 100 (slot 0) + 0 (slot 1); capacity = sum(n_ctx) = 4096.
+        assertEquals(100L, m.getKvCacheUsedTokens());
+        assertEquals(4096L, m.getKvCacheCapacityTokens());
+        assertEquals(100.0 / 4096.0, m.getKvCacheUsage(), 1e-9);
+    }
+
+    @Test
+    public void devicesAbsentOnCurrentShape() throws Exception {
+        ServerMetrics m = parse(SAMPLE);
+        assertEquals(0, m.getDeviceCount());
+        assertFalse(m.getDevices().isArray());
+    }
+
+    @Test
+    public void slotCacheHitRateComputed() throws Exception {
+        ServerMetrics m = parse(SAMPLE);
+        SlotMetrics slot = m.getSlotMetrics().get(0);
+        // cached=80 / (cached+processed=100) = 0.8
+        assertEquals(0.8, slot.getCacheHitRate(), 1e-9);
+    }
+
+    @Test
+    public void deviceUtilizationAndVramAbsentOnCurrentShape() throws Exception {
+        ServerMetrics m = parse(SAMPLE);
+        // SAMPLE has no devices array: getters degrade to zero rather than throwing.
+        assertEquals(0.0, m.getDeviceUtilization(0), 1e-9);
+        assertEquals(0L, m.getVramUsedBytes(0));
+        assertEquals(0.0, m.getDeviceUtilization(-1), 1e-9);
+        assertEquals(0L, m.getVramUsedBytes(99));
+    }
+
+    @Test
+    public void deviceUtilizationAndVramParsedWhenPresent() throws Exception {
+        ObjectNode devices =
+                MAPPER.createArrayNode().addObject().put("utilization", 42.5).put("vram_used", 1_073_741_824L);
+        ObjectNode root = (ObjectNode) MAPPER.readTree(SAMPLE);
+        root.set("devices", devices);
+        ServerMetrics m = new ServerMetrics(root);
+        assertEquals(42.5, m.getDeviceUtilization(0), 1e-9);
+        assertEquals(1_073_741_824L, m.getVramUsedBytes(0));
     }
 }

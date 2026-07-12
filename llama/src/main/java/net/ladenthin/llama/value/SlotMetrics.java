@@ -87,6 +87,20 @@ public final class SlotMetrics {
     }
 
     /**
+     * Prompt-cache hit rate for the current or most recent task: cached tokens divided by
+     * the total prompt tokens the model would otherwise have evaluated
+     * ({@code cached + processed}). Returns {@code 0.0} when nothing has been evaluated yet.
+     *
+     * @return fraction of prompt tokens served from KV cache, in {@code [0.0, 1.0]}
+     */
+    public double getCacheHitRate() {
+        long cached = getCachedPromptTokens();
+        long processed = getProcessedPromptTokens();
+        long total = cached + processed;
+        return total > 0L ? (double) cached / (double) total : 0.0;
+    }
+
+    /**
      * Resolves the {@code next_token} payload node. llama.cpp's {@code server_slot::to_json}
      * (b9739) serializes {@code next_token} as a JSON <em>array containing a single object</em>,
      * so the counters live at {@code next_token[0]}. This unwraps that array; if a bare object

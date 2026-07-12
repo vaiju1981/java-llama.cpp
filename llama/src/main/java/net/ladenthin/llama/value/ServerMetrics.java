@@ -5,6 +5,7 @@
 package net.ladenthin.llama.value;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -69,6 +70,144 @@ public final class ServerMetrics {
      */
     public int getDeferredTasks() {
         return node.path("deferred").asInt(0);
+    }
+
+    /**
+     * Queue depth — number of tasks currently waiting for a free slot.
+     * Convenience alias of {@link #getDeferredTasks()} using the upstream
+     * {@code deferred} field name.
+     *
+     * @return number of tasks in the deferred queue
+     */
+    public int getQueueDepth() {
+        return getDeferredTasks();
+    }
+
+    /**
+     * Server-wide prompt-cache hit count — sum of cached prompt tokens across all slots.
+     * Each slot reports {@code n_prompt_tokens_cache}; this aggregates them so a dashboard can
+     * show cache effectiveness without walking the per-slot array.
+     *
+     * @return total cached prompt tokens across all slots
+     */
+    public long getPromptCacheHits() {
+        long total = 0L;
+        for (SlotMetrics slot : getSlotMetrics()) {
+            total += slot.getCachedPromptTokens();
+        }
+        return total;
+    }
+
+    /**
+     * Cumulative KV-cache token occupancy across all slots: the sum of each busy slot's
+     * evaluated+generated token count, i.e. {@code n_prompt_tokens + n_tokens_predicted}.
+     * Derived from per-slot fields; the upstream JSON does not expose a single server-wide
+     * KV counter, so this is the best available proxy.
+     *
+     * @return total KV-cache tokens currently held across all slots
+     */
+    public long getKvCacheUsedTokens() {
+        long used = 0L;
+        for (SlotMetrics slot : getSlotMetrics()) {
+            used += slot.getPromptTokens();
+        }
+        return used;
+    }
+
+    /**
+     * Aggregate KV-cache capacity across all slots: the sum of each slot's
+     * {@code n_ctx} context budget.
+     *
+     * @return total context tokens allocated across all slots
+     */
+    public long getKvCacheCapacityTokens() {
+        long capacity = 0L;
+        for (SlotMetrics slot : getSlotMetrics()) {
+            capacity += slot.getContextSize();
+        }
+        return capacity;
+    }
+
+    /**
+     * KV-cache occupancy ratio in {@code [0.0, 1.0]}: used tokens divided by capacity.
+     * Returns {@code 0.0} when no slot has a context budget yet.
+     *
+     * @return fraction of KV capacity currently occupied
+     */
+    public double getKvCacheUsage() {
+        long capacity = getKvCacheCapacityTokens();
+        return capacity > 0L ? (double) getKvCacheUsedTokens() / (double) capacity : 0.0;
+    }
+
+    /**
+     * Number of accelerator devices the server reports. Reads the upstream {@code devices} array
+     * when present; returns {@code 0} on the current metrics shape, which does not yet
+     * emit per-device GPU/VRAM/utilization (that field is expected from a newer
+     * llama.cpp and will appear here once the pinned {@code GIT_TAG} is bumped).
+     *
+     * @return device count, or {@code 0} when the field is absent
+     */
+    public int getDeviceCount() {
+        JsonNode devices = node.path("devices");
+        return devices.isArray() ? devices.size() : 0;
+    }
+
+    /**
+     * Raw per-device node passthrough, for dashboards that want GPU/VRAM temperature/utilization
+     * once upstream emits them. Empty (missing node) on the current metrics shape.
+     *
+     * @return the upstream {@code devices} array node, or a missing node
+     */
+    public JsonNode getDevices() {
+        return node.path("devices");
+    }
+
+    /**
+     * GPU utilization of device {@code index}, in {@code [0.0, 100.0]} percent, once upstream emits
+     * per-device data in the {@code devices} array. Reads the upstream {@code utilization} /
+     * {@code utilization_percent} field when present; returns {@code 0.0} for an out-of-range index
+     * or before the pinned {@code GIT_TAG} is bumped to a llama.cpp that populates the array.
+     *
+     * @param index the zero-based device index
+     * @return device utilization percent, or {@code 0.0} when unavailable
+     */
+    public double getDeviceUtilization(int index) {
+        JsonNode device = deviceAt(index);
+        if (device.isMissingNode()) {
+            return 0.0;
+        }
+        if (device.path("utilization").isNumber()) {
+            return device.path("utilization").asDouble(0.0);
+        }
+        return device.path("utilization_percent").asDouble(0.0);
+    }
+
+    /**
+     * VRAM used by device {@code index}, in bytes, once upstream emits per-device data in the
+     * {@code devices} array. Reads the upstream {@code vram_used} / {@code vram_used_bytes} field when
+     * present; returns {@code 0} for an out-of-range index or before the pinned {@code GIT_TAG} is
+     * bumped to a llama.cpp that populates the array.
+     *
+     * @param index the zero-based device index
+     * @return VRAM used in bytes, or {@code 0} when unavailable
+     */
+    public long getVramUsedBytes(int index) {
+        JsonNode device = deviceAt(index);
+        if (device.isMissingNode()) {
+            return 0L;
+        }
+        if (device.path("vram_used").isNumber()) {
+            return device.path("vram_used").asLong(0L);
+        }
+        return device.path("vram_used_bytes").asLong(0L);
+    }
+
+    private JsonNode deviceAt(int index) {
+        JsonNode devices = node.path("devices");
+        if (!devices.isArray() || index < 0 || index >= devices.size()) {
+            return JsonNodeFactory.instance.missingNode();
+        }
+        return devices.get(index);
     }
 
     /**
