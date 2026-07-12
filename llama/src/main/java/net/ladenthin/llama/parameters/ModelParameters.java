@@ -1480,6 +1480,398 @@ public final class ModelParameters extends CliParameters {
     }
 
     /**
+     * Set the embedding normalization mode (default: 2, normalized).
+     * 0 = no normalization, 1 = max absolute value, 2 = Euclidean norm.
+     *
+     * @param normalize the embedding normalization mode
+     * @return this builder
+     */
+    public ModelParameters setEmbdNormalize(int normalize) {
+        return putScalar("--embd-normalize", normalize);
+    }
+
+    /**
+     * Set the embedding output format (default: f32).
+     * Permitted values include {@code f32} and {@code f16}.
+     *
+     * @param format the embedding output tensor format
+     * @return this builder
+     */
+    public ModelParameters setEmbdOutputFormat(String format) {
+        parameters.put("--embd-output-format", format);
+        return this;
+    }
+
+    /**
+     * Offload all Mixture-of-Experts (MoE) layers to the CPU (default: off).
+     *
+     * @return this builder
+     */
+    public ModelParameters enableCpuMoe() {
+        return setFlag(ModelFlag.CPU_MOE);
+    }
+
+    /**
+     * Enable or disable offloading all Mixture-of-Experts (MoE) layers to the CPU.
+     *
+     * @param enabled {@code true} to offload MoE layers to the CPU
+     * @return this builder
+     */
+    public ModelParameters setCpuMoe(boolean enabled) {
+        if (enabled) {
+            setFlag(ModelFlag.CPU_MOE);
+        } else {
+            clearFlag(ModelFlag.CPU_MOE);
+        }
+        return this;
+    }
+
+    /**
+     * Set the number of Mixture-of-Experts (MoE) layers to offload to the CPU
+     * (default: 0 = disabled).
+     *
+     * @param layers the number of MoE layers to offload to the CPU
+     * @return this builder
+     */
+    public ModelParameters setCpuMoeLayers(int layers) {
+        return putScalar("--n-cpu-moe", layers);
+    }
+
+    /**
+     * Offload the draft model's Mixture-of-Experts (MoE) layers to the CPU (default: off).
+     *
+     * @return this builder
+     */
+    public ModelParameters enableCpuMoeDraft() {
+        return setFlag(ModelFlag.CPU_MOE_DRAFT);
+    }
+
+    /**
+     * Enable or disable offloading the draft model's Mixture-of-Experts (MoE) layers to the CPU.
+     *
+     * @param enabled {@code true} to offload the draft model's MoE layers to the CPU
+     * @return this builder
+     */
+    public ModelParameters setCpuMoeDraft(boolean enabled) {
+        if (enabled) {
+            setFlag(ModelFlag.CPU_MOE_DRAFT);
+        } else {
+            clearFlag(ModelFlag.CPU_MOE_DRAFT);
+        }
+        return this;
+    }
+
+    /**
+     * Enable multi-token prediction (MTP) for speculative decoding speedups (default: off).
+     *
+     * @return this builder
+     */
+    public ModelParameters enableMtp() {
+        return setFlag(ModelFlag.MTP);
+    }
+
+    /**
+     * Enable or disable multi-token prediction (MTP) for speculative decoding speedups.
+     *
+     * @param enabled {@code true} to enable MTP
+     * @return this builder
+     */
+    public ModelParameters setMtp(boolean enabled) {
+        if (enabled) {
+            setFlag(ModelFlag.MTP);
+        } else {
+            clearFlag(ModelFlag.MTP);
+        }
+        return this;
+    }
+
+    /**
+     * Set the context size (in tokens) the device-memory --fit computation should target
+     * (default: 0, auto-derived).
+     *
+     * @param fitCtx the target context size for --fit
+     * @return this builder
+     */
+    public ModelParameters setFitCtx(int fitCtx) {
+        return putScalar("--fit-ctx", fitCtx);
+    }
+
+    /**
+     * Set the per-device VRAM budget list the device-memory --fit computation targets
+     * (default: empty, auto-derived), e.g. {@code "MiB0,MiB1"}.
+     *
+     * @param fitTarget comma-separated per-device VRAM budget list
+     * @return this builder
+     */
+    public ModelParameters setFitTarget(String fitTarget) {
+        parameters.put("--fit-target", fitTarget);
+        return this;
+    }
+
+    /**
+     * Print the result of the device-memory --fit computation (default: off).
+     *
+     * @return this builder
+     */
+    public ModelParameters enableFitPrint() {
+        return setFlag(ModelFlag.FIT_PRINT);
+    }
+
+    /**
+     * Enable or disable printing the result of the device-memory --fit computation.
+     *
+     * @param enabled {@code true} to print the --fit result
+     * @return this builder
+     */
+    public ModelParameters setFitPrint(boolean enabled) {
+        if (enabled) {
+            setFlag(ModelFlag.FIT_PRINT);
+        } else {
+            clearFlag(ModelFlag.FIT_PRINT);
+        }
+        return this;
+    }
+
+    /**
+     * Override the data type of one or more tensors by name pattern, e.g.
+     * {@code "tok_embeddings=Q4_0,blk.0.attn=q8_0"}. May be called repeatedly.
+     *
+     * @param override the tensor name pattern and target buffer type
+     * @return this builder
+     */
+    public ModelParameters setOverrideTensor(String override) {
+        parameters.put("--override-tensor", override);
+        return this;
+    }
+
+    /**
+     * Override the data type of one or more draft-model tensors by name pattern. May be called repeatedly.
+     *
+     * @param override the draft-model tensor name pattern and target buffer type
+     * @return this builder
+     */
+    public ModelParameters setOverrideTensorDraft(String override) {
+        parameters.put("--override-tensor-draft", override);
+        return this;
+    }
+
+    /**
+     * Set the path to a prompt cache file used to save/restore the evaluated prompt KV state.
+     *
+     * @param promptCache the prompt cache file path
+     * @return this builder
+     */
+    public ModelParameters setPromptCache(String promptCache) {
+        parameters.put("--prompt-cache", promptCache);
+        return this;
+    }
+
+    /**
+     * Open the prompt cache read-only, never rewriting the cache file (default: off).
+     *
+     * @return this builder
+     */
+    public ModelParameters enablePromptCacheRo() {
+        return setFlag(ModelFlag.PROMPT_CACHE_RO);
+    }
+
+    /**
+     * Enable or disable opening the prompt cache read-only.
+     *
+     * @param enabled {@code true} to open the prompt cache read-only
+     * @return this builder
+     */
+    public ModelParameters setPromptCacheRo(boolean enabled) {
+        if (enabled) {
+            setFlag(ModelFlag.PROMPT_CACHE_RO);
+        } else {
+            clearFlag(ModelFlag.PROMPT_CACHE_RO);
+        }
+        return this;
+    }
+
+    /**
+     * Save the entire prompt (including the KV state of all tokens) to the cache file
+     * (default: off).
+     *
+     * @return this builder
+     */
+    public ModelParameters enablePromptCacheAll() {
+        return setFlag(ModelFlag.PROMPT_CACHE_ALL);
+    }
+
+    /**
+     * Enable or disable saving the entire prompt to the cache file.
+     *
+     * @param enabled {@code true} to save the entire prompt to the cache file
+     * @return this builder
+     */
+    public ModelParameters setPromptCacheAll(boolean enabled) {
+        if (enabled) {
+            setFlag(ModelFlag.PROMPT_CACHE_ALL);
+        } else {
+            clearFlag(ModelFlag.PROMPT_CACHE_ALL);
+        }
+        return this;
+    }
+
+    /**
+     * Set the maximum number of image tokens multimodal models may allocate per image.
+     *
+     * @param maxTokens the maximum image token budget (must not be negative)
+     * @return this builder
+     */
+    public ModelParameters setImageMaxTokens(int maxTokens) {
+        if (maxTokens < 0) {
+            throw new IllegalArgumentException("image-max-tokens must be non-negative but was " + maxTokens);
+        }
+        return putScalar("--image-max-tokens", maxTokens);
+    }
+
+    /**
+     * Set the minimum number of image tokens multimodal models must allocate per image.
+     *
+     * @param minTokens the minimum image token budget (must not be negative)
+     * @return this builder
+     */
+    public ModelParameters setImageMinTokens(int minTokens) {
+        if (minTokens < 0) {
+            throw new IllegalArgumentException("image-min-tokens must be non-negative but was " + minTokens);
+        }
+        return putScalar("--image-min-tokens", minTokens);
+    }
+
+    /**
+     * Set the path to a video file for multimodal input (use with multimodal models;
+     * comma-separated values allow multiple files).
+     *
+     * @param videoPath the video file path(s)
+     * @return this builder
+     */
+    public ModelParameters setVideo(String videoPath) {
+        parameters.put("--video", videoPath);
+        return this;
+    }
+
+    /**
+     * Set the path to a media (image/audio/video) file for multimodal input.
+     *
+     * @param mediaPath the media file path
+     * @return this builder
+     */
+    public ModelParameters setMediaPath(String mediaPath) {
+        parameters.put("--media-path", mediaPath);
+        return this;
+    }
+
+    /**
+     * Set the prompt chunk size in characters (default: 0, whole prompt at once).
+     *
+     * @param chunkSize the chunk size in characters (must not be negative)
+     * @return this builder
+     */
+    public ModelParameters setChunkSize(int chunkSize) {
+        if (chunkSize < 0) {
+            throw new IllegalArgumentException("chunk-size must be non-negative but was " + chunkSize);
+        }
+        return putScalar("--chunk-size", chunkSize);
+    }
+
+    /**
+     * Set the string that separates prompt chunks (default: "\n").
+     *
+     * @param chunkSeparator the chunk separator string
+     * @return this builder
+     */
+    public ModelParameters setChunkSeparator(String chunkSeparator) {
+        parameters.put("--chunk-separator", chunkSeparator);
+        return this;
+    }
+
+    /**
+     * Set the number of prompt chunks to process in parallel (default: 1).
+     *
+     * @param chunks the number of chunks to process in parallel (must be &ge; 1)
+     * @return this builder
+     */
+    public ModelParameters setChunks(int chunks) {
+        if (chunks < 1) {
+            throw new IllegalArgumentException("chunks must be >= 1 but was " + chunks);
+        }
+        return putScalar("--chunks", chunks);
+    }
+
+    /**
+     * Set the string that separates the classification (CLS) token from the prompt.
+     *
+     * @param clsSeparator the CLS separator string
+     * @return this builder
+     */
+    public ModelParameters setClsSeparator(String clsSeparator) {
+        parameters.put("--cls-separator", clsSeparator);
+        return this;
+    }
+
+    /**
+     * Set the directory holding the local model pool used by agent model routing.
+     *
+     * @param modelsDir the model pool directory
+     * @return this builder
+     */
+    public ModelParameters setModelsDir(String modelsDir) {
+        parameters.put("--models-dir", modelsDir);
+        return this;
+    }
+
+    /**
+     * Set the maximum number of models kept loaded in the local model pool.
+     *
+     * @param modelsMax the maximum number of loaded models (must not be negative)
+     * @return this builder
+     */
+    public ModelParameters setModelsMax(int modelsMax) {
+        if (modelsMax < 0) {
+            throw new IllegalArgumentException("models-max must be non-negative but was " + modelsMax);
+        }
+        return putScalar("--models-max", modelsMax);
+    }
+
+    /**
+     * Automatically load models referenced by agents from the local model pool (default: off).
+     *
+     * @return this builder
+     */
+    public ModelParameters enableModelsAutoload() {
+        return setFlag(ModelFlag.MODELS_AUTOLOAD);
+    }
+
+    /**
+     * Enable or disable automatically loading models referenced by agents from the local model pool.
+     *
+     * @param enabled {@code true} to auto-load pool models
+     * @return this builder
+     */
+    public ModelParameters setModelsAutoload(boolean enabled) {
+        if (enabled) {
+            setFlag(ModelFlag.MODELS_AUTOLOAD);
+        } else {
+            clearFlag(ModelFlag.MODELS_AUTOLOAD);
+        }
+        return this;
+    }
+
+    /**
+     * Set the preset configuration file for the local model pool.
+     *
+     * @param modelsPreset the model pool preset file path
+     * @return this builder
+     */
+    public ModelParameters setModelsPreset(String modelsPreset) {
+        parameters.put("--models-preset", modelsPreset);
+        return this;
+    }
+
+    /**
      * Enable the given flag, adding it to the active parameter set.
      * Equivalent to calling the specific named method (e.g. {@link #enableFlashAttn()}
      * for {@link net.ladenthin.llama.args.ModelFlag#FLASH_ATTN}).

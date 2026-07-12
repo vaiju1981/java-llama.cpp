@@ -837,4 +837,100 @@ public class InferenceParametersTest {
         assertThat(params.withDryPenaltyLastN(-1), is(not(sameInstance(params))));
         assertThat(params.withDrySequenceBreakers("\n"), is(not(sameInstance(params))));
     }
+
+    // -------------------------------------------------------------------------
+    // Plan B-list coverage gaps exposed (all within pinned b9941, no version bump)
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void testSetNCompletions() {
+        assertThat(InferenceParameters.empty().withNCompletions(3).parameters.get("n_cmpl"), is("3"));
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> InferenceParameters.empty().withNCompletions(0));
+    }
+
+    @Test
+    public void testSetResponseFieldsSingle() {
+        assertThat(
+                InferenceParameters.empty()
+                        .withResponseFields("content")
+                        .parameters
+                        .get("response_fields"),
+                is("[\"content\"]"));
+    }
+
+    @Test
+    public void testSetResponseFieldsMultiple() {
+        assertThat(
+                InferenceParameters.empty()
+                        .withResponseFields("content", "tokens_predicted")
+                        .parameters
+                        .get("response_fields"),
+                is("[\"content\",\"tokens_predicted\"]"));
+    }
+
+    @Test
+    public void testSetResponseFieldsEmpty() {
+        InferenceParameters params = InferenceParameters.empty();
+        InferenceParameters result = params.withResponseFields();
+        assertThat(params.parameters, not(hasKey("response_fields")));
+        assertThat(result, is(sameInstance(params)));
+    }
+
+    @Test
+    public void testSetReturnProgress() {
+        assertThat(
+                InferenceParameters.empty().withReturnProgress(true).parameters.get("return_progress"), is("true"));
+    }
+
+    @Test
+    public void testSetVerbose() {
+        assertThat(InferenceParameters.empty().withVerbose(true).parameters.get("verbose"), is("true"));
+    }
+
+    @Test
+    public void testSetBackendSampling() {
+        assertThat(
+                InferenceParameters.empty().withBackendSampling(true).parameters.get("backend_sampling"), is("true"));
+    }
+
+    @Test
+    public void testSetChatFormat() {
+        assertThat(
+                InferenceParameters.empty().withChatFormat("chatml").parameters.get("chat_format"), is("\"chatml\""));
+        assertThat(InferenceParameters.empty().withChatFormat("").parameters, not(hasKey("chat_format")));
+    }
+
+    @Test
+    public void testSetGenerationPrompt() {
+        assertThat(
+                InferenceParameters.empty()
+                        .withGenerationPrompt(false)
+                        .parameters
+                        .get("generation_prompt"),
+                is("false"));
+    }
+
+    @Test
+    public void testSetParseToolCalls() {
+        assertThat(
+                InferenceParameters.empty().withParseToolCalls(false).parameters.get("parse_tool_calls"), is("false"));
+    }
+
+    @Test
+    public void testSetChatParser() {
+        assertThat(
+                InferenceParameters.empty()
+                        .withChatParser("sentencepiece")
+                        .parameters
+                        .get("chat_parser"),
+                is("\"sentencepiece\""));
+        assertThat(InferenceParameters.empty().withChatParser("").parameters, not(hasKey("chat_parser")));
+    }
+
+    @Test
+    public void testSetEcho() {
+        assertThat(InferenceParameters.empty().withEcho(true).parameters.get("echo"), is("true"));
+    }
 }

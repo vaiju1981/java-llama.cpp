@@ -133,7 +133,28 @@ public enum ModelFlag {
      * {@link net.ladenthin.llama.exception.ModelUnavailableException} so callers can distinguish an
      * air-gapped miss from a genuine misconfiguration.</p>
      */
-    OFFLINE("--offline");
+    OFFLINE("--offline"),
+
+    /** Offload all Mixture-of-Experts (MoE) layers to the CPU. */
+    CPU_MOE("--cpu-moe"),
+
+    /** Offload the draft model's Mixture-of-Experts (MoE) layers to the CPU. */
+    CPU_MOE_DRAFT("--cpu-moe-draft"),
+
+    /** Enable multi-token prediction (MTP) for speculative decoding speedups. */
+    MTP("--mtp"),
+
+    /** Print the result of the device-memory --fit computation. */
+    FIT_PRINT("--fit-print"),
+
+    /** Open the prompt cache read-only (never rewrite the cache file). */
+    PROMPT_CACHE_RO("--prompt-cache-ro"),
+
+    /** Save the entire prompt (including the KV state of all tokens) to the cache file. */
+    PROMPT_CACHE_ALL("--prompt-cache-all"),
+
+    /** Automatically load models referenced by agents from the local model pool. */
+    MODELS_AUTOLOAD("--models-autoload");
 
     private final String cliFlag;
 

@@ -528,4 +528,177 @@ public class ModelParametersTest {
         assertThat(p.parameters, hasKey("--no-cache-idle-slots"));
         assertThat(p.parameters, not(hasKey("--cache-idle-slots")));
     }
+
+    // -------------------------------------------------------------------------
+    // Plan C-list coverage gaps exposed (all within pinned b9941, no version bump)
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void testSetEmbdNormalize() {
+        assertThat(new ModelParameters().setEmbdNormalize(1).parameters.get("--embd-normalize"), is("1"));
+    }
+
+    @Test
+    public void testSetEmbdOutputFormat() {
+        assertThat(new ModelParameters().setEmbdOutputFormat("f16").parameters.get("--embd-output-format"), is("f16"));
+    }
+
+    @Test
+    public void testEnableCpuMoe_setsFlag() {
+        assertThat(new ModelParameters().enableCpuMoe().parameters, hasKey("--cpu-moe"));
+        assertThat(new ModelParameters().setCpuMoe(false).parameters, not(hasKey("--cpu-moe")));
+        assertThat(new ModelParameters().setCpuMoe(true).parameters, hasKey("--cpu-moe"));
+    }
+
+    @Test
+    public void testSetCpuMoeLayers() {
+        assertThat(new ModelParameters().setCpuMoeLayers(8).parameters.get("--n-cpu-moe"), is("8"));
+    }
+
+    @Test
+    public void testEnableCpuMoeDraft_setsFlag() {
+        assertThat(new ModelParameters().enableCpuMoeDraft().parameters, hasKey("--cpu-moe-draft"));
+        assertThat(new ModelParameters().setCpuMoeDraft(false).parameters, not(hasKey("--cpu-moe-draft")));
+        assertThat(new ModelParameters().setCpuMoeDraft(true).parameters, hasKey("--cpu-moe-draft"));
+    }
+
+    @Test
+    public void testEnableMtp_setsFlag() {
+        assertThat(new ModelParameters().enableMtp().parameters, hasKey("--mtp"));
+        assertThat(new ModelParameters().setMtp(false).parameters, not(hasKey("--mtp")));
+        assertThat(new ModelParameters().setMtp(true).parameters, hasKey("--mtp"));
+    }
+
+    @Test
+    public void testSetFitCtx() {
+        assertThat(new ModelParameters().setFitCtx(4096).parameters.get("--fit-ctx"), is("4096"));
+    }
+
+    @Test
+    public void testSetFitTarget() {
+        assertThat(new ModelParameters().setFitTarget("MiB0,MiB1").parameters.get("--fit-target"), is("MiB0,MiB1"));
+    }
+
+    @Test
+    public void testEnableFitPrint_setsFlag() {
+        assertThat(new ModelParameters().enableFitPrint().parameters, hasKey("--fit-print"));
+        assertThat(new ModelParameters().setFitPrint(false).parameters, not(hasKey("--fit-print")));
+        assertThat(new ModelParameters().setFitPrint(true).parameters, hasKey("--fit-print"));
+    }
+
+    @Test
+    public void testSetOverrideTensor() {
+        assertThat(
+                new ModelParameters()
+                        .setOverrideTensor("tok_embeddings=Q4_0")
+                        .parameters
+                        .get("--override-tensor"),
+                is("tok_embeddings=Q4_0"));
+    }
+
+    @Test
+    public void testSetOverrideTensorDraft() {
+        assertThat(
+                new ModelParameters()
+                        .setOverrideTensorDraft("blk.0=Q4_0")
+                        .parameters
+                        .get("--override-tensor-draft"),
+                is("blk.0=Q4_0"));
+    }
+
+    @Test
+    public void testSetPromptCache() {
+        assertThat(
+                new ModelParameters()
+                        .setPromptCache("/tmp/cache.bin")
+                        .parameters
+                        .get("--prompt-cache"),
+                is("/tmp/cache.bin"));
+    }
+
+    @Test
+    public void testEnablePromptCacheRo_setsFlag() {
+        assertThat(new ModelParameters().enablePromptCacheRo().parameters, hasKey("--prompt-cache-ro"));
+        assertThat(new ModelParameters().setPromptCacheRo(false).parameters, not(hasKey("--prompt-cache-ro")));
+        assertThat(new ModelParameters().setPromptCacheRo(true).parameters, hasKey("--prompt-cache-ro"));
+    }
+
+    @Test
+    public void testEnablePromptCacheAll_setsFlag() {
+        assertThat(new ModelParameters().enablePromptCacheAll().parameters, hasKey("--prompt-cache-all"));
+        assertThat(new ModelParameters().setPromptCacheAll(false).parameters, not(hasKey("--prompt-cache-all")));
+        assertThat(new ModelParameters().setPromptCacheAll(true).parameters, hasKey("--prompt-cache-all"));
+    }
+
+    @Test
+    public void testSetImageMaxTokens() {
+        assertThat(new ModelParameters().setImageMaxTokens(512).parameters.get("--image-max-tokens"), is("512"));
+        assertThrows(IllegalArgumentException.class, () -> new ModelParameters().setImageMaxTokens(-1));
+    }
+
+    @Test
+    public void testSetImageMinTokens() {
+        assertThat(new ModelParameters().setImageMinTokens(128).parameters.get("--image-min-tokens"), is("128"));
+        assertThrows(IllegalArgumentException.class, () -> new ModelParameters().setImageMinTokens(-1));
+    }
+
+    @Test
+    public void testSetVideo() {
+        assertThat(new ModelParameters().setVideo("/tmp/clip.mp4").parameters.get("--video"), is("/tmp/clip.mp4"));
+    }
+
+    @Test
+    public void testSetMediaPath() {
+        assertThat(new ModelParameters().setMediaPath("/tmp/media").parameters.get("--media-path"), is("/tmp/media"));
+    }
+
+    @Test
+    public void testSetChunkSize() {
+        assertThat(new ModelParameters().setChunkSize(256).parameters.get("--chunk-size"), is("256"));
+        assertThrows(IllegalArgumentException.class, () -> new ModelParameters().setChunkSize(-1));
+    }
+
+    @Test
+    public void testSetChunkSeparator() {
+        assertThat(new ModelParameters().setChunkSeparator("\n").parameters.get("--chunk-separator"), is("\n"));
+    }
+
+    @Test
+    public void testSetChunks() {
+        assertThat(new ModelParameters().setChunks(4).parameters.get("--chunks"), is("4"));
+        assertThrows(IllegalArgumentException.class, () -> new ModelParameters().setChunks(0));
+    }
+
+    @Test
+    public void testSetClsSeparator() {
+        assertThat(new ModelParameters().setClsSeparator("<cls>").parameters.get("--cls-separator"), is("<cls>"));
+    }
+
+    @Test
+    public void testSetModelsDir() {
+        assertThat(new ModelParameters().setModelsDir("/tmp/models").parameters.get("--models-dir"), is("/tmp/models"));
+    }
+
+    @Test
+    public void testSetModelsMax() {
+        assertThat(new ModelParameters().setModelsMax(4).parameters.get("--models-max"), is("4"));
+        assertThrows(IllegalArgumentException.class, () -> new ModelParameters().setModelsMax(-1));
+    }
+
+    @Test
+    public void testEnableModelsAutoload_setsFlag() {
+        assertThat(new ModelParameters().enableModelsAutoload().parameters, hasKey("--models-autoload"));
+        assertThat(new ModelParameters().setModelsAutoload(false).parameters, not(hasKey("--models-autoload")));
+        assertThat(new ModelParameters().setModelsAutoload(true).parameters, hasKey("--models-autoload"));
+    }
+
+    @Test
+    public void testSetModelsPreset() {
+        assertThat(
+                new ModelParameters()
+                        .setModelsPreset("/tmp/preset.json")
+                        .parameters
+                        .get("--models-preset"),
+                is("/tmp/preset.json"));
+    }
 }

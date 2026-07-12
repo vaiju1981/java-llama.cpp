@@ -119,6 +119,16 @@ public final class InferenceParameters extends JsonParameters {
     private static final String PARAM_POST_SAMPLING_PROBS = "post_sampling_probs";
     private static final String PARAM_TIMINGS_PER_TOKEN = "timings_per_token";
     private static final String PARAM_RETURN_TOKENS = "return_tokens";
+    private static final String PARAM_N_CMPL = "n_cmpl";
+    private static final String PARAM_RESPONSE_FIELDS = "response_fields";
+    private static final String PARAM_RETURN_PROGRESS = "return_progress";
+    private static final String PARAM_VERBOSE = "verbose";
+    private static final String PARAM_BACKEND_SAMPLING = "backend_sampling";
+    private static final String PARAM_CHAT_FORMAT = "chat_format";
+    private static final String PARAM_GENERATION_PROMPT = "generation_prompt";
+    private static final String PARAM_PARSE_TOOL_CALLS = "parse_tool_calls";
+    private static final String PARAM_CHAT_PARSER = "chat_parser";
+    private static final String PARAM_ECHO = "echo";
 
     private static final InferenceParameters EMPTY = new InferenceParameters();
 
@@ -987,5 +997,138 @@ public final class InferenceParameters extends JsonParameters {
      */
     public InferenceParameters withReturnTokens(boolean returnTokens) {
         return withScalar(PARAM_RETURN_TOKENS, returnTokens);
+    }
+
+    /**
+     * Returns a new request with the number of completions replaced ({@code n_cmpl}, alias
+     * {@code n}). The native server produces this many independent samples for the same prompt;
+     * each is returned as a separate element of the {@code choices} array. Default: 1.
+     *
+     * @param nCompletions number of completions to generate (must be &ge; 1)
+     * @return a new instance; this instance is unchanged
+     * @throws IllegalArgumentException if {@code nCompletions} is less than 1
+     */
+    public InferenceParameters withNCompletions(int nCompletions) {
+        if (nCompletions < 1) {
+            throw new IllegalArgumentException("n_cmpl must be >= 1 but was " + nCompletions);
+        }
+        return withScalar(PARAM_N_CMPL, nCompletions);
+    }
+
+    /**
+     * Returns a new request with a response-field projection replaced ({@code response_fields}).
+     * When set, the native server drops every other top-level field and keeps only the named
+     * dot-separated paths (e.g. {@code "content"}, {@code "tokens_predicted"}). Empty input is a
+     * no-op (returns {@code this}).
+     *
+     * @param fields the dot-separated response paths to keep
+     * @return a new instance with the projection set, or {@code this} if {@code fields} is empty
+     */
+    public InferenceParameters withResponseFields(String... fields) {
+        if (fields.length == 0) {
+            return this;
+        }
+        return withRaw(
+                PARAM_RESPONSE_FIELDS, serializer.buildStopStrings(fields).toString());
+    }
+
+    /**
+     * Returns a new request toggling streamed prompt-progress reporting ({@code return_progress},
+     * default false). When true, the native server emits periodic {@code progress} chunks while the
+     * prompt is being evaluated, before the first token is produced.
+     *
+     * @param returnProgress whether to stream prompt-level progress
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withReturnProgress(boolean returnProgress) {
+        return withScalar(PARAM_RETURN_PROGRESS, returnProgress);
+    }
+
+    /**
+     * Returns a new request toggling verbose debug output ({@code verbose}, default false). When
+     * true the native server attaches a {@code __verbose} object (timings, sampled tokens, etc.) to
+     * the response.
+     *
+     * @param verbose whether to include verbose debug information
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withVerbose(boolean verbose) {
+        return withScalar(PARAM_VERBOSE, verbose);
+    }
+
+    /**
+     * Returns a new request toggling backend (native) sampling ({@code backend_sampling},
+     * default false). When true, sampling is performed by the backend instead of the common sampler
+     * chain, which can be faster but offers fewer knobs.
+     *
+     * @param backendSampling whether to use backend sampling
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withBackendSampling(boolean backendSampling) {
+        return withScalar(PARAM_BACKEND_SAMPLING, backendSampling);
+    }
+
+    /**
+     * Returns a new request with the chat-format override replaced ({@code chat_format}, e.g.
+     * {@code "chatml"}, {@code "llama2"}). An empty string clears any prior value.
+     *
+     * @param chatFormat the chat format name; {@code null} or empty clears
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withChatFormat(@Nullable String chatFormat) {
+        if (chatFormat != null && chatFormat.isEmpty()) {
+            chatFormat = null;
+        }
+        return withOptionalJson(PARAM_CHAT_FORMAT, chatFormat);
+    }
+
+    /**
+     * Returns a new request toggling the generation prompt ({@code generation_prompt}, default true).
+     * When false, the chat template's generation/assistant prefix is omitted and generation starts
+     * directly after the prompt.
+     *
+     * @param generationPrompt whether to include the template's generation prompt
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withGenerationPrompt(boolean generationPrompt) {
+        return withScalar(PARAM_GENERATION_PROMPT, generationPrompt);
+    }
+
+    /**
+     * Returns a new request toggling automatic tool-call parsing ({@code parse_tool_calls},
+     * default true). When false, the model's raw tool-call text is returned instead of being parsed
+     * into structured {@code tool_calls}.
+     *
+     * @param parseToolCalls whether to auto-parse tool calls
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withParseToolCalls(boolean parseToolCalls) {
+        return withScalar(PARAM_PARSE_TOOL_CALLS, parseToolCalls);
+    }
+
+    /**
+     * Returns a new request with the chat-parser override replaced ({@code chat_parser}, e.g.
+     * {@code "sentencepiece"}, {@code "llama"}, {@code "regex"}). An empty string clears any prior
+     * value.
+     *
+     * @param chatParser the chat parser name; {@code null} or empty clears
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withChatParser(@Nullable String chatParser) {
+        if (chatParser != null && chatParser.isEmpty()) {
+            chatParser = null;
+        }
+        return withOptionalJson(PARAM_CHAT_PARSER, chatParser);
+    }
+
+    /**
+     * Returns a new request toggling echo of the prompt ({@code echo}, default false). When true,
+     * the original prompt text is prepended to the generated completion in the response content.
+     *
+     * @param echo whether to echo the prompt back in the completion
+     * @return a new instance; this instance is unchanged
+     */
+    public InferenceParameters withEcho(boolean echo) {
+        return withScalar(PARAM_ECHO, echo);
     }
 }
