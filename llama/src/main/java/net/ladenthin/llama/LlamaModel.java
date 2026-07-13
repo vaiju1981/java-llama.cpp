@@ -938,7 +938,7 @@ public class LlamaModel implements AutoCloseable {
      * @param filepath the file path to save to
      * @return JSON with save result
      */
-    public String saveSlot(int slotId, String filepath) {
+    public String saveSlot(int slotId, @Nullable String filepath) {
         return handleSlotAction(1, slotId, filepath);
     }
 

@@ -223,4 +223,16 @@ final class LlamaModelBackend implements OpenAiBackend {
         final String nativeJson = model.handleRerank(query, documents);
         return OaiRerankSupport.toOaiResponse(nativeJson, requestModel, topN);
     }
+
+    @Override
+    public String saveSlots(JsonNode request) {
+        int slotId = request.path("slot_id").asInt(-1);
+        String filename = request.path("filename").asText("");
+        return model.saveSlot(slotId, filename.isEmpty() ? null : filename);
+    }
+
+    @Override
+    public String eraseSlot(int id) {
+        return model.eraseSlot(id);
+    }
 }
