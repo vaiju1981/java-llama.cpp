@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java bindings for [llama.cpp](https://github.com/ggerganov/llama.cpp) via JNI, providing a high-level API for LLM inference in Java. The Java layer communicates with a native C++ library through JNI.
 
-Current llama.cpp pinned version: **b9975**
+Current llama.cpp pinned version: **b9981**
 
 ## Upgrading CUDA Version
 
@@ -421,7 +421,7 @@ needs no extra step here, `build-webui` re-reads the tag and rebuilds the matchi
 ships no UI):
 ```bash
 # needs node/npm + network; embed.cpp is plain C++17 (no npm)
-git clone --depth 1 --branch b9975 https://github.com/ggml-org/llama.cpp /tmp/lc
+git clone --depth 1 --branch b9981 https://github.com/ggml-org/llama.cpp /tmp/lc
 ( cd /tmp/lc/tools/ui && npm ci && npm run build \
   && ( cd dist && find . -type f -not -path './_gzip/*' \
        | while read -r f; do mkdir -p "_gzip/$(dirname "$f")"; gzip -9 -c "$f" > "_gzip/$f"; done ) \
@@ -461,7 +461,7 @@ cache lives in **Depot Cache** over sccache's **WebDAV** backend:
 - `SCCACHE_WEBDAV_TOKEN: ${{ secrets.DEPOT_TOKEN }}` — a Depot **organization** token, stored
   as the repo secret **`DEPOT_TOKEN`**.
 
-Because `sccache` is **content-addressed** and llama.cpp is pinned (`GIT_TAG b9975`), the
+Because `sccache` is **content-addressed** and llama.cpp is pinned (`GIT_TAG b9981`), the
 ~280 upstream object files are byte-identical every run, so a warm cache recompiles only the
 *changed* files. Depot's cache is **shared across all branches** (unlike GitHub's
 per-branch `actions/cache`), so every branch builds incrementally; a `b<nnnn>` version bump
@@ -573,10 +573,20 @@ Current patches:
 | `0002-server-preserve-caller-load-progress-callback.patch` | Load-progress-callback regression introduced in llama.cpp **b9789**: `server_context::load_model` (`tools/server/server-context.cpp`) now **unconditionally** installs the server's own load-progress reporter on `params_base.load_progress_callback` immediately before `common_init_from_params`, clobbering any callback the embedding caller already set. libjllama's `LoadProgressCallback` feature wires `common_params.load_progress_callback` to a JNI trampoline *before* calling `load_model`, so the bump silently killed it — `LoadProgressCallbackTest` saw zero progress updates and the abort-on-`false` path never threw. The patch guards the assignment with `if (params_base.load_progress_callback == nullptr)`, so the server installs its own reporter **only when the caller hasn't** — a caller-supplied callback survives and fires during load. Standalone `llama-server` (no caller callback, so the field is null) is unaffected. Same JNI-vs-standalone divergence class as `0001`. |
 | `0003-pr22393-server-add-slot-prompt-similarity-getter-setter.patch` | **Upstream-PR carry** of [ggml-org/llama.cpp#22393](https://github.com/ggml-org/llama.cpp/pull/22393) ("server : add slot_prompt_similarity getter/setter") while it is still open upstream. Purely additive: adds `server_context::get_slot_prompt_similarity()` / `set_slot_prompt_similarity(float)` (`tools/server/server-context.{cpp,h}`) so an embedding/JNI caller can query and tune the slot-selection threshold at runtime without reloading the model. Verbatim copy of the PR — drop it once a pinned `b<nnnn>` includes the change. |
 | `0004-pr23116-server-per-request-reasoning-budget-tokens.patch` | **Upstream-PR carry** of [ggml-org/llama.cpp#23116](https://github.com/ggml-org/llama.cpp/pull/23116) ("server: honour per-request reasoning_budget_tokens in chat completions"), motivated by java-llama.cpp#140, while it is still open upstream. `oaicompat_chat_params_parse` (`tools/server/server-common.cpp`) only read the Anthropic `thinking_budget_tokens` alias and always wrote the server-level `reasoning_budget_message`, so a per-request `reasoning_budget_tokens` / `reasoning_budget_message` on a chat-completions request was ignored. The patch reads both overrides **before** the generic copy loop (precedence: `reasoning_budget_tokens` > `thinking_budget_tokens` alias > server default) and threads the per-request message through. Carries the upstream `tests/test-chat.cpp` additions verbatim so the patch is submittable as-is; like `0001`'s test/call-site flips they are **applied-but-not-compiled** here (`LLAMA_BUILD_TESTS` is OFF for the FetchContent subproject). Drop it once a pinned `b<nnnn>` includes the change. |
-| `0005-server-recurrent-near-prompt-end-checkpoints.patch` | **Multi-turn tool-calling perf fix for recurrent/hybrid models (e.g. Granite-4)**, upstream-submittable. In `server_context::update_slots` (`tools/server/server-context.cpp`) the near-prompt-end context checkpoints are gated by `checkpoint_min_step` (default 8192 tokens). An agentic conversation that appends only assistant/tool messages never produces a new user-message checkpoint (`is_user_start`/`is_last_user_message` match `COMMON_CHAT_ROLE_USER` only), so after turn 1 no new checkpoint is ever created and — because recurrent state can only roll back to a checkpoint — **every turn re-prefills the whole conversation tail** (measured on a synthetic granitehybrid model: prefilled tokens grew 901 → 1544 → 2187 → 2830 → 3473 over turns 2–6). The patch (1) exempts near-prompt-end checkpoints from the min-step spacing when the memory can only roll back via checkpoints (`ctx_tgt_seq_rm_type` is `FULL` or `RS` — SWA-only models are unaffected), and (2) skips creating a checkpoint whose position equals the newest one (the last-user-message checkpoint was re-created identically on every turn, flooding the 32-entry list). After the patch each turn restores the previous turn's near-end checkpoint and prefill is constant (~new-turn-sized; 647 tokens/turn in the same measurement, ≈5.4× less prefill at turn 6 and growing with conversation length). Validated output-identical (`temperature=0`) vs. unpatched. Complements — not duplicates — open upstream PRs #24035/#24899/#24891 (they fix checkpoint *invalidation/retention*; this fixes checkpoint *starvation*). Drop once upstream solves agentic checkpoint placement (e.g. a merged role-boundary checkpointing design, cf. #21885 / #22826 discussion). |
 | `0007-server-attach-http-frontend.patch` | **Adds `llama_server_attach(argc, argv, server_context&)`** so the `NativeServer` *attach mode* can serve an **already-loaded `LlamaModel`** over the full upstream HTTP frontend — no second model load, no `start_loop()`; the LlamaModel's worker keeps driving the shared `server_context` and the HTTP routes post tasks to its queue (the queue is the synchronization point). Mechanically: (1) extracts the common route table + CORS-proxy/tools blocks out of `llama_server()` into `llama_server_register_common_routes(...)` (shared verbatim, so the entry points cannot drift; returns `false` on tools-setup failure); (2) adds `llama_server_attach`, which parses only the HTTP-side argv via `common_params_parse`, starts `g_stream_sessions` GC + `server_http_context`, registers the common routes plus the non-router resumable-streaming handlers, marks ready immediately (model already loaded), and blocks on the HTTP thread until `llama_server_request_shutdown()` — never calling `common_init()`, backend init, `ctx_server.terminate()` or `llama_backend_free()` (the embedding caller owns those). Applies after `0001`+`0006` (same file); closes the "NativeServer — reuse an already-loaded LlamaModel" TODO. Upstream-submittable ("server: let embedding callers attach the HTTP frontend to an existing server_context"). |
 | `0008-server-models-worker-cmd-override.patch` | **Makes router mode usable in-JVM.** The router (`server-models.cpp`) spawns each model worker by re-executing its own binary (`get_server_exec_path()` = `/proc/self/exe` & friends) — inside a JVM that binary is `java`, not a llama-server, so embedded router workers could never start. The patch adds env `LLAMA_SERVER_WORKER_CMD` (whitespace-split; read in `server_model_meta::update_args`) which replaces only the leading binary-path token of the rendered worker args, letting an embedding host relaunch workers through its own bootstrap — e.g. `java -cp app.jar net.ladenthin.llama.server.NativeServer` (each worker is then a fresh JVM running the classic single-model `NativeServer`). Exposed in Java as `NativeServer.setWorkerCommand(String...)` (JNI `setenv`); exercised by `RouterModeIntegrationTest` (Linux CI). Upstream-submittable (also useful for containerized/wrapped deployments). |
 | `0006-server-embed-native-server-jni.patch` | **Makes `server.cpp`'s `llama_server` embeddable in the JVM** so the `NativeServer` JNI bridge can run the full upstream HTTP server (WebUI included) inside `libjllama` — see "Two server modes" below. b9870 already exposes `int llama_server(int, char**)` (non-static; no `main` in the file), so the patch only adds embedded-mode support: (1) a `g_llama_server_embedded` flag + `llama_server_set_embedded()` / `llama_server_request_shutdown()` (declared in the committed `src/main/cpp/native_server_bridge.h`); (2) skips installing the process-wide SIGINT/SIGTERM handlers when embedded (they would hijack the JVM's); (3) in embedded mode parses the **forwarded** argv via `common_params_parse` instead of `common_params_parse_main` (whose `GetCommandLineW` recovery would pick up `java.exe`'s command line — the same Windows class of bug `0001` fixes). `llama_server_request_shutdown()` mirrors the SIGTERM path (invokes the installed `shutdown_handler` → `ctx_server.terminate()` unblocks `start_loop()`), giving JNI an out-of-band stop since `ctx_server` is loop-local. Applies **after `0001`** (which flips this call site to `common_params_parse_main`), so its context is the post-`0001` tree; regenerate against `0001`+source on a bump. Only touches `tools/server/server.cpp`. |
+
+**`0005` was dropped at the b9981 bump.** Upstream's own `server-context.cpp` picked up an
+equivalent — and broader — fix for the same checkpoint-starvation problem: `create_checkpoint`
+now tracks `id_task` and evicts a stale checkpoint that sits within `checkpoint_min_step` of a
+newer one (instead of our pre-creation duplicate-position check), and the `do_checkpoint` gate
+now exempts **every** near-prompt-end checkpoint from the min-step spacing (`near_prompt_end`,
+unconditionally) rather than only recurrent/hybrid (`ctx_tgt_seq_rm_type` `FULL`/`RS`) models as
+our patch scoped it. The upstream version is a strict superset of what `0005` did, so it applies
+cleanly with the patch removed and needs no replacement. If a regression in agentic multi-turn
+prefill behavior shows up, re-check `tools/server/server-context.cpp`'s `create_checkpoint` /
+`do_checkpoint` logic against this description before reintroducing a local patch.
 
 ## OuteTTS build-time extraction (`cmake/generate-tts-upstream.cmake`)
 
@@ -1237,7 +1247,7 @@ ctest --test-dir build --output-on-failure -R "ResultsToJson"
 
 #### Upstream source location (in CMake build tree)
 
-llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9975`.
+llama.cpp is fetched via CMake FetchContent, pinned to `GIT_TAG b9981`.
 
 **GoogleTest** is a separate `BUILD_TESTING`-only FetchContent (`GIT_TAG v1.17.0`), used solely
 by the `jllama_test` C++ unit-test binary — not by the shipped library, and not coupled to the
