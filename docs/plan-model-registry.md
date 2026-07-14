@@ -92,6 +92,22 @@ No local index of "what models do I have and where did they come from." Proposed
 - **R5 — Ollama-registry compatibility (optional).** Mirror Ollama's library/manifest shapes so
   existing Ollama tooling/configs can be reused; document the mapping.
 
+  **Status: implemented.** `OllamaRegistryCompat` (pure Java, model-free) projects the local
+  `ModelRegistry` into Ollama's `GET /api/tags` body, enumerating *every* registered model (the
+  `ollama list` shape) rather than just the one served model. Field mapping:
+
+  | jllama `ModelRegistryEntry` | Ollama `/api/tags` field |
+  |-----------------------------|--------------------------|
+  | `name`                      | `models[].name` / `models[].model` |
+  | `pulledAt`                  | `models[].modified_at` (ISO-8601) |
+  | `sizeBytes`                 | `models[].size` |
+  | `quantization`              | `models[].details.quantization_level` |
+  | `localPath` / `sourceUrl`   | `models[].digest` (stable, content-derived id — **not** a real sha256) |
+
+  The `digest` is a stable, non-cryptographic id (Ollama uses a sha256 of the GGUF blob; jllama does
+  not re-hash here). This is a wire-shape mirror for tooling interop, not a full Ollama blob-store
+  replica; full byte-identical Ollama manifests are out of scope.
+
 ---
 
 ## 4. Dependencies / risks
