@@ -136,6 +136,20 @@ final class OpenAiSseFormatter {
      * @return an OpenAI model-list object serialized as JSON
      */
     static String modelsJson(java.util.List<String> modelIds, @Nullable String ftype) {
+        return modelsJson(modelIds, ftype, null);
+    }
+
+    /**
+     * Build the {@code GET /v1/models} body advertising one or more models, enriching each entry with
+     * registry metadata (quantization, size, pull time, source) when a {@link ModelRegistry} is
+     * supplied and the model id resolves to a registered entry.
+     *
+     * @param modelIds the model ids to advertise (never empty)
+     * @param ftype the model's file-type (quantization) label, or {@code ""}/{@code null} to omit it
+     * @param registry the optional registry to enrich from, or {@code null} for no enrichment
+     * @return an OpenAI model-list object serialized as JSON
+     */
+    static String modelsJson(java.util.List<String> modelIds, @Nullable String ftype, @Nullable ModelRegistry registry) {
         ArrayNode data = OBJECT_MAPPER.createArrayNode();
         for (String modelId : modelIds) {
             ObjectNode model = OBJECT_MAPPER.createObjectNode();
@@ -144,6 +158,27 @@ final class OpenAiSseFormatter {
             model.put("owned_by", "llama.cpp");
             if (ftype != null && !ftype.isEmpty()) {
                 model.put("ftype", ftype);
+            }
+            if (registry != null) {
+                ModelRegistryEntry entry = registry.get(modelId);
+                if (entry != null) {
+                    model.put("size_bytes", entry.getSizeBytes());
+                    String quant = entry.getQuantization();
+                    if (quant != null) {
+                        model.put("quantization", quant);
+                    }
+                    if (entry.getPulledAt() != 0L) {
+                        model.put("pulled_at", entry.getPulledAt());
+                    }
+                    String sourceUrl = entry.getSourceUrl();
+                    if (sourceUrl != null) {
+                        model.put("source_url", sourceUrl);
+                    }
+                    String localPath = entry.getLocalPath();
+                    if (localPath != null) {
+                        model.put("local_path", localPath);
+                    }
+                }
             }
             data.add(model);
         }

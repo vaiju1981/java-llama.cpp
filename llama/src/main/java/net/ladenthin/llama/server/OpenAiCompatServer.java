@@ -540,7 +540,9 @@ public final class OpenAiCompatServer implements AutoCloseable {
                 sendError(exchange, HTTP_METHOD_NOT_ALLOWED, ERROR_TYPE_REQUEST, "Only GET is supported");
                 return;
             }
-            sendJson(exchange, HTTP_OK, OllamaApiSupport.tagsJson(config.getModelId()));
+            ModelRegistry registry = config.getRegistry();
+            ModelRegistryEntry entry = registry != null ? registry.get(config.getModelId()) : null;
+            sendJson(exchange, HTTP_OK, OllamaApiSupport.tagsJson(config.getModelId(), entry));
         } finally {
             exchange.close();
         }
@@ -1024,7 +1026,10 @@ public final class OpenAiCompatServer implements AutoCloseable {
                 sendError(exchange, HTTP_UNAUTHORIZED, ERROR_TYPE_REQUEST, "Missing or invalid API key");
                 return;
             }
-            sendJson(exchange, HTTP_OK, OpenAiSseFormatter.modelsJson(config.getModelIds(), config.getModelFtype()));
+            sendJson(
+                    exchange,
+                    HTTP_OK,
+                    OpenAiSseFormatter.modelsJson(config.getModelIds(), config.getModelFtype(), config.getRegistry()));
         } finally {
             exchange.close();
         }

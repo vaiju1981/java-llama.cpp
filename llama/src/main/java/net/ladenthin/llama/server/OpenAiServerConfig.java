@@ -70,6 +70,7 @@ public final class OpenAiServerConfig {
     private final java.util.List<String> modelIds;
     private final double rateLimitRps;
     private final int maxConcurrentClients;
+    private final @Nullable ModelRegistry registry;
 
     private OpenAiServerConfig(Builder builder) {
         this.host = builder.host;
@@ -86,6 +87,7 @@ public final class OpenAiServerConfig {
         this.modelIds = builder.modelIds;
         this.rateLimitRps = builder.rateLimitRps;
         this.maxConcurrentClients = builder.maxConcurrentClients;
+        this.registry = builder.registry;
     }
 
     /**
@@ -232,6 +234,17 @@ public final class OpenAiServerConfig {
     }
 
     /**
+     * The optional model registry used to enrich {@code GET /v1/models} and {@code GET /api/tags}
+     * with quantization, size and pull metadata. {@code null} when no registry is wired in (the
+     * endpoints then advertise only the served model ids).
+     *
+     * @return the registry, or {@code null} when unconfigured
+     */
+    public @Nullable ModelRegistry getRegistry() {
+        return registry;
+    }
+
+    /**
      * Whether bearer-token authentication is enabled (an API key is configured).
      *
      * @return {@code true} if requests must present a matching bearer token
@@ -289,6 +302,7 @@ public final class OpenAiServerConfig {
         private java.util.List<String> modelIds = java.util.Collections.singletonList(DEFAULT_MODEL_ID);
         private double rateLimitRps = DEFAULT_RATE_LIMIT_RPS;
         private int maxConcurrentClients = DEFAULT_MAX_CONCURRENT_CLIENTS;
+        private @Nullable ModelRegistry registry;
 
         private Builder() {}
 
@@ -446,6 +460,19 @@ public final class OpenAiServerConfig {
                 throw new IllegalArgumentException("maxConcurrentClients must not be negative");
             }
             this.maxConcurrentClients = maxConcurrentClients;
+            return this;
+        }
+
+        /**
+         * Attaches the optional model registry used to enrich {@code /v1/models} and
+         * {@code /api/tags} with quantization, size and pull metadata. Pass {@code null} (the default)
+         * to advertise only the served model ids.
+         *
+         * @param registry the registry, or {@code null} to disable enrichment
+         * @return this builder
+         */
+        public Builder registry(@Nullable ModelRegistry registry) {
+            this.registry = registry;
             return this;
         }
 

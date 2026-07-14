@@ -53,18 +53,35 @@ final class OllamaApiSupport {
      * @return an Ollama model-list object serialized as JSON
      */
     static String tagsJson(String modelId) {
+        return tagsJson(modelId, null);
+    }
+
+    /**
+     * The {@code GET /api/tags} body advertising the single served model, enriched with registry
+     * metadata (size, quantization, pull time) when the model resolves to a {@link ModelRegistryEntry}.
+     *
+     * @param modelId the model id
+     * @param entry the registry entry to enrich from, or {@code null} for default placeholders
+     * @return an Ollama model-list object serialized as JSON
+     */
+    static String tagsJson(String modelId, @Nullable ModelRegistryEntry entry) {
         ObjectNode root = OBJECT_MAPPER.createObjectNode();
         ArrayNode models = root.putArray("models");
         ObjectNode model = models.addObject();
         model.put("name", modelId);
         model.put("model", modelId);
-        model.put("modified_at", nowIso());
-        model.put("size", 0L);
+        if (entry != null && entry.getPulledAt() != 0L) {
+            model.put("modified_at", java.time.Instant.ofEpochMilli(entry.getPulledAt()).toString());
+        } else {
+            model.put("modified_at", nowIso());
+        }
+        model.put("size", entry != null ? entry.getSizeBytes() : 0L);
         model.put("digest", "");
         ObjectNode details = model.putObject("details");
         details.put("family", "llama");
         details.put("parameter_size", "");
-        details.put("quantization_level", "");
+        String quant = entry != null ? entry.getQuantization() : null;
+        details.put("quantization_level", quant != null ? quant : "");
         return root.toString();
     }
 
