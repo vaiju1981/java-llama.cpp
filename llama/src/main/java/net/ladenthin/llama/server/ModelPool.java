@@ -12,6 +12,9 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import net.ladenthin.llama.parameters.ModelParameters;
@@ -39,6 +42,9 @@ public final class ModelPool {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final String baseUrl;
+    private final @Nullable ModelRegistry registry;
+    private final boolean offline;
+    private final @Nullable ModelPuller puller;
 
     /**
      * Build a pool facade over an already-started {@link NativeServer}, deriving the base URL from the
@@ -52,7 +58,44 @@ public final class ModelPool {
 
     /** Package-private constructor for tests that point the facade at a stub HTTP server. */
     ModelPool(String baseUrl) {
+        this(baseUrl, null, false, null, ModelPuller.DEFAULT_MODELS_DIR);
+    }
+
+    /**
+     * Build a pool facade that resolves model aliases against a {@link ModelRegistry} and lazily pulls
+     * a model on first load when its local file is absent (the Ollama-style "first request pulls the
+     * model" behaviour). A {@code null} registry disables resolution and lazy pull; callers then use
+     * {@link #loadModel(String, ModelParameters)} with an explicit path.
+     *
+     * @param baseUrl the native server's base URL (e.g. {@code http://127.0.0.1:8080})
+     * @param registry the registry to resolve aliases from, or {@code null} to disable
+     * @param offline when {@code true}, a missing local model is refused instead of being pulled
+     */
+    public ModelPool(String baseUrl, @Nullable ModelRegistry registry, boolean offline) {
+        this(baseUrl, registry, offline, new HttpModelDownloader(), ModelPuller.DEFAULT_MODELS_DIR);
+    }
+
+    /**
+     * Full constructor (used by tests): supply a custom downloader and model store directory.
+     *
+     * @param baseUrl the native server's base URL
+     * @param registry the registry to resolve aliases from, or {@code null} to disable
+     * @param offline when {@code true}, a missing local model is refused instead of being pulled
+     * @param downloader the transport used for lazy pulls
+     * @param modelsDir directory pulled models are written into
+     */
+    public ModelPool(
+            String baseUrl,
+            @Nullable ModelRegistry registry,
+            boolean offline,
+            @Nullable ModelDownloader downloader,
+            Path modelsDir) {
         this.baseUrl = baseUrl;
+        this.registry = registry;
+        this.offline = offline;
+        this.puller = (registry != null && downloader != null)
+                ? new ModelPuller(registry, new ModelNameResolver(), downloader, modelsDir, offline)
+                : null;
     }
 
     /**
@@ -89,6 +132,59 @@ public final class ModelPool {
         }
         body.append('}');
         post("/models", body.toString());
+    }
+
+    /**
+     * Resolve an alias via the registry and load that model into the pool. When the resolved entry has
+     * no local file on disk and the pool is not {@link #isOffline() offline}, the model is pulled first
+     * (lazily) and then loaded — the Ollama-style "first request pulls the model" behaviour.
+     *
+     * @param alias the registry alias to resolve and load
+     * @throws IOException on transport, resolution, pull, or non-2xx failure
+     * @throws IllegalArgumentException if the alias is absent from the registry
+     * @throws IllegalStateException if the pool has no registry, is offline with a missing local model,
+     *     or the entry has neither a local path nor a source URL
+     */
+    public void loadModel(String alias) throws IOException {
+        if (registry == null) {
+            throw new IllegalStateException("ModelPool has no registry; call loadModel(alias, params) instead");
+        }
+        ModelRegistryEntry entry = registry.get(alias);
+        if (entry == null) {
+            throw new IllegalArgumentException("No registry entry for alias: " + alias);
+        }
+        Path local = localPathOf(entry);
+        if (local == null || !Files.exists(local)) {
+            if (offline) {
+                throw new IllegalStateException("Offline mode: local model missing for '" + alias + "'");
+            }
+            if (puller == null) {
+                throw new IllegalStateException("No puller configured to lazily fetch '" + alias + "'");
+            }
+            String sourceUrl = entry.getSourceUrl();
+            String spec = sourceUrl != null ? sourceUrl : alias;
+            ModelRegistryEntry pulled = puller.pull(spec);
+            local = localPathOf(pulled);
+        }
+        if (local == null) {
+            throw new IllegalStateException(
+                    "Registry entry '" + alias + "' has neither a local path nor a source URL");
+        }
+        loadModel(alias, new ModelParameters().setModel(local.toString()));
+    }
+
+    /**
+     * Returns whether lazy pulls are refused.
+     *
+     * @return whether lazy pulls are refused (offline mode)
+     */
+    public boolean isOffline() {
+        return offline;
+    }
+
+    private static @Nullable Path localPathOf(ModelRegistryEntry entry) {
+        String localPath = entry.getLocalPath();
+        return localPath != null ? Paths.get(localPath) : null;
     }
 
     /**
