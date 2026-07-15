@@ -1,5 +1,5 @@
 diff --git a/tools/server/server.cpp b/tools/server/server.cpp
-index 9c0caf18..7ee763ac 100644
+index dc9e718..47da913 100644
 --- a/tools/server/server.cpp
 +++ b/tools/server/server.cpp
 @@ -63,6 +63,7 @@ int llama_server(int argc, char ** argv);
@@ -10,14 +10,16 @@ index 9c0caf18..7ee763ac 100644
  void llama_server_terminate();
  void llama_server_terminate() {
      if (shutdown_handler) {
-@@ -107,6 +108,108 @@ static server_http_context::handler_t ex_wrapper(server_http_context::handler_t
+@@ -107,6 +108,102 @@ static server_http_context::handler_t ex_wrapper(server_http_context::handler_t
      };
  }
  
 +// [jllama] Route table shared by the standalone single-model server, the router, and the
 +// embedded attach mode (llama_server_attach below). Extracted verbatim from llama_server() so the
 +// entry points cannot drift. The resumable-streaming routes are NOT registered here: their
-+// handlers differ between router and non-router mode, so each entry point wires its own. Returns
++// handlers differ between router and non-router mode, so each entry point wires its own. The
++// experimental-feature WARNINGS (CORS/router/tools) are likewise logged per-entry-point, since
++// they depend on router state the helper does not carry; the helper only binds the routes. Returns
 +// false when the experimental built-in tools were requested but failed to set up.
 +[[nodiscard]] static bool llama_server_register_common_routes(
 +        server_http_context & ctx_http,
@@ -84,10 +86,6 @@ index 9c0caf18..7ee763ac 100644
 +
 +    // CORS proxy (EXPERIMENTAL, only used by the Web UI for MCP)
 +    if (params.ui_mcp_proxy) {
-+        SRV_WRN("%s", "-----------------\n");
-+        SRV_WRN("%s", "CORS proxy is enabled, do not expose server to untrusted environments\n");
-+        SRV_WRN("%s", "This feature is EXPERIMENTAL and may be removed or changed in future versions\n");
-+        SRV_WRN("%s", "-----------------\n");
 +        ctx_http.get ("/cors-proxy",      ex_wrapper(proxy_handler_get));
 +        ctx_http.post("/cors-proxy",      ex_wrapper(proxy_handler_post));
 +    } else {
@@ -103,10 +101,6 @@ index 9c0caf18..7ee763ac 100644
 +            SRV_ERR("tools setup failed: %s\n", e.what());
 +            return false;
 +        }
-+        SRV_WRN("%s", "-----------------\n");
-+        SRV_WRN("%s", "Built-in tools are enabled, do not expose server to untrusted environments\n");
-+        SRV_WRN("%s", "This feature is EXPERIMENTAL and may be changed in the future\n");
-+        SRV_WRN("%s", "-----------------\n");
 +        ctx_http.get ("/tools",           ex_wrapper(tools.handle_get));
 +        ctx_http.post("/tools",           ex_wrapper(tools.handle_post));
 +    } else {
@@ -119,7 +113,7 @@ index 9c0caf18..7ee763ac 100644
  int llama_server(int argc, char ** argv) {
      std::setlocale(LC_NUMERIC, "C");
  
-@@ -250,47 +353,9 @@ int llama_server(common_params & params, int argc, char ** argv) {
+@@ -250,47 +347,9 @@ int llama_server(common_params & params, int argc, char ** argv) {
          ctx_http.del ("/models",               ex_wrapper(models_routes->del_router_models));
      }
  
@@ -170,7 +164,7 @@ index 9c0caf18..7ee763ac 100644
  
      // resumable streaming, the conversation_id is the session identity end to end. router and
      // child wire different handlers under the same paths: a child binds the local session
-@@ -315,53 +380,6 @@ int llama_server(common_params & params, int argc, char ** argv) {
+@@ -315,22 +374,9 @@ int llama_server(common_params & params, int argc, char ** argv) {
      ctx_http.post("/v1/streams/lookup",        ex_wrapper(streams_lookup_h));
      ctx_http.del ("/v1/stream/:conv_id",       ex_wrapper(stream_delete_h));
  
@@ -190,41 +184,51 @@ index 9c0caf18..7ee763ac 100644
 -        return res;
 -    };
 -
++    // experimental-feature warnings — the CORS-proxy, /tools and health...slots routes are all
++    // bound by llama_server_register_common_routes() above; only these log lines stay here because
++    // they depend on router state (is_router_server) the shared helper does not carry.
+     if (params.cors_origins == "*" && params.api_keys.empty()) {
+         SRV_WRN("%s", "-----------------\n");
+         SRV_WRN("%s", "CORS is set to allow all origins ('*') and no API key is set\n");
+@@ -339,37 +385,16 @@ int llama_server(common_params & params, int argc, char ** argv) {
+         SRV_WRN("%s", "-----------------\n");
+     }
+ 
 -    // CORS proxy (EXPERIMENTAL, only used by the Web UI for MCP)
--    if (params.ui_mcp_proxy) {
--        SRV_WRN("%s", "-----------------\n");
--        SRV_WRN("%s", "CORS proxy is enabled, do not expose server to untrusted environments\n");
--        SRV_WRN("%s", "This feature is EXPERIMENTAL and may be removed or changed in future versions\n");
--        SRV_WRN("%s", "-----------------\n");
+     std::vector<std::string> warn_names;
+     if (is_router_server) {
+         warn_names.push_back("router mode");
+     }
+-
+     if (params.ui_mcp_proxy) {
 -        ctx_http.get ("/cors-proxy",      ex_wrapper(proxy_handler_get));
 -        ctx_http.post("/cors-proxy",      ex_wrapper(proxy_handler_post));
+         warn_names.push_back("MCP proxy (experimental)");
 -    } else {
 -        ctx_http.get ("/cors-proxy",      ex_wrapper(res_403));
 -        ctx_http.post("/cors-proxy",      ex_wrapper(res_403));
--    }
+     }
 -
 -    // EXPERIMENTAL built-in tools
--    if (!params.server_tools.empty()) {
+     if (!params.server_tools.empty()) {
 -        try {
 -            tools.setup(params.server_tools);
 -        } catch (const std::exception & e) {
 -            SRV_ERR("tools setup failed: %s\n", e.what());
 -            return 1;
 -        }
--        SRV_WRN("%s", "-----------------\n");
--        SRV_WRN("%s", "Built-in tools are enabled, do not expose server to untrusted environments\n");
--        SRV_WRN("%s", "This feature is EXPERIMENTAL and may be changed in the future\n");
--        SRV_WRN("%s", "-----------------\n");
 -        ctx_http.get ("/tools",           ex_wrapper(tools.handle_get));
 -        ctx_http.post("/tools",           ex_wrapper(tools.handle_post));
+         warn_names.push_back("built-in tools (experimental)");
 -    } else {
 -        ctx_http.get ("/tools",           ex_wrapper(res_403));
 -        ctx_http.post("/tools",           ex_wrapper(res_403));
--    }
- 
-     //
-     // Handle downloading model
-@@ -524,3 +542,68 @@ int llama_server(common_params & params, int argc, char ** argv) {
+     }
+-
+     if (warn_names.size() > 0) {
+         SRV_WRN("%s", "-----------------\n");
+         SRV_WRN("%s", "the following feature(s) are enabled:\n");
+@@ -538,3 +563,68 @@ int llama_server(common_params & params, int argc, char ** argv) {
  
      return 0;
  }
