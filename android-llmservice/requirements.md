@@ -38,6 +38,7 @@ by hand only (no automated test); `build` = enforced at build/resource-compile t
 | R1.4 | Native ABIs shipped: **`arm64-v8a`** (phones) and **`x86_64`** (emulators / x86 Android). | `app/build.gradle.kts` | build |
 | R1.5 | Depends on `net.ladenthin:llama-android` (AAR) + `net.ladenthin:llama-kotlin` (façade), version selectable via `-PjllamaVersion`. | `app/build.gradle.kts` | build |
 | R1.6 | It is a standalone plain-Gradle/AGP build (NOT a Maven reactor module) and is **not** published to Maven Central. | repo layout | manual |
+| R1.7 | The launcher icon is the **shard-`J`** of the java-llama.cpp logo (orange `#F65E00` on `#111111`), shipped as an **adaptive icon** (foreground + `@color/ic_launcher_background`) for API 26+ plus legacy `mipmap-*/ic_launcher.png` for older devices; wired via `android:icon`/`android:roundIcon`. Sourced from the shared `workspace` logo set. | `AndroidManifest.xml`; `res/mipmap-anydpi-v26/ic_launcher.xml`; `res/mipmap-*/ic_launcher*.png`; `res/values/ic_launcher_background.xml` | manual |
 
 ## R2 — Privacy & network posture
 
