@@ -97,6 +97,14 @@ path = [
 SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
 SPDX-License-Identifier = "MIT OR Apache-2.0"
 
+# Android launcher-icon PNGs (binary, cannot carry inline SPDX). Generated from the
+# shard-J of the java-llama.cpp logo; same MIT OR Apache-2.0 as the branding assets
+# above (the adaptive-icon + colour XMLs carry their SPDX headers inline).
+[[annotations]]
+path = "android-llmservice/app/src/main/res/mipmap-*/ic_launcher*.png"
+SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
+SPDX-License-Identifier = "MIT OR Apache-2.0"
+
 # Test image (binary, cannot carry inline SPDX)
 [[annotations]]
 path = "llama/src/test/resources/images/test-image.jpg"
