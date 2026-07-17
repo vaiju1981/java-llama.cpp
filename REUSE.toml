@@ -105,6 +105,14 @@ path = "android-llmservice/app/src/main/res/mipmap-*/ic_launcher*.png"
 SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
 SPDX-License-Identifier = "MIT OR Apache-2.0"
 
+# LLM Service Play-Store hi-res icon (binary PNG, cannot carry inline SPDX). Store
+# asset only — not bundled into the APK. Generated from the shard-J of the logo;
+# MIT OR Apache-2.0 like the rest of the shared logo set.
+[[annotations]]
+path = "android-llmservice/store/ic_launcher-512.png"
+SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
+SPDX-License-Identifier = "MIT OR Apache-2.0"
+
 # Test image (binary, cannot carry inline SPDX)
 [[annotations]]
 path = "llama/src/test/resources/images/test-image.jpg"
