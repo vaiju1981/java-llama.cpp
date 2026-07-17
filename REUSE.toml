@@ -85,6 +85,18 @@ path = "llama/patches/**"
 SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
 SPDX-License-Identifier = "MIT"
 
+# Project logo / branding assets (binary + generated SVG, cannot carry inline SPDX
+# without corrupting the base64-embedded font). Same MIT OR Apache-2.0 dual license
+# the author ships them under in the workspace repo (the embedded Martian Mono font
+# is OFL-1.1; only the standalone .ttf — not shipped here — carries that identifier).
+[[annotations]]
+path = [
+    "docs/branding/java-llama-cpp.svg",
+    "docs/branding/java-llama-cpp.png",
+]
+SPDX-FileCopyrightText = "2026 Bernard Ladenthin <bernard.ladenthin@gmail.com>"
+SPDX-License-Identifier = "MIT OR Apache-2.0"
+
 # Test image (binary, cannot carry inline SPDX)
 [[annotations]]
 path = "llama/src/test/resources/images/test-image.jpg"
