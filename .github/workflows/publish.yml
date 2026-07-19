@@ -472,7 +472,7 @@ jobs:
           path: llamacpp-ui
           sparse-checkout: tools/ui
           sparse-checkout-cone-mode: true
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
