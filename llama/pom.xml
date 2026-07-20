@@ -59,7 +59,7 @@ SPDX-License-Identifier: MIT
 		<jspecify.version>1.0.0</jspecify.version>
 		<lombok.version>1.18.46</lombok.version>
 		<errorprone.version>2.50.0</errorprone.version>
-		<nullaway.version>0.13.7</nullaway.version>
+		<nullaway.version>0.13.8</nullaway.version>
 		<checker.version>4.2.1</checker.version>
 		<jackson.version>2.22.1</jackson.version>
 		<reactor.version>3.8.6</reactor.version>
