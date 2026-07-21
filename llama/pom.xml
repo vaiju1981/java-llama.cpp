@@ -609,7 +609,8 @@ SPDX-License-Identifier: MIT
 				<groupId>org.apache.maven.plugins</groupId>
 				<artifactId>maven-surefire-plugin</artifactId>
 				<configuration>
-					<argLine>@{argLine} -Xmx2g -XX:ErrorFile=hs_err_pid%p.log -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=.</argLine>
+					<!-- -XX:+EnableDynamicAgentLoading: silences the JDK 21 byte-buddy self-attach agent warning that intermittently corrupts Surefire's fork channel ("Corrupted channel ..." / bogus "timeout in the fork"). See workspace policy ci-test-diagnostics.md section 2.1: https://github.com/bernardladenthin/workspace/blob/main/policies/ci-test-diagnostics.md - root cause: https://github.com/raphw/byte-buddy/issues/1639 -->
+					<argLine>@{argLine} -Xmx2g -XX:ErrorFile=hs_err_pid%p.log -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=. -XX:+EnableDynamicAgentLoading</argLine>
 					<!--
 					  Capture each test class's stdout/stderr into
 					  target/surefire-reports/<class>-output.txt. When a native crash
