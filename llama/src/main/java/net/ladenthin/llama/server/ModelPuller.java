@@ -22,8 +22,7 @@ import org.jspecify.annotations.Nullable;
 public final class ModelPuller {
 
     /** Default model store: {@code <user.home>/.jllama/models}. */
-    public static final Path DEFAULT_MODELS_DIR =
-            Paths.get(System.getProperty("user.home", "."), ".jllama", "models");
+    public static final Path DEFAULT_MODELS_DIR = Paths.get(System.getProperty("user.home", "."), ".jllama", "models");
 
     private final ModelRegistry registry;
     private final ModelNameResolver resolver;
@@ -51,7 +50,11 @@ public final class ModelPuller {
      * @param offline when {@code true}, remote pulls are refused
      */
     public ModelPuller(
-            ModelRegistry registry, ModelNameResolver resolver, ModelDownloader downloader, Path modelsDir, boolean offline) {
+            ModelRegistry registry,
+            ModelNameResolver resolver,
+            ModelDownloader downloader,
+            Path modelsDir,
+            boolean offline) {
         this.registry = registry;
         this.resolver = resolver;
         this.downloader = downloader;

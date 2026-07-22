@@ -130,9 +130,8 @@ public final class ModelRegistryCli {
             return EXIT_OK;
         }
         for (ModelRegistryEntry e : entries) {
-            out.println(
-                    e.getName() + "  quant=" + orDash(e.getQuantization()) + "  size=" + e.getSizeBytes()
-                            + "  pulledAt=" + e.getPulledAt() + "  path=" + orDash(e.getLocalPath()));
+            out.println(e.getName() + "  quant=" + orDash(e.getQuantization()) + "  size=" + e.getSizeBytes()
+                    + "  pulledAt=" + e.getPulledAt() + "  path=" + orDash(e.getLocalPath()));
             if (!e.getAliases().isEmpty()) {
                 out.println("    aliases: " + String.join(", ", e.getAliases()));
             }
@@ -226,7 +225,8 @@ public final class ModelRegistryCli {
         return rest.toArray(new String[0]);
     }
 
-    private static String[] stripPullOptions(String[] args, StringBuilder registryPath, boolean[] offline, StringBuilder modelsDir) {
+    private static String[] stripPullOptions(
+            String[] args, StringBuilder registryPath, boolean[] offline, StringBuilder modelsDir) {
         List<String> rest = new ArrayList<>();
         for (int i = 1; i < args.length; i++) {
             String a = args[i];

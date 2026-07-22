@@ -90,7 +90,8 @@ public class ModelRegistryCliTest {
     @Test
     void showAndRemove() throws IOException {
         ModelRegistry registry = new ModelRegistry(registryFile());
-        registry.add(new ModelRegistryEntry.Builder("foo").localPath("/x/foo.gguf").build());
+        registry.add(
+                new ModelRegistryEntry.Builder("foo").localPath("/x/foo.gguf").build());
 
         String shown = runOut(withRegistry("show", "foo"));
         assertTrue(shown.contains("\"name\" : \"foo\"") || shown.contains("\"name\":\"foo\"") || shown.contains("foo"));
@@ -118,7 +119,10 @@ public class ModelRegistryCliTest {
     @Test
     void pullDownloadsAndRegisters() throws IOException {
         String[] args = withRegistry(
-                "pull", "http://127.0.0.1:" + port + "/m.gguf", "--models-dir", tempDir.resolve("store").toString());
+                "pull",
+                "http://127.0.0.1:" + port + "/m.gguf",
+                "--models-dir",
+                tempDir.resolve("store").toString());
         String res = runOut(args);
         assertEquals(0, Integer.parseInt(res.substring(0, res.indexOf('\u0000'))));
         assertTrue(res.contains("Pulled"));

@@ -167,8 +167,7 @@ public final class ModelPool {
             local = localPathOf(pulled);
         }
         if (local == null) {
-            throw new IllegalStateException(
-                    "Registry entry '" + alias + "' has neither a local path nor a source URL");
+            throw new IllegalStateException("Registry entry '" + alias + "' has neither a local path nor a source URL");
         }
         loadModel(alias, new ModelParameters().setModel(local.toString()));
     }

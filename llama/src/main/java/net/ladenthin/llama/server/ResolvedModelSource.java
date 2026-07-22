@@ -31,7 +31,9 @@ public final class ResolvedModelSource {
         this.url = b.url;
         this.localPath = b.localPath;
         this.quantization = b.quantization;
-        this.headers = b.headers == null ? Collections.emptyMap() : Collections.unmodifiableMap(new LinkedHashMap<>(b.headers));
+        this.headers = b.headers == null
+                ? Collections.emptyMap()
+                : Collections.unmodifiableMap(new LinkedHashMap<>(b.headers));
         if (url == null && localPath == null) {
             throw new IllegalStateException("a resolved source must have a url or a localPath");
         }

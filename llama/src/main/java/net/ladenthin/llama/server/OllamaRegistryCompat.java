@@ -9,7 +9,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.time.Instant;
-import org.jspecify.annotations.Nullable;
 
 /**
  * Adapter that mirrors Ollama's registry/manifest wire shapes so existing Ollama tooling and configs
@@ -67,7 +66,11 @@ public final class OllamaRegistryCompat {
         ObjectNode model = MAPPER.createObjectNode();
         model.put("name", entry.getName());
         model.put("model", entry.getName());
-        model.put("modified_at", entry.getPulledAt() != 0L ? Instant.ofEpochMilli(entry.getPulledAt()).toString() : "");
+        model.put(
+                "modified_at",
+                entry.getPulledAt() != 0L
+                        ? Instant.ofEpochMilli(entry.getPulledAt()).toString()
+                        : "");
         model.put("size", entry.getSizeBytes());
         model.put("digest", digestOf(entry));
         ObjectNode details = model.putObject("details");

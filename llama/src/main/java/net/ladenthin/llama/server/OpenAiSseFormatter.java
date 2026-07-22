@@ -149,7 +149,8 @@ final class OpenAiSseFormatter {
      * @param registry the optional registry to enrich from, or {@code null} for no enrichment
      * @return an OpenAI model-list object serialized as JSON
      */
-    static String modelsJson(java.util.List<String> modelIds, @Nullable String ftype, @Nullable ModelRegistry registry) {
+    static String modelsJson(
+            java.util.List<String> modelIds, @Nullable String ftype, @Nullable ModelRegistry registry) {
         ArrayNode data = OBJECT_MAPPER.createArrayNode();
         for (String modelId : modelIds) {
             ObjectNode model = OBJECT_MAPPER.createObjectNode();

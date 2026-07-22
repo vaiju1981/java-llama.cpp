@@ -4,7 +4,6 @@
 
 package net.ladenthin.llama.server;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -69,7 +68,8 @@ public class ModelPoolRegistryTest {
         boolean called;
 
         @Override
-        public Path download(ResolvedModelSource source, Path targetDir, PullProgressListener listener) throws IOException {
+        public Path download(ResolvedModelSource source, Path targetDir, PullProgressListener listener)
+                throws IOException {
             called = true;
             Files.createDirectories(targetDir);
             Path f = targetDir.resolve("downloaded.gguf");
@@ -101,7 +101,9 @@ public class ModelPoolRegistryTest {
     void lazilyPullsMissingLocal() throws IOException {
         Path registryFile = tempDir.resolve("models.json");
         ModelRegistry registry = new ModelRegistry(registryFile);
-        registry.add(new ModelRegistryEntry.Builder("m").sourceUrl("http://example.com/m.gguf").build());
+        registry.add(new ModelRegistryEntry.Builder("m")
+                .sourceUrl("http://example.com/m.gguf")
+                .build());
 
         RecordingDownloader dl = new RecordingDownloader();
         ModelPool pool = new ModelPool("http://127.0.0.1:" + port, registry, false, dl, tempDir.resolve("store"));
@@ -115,9 +117,12 @@ public class ModelPoolRegistryTest {
     void offlineMissingLocalThrows() throws IOException {
         Path registryFile = tempDir.resolve("models.json");
         ModelRegistry registry = new ModelRegistry(registryFile);
-        registry.add(new ModelRegistryEntry.Builder("m").sourceUrl("http://example.com/m.gguf").build());
+        registry.add(new ModelRegistryEntry.Builder("m")
+                .sourceUrl("http://example.com/m.gguf")
+                .build());
 
-        ModelPool pool = new ModelPool("http://127.0.0.1:" + port, registry, true, new RecordingDownloader(), tempDir.resolve("store"));
+        ModelPool pool = new ModelPool(
+                "http://127.0.0.1:" + port, registry, true, new RecordingDownloader(), tempDir.resolve("store"));
         assertThrows(IllegalStateException.class, () -> pool.loadModel("m"));
     }
 
@@ -125,7 +130,8 @@ public class ModelPoolRegistryTest {
     void unknownAliasThrows() throws IOException {
         Path registryFile = tempDir.resolve("models.json");
         ModelRegistry registry = new ModelRegistry(registryFile);
-        ModelPool pool = new ModelPool("http://127.0.0.1:" + port, registry, false, new RecordingDownloader(), tempDir.resolve("store"));
+        ModelPool pool = new ModelPool(
+                "http://127.0.0.1:" + port, registry, false, new RecordingDownloader(), tempDir.resolve("store"));
         assertThrows(IllegalArgumentException.class, () -> pool.loadModel("nope"));
     }
 

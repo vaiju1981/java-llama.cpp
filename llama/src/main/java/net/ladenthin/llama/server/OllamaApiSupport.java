@@ -71,7 +71,9 @@ final class OllamaApiSupport {
         model.put("name", modelId);
         model.put("model", modelId);
         if (entry != null && entry.getPulledAt() != 0L) {
-            model.put("modified_at", java.time.Instant.ofEpochMilli(entry.getPulledAt()).toString());
+            model.put(
+                    "modified_at",
+                    java.time.Instant.ofEpochMilli(entry.getPulledAt()).toString());
         } else {
             model.put("modified_at", nowIso());
         }

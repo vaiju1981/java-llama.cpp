@@ -12,7 +12,6 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import org.jspecify.annotations.Nullable;
 
 /**
  * Pure-Java {@link ModelDownloader} using {@link HttpURLConnection}. Follows redirects and honours

@@ -36,8 +36,7 @@ public final class ModelRegistryEntry {
         this.sourceUrl = b.sourceUrl;
         this.quantization = b.quantization;
         this.sizeBytes = b.sizeBytes;
-        this.aliases =
-                Collections.unmodifiableList(new ArrayList<>(b.aliases));
+        this.aliases = Collections.unmodifiableList(new ArrayList<>(b.aliases));
         this.pulledAt = b.pulledAt;
     }
 

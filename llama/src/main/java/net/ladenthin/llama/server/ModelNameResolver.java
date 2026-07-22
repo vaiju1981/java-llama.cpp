@@ -38,8 +38,8 @@ import org.jspecify.annotations.Nullable;
  */
 public final class ModelNameResolver {
 
-    private static final Pattern QUANT = Pattern.compile(
-            "(BF16|F16|F32|IQ[0-9](?:_[0-9KMSL]+)*|Q[0-9](?:_[0-9KMSL]+)*)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern QUANT =
+            Pattern.compile("(BF16|F16|F32|IQ[0-9](?:_[0-9KMSL]+)*|Q[0-9](?:_[0-9KMSL]+)*)", Pattern.CASE_INSENSITIVE);
 
     private static final String HF_BASE = "https://huggingface.co/";
 
@@ -149,7 +149,9 @@ public final class ModelNameResolver {
     }
 
     private ResolvedModelSource resolveLocal(String spec) {
-        Path p = spec.startsWith("file:") ? java.nio.file.Paths.get(java.net.URI.create(spec)) : java.nio.file.Paths.get(spec);
+        Path p = spec.startsWith("file:")
+                ? java.nio.file.Paths.get(java.net.URI.create(spec))
+                : java.nio.file.Paths.get(spec);
         String name = p.getFileName() == null ? spec : p.getFileName().toString();
         if (name.toLowerCase(java.util.Locale.ROOT).endsWith(".gguf")) {
             name = name.substring(0, name.length() - ".gguf".length());
@@ -187,8 +189,8 @@ public final class ModelNameResolver {
             return resolveUrl(hfUrl, quant);
         }
         throw new IllegalArgumentException(
-                "Unknown model '" + spec + "'. Use a URL, a local path, or a configured alias "
-                        + "(known: " + String.join(", ", aliases.keySet()) + ").");
+                "Unknown model '" + spec + "'. Use a URL, a local path, or a configured alias " + "(known: "
+                        + String.join(", ", aliases.keySet()) + ").");
     }
 
     private static String nameFromUrl(String url) {

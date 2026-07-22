@@ -54,7 +54,8 @@ public class ModelPullerTest {
 
     private ModelPuller puller(boolean offline) throws IOException {
         ModelRegistry registry = new ModelRegistry(tempDir.resolve("models.json"));
-        return new ModelPuller(registry, new ModelNameResolver(), new HttpModelDownloader(), tempDir.resolve("models"), offline);
+        return new ModelPuller(
+                registry, new ModelNameResolver(), new HttpModelDownloader(), tempDir.resolve("models"), offline);
     }
 
     @Test

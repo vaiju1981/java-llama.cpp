@@ -11,9 +11,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import java.nio.file.Path;
 
 /** Model-free coverage of {@link OllamaRegistryCompat}: jllama registry → Ollama /api/tags shape. */
 public class OllamaRegistryCompatTest {
@@ -63,8 +63,14 @@ public class OllamaRegistryCompatTest {
     void singleEntryShape() throws Exception {
         ObjectMapper m = new ObjectMapper();
         ModelRegistry registry = new ModelRegistry(tempDir.resolve("m.json"));
-        registry.add(new ModelRegistryEntry.Builder("x").localPath("/x.gguf").quantization("F16").sizeBytes(9L).pulledAt(5L).build());
-        JsonNode node = m.readTree(OllamaRegistryCompat.entryAsOllamaTag(registry.get("x")).toString());
+        registry.add(new ModelRegistryEntry.Builder("x")
+                .localPath("/x.gguf")
+                .quantization("F16")
+                .sizeBytes(9L)
+                .pulledAt(5L)
+                .build());
+        JsonNode node = m.readTree(
+                OllamaRegistryCompat.entryAsOllamaTag(registry.get("x")).toString());
         assertEquals("x", node.path("name").asText());
         assertEquals("F16", node.path("details").path("quantization_level").asText());
     }
