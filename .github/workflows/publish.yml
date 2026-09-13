@@ -803,7 +803,8 @@ jobs:
       # exactly right for what it is (a big-endian correctness gate for our own layer, not a perf target).
       # Do NOT "fix" a VXE-related compile error by adding -DGGML_VXE=ON: that define sets __VXE__ and
       # __VXE2__ together while -march stays at the toolchain default arch11, so every z14+ builtin is
-      # rejected. See the patches/0013 row in CLAUDE.md for the measured comparison.
+      # rejected. See the "`0013` was dropped at the b10948 bump" note in CLAUDE.md for the measured
+      # comparison (the patch itself is gone -- upstream merged it as ggml-org/llama.cpp#28775).
       - name: Build libraries (cross-compile s390x)
         shell: bash
         run: |
