@@ -770,3 +770,128 @@ TEST(ConfigureTaskSlot, ExplicitIdPinsTask) {
     configure_task_slot_impl(task, {{"id_slot", 3}});
     EXPECT_EQ(task.id_slot, 3);
 }
+
+// ---------------------------------------------------------------------------
+// jni_guard_impl — the JNI exception boundary.
+//
+// Every Java_* entry point in this project runs its body inside this guard, so
+// what it does with an escaping exception is a shipped contract, not a detail.
+// The mock records whether ThrowNew was reached and with what message.
+// ---------------------------------------------------------------------------
+namespace {
+
+struct guard_probe {
+    bool threw = false;
+    std::string message;
+    bool exception_pending = false;
+};
+
+guard_probe g_guard_probe;
+
+JNIEnv *make_guard_env(JNIEnv_ &fake_env, JNINativeInterface_ &iface) {
+    g_guard_probe = guard_probe{};
+    iface = {};
+    iface.ExceptionCheck = [](JNIEnv *) -> jboolean { return g_guard_probe.exception_pending ? JNI_TRUE : JNI_FALSE; };
+    iface.ThrowNew = [](JNIEnv *, jclass, const char *msg) -> jint {
+        g_guard_probe.threw = true;
+        g_guard_probe.message = msg != nullptr ? msg : "";
+        return 0;
+    };
+    fake_env = {};
+    fake_env.functions = &iface;
+    return &fake_env;
+}
+
+// Any non-null value works: the mock ThrowNew never dereferences the class.
+jclass fake_exception_class() { return reinterpret_cast<jclass>(&g_guard_probe); }
+
+} // namespace
+
+TEST(JniGuard, PassesThroughTheReturnValueWhenNothingThrows) {
+    JNIEnv_ fake_env;
+    JNINativeInterface_ iface;
+    JNIEnv *env = make_guard_env(fake_env, iface);
+
+    const jint result = jni_guard_impl(env, fake_exception_class(), [&]() -> jint { return 42; });
+
+    EXPECT_EQ(result, 42);
+    EXPECT_FALSE(g_guard_probe.threw);
+}
+
+TEST(JniGuard, ConvertsStdExceptionIntoAJavaThrowAndReturnsZero) {
+    JNIEnv_ fake_env;
+    JNINativeInterface_ iface;
+    JNIEnv *env = make_guard_env(fake_env, iface);
+
+    const jint result =
+        jni_guard_impl(env, fake_exception_class(), [&]() -> jint { throw std::runtime_error("boom"); });
+
+    EXPECT_EQ(result, 0);
+    EXPECT_TRUE(g_guard_probe.threw);
+    EXPECT_EQ(g_guard_probe.message, "boom");
+}
+
+// The arm that matters: an exception NOT derived from std::exception has no other backstop
+// anywhere, and unwinding it across the JNI boundary is undefined behaviour.
+TEST(JniGuard, ConvertsANonStdExceptionInsteadOfLettingItEscape) {
+    JNIEnv_ fake_env;
+    JNINativeInterface_ iface;
+    JNIEnv *env = make_guard_env(fake_env, iface);
+
+    const jint result = jni_guard_impl(env, fake_exception_class(), [&]() -> jint { throw 17; });
+
+    EXPECT_EQ(result, 0);
+    EXPECT_TRUE(g_guard_probe.threw);
+    EXPECT_EQ(g_guard_probe.message, "unknown C++ exception crossed the JNI boundary");
+}
+
+TEST(JniGuard, PointerReturningEntryPointsYieldNullptrOnThrow) {
+    JNIEnv_ fake_env;
+    JNINativeInterface_ iface;
+    JNIEnv *env = make_guard_env(fake_env, iface);
+
+    const jstring result =
+        jni_guard_impl(env, fake_exception_class(), [&]() -> jstring { throw std::runtime_error("boom"); });
+
+    EXPECT_EQ(result, nullptr);
+    EXPECT_TRUE(g_guard_probe.threw);
+}
+
+TEST(JniGuard, VoidEntryPointsStillReportTheException) {
+    JNIEnv_ fake_env;
+    JNINativeInterface_ iface;
+    JNIEnv *env = make_guard_env(fake_env, iface);
+
+    jni_guard_impl(env, fake_exception_class(), [&]() -> void { throw std::runtime_error("boom"); });
+
+    EXPECT_TRUE(g_guard_probe.threw);
+    EXPECT_EQ(g_guard_probe.message, "boom");
+}
+
+// The JNI spec forbids most calls while a Java exception is pending, and the pending one is the
+// more precise error — so the guard must leave it alone rather than overwrite it.
+TEST(JniGuard, DoesNotThrowOverAnAlreadyPendingJavaException) {
+    JNIEnv_ fake_env;
+    JNINativeInterface_ iface;
+    JNIEnv *env = make_guard_env(fake_env, iface);
+    g_guard_probe.exception_pending = true;
+
+    const jint result =
+        jni_guard_impl(env, fake_exception_class(), [&]() -> jint { throw std::runtime_error("boom"); });
+
+    EXPECT_EQ(result, 0);
+    EXPECT_FALSE(g_guard_probe.threw);
+}
+
+// JNI_OnLoad has not cached the exception class yet and JNI_OnUnload has already released it;
+// a null class must never reach ThrowNew.
+TEST(JniGuard, DoesNotThrowWithoutAnExceptionClass) {
+    JNIEnv_ fake_env;
+    JNINativeInterface_ iface;
+    JNIEnv *env = make_guard_env(fake_env, iface);
+
+    const jint result = jni_guard_impl(env, nullptr, [&]() -> jint { throw std::runtime_error("boom"); });
+
+    EXPECT_EQ(result, 0);
+    EXPECT_FALSE(g_guard_probe.threw);
+}

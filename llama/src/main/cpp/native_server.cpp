@@ -75,10 +75,15 @@ void fill_native_server_args(JNIEnv *env, jobjectArray jargs, native_server *srv
     }
 }
 
+// Resolves net.ladenthin.llama.exception.LlamaException. Unlike jllama.cpp this TU caches no
+// global class reference, so the lookup happens per call; every entry point here is a cold
+// lifecycle operation (start/stop/isRunning), never an inference hot path.
+jclass llama_exception_class(JNIEnv *env) { return env->FindClass("net/ladenthin/llama/exception/LlamaException"); }
+
 // Throws net.ladenthin.llama.exception.LlamaException with the given message (best-effort: if the
 // class cannot be resolved the pending NoClassDefFoundError is surfaced instead).
 void throw_llama_exception(JNIEnv *env, const char *message) {
-    jclass exception_class = env->FindClass("net/ladenthin/llama/exception/LlamaException");
+    jclass exception_class = llama_exception_class(env);
     if (exception_class != nullptr) {
         env->ThrowNew(exception_class, message);
     }
@@ -90,115 +95,126 @@ extern "C" {
 
 JNIEXPORT jlong JNICALL Java_net_ladenthin_llama_server_NativeServer_startNativeServer(JNIEnv *env, jclass,
                                                                                        jobjectArray jargs) {
-    auto *srv = new native_server();
-    fill_native_server_args(env, jargs, srv);
+    return jni_guard_impl(env, llama_exception_class(env), [&]() -> jlong {
+        auto *srv = new native_server();
+        fill_native_server_args(env, jargs, srv);
 
-    // Embedded mode: no process signal handlers, honor the forwarded argv (see patches/0006).
-    llama_server_set_embedded(true);
+        // Embedded mode: no process signal handlers, honor the forwarded argv (see patches/0006).
+        llama_server_set_embedded(true);
 
-    srv->worker = std::thread([srv]() {
-        srv->exit_code = llama_server(static_cast<int>(srv->argv.size()), srv->argv.data());
-        srv->finished.store(true);
+        srv->worker = std::thread([srv]() {
+            srv->exit_code = llama_server(static_cast<int>(srv->argv.size()), srv->argv.data());
+            srv->finished.store(true);
+        });
+
+        return reinterpret_cast<jlong>(srv);
     });
-
-    return reinterpret_cast<jlong>(srv);
 }
 
-JNIEXPORT void JNICALL Java_net_ladenthin_llama_server_NativeServer_stopNativeServer(JNIEnv *, jclass, jlong handle) {
-    auto *srv = reinterpret_cast<native_server *>(handle);
-    if (srv == nullptr) {
-        return;
-    }
-    // Signal shutdown, retrying until the worker actually returns: a stop issued before the server
-    // finished starting (shutdown_handler not yet installed by llama_server) would otherwise be
-    // lost. Once the handler is installed the first signal takes effect; if the model failed to
-    // load, llama_server has already returned and `finished` is set.
-    while (!srv->finished.load()) {
-        llama_server_request_shutdown();
-        if (srv->finished.load()) {
-            break;
+JNIEXPORT void JNICALL Java_net_ladenthin_llama_server_NativeServer_stopNativeServer(JNIEnv *env, jclass,
+                                                                                     jlong handle) {
+    return jni_guard_impl(env, llama_exception_class(env), [&]() -> void {
+        auto *srv = reinterpret_cast<native_server *>(handle);
+        if (srv == nullptr) {
+            return;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    }
-    if (srv->worker.joinable()) {
-        srv->worker.join();
-    }
-    delete srv;
+        // Signal shutdown, retrying until the worker actually returns: a stop issued before the server
+        // finished starting (shutdown_handler not yet installed by llama_server) would otherwise be
+        // lost. Once the handler is installed the first signal takes effect; if the model failed to
+        // load, llama_server has already returned and `finished` is set.
+        while (!srv->finished.load()) {
+            llama_server_request_shutdown();
+            if (srv->finished.load()) {
+                break;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        }
+        if (srv->worker.joinable()) {
+            srv->worker.join();
+        }
+        delete srv;
+    });
 }
 
-JNIEXPORT jboolean JNICALL Java_net_ladenthin_llama_server_NativeServer_isRunningNative(JNIEnv *, jclass,
+JNIEXPORT jboolean JNICALL Java_net_ladenthin_llama_server_NativeServer_isRunningNative(JNIEnv *env, jclass,
                                                                                         jlong handle) {
-    auto *srv = reinterpret_cast<native_server *>(handle);
-    return (srv != nullptr && !srv->finished.load()) ? JNI_TRUE : JNI_FALSE;
+    return jni_guard_impl(env, llama_exception_class(env), [&]() -> jboolean {
+        auto *srv = reinterpret_cast<native_server *>(handle);
+        return (srv != nullptr && !srv->finished.load()) ? JNI_TRUE : JNI_FALSE;
+    });
 }
 
 JNIEXPORT jlong JNICALL Java_net_ladenthin_llama_server_NativeServer_startAttachedNativeServer(JNIEnv *env, jclass,
                                                                                                jobject jmodel,
                                                                                                jobjectArray jargs) {
-    if (jmodel == nullptr) {
-        throw_llama_exception(env, "model must not be null");
-        return 0;
-    }
-    // Resolve the LlamaModel's native context handle (the same "ctx" long field jllama.cpp
-    // caches in JNI_OnLoad; this TU resolves it itself to stay decoupled from those globals).
-    jclass model_class = env->GetObjectClass(jmodel);
-    jfieldID ctx_field = env->GetFieldID(model_class, "ctx", "J");
-    if (ctx_field == nullptr) {
-        return 0; // NoSuchFieldError already pending
-    }
-    // Acquire a jllama_context user reference through the same handle protocol as every other
-    // JNI entry point (field read + user increment under g_ctx_mutex), so a concurrent
-    // LlamaModel.close() cannot free jctx between the handle read and the increment. The
-    // reference is held for the lifetime of the attach worker: delete() in jllama.cpp waits on
-    // the user-count condition variable, so close() blocks until this thread exits (close the
-    // server before the model — see the NativeServer attach-constructor Javadoc).
-    jllama_context *jctx = acquire_jllama_context_impl(env, jmodel, ctx_field);
-    if (jctx == nullptr) {
-        throw_llama_exception(env, "model is not loaded (or already closed)");
-        return 0;
-    }
+    return jni_guard_impl(env, llama_exception_class(env), [&]() -> jlong {
+        if (jmodel == nullptr) {
+            throw_llama_exception(env, "model must not be null");
+            return 0;
+        }
+        // Resolve the LlamaModel's native context handle (the same "ctx" long field jllama.cpp
+        // caches in JNI_OnLoad; this TU resolves it itself to stay decoupled from those globals).
+        jclass model_class = env->GetObjectClass(jmodel);
+        jfieldID ctx_field = env->GetFieldID(model_class, "ctx", "J");
+        if (ctx_field == nullptr) {
+            return 0; // NoSuchFieldError already pending
+        }
+        // Acquire a jllama_context user reference through the same handle protocol as every other
+        // JNI entry point (field read + user increment under g_ctx_mutex), so a concurrent
+        // LlamaModel.close() cannot free jctx between the handle read and the increment. The
+        // reference is held for the lifetime of the attach worker: delete() in jllama.cpp waits on
+        // the user-count condition variable, so close() blocks until this thread exits (close the
+        // server before the model — see the NativeServer attach-constructor Javadoc).
+        jllama_context *jctx = acquire_jllama_context_impl(env, jmodel, ctx_field);
+        if (jctx == nullptr) {
+            throw_llama_exception(env, "model is not loaded (or already closed)");
+            return 0;
+        }
 
-    // Contract of the attach path: llama_server_attach drives the HTTP frontend on a NEW worker
-    // thread but must NOT start a second task-processing loop on the shared server_context — the
-    // model's own worker (spawned in load_model_impl) already runs start_loop(). Likewise,
-    // stopNativeServer's llama_server_request_shutdown() must terminate only the HTTP frontend,
-    // not the attached model's worker, so the LlamaModel remains usable after the server closes
-    // (documented order: close server first, then model). If a future upstream change breaks
-    // either assumption, this attach path needs revisiting.
-    auto *srv = new native_server();
-    fill_native_server_args(env, jargs, srv);
+        // Contract of the attach path: llama_server_attach drives the HTTP frontend on a NEW worker
+        // thread but must NOT start a second task-processing loop on the shared server_context — the
+        // model's own worker (spawned in load_model_impl) already runs start_loop(). Likewise,
+        // stopNativeServer's llama_server_request_shutdown() must terminate only the HTTP frontend,
+        // not the attached model's worker, so the LlamaModel remains usable after the server closes
+        // (documented order: close server first, then model). If a future upstream change breaks
+        // either assumption, this attach path needs revisiting.
+        auto *srv = new native_server();
+        fill_native_server_args(env, jargs, srv);
 
-    // The attach entry always parses the forwarded argv; set the embedded flag anyway so any
-    // shared embedded-mode behavior in server.cpp stays consistent with startNativeServer.
-    llama_server_set_embedded(true);
+        // The attach entry always parses the forwarded argv; set the embedded flag anyway so any
+        // shared embedded-mode behavior in server.cpp stays consistent with startNativeServer.
+        llama_server_set_embedded(true);
 
-    server_context *ctx_server = &jctx->server;
-    srv->worker = std::thread([srv, ctx_server, jctx]() {
-        srv->exit_code = llama_server_attach(static_cast<int>(srv->argv.size()), srv->argv.data(), *ctx_server);
-        srv->finished.store(true);
-        release_jllama_context_impl(jctx);
+        server_context *ctx_server = &jctx->server;
+        srv->worker = std::thread([srv, ctx_server, jctx]() {
+            srv->exit_code = llama_server_attach(static_cast<int>(srv->argv.size()), srv->argv.data(), *ctx_server);
+            srv->finished.store(true);
+            release_jllama_context_impl(jctx);
+        });
+
+        return reinterpret_cast<jlong>(srv);
     });
-
-    return reinterpret_cast<jlong>(srv);
 }
 
 JNIEXPORT void JNICALL Java_net_ladenthin_llama_server_NativeServer_setWorkerCommandNative(JNIEnv *env, jclass,
                                                                                            jstring jcommand) {
-    // Sets/clears LLAMA_SERVER_WORKER_CMD in the process environment, which the router-mode
-    // model manager (server-models.cpp, patches/0008) reads when spawning worker instances.
-    std::string value;
-    if (jcommand != nullptr) {
-        value = parse_jstring(env, jcommand);
-    }
+    return jni_guard_impl(env, llama_exception_class(env), [&]() -> void {
+        // Sets/clears LLAMA_SERVER_WORKER_CMD in the process environment, which the router-mode
+        // model manager (server-models.cpp, patches/0008) reads when spawning worker instances.
+        std::string value;
+        if (jcommand != nullptr) {
+            value = parse_jstring(env, jcommand);
+        }
 #if defined(_WIN32)
-    _putenv_s("LLAMA_SERVER_WORKER_CMD", value.c_str()); // empty value removes the variable
+        _putenv_s("LLAMA_SERVER_WORKER_CMD", value.c_str()); // empty value removes the variable
 #else
-    if (value.empty()) {
-        unsetenv("LLAMA_SERVER_WORKER_CMD");
-    } else {
-        setenv("LLAMA_SERVER_WORKER_CMD", value.c_str(), 1);
-    }
+        if (value.empty()) {
+            unsetenv("LLAMA_SERVER_WORKER_CMD");
+        } else {
+            setenv("LLAMA_SERVER_WORKER_CMD", value.c_str(), 1);
+        }
 #endif
+    });
 }
 
 } // extern "C"

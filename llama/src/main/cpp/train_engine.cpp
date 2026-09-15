@@ -93,7 +93,7 @@ bool finetune(const finetune_config &cfg, std::string &err) {
 } // namespace jllama_train
 
 extern "C" JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaTrainer_finetuneNative(JNIEnv *env, jclass,
-                                                                                          jstring jconfig) {
+                                                                                          jstring jconfig) try {
     std::string config_json;
     if (jconfig != nullptr) {
         const char *c = env->GetStringUTFChars(jconfig, nullptr);
@@ -136,4 +136,12 @@ extern "C" JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaTrainer_finet
         err = "unknown C++ exception during fine-tuning";
     }
     return env->NewStringUTF(err.c_str());
+} catch (...) {
+    // Function-level backstop, not jni_guard_impl: this TU deliberately keeps its own nlohmann
+    // alias and never includes jni_helpers.hpp (see CLAUDE.md). The two inner handlers above give
+    // better messages and are reached first; this one covers what they cannot — a non-std
+    // exception from the config parse, and anything thrown before either try block (the
+    // GetStringUTFChars copy can std::bad_alloc). This method reports failure as its return
+    // string rather than a Java exception, so the backstop keeps that contract.
+    return env->NewStringUTF("unknown C++ exception crossed the JNI boundary");
 }

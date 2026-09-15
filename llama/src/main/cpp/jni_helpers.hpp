@@ -34,6 +34,7 @@
 #include <mutex>
 #include <string>
 #include <thread>
+#include <type_traits>
 #include <vector>
 
 // Forward declarations.
@@ -215,6 +216,52 @@ template <typename JsonT>
     std::vector<int32_t> tokens(elements, elements + length);
     env->ReleaseIntArrayElements(array, elements, JNI_ABORT);
     return tokens;
+}
+
+// ---------------------------------------------------------------------------
+// report_cxx_exception_impl / jni_guard_impl — the JNI exception boundary
+//
+// An exception that escapes a native method and unwinds across the JNI boundary
+// is undefined behaviour and aborts the JVM on most implementations. Every
+// `Java_*` entry point in this project therefore runs its body inside
+// jni_guard_impl, which converts anything that escapes into a Java exception and
+// returns a zero/nullptr sentinel.
+//
+// The guard is ADDITIVE: an entry point that already converts std::exception
+// itself keeps doing so and never reaches the handlers here. What the guard adds
+// everywhere is the `catch (...)` arm — the case for an exception type not
+// derived from std::exception, which otherwise has no backstop at all.
+//
+// Two rules the handlers must keep:
+//   * Never call ThrowNew while a Java exception is already pending. The JNI
+//     spec forbids most calls in that state, and the pending exception is the
+//     more precise error anyway — so it is left in place.
+//   * Never call ThrowNew with a null class. JNI_OnLoad has not cached the
+//     exception class yet and JNI_OnUnload has already released it, so those two
+//     carry their own local handlers rather than routing through here.
+// ---------------------------------------------------------------------------
+inline void report_cxx_exception_impl(JNIEnv *env, jclass exception_class, const char *what) {
+    if (env->ExceptionCheck()) {
+        return;
+    }
+    if (exception_class == nullptr) {
+        return;
+    }
+    env->ThrowNew(exception_class, what);
+}
+
+template <typename Fn> auto jni_guard_impl(JNIEnv *env, jclass exception_class, Fn &&fn) -> decltype(fn()) {
+    using result_type = decltype(fn());
+    try {
+        return fn();
+    } catch (const std::exception &e) {
+        report_cxx_exception_impl(env, exception_class, e.what());
+    } catch (...) {
+        report_cxx_exception_impl(env, exception_class, "unknown C++ exception crossed the JNI boundary");
+    }
+    if constexpr (!std::is_void<result_type>::value) {
+        return result_type{};
+    }
 }
 
 // ===========================================================================
