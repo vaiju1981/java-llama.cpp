@@ -711,7 +711,7 @@ std::string parse_jstring(JNIEnv *env, jstring java_string) {
  * only requires JNI version `JNI_VERSION_1_1`. If the VM does not recognize the version number returned by
  `JNI_OnLoad`, the VM will unload the library and act as if the library was never loaded.
  */
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) try {
     g_vm = vm;
     JNIEnv *env = nullptr;
 
@@ -819,6 +819,12 @@ error:
 
 success:
     return JNI_VERSION_1_6;
+} catch (...) {
+    // A function-try-block, not jni_guard_impl: this runs BEFORE c_llama_error is cached, so there
+    // is no class to throw into Java with. Refusing to load is the only correct outcome — the JVM
+    // surfaces it to the caller as an UnsatisfiedLinkError. (It is also the one shape that leaves
+    // the goto/label flow above untouched.)
+    return JNI_ERR;
 }
 
 /**
@@ -829,7 +835,7 @@ success:
  * Note that `JNI_OnLoad` and `JNI_OnUnload` are two functions optionally supplied by JNI libraries, not exported from
  * the VM.
  */
-JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
+JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) try {
     JNIEnv *env = nullptr;
 
     if (JNI_OK != vm->GetEnv((void **)&env, JNI_VERSION_1_6)) {
@@ -848,6 +854,9 @@ JNIEXPORT void JNICALL JNI_OnUnload(JavaVM *vm, void *reserved) {
     }
 
     llama_backend_free();
+} catch (...) {
+    // Mirrors JNI_OnLoad: the cached class references are being released here, so there is nothing
+    // to throw into Java. Unload is best-effort by definition — swallow rather than abort the JVM.
 }
 
 // Trampoline state for llama.cpp's load_progress_callback. The native loader runs
@@ -995,13 +1004,13 @@ static void load_model_impl(JNIEnv *env, jobject obj, jobjectArray jparams, jobj
 }
 
 JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_loadModel(JNIEnv *env, jobject obj, jobjectArray jparams) {
-    load_model_impl(env, obj, jparams, nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> void { load_model_impl(env, obj, jparams, nullptr); });
 }
 
 JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_loadModelWithProgress(JNIEnv *env, jobject obj,
                                                                                  jobjectArray jparams,
                                                                                  jobject callback) {
-    load_model_impl(env, obj, jparams, callback);
+    return jni_guard_impl(env, c_llama_error, [&]() -> void { load_model_impl(env, obj, jparams, callback); });
 }
 
 // Build the special-token id map (a token is -1 / LLAMA_TOKEN_NULL when the model defines none).
@@ -1013,141 +1022,149 @@ static json special_tokens_json(const llama_vocab *vocab) {
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_getModelMetaJson(JNIEnv *env, jobject obj) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
-    if (jctx->vocab_only) {
-        json meta = {
-            // static_cast: an unscoped enum binds to common_json_value(bool) and would serialise
-            // as true/false — see the "vocab_type" note in docs/history/llama-cpp-breaking-changes.md
-            {"vocab_type", static_cast<int>(llama_vocab_type(jctx->vocab))},
-            {"n_vocab", llama_vocab_n_tokens(jctx->vocab)},
-            {"special_tokens", special_tokens_json(jctx->vocab)},
-        };
-        return json_to_jstring(env, meta);
-    }
-    auto m = wake_and_get_meta(jctx);
-    // Read general.architecture from GGUF metadata via the llama C API. Size the buffer
-    // dynamically: llama_model_meta_val_str returns the required length when given a null/0
-    // buffer, so a long architecture name is never silently truncated. A char vector (not a
-    // std::string written in place) keeps the API's terminating '\0' write off the string's
-    // internal terminator slot, which the standard does not allow to be written.
-    std::string arch;
-    const llama_model *mdl = llama_get_model(ctx_server->get_llama_context());
-    if (mdl) {
-        const int need = llama_model_meta_val_str(mdl, "general.architecture", nullptr, 0);
-        if (need > 0) {
-            std::vector<char> buf(static_cast<size_t>(need) + 1, '\0');
-            llama_model_meta_val_str(mdl, "general.architecture", buf.data(), buf.size());
-            arch.assign(buf.data());
+    return jni_guard_impl(env, c_llama_error, [&]() -> jstring {
+        REQUIRE_SERVER_CONTEXT(nullptr);
+        if (jctx->vocab_only) {
+            json meta = {
+                // static_cast: an unscoped enum binds to common_json_value(bool) and would serialise
+                // as true/false — see the "vocab_type" note in docs/history/llama-cpp-breaking-changes.md
+                {"vocab_type", static_cast<int>(llama_vocab_type(jctx->vocab))},
+                {"n_vocab", llama_vocab_n_tokens(jctx->vocab)},
+                {"special_tokens", special_tokens_json(jctx->vocab)},
+            };
+            return json_to_jstring(env, meta);
         }
-    }
-    json j = {
-        // static_cast: see the vocab_only branch above — an unscoped enum would become a boolean
-        {"vocab_type", static_cast<int>(m.model_vocab_type)},
-        {"n_vocab", m.model_vocab_n_tokens},
-        {"n_ctx_train", m.model_n_ctx_train},
-        {"n_embd", m.model_n_embd_inp},
-        {"n_params", m.model_n_params},
-        {"size", m.model_size},
-        // All three modalities upstream tracks. `video` was omitted here while server_context_meta
-        // has carried it for releases, and upstream's own /props emits all three -- a consumer
-        // feature-detecting from getModelMeta() would have concluded no model ever accepts video.
-        {"modalities", {{"vision", m.has_inp_image}, {"audio", m.has_inp_audio}, {"video", m.has_inp_video}}},
-        {"name", m.model_name},
-        {"architecture", arch},
-        {"ftype", m.model_ftype},
-    };
-    // Resolved default chat template (Jinja); empty when the model ships none.
-    const char *chat_tmpl = mdl != nullptr ? llama_model_chat_template(mdl, /*name*/ nullptr) : nullptr;
-    j["chat_template"] = chat_tmpl != nullptr ? std::string(chat_tmpl) : std::string();
-    j["special_tokens"] = special_tokens_json(jctx->vocab);
-    // Full GGUF metadata key/value map.
-    if (mdl != nullptr) {
-        json meta_map = json::object();
-        const int meta_count = llama_model_meta_count(mdl);
-        for (int i = 0; i < meta_count; i++) {
-            char key_buf[256] = {};
-            // ponytail: 2 KB/value cap — scalar metadata fits; huge array values
-            // (tokenizer tokens/merges) truncate rather than bloating the JSON.
-            char val_buf[2048] = {};
-            if (llama_model_meta_key_by_index(mdl, i, key_buf, sizeof(key_buf)) >= 0 &&
-                llama_model_meta_val_str_by_index(mdl, i, val_buf, sizeof(val_buf)) >= 0) {
-                meta_map[std::string(key_buf)] = std::string(val_buf);
+        auto m = wake_and_get_meta(jctx);
+        // Read general.architecture from GGUF metadata via the llama C API. Size the buffer
+        // dynamically: llama_model_meta_val_str returns the required length when given a null/0
+        // buffer, so a long architecture name is never silently truncated. A char vector (not a
+        // std::string written in place) keeps the API's terminating '\0' write off the string's
+        // internal terminator slot, which the standard does not allow to be written.
+        std::string arch;
+        const llama_model *mdl = llama_get_model(ctx_server->get_llama_context());
+        if (mdl) {
+            const int need = llama_model_meta_val_str(mdl, "general.architecture", nullptr, 0);
+            if (need > 0) {
+                std::vector<char> buf(static_cast<size_t>(need) + 1, '\0');
+                llama_model_meta_val_str(mdl, "general.architecture", buf.data(), buf.size());
+                arch.assign(buf.data());
             }
         }
-        j["metadata"] = std::move(meta_map);
-    }
-    return json_to_jstring(env, j);
+        json j = {
+            // static_cast: see the vocab_only branch above — an unscoped enum would become a boolean
+            {"vocab_type", static_cast<int>(m.model_vocab_type)},
+            {"n_vocab", m.model_vocab_n_tokens},
+            {"n_ctx_train", m.model_n_ctx_train},
+            {"n_embd", m.model_n_embd_inp},
+            {"n_params", m.model_n_params},
+            {"size", m.model_size},
+            // All three modalities upstream tracks. `video` was omitted here while server_context_meta
+            // has carried it for releases, and upstream's own /props emits all three -- a consumer
+            // feature-detecting from getModelMeta() would have concluded no model ever accepts video.
+            {"modalities", {{"vision", m.has_inp_image}, {"audio", m.has_inp_audio}, {"video", m.has_inp_video}}},
+            {"name", m.model_name},
+            {"architecture", arch},
+            {"ftype", m.model_ftype},
+        };
+        // Resolved default chat template (Jinja); empty when the model ships none.
+        const char *chat_tmpl = mdl != nullptr ? llama_model_chat_template(mdl, /*name*/ nullptr) : nullptr;
+        j["chat_template"] = chat_tmpl != nullptr ? std::string(chat_tmpl) : std::string();
+        j["special_tokens"] = special_tokens_json(jctx->vocab);
+        // Full GGUF metadata key/value map.
+        if (mdl != nullptr) {
+            json meta_map = json::object();
+            const int meta_count = llama_model_meta_count(mdl);
+            for (int i = 0; i < meta_count; i++) {
+                char key_buf[256] = {};
+                // ponytail: 2 KB/value cap — scalar metadata fits; huge array values
+                // (tokenizer tokens/merges) truncate rather than bloating the JSON.
+                char val_buf[2048] = {};
+                if (llama_model_meta_key_by_index(mdl, i, key_buf, sizeof(key_buf)) >= 0 &&
+                    llama_model_meta_val_str_by_index(mdl, i, val_buf, sizeof(val_buf)) >= 0) {
+                    meta_map[std::string(key_buf)] = std::string(val_buf);
+                }
+            }
+            j["metadata"] = std::move(meta_map);
+        }
+        return json_to_jstring(env, j);
+    });
 }
 
 JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestCompletion(JNIEnv *env, jobject obj,
                                                                              jstring jparams) {
-    REQUIRE_SERVER_CONTEXT(0);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jint {
+        REQUIRE_SERVER_CONTEXT(0);
 
-    json data;
-    if (!parse_json_params(env, jparams, data)) {
-        return 0;
-    }
+        json data;
+        if (!parse_json_params(env, jparams, data)) {
+            return 0;
+        }
 
-    const server_task_type type = is_infill_request(data) ? SERVER_TASK_TYPE_INFILL : SERVER_TASK_TYPE_COMPLETION;
+        const server_task_type type = is_infill_request(data) ? SERVER_TASK_TYPE_INFILL : SERVER_TASK_TYPE_COMPLETION;
 
-    return dispatch_streaming_completion(env, jctx, data, type, TASK_RESPONSE_TYPE_NONE);
+        return dispatch_streaming_completion(env, jctx, data, type, TASK_RESPONSE_TYPE_NONE);
+    });
 }
 
 JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_releaseTask(JNIEnv *env, jobject obj, jint id_task) {
-    REQUIRE_SERVER_CONTEXT();
-    erase_reader(jctx, id_task);
+    return jni_guard_impl(env, c_llama_error, [&]() -> void {
+        REQUIRE_SERVER_CONTEXT();
+        erase_reader(jctx, id_task);
+    });
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveCompletionJson(JNIEnv *env, jobject obj,
                                                                                     jint id_task) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jstring {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    // Copy the shared_ptr out under the lock so the reader stays alive across next() below,
-    // which runs without the lock and may race a concurrent erase_reader()/close().
-    std::shared_ptr<server_response_reader> rd;
-    {
-        std::lock_guard<std::mutex> lk(jctx->readers_mutex);
-        auto it = jctx->readers.find(id_task);
-        if (it == jctx->readers.end()) {
-            env->ThrowNew(c_llama_error, "Task not found");
-            return nullptr;
-        }
-        rd = it->second;
-    }
-
-    // Upstream b9437 added is_begin partial results whose to_json() returns
-    // a nullptr sentinel meaning "HTTP-headers-only, no body". Loop past
-    // those so the Java iterator only ever sees real events.
-    json response;
-    try {
-        while (true) {
-            server_task_result_ptr result = rd->next([jctx] { return jctx->closing.load(); });
-
-            if (!result_ok_or_throw(env, result)) {
-                erase_reader(jctx, id_task);
+        // Copy the shared_ptr out under the lock so the reader stays alive across next() below,
+        // which runs without the lock and may race a concurrent erase_reader()/close().
+        std::shared_ptr<server_response_reader> rd;
+        {
+            std::lock_guard<std::mutex> lk(jctx->readers_mutex);
+            auto it = jctx->readers.find(id_task);
+            if (it == jctx->readers.end()) {
+                env->ThrowNew(c_llama_error, "Task not found");
                 return nullptr;
             }
-
-            response = result->to_json();
-            if (response.is_null()) {
-                continue;
-            }
-            response["stop"] = result->is_stop();
-
-            if (result->is_stop()) {
-                erase_reader(jctx, id_task);
-            }
-            break;
+            rd = it->second;
         }
-    } catch (const std::exception &e) {
-        // A throwing to_json() must surface as a LlamaException, not abort the JVM. The task is
-        // over for the Java caller, so release its reader entry like the other error paths.
-        erase_reader(jctx, id_task);
-        env->ThrowNew(c_llama_error, e.what());
-        return nullptr;
-    }
 
-    return json_to_jstring(env, response);
+        // Upstream b9437 added is_begin partial results whose to_json() returns
+        // a nullptr sentinel meaning "HTTP-headers-only, no body". Loop past
+        // those so the Java iterator only ever sees real events.
+        json response;
+        try {
+            while (true) {
+                server_task_result_ptr result = rd->next([jctx] { return jctx->closing.load(); });
+
+                if (!result_ok_or_throw(env, result)) {
+                    erase_reader(jctx, id_task);
+                    return nullptr;
+                }
+
+                response = result->to_json();
+                if (response.is_null()) {
+                    continue;
+                }
+                response["stop"] = result->is_stop();
+
+                if (result->is_stop()) {
+                    erase_reader(jctx, id_task);
+                }
+                break;
+            }
+        } catch (const std::exception &e) {
+            // A throwing to_json() must surface as a LlamaException, not abort the JVM. The task is
+            // over for the Java caller, so release its reader entry like the other error paths.
+            erase_reader(jctx, id_task);
+            env->ThrowNew(c_llama_error, e.what());
+            return nullptr;
+        }
+
+        return json_to_jstring(env, response);
+    });
 }
 
 // Streaming OpenAI chat: poll one step of a chat.completion.chunk stream.
@@ -1158,202 +1175,214 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveCompletionJ
 // header-only nullptr sentinels (upstream b9437+) and releases the reader on stop.
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_receiveChatCompletionChunk(JNIEnv *env, jobject obj,
                                                                                          jint id_task) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jstring {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    // Copy the shared_ptr out under the lock so the reader stays alive across next() below,
-    // which runs without the lock and may race a concurrent erase_reader()/close().
-    std::shared_ptr<server_response_reader> rd;
-    {
-        std::lock_guard<std::mutex> lk(jctx->readers_mutex);
-        auto it = jctx->readers.find(id_task);
-        if (it == jctx->readers.end()) {
-            env->ThrowNew(c_llama_error, "Task not found");
-            return nullptr;
-        }
-        rd = it->second;
-    }
-
-    json payload;
-    bool stop = false;
-    try {
-        while (true) {
-            server_task_result_ptr result = rd->next([jctx] { return jctx->closing.load(); });
-
-            if (!result_ok_or_throw(env, result)) {
-                erase_reader(jctx, id_task);
+        // Copy the shared_ptr out under the lock so the reader stays alive across next() below,
+        // which runs without the lock and may race a concurrent erase_reader()/close().
+        std::shared_ptr<server_response_reader> rd;
+        {
+            std::lock_guard<std::mutex> lk(jctx->readers_mutex);
+            auto it = jctx->readers.find(id_task);
+            if (it == jctx->readers.end()) {
+                env->ThrowNew(c_llama_error, "Task not found");
                 return nullptr;
             }
-
-            json chunk = result->to_json();
-            if (chunk.is_null()) {
-                continue;
-            }
-            payload = std::move(chunk);
-            stop = result->is_stop();
-            if (stop) {
-                erase_reader(jctx, id_task);
-            }
-            break;
+            rd = it->second;
         }
-    } catch (const std::exception &e) {
-        // A throwing to_json() must surface as a LlamaException, not abort the JVM. The task is
-        // over for the Java caller, so release its reader entry like the other error paths.
-        erase_reader(jctx, id_task);
-        env->ThrowNew(c_llama_error, e.what());
-        return nullptr;
-    }
 
-    return json_to_jstring(env, wrap_stream_chunk(std::move(payload), stop));
+        json payload;
+        bool stop = false;
+        try {
+            while (true) {
+                server_task_result_ptr result = rd->next([jctx] { return jctx->closing.load(); });
+
+                if (!result_ok_or_throw(env, result)) {
+                    erase_reader(jctx, id_task);
+                    return nullptr;
+                }
+
+                json chunk = result->to_json();
+                if (chunk.is_null()) {
+                    continue;
+                }
+                payload = std::move(chunk);
+                stop = result->is_stop();
+                if (stop) {
+                    erase_reader(jctx, id_task);
+                }
+                break;
+            }
+        } catch (const std::exception &e) {
+            // A throwing to_json() must surface as a LlamaException, not abort the JVM. The task is
+            // over for the Java caller, so release its reader entry like the other error paths.
+            erase_reader(jctx, id_task);
+            env->ThrowNew(c_llama_error, e.what());
+            return nullptr;
+        }
+
+        return json_to_jstring(env, wrap_stream_chunk(std::move(payload), stop));
+    });
 }
 
 JNIEXPORT jfloatArray JNICALL Java_net_ladenthin_llama_LlamaModel_embed(JNIEnv *env, jobject obj, jstring jprompt) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jfloatArray {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    // Idle sleep frees the model and invalidates the cached vocab; wake and re-sync first.
-    wake_server(jctx);
+        // Idle sleep frees the model and invalidates the cached vocab; wake and re-sync first.
+        wake_server(jctx);
 
-    if (!require_embedding_support(env, jctx->params.embedding, c_llama_error)) {
-        return nullptr;
-    }
+        if (!require_embedding_support(env, jctx->params.embedding, c_llama_error)) {
+            return nullptr;
+        }
 
-    const std::string prompt = parse_jstring(env, jprompt);
-    SRV_INF("Calling embedding '%s'\n", prompt.c_str());
+        const std::string prompt = parse_jstring(env, jprompt);
+        SRV_INF("Calling embedding '%s'\n", prompt.c_str());
 
-    llama_tokens tokens;
-    try {
-        tokens = tokenize_mixed(jctx->vocab, prompt, true, true);
-    } catch (const std::exception &e) {
-        env->ThrowNew(c_llama_error, e.what());
-        return nullptr;
-    }
-    auto rd = ctx_server->get_response_reader();
-    server_task task(SERVER_TASK_TYPE_EMBEDDING);
-    task.id = rd.get_new_id();
-    task.tokens = server_tokens(tokens, false);
-    task.index = 0;
-    wake_and_post(rd, std::move(task));
+        llama_tokens tokens;
+        try {
+            tokens = tokenize_mixed(jctx->vocab, prompt, true, true);
+        } catch (const std::exception &e) {
+            env->ThrowNew(c_llama_error, e.what());
+            return nullptr;
+        }
+        auto rd = ctx_server->get_response_reader();
+        server_task task(SERVER_TASK_TYPE_EMBEDDING);
+        task.id = rd.get_new_id();
+        task.tokens = server_tokens(tokens, false);
+        task.index = 0;
+        wake_and_post(rd, std::move(task));
 
-    auto br = rd.wait_for_all([jctx] { return jctx->closing.load(); });
-    if (!batch_ok_or_throw(env, br))
-        return nullptr;
+        auto br = rd.wait_for_all([jctx] { return jctx->closing.load(); });
+        if (!batch_ok_or_throw(env, br))
+            return nullptr;
 
-    if (br.results.empty()) {
-        env->ThrowNew(c_llama_error, "embedding result is empty");
-        return nullptr;
-    }
-    auto *embd_result = dynamic_cast<server_task_result_embd *>(br.results[0].get());
-    if (!embd_result || embd_result->embedding.empty() || embd_result->embedding[0].empty()) {
-        env->ThrowNew(c_llama_error, "embedding result is empty");
-        return nullptr;
-    }
-    const std::vector<float> &first_row = embd_result->embedding[0];
+        if (br.results.empty()) {
+            env->ThrowNew(c_llama_error, "embedding result is empty");
+            return nullptr;
+        }
+        auto *embd_result = dynamic_cast<server_task_result_embd *>(br.results[0].get());
+        if (!embd_result || embd_result->embedding.empty() || embd_result->embedding[0].empty()) {
+            env->ThrowNew(c_llama_error, "embedding result is empty");
+            return nullptr;
+        }
+        const std::vector<float> &first_row = embd_result->embedding[0];
 
-    SRV_INF("Embedding has %d columns\n", static_cast<jsize>(first_row.size()));
-    return embedding_to_jfloat_array_impl(env, first_row, c_error_oom);
+        SRV_INF("Embedding has %d columns\n", static_cast<jsize>(first_row.size()));
+        return embedding_to_jfloat_array_impl(env, first_row, c_error_oom);
+    });
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleRerank(JNIEnv *env, jobject obj, jstring jprompt,
                                                                            jobjectArray documents) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jstring {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    {
-        auto meta = wake_and_get_meta(jctx);
-        if (!jctx->params.embedding || meta.pooling_type != LLAMA_POOLING_TYPE_RANK) {
-            env->ThrowNew(
-                c_llama_error,
-                "This server does not support reranking. Start it with `--reranking` and without `--embedding`");
+        {
+            auto meta = wake_and_get_meta(jctx);
+            if (!jctx->params.embedding || meta.pooling_type != LLAMA_POOLING_TYPE_RANK) {
+                env->ThrowNew(
+                    c_llama_error,
+                    "This server does not support reranking. Start it with `--reranking` and without `--embedding`");
+                return nullptr;
+            }
+        }
+
+        const std::string prompt = parse_jstring(env, jprompt);
+
+        const jsize amount_documents = env->GetArrayLength(documents);
+        auto *document_array = parse_string_array(env, documents, amount_documents);
+        auto document_vector = std::vector<std::string>(document_array, document_array + amount_documents);
+        free_string_array(document_array, amount_documents);
+
+        const llama_model *model = llama_get_model(ctx_server->get_llama_context());
+        auto rd = ctx_server->get_response_reader();
+        std::vector<server_task> tasks;
+        tasks.reserve(document_vector.size());
+        for (size_t i = 0; i < document_vector.size(); i++) {
+            tasks.push_back(
+                build_indexed_token_task(rd, SERVER_TASK_TYPE_RERANK,
+                                         format_prompt_rerank(model, jctx->vocab, nullptr, prompt, document_vector[i],
+                                                              mtmd_helper_init_opt_default()),
+                                         static_cast<int>(i), TASK_RESPONSE_TYPE_NONE));
+        }
+        wake_and_post(rd, std::move(tasks));
+
+        auto br = rd.wait_for_all([jctx] { return jctx->closing.load(); });
+        if (!batch_ok_or_throw(env, br))
+            return nullptr;
+        // rerank_results_to_json throws std::invalid_argument on a malformed/out-of-range
+        // result index; unwrap it into a LlamaException instead of letting it cross
+        // the JNI boundary (undefined behaviour / JVM abort).
+        try {
+            return json_to_jstring(env, rerank_results_to_json(br.results, document_vector));
+        } catch (const std::exception &e) {
+            env->ThrowNew(c_llama_error, e.what());
             return nullptr;
         }
-    }
-
-    const std::string prompt = parse_jstring(env, jprompt);
-
-    const jsize amount_documents = env->GetArrayLength(documents);
-    auto *document_array = parse_string_array(env, documents, amount_documents);
-    auto document_vector = std::vector<std::string>(document_array, document_array + amount_documents);
-    free_string_array(document_array, amount_documents);
-
-    const llama_model *model = llama_get_model(ctx_server->get_llama_context());
-    auto rd = ctx_server->get_response_reader();
-    std::vector<server_task> tasks;
-    tasks.reserve(document_vector.size());
-    for (size_t i = 0; i < document_vector.size(); i++) {
-        tasks.push_back(
-            build_indexed_token_task(rd, SERVER_TASK_TYPE_RERANK,
-                                     format_prompt_rerank(model, jctx->vocab, nullptr, prompt, document_vector[i],
-                                                          mtmd_helper_init_opt_default()),
-                                     static_cast<int>(i), TASK_RESPONSE_TYPE_NONE));
-    }
-    wake_and_post(rd, std::move(tasks));
-
-    auto br = rd.wait_for_all([jctx] { return jctx->closing.load(); });
-    if (!batch_ok_or_throw(env, br))
-        return nullptr;
-    // rerank_results_to_json throws std::invalid_argument on a malformed/out-of-range
-    // result index; unwrap it into a LlamaException instead of letting it cross
-    // the JNI boundary (undefined behaviour / JVM abort).
-    try {
-        return json_to_jstring(env, rerank_results_to_json(br.results, document_vector));
-    } catch (const std::exception &e) {
-        env->ThrowNew(c_llama_error, e.what());
-        return nullptr;
-    }
+    });
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_applyTemplate(JNIEnv *env, jobject obj, jstring jparams) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jstring {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    json data;
-    if (!parse_json_params(env, jparams, data)) {
-        return nullptr;
-    }
+        json data;
+        if (!parse_json_params(env, jparams, data)) {
+            return nullptr;
+        }
 
-    json templateData;
-    std::vector<raw_buffer> files;
-    if (!parse_oai_chat_params(env, jctx, data, templateData, files))
-        return nullptr;
+        json templateData;
+        std::vector<raw_buffer> files;
+        if (!parse_oai_chat_params(env, jctx, data, templateData, files))
+            return nullptr;
 
-    if (!templateData.contains("prompt") || !templateData.at("prompt").is_string()) {
-        env->ThrowNew(c_llama_error, "applyTemplate did not produce a string prompt");
-        return nullptr;
-    }
-    std::string tok_str = templateData.at("prompt");
-    return utf8_to_jstring(env, tok_str);
+        if (!templateData.contains("prompt") || !templateData.at("prompt").is_string()) {
+            env->ThrowNew(c_llama_error, "applyTemplate did not produce a string prompt");
+            return nullptr;
+        }
+        std::string tok_str = templateData.at("prompt");
+        return utf8_to_jstring(env, tok_str);
+    });
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleChatCompletions(JNIEnv *env, jobject obj,
                                                                                     jstring jparams) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jstring {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    json body;
-    if (!parse_json_params(env, jparams, body)) {
-        return nullptr;
-    }
-    json data;
-    std::vector<raw_buffer> files;
-    if (!parse_oai_chat_params(env, jctx, body, data, files))
-        return nullptr;
+        json body;
+        if (!parse_json_params(env, jparams, body)) {
+            return nullptr;
+        }
+        json data;
+        std::vector<raw_buffer> files;
+        if (!parse_oai_chat_params(env, jctx, body, data, files))
+            return nullptr;
 
-    return dispatch_blocking_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_OAI_CHAT,
-                                        std::move(files));
+        return dispatch_blocking_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_OAI_CHAT,
+                                            std::move(files));
+    });
 }
 
 JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestChatCompletion(JNIEnv *env, jobject obj,
                                                                                  jstring jparams) {
-    REQUIRE_SERVER_CONTEXT(0);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jint {
+        REQUIRE_SERVER_CONTEXT(0);
 
-    json body;
-    if (!parse_json_params(env, jparams, body)) {
-        return 0;
-    }
-    // Chat template already applied by parse_oai_chat_params; no OAI wrapping on the streaming path.
-    json data;
-    std::vector<raw_buffer> files;
-    if (!parse_oai_chat_params(env, jctx, body, data, files))
-        return 0;
+        json body;
+        if (!parse_json_params(env, jparams, body)) {
+            return 0;
+        }
+        // Chat template already applied by parse_oai_chat_params; no OAI wrapping on the streaming path.
+        json data;
+        std::vector<raw_buffer> files;
+        if (!parse_oai_chat_params(env, jctx, body, data, files))
+            return 0;
 
-    return dispatch_streaming_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_NONE,
-                                         std::move(files));
+        return dispatch_streaming_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_NONE,
+                                             std::move(files));
+    });
 }
 
 // Streaming OpenAI chat with OAI-formatted chunks. Mirrors requestChatCompletion
@@ -1363,35 +1392,39 @@ JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestChatCompletion
 // the returned task id with receiveChatCompletionChunk.
 JNIEXPORT jint JNICALL Java_net_ladenthin_llama_LlamaModel_requestChatCompletionStream(JNIEnv *env, jobject obj,
                                                                                        jstring jparams) {
-    REQUIRE_SERVER_CONTEXT(0);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jint {
+        REQUIRE_SERVER_CONTEXT(0);
 
-    json body;
-    if (!parse_json_params(env, jparams, body)) {
-        return 0;
-    }
-    json data;
-    std::vector<raw_buffer> files;
-    if (!parse_oai_chat_params(env, jctx, body, data, files))
-        return 0;
+        json body;
+        if (!parse_json_params(env, jparams, body)) {
+            return 0;
+        }
+        json data;
+        std::vector<raw_buffer> files;
+        if (!parse_oai_chat_params(env, jctx, body, data, files))
+            return 0;
 
-    return dispatch_streaming_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_OAI_CHAT,
-                                         std::move(files));
+        return dispatch_streaming_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_OAI_CHAT,
+                                             std::move(files));
+    });
 }
 
 JNIEXPORT jintArray JNICALL Java_net_ladenthin_llama_LlamaModel_encode(JNIEnv *env, jobject obj, jstring jprompt) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jintArray {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    // Idle sleep frees the model and invalidates the cached vocab; wake and re-sync first.
-    wake_server(jctx);
+        // Idle sleep frees the model and invalidates the cached vocab; wake and re-sync first.
+        wake_server(jctx);
 
-    const std::string c_prompt = parse_jstring(env, jprompt);
-    try {
-        llama_tokens tokens = tokenize_mixed(jctx->vocab, c_prompt, false, true);
-        return tokens_to_jint_array_impl(env, tokens, c_error_oom);
-    } catch (const std::exception &e) {
-        env->ThrowNew(c_llama_error, e.what());
-        return nullptr;
-    }
+        const std::string c_prompt = parse_jstring(env, jprompt);
+        try {
+            llama_tokens tokens = tokenize_mixed(jctx->vocab, c_prompt, false, true);
+            return tokens_to_jint_array_impl(env, tokens, c_error_oom);
+        } catch (const std::exception &e) {
+            env->ThrowNew(c_llama_error, e.what());
+            return nullptr;
+        }
+    });
 }
 
 // Detokenise a token sequence to UTF-8, dispatching on vocab-only vs full context.
@@ -1404,419 +1437,448 @@ static std::string detokenize(jllama_context *jctx, const std::vector<llama_toke
 
 JNIEXPORT jbyteArray JNICALL Java_net_ladenthin_llama_LlamaModel_decodeBytes(JNIEnv *env, jobject obj,
                                                                              jintArray java_tokens) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jbyteArray {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    // Idle sleep frees the model and invalidates the cached vocab; wake and re-sync first.
-    wake_server(jctx);
+        // Idle sleep frees the model and invalidates the cached vocab; wake and re-sync first.
+        wake_server(jctx);
 
-    const auto tokens = jint_array_to_tokens_impl(env, java_tokens);
-    return parse_jbytes(env, detokenize(jctx, tokens));
+        const auto tokens = jint_array_to_tokens_impl(env, java_tokens);
+        return parse_jbytes(env, detokenize(jctx, tokens));
+    });
 }
 
 JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_delete(JNIEnv *env, jobject obj) {
-    auto *jctx = get_jllama_context(env, obj);
-    if (!jctx)
-        return;
+    return jni_guard_impl(env, c_llama_error, [&]() -> void {
+        auto *jctx = get_jllama_context(env, obj);
+        if (!jctx)
+            return;
 
-    // Null the Java handle under g_ctx_mutex so no NEW entry point can acquire this context
-    // (acquire_jllama_context_impl will see 0 and return null). In-flight calls that already
-    // hold a user reference keep running until they release on their own scope exit.
-    {
-        std::lock_guard<std::mutex> lk(g_ctx_mutex);
-        env->SetLongField(obj, f_model_pointer, 0);
-    }
-
-    // Signal teardown to any in-flight reader. The streaming / blocking should_stop lambdas
-    // observe this and make next()/wait_for_all() return within one poll (~1s), so the
-    // in-flight JNI call unwinds and releases its user reference — otherwise the reader would
-    // poll forever (the worker only stops the task queue, not the results queue) and close()
-    // would hang.
-    jctx->closing.store(true, std::memory_order_release);
-    if (!jctx->vocab_only) {
-        // Cancel any pending streaming readers before stopping the server.
-        std::lock_guard<std::mutex> lk(jctx->readers_mutex);
-        jctx->readers.clear();
-    }
-
-    // Wait for every in-flight JNI call (an entry point still inside its jllama_context_guard)
-    // to release its user reference BEFORE tearing anything down — a concurrent call could
-    // otherwise still be using the worker, the server_context, or the vocab-only model while
-    // they are being stopped/freed (use-after-free). New calls cannot start (the handle is
-    // already nulled above), and the closing flag bounds this wait to ~1s.
-    {
-        std::unique_lock<std::mutex> lk(jctx->m);
-        jctx->cv.wait(lk, [&] { return jctx->users.load() == 0; });
-    }
-
-    if (!jctx->vocab_only) {
-        while (!jctx->worker_ready.load()) {
-            std::this_thread::yield();
+        // Null the Java handle under g_ctx_mutex so no NEW entry point can acquire this context
+        // (acquire_jllama_context_impl will see 0 and return null). In-flight calls that already
+        // hold a user reference keep running until they release on their own scope exit.
+        {
+            std::lock_guard<std::mutex> lk(g_ctx_mutex);
+            env->SetLongField(obj, f_model_pointer, 0);
         }
-        // Signal the background thread to stop. Call twice with a brief sleep
-        // to close the race where the thread signalled ready but start_loop()
-        // hasn't yet set its internal running flag.
-        jctx->server.terminate();
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-        jctx->server.terminate();
-        if (jctx->worker.joinable()) {
-            jctx->worker.join();
+
+        // Signal teardown to any in-flight reader. The streaming / blocking should_stop lambdas
+        // observe this and make next()/wait_for_all() return within one poll (~1s), so the
+        // in-flight JNI call unwinds and releases its user reference — otherwise the reader would
+        // poll forever (the worker only stops the task queue, not the results queue) and close()
+        // would hang.
+        jctx->closing.store(true, std::memory_order_release);
+        if (!jctx->vocab_only) {
+            // Cancel any pending streaming readers before stopping the server.
+            std::lock_guard<std::mutex> lk(jctx->readers_mutex);
+            jctx->readers.clear();
         }
-    }
 
-    if (jctx->vocab_only_model) {
-        llama_model_free(jctx->vocab_only_model);
-    }
+        // Wait for every in-flight JNI call (an entry point still inside its jllama_context_guard)
+        // to release its user reference BEFORE tearing anything down — a concurrent call could
+        // otherwise still be using the worker, the server_context, or the vocab-only model while
+        // they are being stopped/freed (use-after-free). New calls cannot start (the handle is
+        // already nulled above), and the closing flag bounds this wait to ~1s.
+        {
+            std::unique_lock<std::mutex> lk(jctx->m);
+            jctx->cv.wait(lk, [&] { return jctx->users.load() == 0; });
+        }
 
-    delete jctx;
+        if (!jctx->vocab_only) {
+            while (!jctx->worker_ready.load()) {
+                std::this_thread::yield();
+            }
+            // Signal the background thread to stop. Call twice with a brief sleep
+            // to close the race where the thread signalled ready but start_loop()
+            // hasn't yet set its internal running flag.
+            jctx->server.terminate();
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            jctx->server.terminate();
+            if (jctx->worker.joinable()) {
+                jctx->worker.join();
+            }
+        }
+
+        if (jctx->vocab_only_model) {
+            llama_model_free(jctx->vocab_only_model);
+        }
+
+        delete jctx;
+    });
 }
 
 JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_cancelCompletion(JNIEnv *env, jobject obj, jint id_task) {
-    REQUIRE_SERVER_CONTEXT();
-    erase_reader(jctx, id_task);
+    return jni_guard_impl(env, c_llama_error, [&]() -> void {
+        REQUIRE_SERVER_CONTEXT();
+        erase_reader(jctx, id_task);
+    });
 }
 
 JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaModel_setLogger(JNIEnv *env, jclass clazz, jobject log_format,
                                                                      jobject jcallback) {
-    // Serialize the whole swap under the logger mutex: first clear the live callback so no NEW
-    // trampoline invocation can copy a lambda that still references the global ref we are about
-    // to delete, then DRAIN trampolines already executing a copied callback (g_log_active), then
-    // delete the old ref, then install the new one. Without the drain, an in-flight trampoline
-    // could still call into the just-deleted global ref. Note: this makes setLogger block until
-    // running log callbacks return — do not call setLogger from within a log callback.
-    std::unique_lock<std::mutex> lk(g_log_mutex);
-    log_callback = nullptr;
-    g_log_cv.wait(lk, [] { return g_log_active == 0; });
-    if (o_log_callback != nullptr) {
-        env->DeleteGlobalRef(o_log_callback);
-        o_log_callback = nullptr;
-    }
-
-    log_json = env->IsSameObject(log_format, o_log_format_json);
-
-    if (jcallback == nullptr) {
+    return jni_guard_impl(env, c_llama_error, [&]() -> void {
+        // Serialize the whole swap under the logger mutex: first clear the live callback so no NEW
+        // trampoline invocation can copy a lambda that still references the global ref we are about
+        // to delete, then DRAIN trampolines already executing a copied callback (g_log_active), then
+        // delete the old ref, then install the new one. Without the drain, an in-flight trampoline
+        // could still call into the just-deleted global ref. Note: this makes setLogger block until
+        // running log callbacks return — do not call setLogger from within a log callback.
+        std::unique_lock<std::mutex> lk(g_log_mutex);
         log_callback = nullptr;
-        llama_log_set(nullptr, nullptr);
-    } else {
-        o_log_callback = env->NewGlobalRef(jcallback);
-        // Capture copies of the global ref and method id so the callback never dereferences the
-        // logger globals at call time (those may be swapped by a concurrent setLogger).
-        jobject cb_ref = o_log_callback;
-        log_callback = [cb_ref](enum ggml_log_level level, const char *text, void *user_data) noexcept {
-            // Logging can fire from internal native threads with no JNIEnv; skip rather than
-            // throw (an exception here would unwind through llama.cpp's C frames).
-            JNIEnv *env = get_jni_env_or_null();
-            if (env == nullptr || text == nullptr) {
-                return;
-            }
-            // Log lines can embed payload text (prompts, model metadata), so the
-            // message must cross as standard UTF-8, not Modified UTF-8.
-            jstring message = utf8_to_jstring(env, text);
-            if (message == nullptr) {
-                env->ExceptionClear(); // allocation failed; drop this log line
-                return;
-            }
-            jobject log_level = log_level_to_jobject(level);
-            env->CallVoidMethod(cb_ref, m_biconsumer_accept, log_level, message);
-            env->DeleteLocalRef(message);
-        };
-        // Always set the trampoline — it handles JSON formatting internally
-        llama_log_set(log_callback_trampoline, nullptr);
-    }
+        g_log_cv.wait(lk, [] { return g_log_active == 0; });
+        if (o_log_callback != nullptr) {
+            env->DeleteGlobalRef(o_log_callback);
+            o_log_callback = nullptr;
+        }
+
+        log_json = env->IsSameObject(log_format, o_log_format_json);
+
+        if (jcallback == nullptr) {
+            log_callback = nullptr;
+            llama_log_set(nullptr, nullptr);
+        } else {
+            o_log_callback = env->NewGlobalRef(jcallback);
+            // Capture copies of the global ref and method id so the callback never dereferences the
+            // logger globals at call time (those may be swapped by a concurrent setLogger).
+            jobject cb_ref = o_log_callback;
+            log_callback = [cb_ref](enum ggml_log_level level, const char *text, void *user_data) noexcept {
+                // Logging can fire from internal native threads with no JNIEnv; skip rather than
+                // throw (an exception here would unwind through llama.cpp's C frames).
+                JNIEnv *env = get_jni_env_or_null();
+                if (env == nullptr || text == nullptr) {
+                    return;
+                }
+                // Log lines can embed payload text (prompts, model metadata), so the
+                // message must cross as standard UTF-8, not Modified UTF-8.
+                jstring message = utf8_to_jstring(env, text);
+                if (message == nullptr) {
+                    env->ExceptionClear(); // allocation failed; drop this log line
+                    return;
+                }
+                jobject log_level = log_level_to_jobject(level);
+                env->CallVoidMethod(cb_ref, m_biconsumer_accept, log_level, message);
+                env->DeleteLocalRef(message);
+            };
+            // Always set the trampoline — it handles JSON formatting internally
+            llama_log_set(log_callback_trampoline, nullptr);
+        }
+    });
 }
 
 JNIEXPORT jbyteArray JNICALL Java_net_ladenthin_llama_LlamaModel_jsonSchemaToGrammarBytes(JNIEnv *env, jclass clazz,
                                                                                           jstring j_schema) {
-    try {
-        const std::string c_schema = parse_jstring(env, j_schema);
-        const json c_schema_json = json::parse(c_schema);
-        const std::string c_grammar = json_schema_to_grammar(c_schema_json);
-        return parse_jbytes(env, c_grammar);
-    } catch (const std::exception &e) {
-        env->ThrowNew(c_llama_error, e.what());
-        return nullptr;
-    }
+    return jni_guard_impl(env, c_llama_error, [&]() -> jbyteArray {
+        try {
+            const std::string c_schema = parse_jstring(env, j_schema);
+            const json c_schema_json = json::parse(c_schema);
+            const std::string c_grammar = json_schema_to_grammar(c_schema_json);
+            return parse_jbytes(env, c_grammar);
+        } catch (const std::exception &e) {
+            env->ThrowNew(c_llama_error, e.what());
+            return nullptr;
+        }
+    });
 }
 
 // Returns llama.cpp's own build identifier ("b<number>-<commit>") from the linked-in build-info
 // symbols. Pure-ASCII, so NewStringUTF is safe here (the modified-UTF-8 caveat only applies to
 // model-generated payload text).
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_nativeLlamaCppBuildInfo(JNIEnv *env, jclass clazz) {
-    return env->NewStringUTF(llama_build_info());
+    return jni_guard_impl(env, c_llama_error, [&]() -> jstring { return env->NewStringUTF(llama_build_info()); });
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleCompletions(JNIEnv *env, jobject obj,
                                                                                 jstring jparams) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jstring {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    json data;
-    if (!parse_json_params(env, jparams, data)) {
-        return nullptr;
-    }
-    return dispatch_blocking_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_NONE);
+        json data;
+        if (!parse_json_params(env, jparams, data)) {
+            return nullptr;
+        }
+        return dispatch_blocking_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_NONE);
+    });
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleCompletionsOai(JNIEnv *env, jobject obj,
                                                                                    jstring jparams) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jstring {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    json body;
-    if (!parse_json_params(env, jparams, body)) {
-        return nullptr;
-    }
-    json data;
-    try {
-        data = oaicompat_completion_params_parse(body);
-    } catch (const std::exception &e) {
-        throw_invalid_request(env, e);
-        return nullptr;
-    }
+        json body;
+        if (!parse_json_params(env, jparams, body)) {
+            return nullptr;
+        }
+        json data;
+        try {
+            data = oaicompat_completion_params_parse(body);
+        } catch (const std::exception &e) {
+            throw_invalid_request(env, e);
+            return nullptr;
+        }
 
-    return dispatch_blocking_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_OAI_CMPL);
+        return dispatch_blocking_completion(env, jctx, data, SERVER_TASK_TYPE_COMPLETION, TASK_RESPONSE_TYPE_OAI_CMPL);
+    });
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleInfill(JNIEnv *env, jobject obj, jstring jparams) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jstring {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    // Check FIM token support via server_context_meta (populated from the
-    // same llama_vocab_fim_* calls inside server-context).
-    auto meta = wake_and_get_meta(jctx);
-    if (meta.fim_pre_token == LLAMA_TOKEN_NULL || meta.fim_sub_token == LLAMA_TOKEN_NULL ||
-        meta.fim_mid_token == LLAMA_TOKEN_NULL) {
-        env->ThrowNew(c_llama_error, "Model does not support fill-in-the-middle infill");
-        return nullptr;
-    }
+        // Check FIM token support via server_context_meta (populated from the
+        // same llama_vocab_fim_* calls inside server-context).
+        auto meta = wake_and_get_meta(jctx);
+        if (meta.fim_pre_token == LLAMA_TOKEN_NULL || meta.fim_sub_token == LLAMA_TOKEN_NULL ||
+            meta.fim_mid_token == LLAMA_TOKEN_NULL) {
+            env->ThrowNew(c_llama_error, "Model does not support fill-in-the-middle infill");
+            return nullptr;
+        }
 
-    json data;
-    if (!parse_json_params(env, jparams, data)) {
-        return nullptr;
-    }
+        json data;
+        if (!parse_json_params(env, jparams, data)) {
+            return nullptr;
+        }
 
-    if (!require_json_field(env, data, "input_prefix"))
-        return nullptr;
-    if (!require_json_field(env, data, "input_suffix"))
-        return nullptr;
+        if (!require_json_field(env, data, "input_prefix"))
+            return nullptr;
+        if (!require_json_field(env, data, "input_suffix"))
+            return nullptr;
 
-    json input_extra = json_value(data, "input_extra", json::array());
-    data["input_extra"] = input_extra;
+        json input_extra = json_value(data, "input_extra", json::array());
+        data["input_extra"] = input_extra;
 
-    std::string prompt = json_value(data, "prompt", std::string());
-    try {
-        std::vector<server_tokens> tokenized_prompts =
-            tokenize_input_prompts(jctx->vocab, nullptr, prompt, false, true, mtmd_helper_init_opt_default());
+        std::string prompt = json_value(data, "prompt", std::string());
+        try {
+            std::vector<server_tokens> tokenized_prompts =
+                tokenize_input_prompts(jctx->vocab, nullptr, prompt, false, true, mtmd_helper_init_opt_default());
 
-        data["prompt"] =
-            format_prompt_infill(jctx->vocab, data.at("input_prefix"), data.at("input_suffix"), data.at("input_extra"),
-                                 jctx->params.n_batch, jctx->params.n_predict, meta.slot_n_ctx, jctx->params.spm_infill,
-                                 tokenized_prompts.empty() ? llama_tokens() : tokenized_prompts[0].get_tokens());
-    } catch (const std::exception &e) {
-        env->ThrowNew(c_llama_error, e.what());
-        return nullptr;
-    }
+            data["prompt"] = format_prompt_infill(
+                jctx->vocab, data.at("input_prefix"), data.at("input_suffix"), data.at("input_extra"),
+                jctx->params.n_batch, jctx->params.n_predict, meta.slot_n_ctx, jctx->params.spm_infill,
+                tokenized_prompts.empty() ? llama_tokens() : tokenized_prompts[0].get_tokens());
+        } catch (const std::exception &e) {
+            env->ThrowNew(c_llama_error, e.what());
+            return nullptr;
+        }
 
-    return dispatch_blocking_completion(env, jctx, data, SERVER_TASK_TYPE_INFILL, TASK_RESPONSE_TYPE_NONE);
+        return dispatch_blocking_completion(env, jctx, data, SERVER_TASK_TYPE_INFILL, TASK_RESPONSE_TYPE_NONE);
+    });
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleEmbeddings(JNIEnv *env, jobject obj,
                                                                                jstring jparams, jboolean joaiCompat) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jstring {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    if (!require_embedding_support(env, jctx->params.embedding, c_llama_error)) {
-        return nullptr;
-    }
-
-    task_response_type res_type = joaiCompat ? TASK_RESPONSE_TYPE_OAI_EMBD : TASK_RESPONSE_TYPE_NONE;
-
-    {
-        auto meta = wake_and_get_meta(jctx);
-        if (res_type != TASK_RESPONSE_TYPE_NONE && meta.pooling_type == LLAMA_POOLING_TYPE_NONE) {
-            env->ThrowNew(c_llama_error,
-                          "Pooling type 'none' is not OAI compatible. Please use a different pooling type");
+        if (!require_embedding_support(env, jctx->params.embedding, c_llama_error)) {
             return nullptr;
         }
-    }
 
-    json body;
-    if (!parse_json_params(env, jparams, body)) {
-        return nullptr;
-    }
+        task_response_type res_type = joaiCompat ? TASK_RESPONSE_TYPE_OAI_EMBD : TASK_RESPONSE_TYPE_NONE;
 
-    bool force_no_oaicompat = false;
-    json prompt;
-    bool use_base64 = false;
-    try {
-        prompt = extract_embedding_prompt(body, force_no_oaicompat);
-        use_base64 = parse_encoding_format(body);
-    } catch (const std::exception &e) {
-        env->ThrowNew(c_llama_error, e.what());
-        return nullptr;
-    }
-    if (force_no_oaicompat)
-        res_type = TASK_RESPONSE_TYPE_NONE;
+        {
+            auto meta = wake_and_get_meta(jctx);
+            if (res_type != TASK_RESPONSE_TYPE_NONE && meta.pooling_type == LLAMA_POOLING_TYPE_NONE) {
+                env->ThrowNew(c_llama_error,
+                              "Pooling type 'none' is not OAI compatible. Please use a different pooling type");
+                return nullptr;
+            }
+        }
 
-    std::vector<server_tokens> tokenized_prompts;
-    try {
-        tokenized_prompts =
-            tokenize_input_prompts(jctx->vocab, nullptr, prompt, true, true, mtmd_helper_init_opt_default());
-    } catch (const std::exception &e) {
-        env->ThrowNew(c_llama_error, e.what());
-        return nullptr;
-    }
-
-    for (const auto &toks : tokenized_prompts) {
-        if (toks.get_tokens().empty()) {
-            env->ThrowNew(c_llama_error, "Input content cannot be empty");
+        json body;
+        if (!parse_json_params(env, jparams, body)) {
             return nullptr;
         }
-    }
 
-    auto rd = ctx_server->get_response_reader();
-    std::vector<server_task> tasks;
-    tasks.reserve(tokenized_prompts.size());
-    for (size_t i = 0; i < tokenized_prompts.size(); i++) {
-        tasks.push_back(build_indexed_token_task(rd, SERVER_TASK_TYPE_EMBEDDING,
-                                                 server_tokens(tokenized_prompts[i].get_tokens(), false),
-                                                 static_cast<int>(i), res_type));
-    }
-    wake_and_post(rd, std::move(tasks));
+        bool force_no_oaicompat = false;
+        json prompt;
+        bool use_base64 = false;
+        try {
+            prompt = extract_embedding_prompt(body, force_no_oaicompat);
+            use_base64 = parse_encoding_format(body);
+        } catch (const std::exception &e) {
+            env->ThrowNew(c_llama_error, e.what());
+            return nullptr;
+        }
+        if (force_no_oaicompat)
+            res_type = TASK_RESPONSE_TYPE_NONE;
 
-    auto br = rd.wait_for_all([jctx] { return jctx->closing.load(); });
-    if (!batch_ok_or_throw(env, br))
-        return nullptr;
+        std::vector<server_tokens> tokenized_prompts;
+        try {
+            tokenized_prompts =
+                tokenize_input_prompts(jctx->vocab, nullptr, prompt, true, true, mtmd_helper_init_opt_default());
+        } catch (const std::exception &e) {
+            env->ThrowNew(c_llama_error, e.what());
+            return nullptr;
+        }
 
-    json responses = json::array();
-    for (const auto &result : br.results) {
-        responses.push_back(result->to_json());
-    }
-    json out = (res_type == TASK_RESPONSE_TYPE_OAI_EMBD)
-                   ? format_embeddings_response_oaicompat(
-                         body, json_value(body, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), responses, use_base64)
-                   : responses;
-    try {
-        return json_to_jstring(env, out);
-    } catch (const std::exception &e) {
-        env->ThrowNew(c_llama_error, e.what());
-        return nullptr;
-    }
+        for (const auto &toks : tokenized_prompts) {
+            if (toks.get_tokens().empty()) {
+                env->ThrowNew(c_llama_error, "Input content cannot be empty");
+                return nullptr;
+            }
+        }
+
+        auto rd = ctx_server->get_response_reader();
+        std::vector<server_task> tasks;
+        tasks.reserve(tokenized_prompts.size());
+        for (size_t i = 0; i < tokenized_prompts.size(); i++) {
+            tasks.push_back(build_indexed_token_task(rd, SERVER_TASK_TYPE_EMBEDDING,
+                                                     server_tokens(tokenized_prompts[i].get_tokens(), false),
+                                                     static_cast<int>(i), res_type));
+        }
+        wake_and_post(rd, std::move(tasks));
+
+        auto br = rd.wait_for_all([jctx] { return jctx->closing.load(); });
+        if (!batch_ok_or_throw(env, br))
+            return nullptr;
+
+        json responses = json::array();
+        for (const auto &result : br.results) {
+            responses.push_back(result->to_json());
+        }
+        json out =
+            (res_type == TASK_RESPONSE_TYPE_OAI_EMBD)
+                ? format_embeddings_response_oaicompat(
+                      body, json_value(body, "model", std::string(DEFAULT_OAICOMPAT_MODEL)), responses, use_base64)
+                : responses;
+        try {
+            return json_to_jstring(env, out);
+        } catch (const std::exception &e) {
+            env->ThrowNew(c_llama_error, e.what());
+            return nullptr;
+        }
+    });
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleTokenize(JNIEnv *env, jobject obj, jstring jcontent,
                                                                              jboolean jaddSpecial,
                                                                              jboolean jwithPieces) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jstring {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    // Idle sleep frees the model and invalidates the cached vocab; wake and re-sync first.
-    wake_server(jctx);
+        // Idle sleep frees the model and invalidates the cached vocab; wake and re-sync first.
+        wake_server(jctx);
 
-    const std::string content = parse_jstring(env, jcontent);
-    const bool add_special = jaddSpecial;
-    const bool with_pieces = jwithPieces;
+        const std::string content = parse_jstring(env, jcontent);
+        const bool add_special = jaddSpecial;
+        const bool with_pieces = jwithPieces;
 
-    llama_tokens tokens;
-    try {
-        tokens = tokenize_mixed(jctx->vocab, content, add_special, true);
-    } catch (const std::exception &e) {
-        env->ThrowNew(c_llama_error, e.what());
-        return nullptr;
-    }
-
-    json tokens_response = json::array();
-
-    if (with_pieces) {
-        llama_context *lctx = jctx->vocab_only ? nullptr : jctx->server.get_llama_context();
-        for (const auto &token : tokens) {
-            std::string piece;
-            if (lctx) {
-                piece = common_token_to_piece(lctx, token);
-            } else {
-                char buf[256];
-                int n = llama_token_to_piece(jctx->vocab, token, buf, static_cast<int>(sizeof(buf)), 0, false);
-                piece = n > 0 ? std::string(buf, n) : std::string();
-            }
-            tokens_response.push_back({{"id", token}, {"piece", token_piece_value(piece)}});
+        llama_tokens tokens;
+        try {
+            tokens = tokenize_mixed(jctx->vocab, content, add_special, true);
+        } catch (const std::exception &e) {
+            env->ThrowNew(c_llama_error, e.what());
+            return nullptr;
         }
-    } else {
-        tokens_response = tokens;
-    }
 
-    return json_to_jstring(env, format_tokenizer_response(tokens_response));
+        json tokens_response = json::array();
+
+        if (with_pieces) {
+            llama_context *lctx = jctx->vocab_only ? nullptr : jctx->server.get_llama_context();
+            for (const auto &token : tokens) {
+                std::string piece;
+                if (lctx) {
+                    piece = common_token_to_piece(lctx, token);
+                } else {
+                    char buf[256];
+                    int n = llama_token_to_piece(jctx->vocab, token, buf, static_cast<int>(sizeof(buf)), 0, false);
+                    piece = n > 0 ? std::string(buf, n) : std::string();
+                }
+                tokens_response.push_back({{"id", token}, {"piece", token_piece_value(piece)}});
+            }
+        } else {
+            tokens_response = tokens;
+        }
+
+        return json_to_jstring(env, format_tokenizer_response(tokens_response));
+    });
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleDetokenize(JNIEnv *env, jobject obj,
                                                                                jintArray jtokens) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jstring {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    // Idle sleep frees the model and invalidates the cached vocab; wake and re-sync first.
-    wake_server(jctx);
+        // Idle sleep frees the model and invalidates the cached vocab; wake and re-sync first.
+        wake_server(jctx);
 
-    const auto tokens = jint_array_to_tokens_impl(env, jtokens);
-    return json_to_jstring(env, format_detokenized_response(detokenize(jctx, tokens)));
+        const auto tokens = jint_array_to_tokens_impl(env, jtokens);
+        return json_to_jstring(env, format_detokenized_response(detokenize(jctx, tokens)));
+    });
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_handleSlotAction(JNIEnv *env, jobject obj, jint action,
                                                                                jint slotId, jstring jfilename) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jstring {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    switch (action) {
-    case 0: { // LIST — the full server-introspection payload
-        // b10408 (upstream #26920) reduced server_task_result_metrics::to_json() to the slot array
-        // and b10519 (#27376) split the task in two: METRICS keeps only the counters (its to_json()
-        // is unused and returns JSON null; to_metrics() renders them as Prometheus text) and
-        // SERVER_TASK_TYPE_SLOT_GET carries the slot array plus the idle-slot count.  Post both and
-        // merge them so getMetrics() keeps returning the single documented object.
-        auto metrics_result = post_and_wait(env, jctx, server_task(SERVER_TASK_TYPE_METRICS));
-        if (!metrics_result)
-            return nullptr;
-        auto slots_result = post_and_wait(env, jctx, server_task(SERVER_TASK_TYPE_SLOT_GET));
-        if (!slots_result)
-            return nullptr;
+        switch (action) {
+        case 0: { // LIST — the full server-introspection payload
+            // b10408 (upstream #26920) reduced server_task_result_metrics::to_json() to the slot array
+            // and b10519 (#27376) split the task in two: METRICS keeps only the counters (its to_json()
+            // is unused and returns JSON null; to_metrics() renders them as Prometheus text) and
+            // SERVER_TASK_TYPE_SLOT_GET carries the slot array plus the idle-slot count.  Post both and
+            // merge them so getMetrics() keeps returning the single documented object.
+            auto metrics_result = post_and_wait(env, jctx, server_task(SERVER_TASK_TYPE_METRICS));
+            if (!metrics_result)
+                return nullptr;
+            auto slots_result = post_and_wait(env, jctx, server_task(SERVER_TASK_TYPE_SLOT_GET));
+            if (!slots_result)
+                return nullptr;
 
-        const auto *metrics = dynamic_cast<const server_task_result_metrics *>(metrics_result.get());
-        const auto *slots = dynamic_cast<const server_task_result_slots *>(slots_result.get());
-        if (metrics == nullptr || slots == nullptr) {
-            env->ThrowNew(c_llama_error, "Unexpected result type for server metrics");
+            const auto *metrics = dynamic_cast<const server_task_result_metrics *>(metrics_result.get());
+            const auto *slots = dynamic_cast<const server_task_result_slots *>(slots_result.get());
+            if (metrics == nullptr || slots == nullptr) {
+                env->ThrowNew(c_llama_error, "Unexpected result type for server metrics");
+                return nullptr;
+            }
+            return json_to_jstring(env, server_metrics_to_json(*metrics, *slots));
+        }
+        case 1: // SAVE
+            return exec_slot_file_task(env, jctx, slotId, jfilename, SERVER_TASK_TYPE_SLOT_SAVE,
+                                       "Filename is required for slot save");
+        case 2: // RESTORE
+            return exec_slot_file_task(env, jctx, slotId, jfilename, SERVER_TASK_TYPE_SLOT_RESTORE,
+                                       "Filename is required for slot restore");
+        case 3: { // ERASE
+            server_task task(SERVER_TASK_TYPE_SLOT_ERASE);
+            task.slot_action.id_slot = slotId;
+            return dispatch_one_shot_task(env, jctx, std::move(task));
+        }
+        default:
+            env->ThrowNew(c_llama_error, "Invalid slot action");
             return nullptr;
         }
-        return json_to_jstring(env, server_metrics_to_json(*metrics, *slots));
-    }
-    case 1: // SAVE
-        return exec_slot_file_task(env, jctx, slotId, jfilename, SERVER_TASK_TYPE_SLOT_SAVE,
-                                   "Filename is required for slot save");
-    case 2: // RESTORE
-        return exec_slot_file_task(env, jctx, slotId, jfilename, SERVER_TASK_TYPE_SLOT_RESTORE,
-                                   "Filename is required for slot restore");
-    case 3: { // ERASE
-        server_task task(SERVER_TASK_TYPE_SLOT_ERASE);
-        task.slot_action.id_slot = slotId;
-        return dispatch_one_shot_task(env, jctx, std::move(task));
-    }
-    default:
-        env->ThrowNew(c_llama_error, "Invalid slot action");
-        return nullptr;
-    }
+    });
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_getLoraAdaptersJson(JNIEnv *env, jobject obj) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jstring {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    return dispatch_one_shot_task(env, jctx, server_task(SERVER_TASK_TYPE_GET_LORA));
+        return dispatch_one_shot_task(env, jctx, server_task(SERVER_TASK_TYPE_GET_LORA));
+    });
 }
 
 JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_setLoraAdaptersJson(JNIEnv *env, jobject obj,
                                                                                   jstring jadapters) {
-    REQUIRE_SERVER_CONTEXT(nullptr);
+    return jni_guard_impl(env, c_llama_error, [&]() -> jstring {
+        REQUIRE_SERVER_CONTEXT(nullptr);
 
-    json data;
-    if (!parse_json_params(env, jadapters, data)) {
-        return nullptr;
-    }
-    if (!data.is_array()) {
-        // Same contract as the upstream POST /lora-adapters route body.
-        env->ThrowNew(c_llama_error, "LoRA adapter list must be a JSON array of {id, scale} objects");
-        return nullptr;
-    }
-    server_task task(SERVER_TASK_TYPE_SET_LORA);
-    task.set_lora = parse_lora_request(data);
-    return dispatch_one_shot_task(env, jctx, std::move(task));
+        json data;
+        if (!parse_json_params(env, jadapters, data)) {
+            return nullptr;
+        }
+        if (!data.is_array()) {
+            // Same contract as the upstream POST /lora-adapters route body.
+            env->ThrowNew(c_llama_error, "LoRA adapter list must be a JSON array of {id, scale} objects");
+            return nullptr;
+        }
+        server_task task(SERVER_TASK_TYPE_SET_LORA);
+        task.set_lora = parse_lora_request(data);
+        return dispatch_one_shot_task(env, jctx, std::move(task));
+    });
 }
 
 // LlamaQuantizer is not part of the javac-generated jllama.h (that header only covers LlamaModel),
@@ -1826,82 +1888,86 @@ JNIEXPORT jstring JNICALL Java_net_ladenthin_llama_LlamaModel_setLoraAdaptersJso
 // wraps the NativeServer entry points in an extern "C" block.
 extern "C" JNIEXPORT void JNICALL Java_net_ladenthin_llama_LlamaQuantizer_quantizeNative(
     JNIEnv *env, jclass, jstring jinput, jstring joutput, jint ftype, jint nthread, jboolean allowRequantize) {
-    try {
-        const std::string input_path = parse_jstring(env, jinput);
-        const std::string output_path = parse_jstring(env, joutput);
-        // Idempotent; intentionally never paired with llama_backend_free here — a LlamaModel
-        // loaded in the same JVM shares the backend and must not have it freed underneath it.
-        llama_backend_init();
-        llama_model_quantize_params qparams = llama_model_quantize_default_params();
-        qparams.ftype = static_cast<llama_ftype>(ftype);
-        qparams.nthread = nthread;
-        qparams.allow_requantize = (allowRequantize == JNI_TRUE);
-        const uint32_t rc = llama_model_quantize(input_path.c_str(), output_path.c_str(), &qparams);
-        if (rc != 0) {
-            const std::string msg = "Quantization of '" + input_path + "' failed with code " + std::to_string(rc);
-            env->ThrowNew(c_llama_error, msg.c_str());
+    return jni_guard_impl(env, c_llama_error, [&]() -> void {
+        try {
+            const std::string input_path = parse_jstring(env, jinput);
+            const std::string output_path = parse_jstring(env, joutput);
+            // Idempotent; intentionally never paired with llama_backend_free here — a LlamaModel
+            // loaded in the same JVM shares the backend and must not have it freed underneath it.
+            llama_backend_init();
+            llama_model_quantize_params qparams = llama_model_quantize_default_params();
+            qparams.ftype = static_cast<llama_ftype>(ftype);
+            qparams.nthread = nthread;
+            qparams.allow_requantize = (allowRequantize == JNI_TRUE);
+            const uint32_t rc = llama_model_quantize(input_path.c_str(), output_path.c_str(), &qparams);
+            if (rc != 0) {
+                const std::string msg = "Quantization of '" + input_path + "' failed with code " + std::to_string(rc);
+                env->ThrowNew(c_llama_error, msg.c_str());
+            }
+        } catch (const std::exception &e) {
+            env->ThrowNew(c_llama_error, e.what());
+        } catch (...) {
+            env->ThrowNew(c_llama_error, "Unknown C++ exception during quantization");
         }
-    } catch (const std::exception &e) {
-        env->ThrowNew(c_llama_error, e.what());
-    } catch (...) {
-        env->ThrowNew(c_llama_error, "Unknown C++ exception during quantization");
-    }
+    });
 }
 
 JNIEXPORT jboolean JNICALL Java_net_ladenthin_llama_LlamaModel_configureParallelInference(JNIEnv *env, jobject obj,
                                                                                           jstring jconfig) {
-    REQUIRE_SERVER_CONTEXT(JNI_FALSE);
-    (void)obj;
+    return jni_guard_impl(env, c_llama_error, [&]() -> jboolean {
+        REQUIRE_SERVER_CONTEXT(JNI_FALSE);
+        (void)obj;
 
-    json config;
-    if (!parse_json_params(env, jconfig, config)) {
-        return JNI_FALSE;
-    }
-
-    std::optional<float> slot_sim_opt;
-    std::optional<int> n_threads_opt;
-    std::optional<int> n_threads_batch_opt;
-    try {
-        slot_sim_opt = parse_slot_prompt_similarity(config);
-        n_threads_opt = parse_positive_int_config(config, "n_threads");
-        n_threads_batch_opt = parse_positive_int_config(config, "n_threads_batch");
-    } catch (const std::exception &e) {
-        env->ThrowNew(c_llama_error, e.what());
-        return JNI_FALSE;
-    }
-
-    // Apply n_threads / n_threads_batch via the public llama.h API.  The setter
-    // requires both values; fill any missing one from the cached common_params
-    // captured at load_model time so a single-field update behaves as a no-op
-    // for the unspecified field.
-    if (n_threads_opt.has_value() || n_threads_batch_opt.has_value()) {
-        llama_context *lctx = ctx_server->get_llama_context();
-        if (lctx == nullptr) {
-            env->ThrowNew(c_llama_error, "configureParallelInference: llama_context not available "
-                                         "(model sleeping or not loaded)");
+        json config;
+        if (!parse_json_params(env, jconfig, config)) {
             return JNI_FALSE;
         }
-        const int n = n_threads_opt.value_or(jctx->params.cpuparams.n_threads);
-        const int nb = n_threads_batch_opt.value_or(jctx->params.cpuparams_batch.n_threads);
-        llama_set_n_threads(lctx, n, nb);
-        // Keep the cached params in sync so a follow-up call that supplies only
-        // the other field reads back the value just applied, not the original.
-        jctx->params.cpuparams.n_threads = n;
-        jctx->params.cpuparams_batch.n_threads = nb;
-    }
 
-    // slot_prompt_similarity: validated above (the [0.0, 1.0] range check still
-    // throws for out-of-range values, preserving the existing exception
-    // contract).  Live mutation uses server_context::set_slot_prompt_similarity(),
-    // added upstream by https://github.com/ggml-org/llama.cpp/pull/22393 and carried
-    // in this repo as patches/0003-pr22393-... until it merges upstream (the patch
-    // applies against the pinned llama.cpp GIT_TAG in CMakeLists.txt).  not thread-safe
-    // per the upstream contract — main-thread only, which this JNI call is.
-    if (slot_sim_opt.has_value()) {
-        ctx_server->set_slot_prompt_similarity(*slot_sim_opt);
-    }
+        std::optional<float> slot_sim_opt;
+        std::optional<int> n_threads_opt;
+        std::optional<int> n_threads_batch_opt;
+        try {
+            slot_sim_opt = parse_slot_prompt_similarity(config);
+            n_threads_opt = parse_positive_int_config(config, "n_threads");
+            n_threads_batch_opt = parse_positive_int_config(config, "n_threads_batch");
+        } catch (const std::exception &e) {
+            env->ThrowNew(c_llama_error, e.what());
+            return JNI_FALSE;
+        }
 
-    return JNI_TRUE;
+        // Apply n_threads / n_threads_batch via the public llama.h API.  The setter
+        // requires both values; fill any missing one from the cached common_params
+        // captured at load_model time so a single-field update behaves as a no-op
+        // for the unspecified field.
+        if (n_threads_opt.has_value() || n_threads_batch_opt.has_value()) {
+            llama_context *lctx = ctx_server->get_llama_context();
+            if (lctx == nullptr) {
+                env->ThrowNew(c_llama_error, "configureParallelInference: llama_context not available "
+                                             "(model sleeping or not loaded)");
+                return JNI_FALSE;
+            }
+            const int n = n_threads_opt.value_or(jctx->params.cpuparams.n_threads);
+            const int nb = n_threads_batch_opt.value_or(jctx->params.cpuparams_batch.n_threads);
+            llama_set_n_threads(lctx, n, nb);
+            // Keep the cached params in sync so a follow-up call that supplies only
+            // the other field reads back the value just applied, not the original.
+            jctx->params.cpuparams.n_threads = n;
+            jctx->params.cpuparams_batch.n_threads = nb;
+        }
+
+        // slot_prompt_similarity: validated above (the [0.0, 1.0] range check still
+        // throws for out-of-range values, preserving the existing exception
+        // contract).  Live mutation uses server_context::set_slot_prompt_similarity(),
+        // added upstream by https://github.com/ggml-org/llama.cpp/pull/22393 and carried
+        // in this repo as patches/0003-pr22393-... until it merges upstream (the patch
+        // applies against the pinned llama.cpp GIT_TAG in CMakeLists.txt).  not thread-safe
+        // per the upstream contract — main-thread only, which this JNI call is.
+        if (slot_sim_opt.has_value()) {
+            ctx_server->set_slot_prompt_similarity(*slot_sim_opt);
+        }
+
+        return JNI_TRUE;
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -1914,22 +1980,24 @@ extern "C" {
 JNIEXPORT jlong JNICALL Java_net_ladenthin_llama_TextToSpeech_loadNative(JNIEnv *env, jclass clazz, jstring jmodel,
                                                                          jstring jmmproj, jint gpu_layers,
                                                                          jint threads) {
-    (void)clazz;
-    try {
-        const std::string model = parse_jstring(env, jmodel);
-        const std::string mmproj = parse_jstring(env, jmmproj);
-        std::string err;
-        jllama_tts::tts_engine *engine =
-            jllama_tts::engine_init(model, mmproj, static_cast<int>(gpu_layers), static_cast<int>(threads), err);
-        if (engine == nullptr) {
-            env->ThrowNew(c_llama_error, err.c_str());
+    return jni_guard_impl(env, c_llama_error, [&]() -> jlong {
+        (void)clazz;
+        try {
+            const std::string model = parse_jstring(env, jmodel);
+            const std::string mmproj = parse_jstring(env, jmmproj);
+            std::string err;
+            jllama_tts::tts_engine *engine =
+                jllama_tts::engine_init(model, mmproj, static_cast<int>(gpu_layers), static_cast<int>(threads), err);
+            if (engine == nullptr) {
+                env->ThrowNew(c_llama_error, err.c_str());
+                return 0;
+            }
+            return reinterpret_cast<jlong>(engine);
+        } catch (const std::exception &e) {
+            env->ThrowNew(c_llama_error, e.what());
             return 0;
         }
-        return reinterpret_cast<jlong>(engine);
-    } catch (const std::exception &e) {
-        env->ThrowNew(c_llama_error, e.what());
-        return 0;
-    }
+    });
 }
 
 JNIEXPORT jbyteArray JNICALL Java_net_ladenthin_llama_TextToSpeech_synthesizeNative(JNIEnv *env, jclass clazz,
@@ -1937,41 +2005,46 @@ JNIEXPORT jbyteArray JNICALL Java_net_ladenthin_llama_TextToSpeech_synthesizeNat
                                                                                     jstring jspeaker_reference_path,
                                                                                     jstring jlang, jint max_frames,
                                                                                     jint top_k, jint seed) {
-    (void)clazz;
-    try {
-        auto *engine = reinterpret_cast<jllama_tts::tts_engine *>(handle);
-        if (engine == nullptr) {
-            env->ThrowNew(c_llama_error, "TextToSpeech handle is null");
+    return jni_guard_impl(env, c_llama_error, [&]() -> jbyteArray {
+        (void)clazz;
+        try {
+            auto *engine = reinterpret_cast<jllama_tts::tts_engine *>(handle);
+            if (engine == nullptr) {
+                env->ThrowNew(c_llama_error, "TextToSpeech handle is null");
+                return nullptr;
+            }
+            const std::string text = parse_jstring(env, jtext);
+            const std::string speaker_reference_path =
+                jspeaker_reference_path == nullptr ? std::string() : parse_jstring(env, jspeaker_reference_path);
+            const std::string lang = jlang == nullptr ? std::string() : parse_jstring(env, jlang);
+            std::vector<uint8_t> wav;
+            std::string err;
+            if (!jllama_tts::engine_synthesize(engine, text, speaker_reference_path, lang, static_cast<int>(max_frames),
+                                               static_cast<int>(top_k), static_cast<uint32_t>(seed), wav, err)) {
+                env->ThrowNew(c_llama_error, err.c_str());
+                return nullptr;
+            }
+            jbyteArray out = env->NewByteArray(static_cast<jsize>(wav.size()));
+            if (out == nullptr) {
+                env->ThrowNew(c_error_oom, "could not allocate WAV byte array");
+                return nullptr;
+            }
+            env->SetByteArrayRegion(out, 0, static_cast<jsize>(wav.size()),
+                                    reinterpret_cast<const jbyte *>(wav.data()));
+            return out;
+        } catch (const std::exception &e) {
+            env->ThrowNew(c_llama_error, e.what());
             return nullptr;
         }
-        const std::string text = parse_jstring(env, jtext);
-        const std::string speaker_reference_path =
-            jspeaker_reference_path == nullptr ? std::string() : parse_jstring(env, jspeaker_reference_path);
-        const std::string lang = jlang == nullptr ? std::string() : parse_jstring(env, jlang);
-        std::vector<uint8_t> wav;
-        std::string err;
-        if (!jllama_tts::engine_synthesize(engine, text, speaker_reference_path, lang, static_cast<int>(max_frames),
-                                           static_cast<int>(top_k), static_cast<uint32_t>(seed), wav, err)) {
-            env->ThrowNew(c_llama_error, err.c_str());
-            return nullptr;
-        }
-        jbyteArray out = env->NewByteArray(static_cast<jsize>(wav.size()));
-        if (out == nullptr) {
-            env->ThrowNew(c_error_oom, "could not allocate WAV byte array");
-            return nullptr;
-        }
-        env->SetByteArrayRegion(out, 0, static_cast<jsize>(wav.size()), reinterpret_cast<const jbyte *>(wav.data()));
-        return out;
-    } catch (const std::exception &e) {
-        env->ThrowNew(c_llama_error, e.what());
-        return nullptr;
-    }
+    });
 }
 
 JNIEXPORT void JNICALL Java_net_ladenthin_llama_TextToSpeech_deleteNative(JNIEnv *env, jclass clazz, jlong handle) {
-    (void)env;
-    (void)clazz;
-    jllama_tts::engine_free(reinterpret_cast<jllama_tts::tts_engine *>(handle));
+    return jni_guard_impl(env, c_llama_error, [&]() -> void {
+        (void)env;
+        (void)clazz;
+        jllama_tts::engine_free(reinterpret_cast<jllama_tts::tts_engine *>(handle));
+    });
 }
 
 } // extern "C"

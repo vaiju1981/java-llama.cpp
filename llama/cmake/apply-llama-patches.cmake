@@ -106,8 +106,53 @@ if(NOT head_rc EQUAL 0)
 endif()
 
 # ---------------------------------------------------------------------------
+# Content oracle for the WORKING TREE.
+#
+# The commit + patch hashes below describe what SHOULD be applied; they say nothing about what
+# the files actually contain. Reverting one patched file after a successful apply therefore left
+# the stamp valid and the tree still dirty (the other patched files are still modified), so the
+# dirty-tree branch reported "already applied — skipping", exited 0, and the build compiled
+# unpatched code. This fingerprint closes that: it hashes the tree's actual modifications, so a
+# reverted or hand-edited file changes it and the stamp stops matching.
+#
+# Two sources, because neither alone is enough: `git diff` carries the CONTENT of modifications
+# to tracked files, and `git status --porcelain` carries the PRESENCE of untracked files (patch
+# 0012 adds tests/test-model-split.cpp, which `git diff` never sees). The stamp itself is
+# untracked and is filtered out, or writing it would change the fingerprint that describes it.
+#
+# Residual hole, stated rather than papered over: an edit to the *body* of an untracked file a
+# patch added is not detected. Closing that would mean hashing every untracked file's contents;
+# the CI-side .github/verify-patches-applied.sh covers the case that actually matters.
+# ---------------------------------------------------------------------------
+function(compute_tree_fingerprint out_var)
+    execute_process(
+        COMMAND "${GIT_EXECUTABLE}" -C "${LLAMA_SRC}" status --porcelain
+        OUTPUT_VARIABLE fp_status
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET)
+    set(fp_status_filtered "")
+    if(NOT fp_status STREQUAL "")
+        string(REPLACE "\n" ";" fp_lines "${fp_status}")
+        foreach(fp_line IN LISTS fp_lines)
+            string(STRIP "${fp_line}" fp_line)
+            if(fp_line STREQUAL "" OR fp_line MATCHES "${STAMP_NAME}$")
+                continue()
+            endif()
+            string(APPEND fp_status_filtered "${fp_line}\n")
+        endforeach()
+    endif()
+    execute_process(
+        COMMAND "${GIT_EXECUTABLE}" -C "${LLAMA_SRC}" diff --no-color
+        OUTPUT_VARIABLE fp_diff
+        ERROR_QUIET)
+    string(SHA256 fp_hash "${fp_status_filtered}${fp_diff}")
+    set(${out_var} "${fp_hash}" PARENT_SCOPE)
+endfunction()
+
+# ---------------------------------------------------------------------------
 # Build the manifest: the checked-out commit plus every patch's content hash.
 # Any llama.cpp version bump changes HEAD; any patch edit changes a hash.
+# The tree fingerprint is appended after applying (it cannot be known before).
 # ---------------------------------------------------------------------------
 set(manifest "head ${llama_head}\n")
 foreach(patch IN LISTS patch_files)
@@ -147,7 +192,9 @@ if(NOT tree_is_dirty)
     foreach(patch IN LISTS patch_files)
         apply_one_patch("${patch}")
     endforeach()
-    file(WRITE "${stamp_file}" "${manifest}")
+    # Fingerprint the result, not the intent: this is what a later reconfigure compares against.
+    compute_tree_fingerprint(applied_fingerprint)
+    file(WRITE "${stamp_file}" "${manifest}tree ${applied_fingerprint}\n")
     return()
 endif()
 
@@ -155,10 +202,13 @@ endif()
 # Dirty tree: already patched. Only a stamp matching this exact commit + patch
 # set proves the modifications are ours and complete.
 # ---------------------------------------------------------------------------
+compute_tree_fingerprint(current_fingerprint)
+set(expected_stamp "${manifest}tree ${current_fingerprint}\n")
+
 set(stamp_matches FALSE)
 if(EXISTS "${stamp_file}")
     file(READ "${stamp_file}" stamp_content)
-    if(stamp_content STREQUAL manifest)
+    if(stamp_content STREQUAL expected_stamp)
         set(stamp_matches TRUE)
     endif()
 endif()
@@ -173,7 +223,9 @@ message(FATAL_ERROR
     "apply-llama-patches: ${LLAMA_SRC} has local modifications that do not match the current "
     "patch set.\n"
     "  Patches cannot be applied on top of an already-patched tree, and the previous state is "
-    "unknown (the tree was patched with a different patch set or llama.cpp commit, or edited by "
-    "hand).\n"
+    "unknown: the tree was patched with a different patch set or llama.cpp commit, or one of the "
+    "patched files was reverted or edited by hand (the stamp records a fingerprint of the tree's "
+    "modifications, so a single reverted file lands here rather than silently building unpatched "
+    "code).\n"
     "  Configure into a FRESH build directory so FetchContent re-checks-out a pristine "
     "llama.cpp, then build again.")

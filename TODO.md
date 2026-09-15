@@ -96,9 +96,11 @@ workflow in `.github/workflows/`). It contributes to the `mergeable_state: block
 
 ### Upstream PR submissions — drop the carried patches (open)
 
-Six of the seven `patches/` are upstream-submittable verbatim; each accepted PR (once the pin is
-bumped past it) deletes a patch from the bump checklist. (`0003` is a carry of an already-open
-upstream PR #22393 — it drops automatically when that merges.)
+There are **nine** patches today (`0001`–`0003`, `0006`–`0008`, `0010`–`0012`). **Eight are
+upstream-submittable verbatim**; each accepted PR (once the pin is bumped past it) deletes a patch
+from the bump checklist. The exception is **`0003`**, a carry of upstream PR #22393, which upstream
+**closed without merging** — it is permanent and will never be droppable via a bump. (`0003` used to
+be described here as "drops automatically when that merges"; it will not.)
 
 - **`0001` Windows arg-parse embed guard** (against #24779): `common_params_parse` trusts the caller's
   argv; `common_params_parse_main()` keeps the standalone tools' UTF-8 recovery. Ship with the
@@ -113,10 +115,22 @@ upstream PR #22393 — it drops automatically when that merges.)
 - **`0007` `llama_server_attach`** (HTTP frontend on an existing `server_context`).
 - **`0008` `LLAMA_SERVER_WORKER_CMD` router worker override** (also useful for containerized/wrapped
   deployments).
-- **`0009` guard `posix_spawn_file_actions_addchdir_np` on old glibc** (b10154 cross-compile break on
-  manylinux2014 / glibc 2.17 and manylinux_2_28 / glibc 2.28; adds an overridable
-  `SUBPROCESS_HAVE_CWD` probe via `__GLIBC_PREREQ(2, 29)` — submitted as sheredom/subprocess.h#104,
-  drops automatically once llama.cpp bumps the vendored pin).
+- **`0010` cast `vocab_type` for `common_json`** (one line; upstream regressed `GET /models` +
+  `GET /v1/models` to emit `true`/`false` instead of the numeric vocab type when they flipped the
+  `json` alias to `common_json` at b10585/#27511). **Not yet filed upstream.**
+- **`0011` lenient invalid-UTF-8 in the PEG parser** (one malformed byte from the model turns a
+  finished generation into an HTTP 500; the `INVALID` branch ignores leniency while the `INCOMPLETE`
+  branch beside it honours it). Ships an upstream `tests/peg-parser/test-unicode.cpp` case.
+  **Not yet filed upstream.**
+- **`0012` guard the zero split-sum and name the device index** (a GPU reporting zero free memory —
+  or a cancelling `--tensor-split` such as `-ts 1,-1` on any backend — makes every model load fail
+  with the unactionable `error loading model: vector`). Ships an upstream `tests/test-model-split.cpp`.
+  **Not yet filed upstream.**
+
+(`0009` is **not** in this list and the number is burned: upstream merged the subprocess.h fix via
+ggml-org/llama.cpp#26606, so the patch was dropped at the b10280 bump. `0013` is likewise gone —
+upstream merged this project's own PR ggml-org/llama.cpp#28775 and it was dropped at b10948. Both
+drops are recorded in `CLAUDE.md` under the patch table.)
 
 ### llama.cpp upstream feature exposure (queued, deferred by policy)
 
@@ -219,38 +233,6 @@ These are JNI plumbing items for upstream API additions. Policy: add only after 
 
 - **Expose `llama_vocab::get_suppress_tokens()` via `LlamaModel.getSuppressTokens()`.** Added in b9490–b9495 alongside the new `tokenizer.ggml.suppress_tokens` GGUF key and the `LLM_KV_TOKENIZER_SUPPRESS_TOKENS` constant. When a GGUF declares this array, upstream stores it on `llama_vocab::impl::suppress_tokens` and exposes it via the new `llama_vocab::get_suppress_tokens()` accessor. The bias is **applied automatically** inside the model forward graph — the Gemma4 Unified graph (`src/models/gemma4.cpp`) reads the list and adds a `-INFINITY` logit bias to those token IDs via a new `llm_graph_input_logits_bias` input so the model cannot emit them (used to block `<image|>` / `<audio|>` placeholders). A Java mirror would be `public int[] getSuppressTokens()` on `LlamaModel`: a read-only inspector returning the suppression list for debugging or for callers running their own sampling who want to replicate the same bias. Value is low (the bias is auto-applied, Java callers cannot change it; java-llama.cpp does not expose custom logit-bias hooks at this level); cost is trivial (one JNI passthrough + a `getSuppressTokens()` Java method).
 
-### JNI safety and server hardening (from PR #251 contributor)
-
-Raised by [@vaiju1981](https://github.com/vaiju1981) in
-[PR #251 comment](https://github.com/bernardladenthin/java-llama.cpp/pull/251#issuecomment-4761363838).
-Feel free to contribute fixes — PRs welcome.
-
-- **Unhandled C++ exceptions cross the JNI boundary → JVM abort (UB).** Any `std::exception`
-  (or worse, an exception of unknown type) that escapes a native method and crosses the JNI
-  boundary causes undefined behaviour on most JVMs and typically aborts the process. Each native
-  method in `jllama.cpp` should wrap its body in `try { … } catch (const std::exception& e) {
-  env->ThrowNew(llamaExceptionClass, e.what()); return <zero>; } catch (...) { env->ThrowNew(…,
-  "unknown C++ exception"); return <zero>; }` so that errors surface as `LlamaException` on the
-  Java side instead of crashing the JVM.
-
-- **`parse_string_array` — null deref + JNI local-reference leak.** The helper that reads a
-  JSON string array from JNI can dereference a null pointer when an array element is absent,
-  and leaks JNI local references when an early exit skips the matching `DeleteLocalRef`. Fix:
-  guard every `GetObjectArrayElement` result and pair each reference acquisition with a
-  `DeleteLocalRef` before the next iteration or return.
-
-- **`close()` / native `delete()` double-free under concurrent close.** If two threads race to
-  call `LlamaModel.close()`, both can reach the native `delete` path and free the same
-  `jllama_context` pointer twice → heap corruption. Fix: use `AtomicBoolean closed` + a
-  `synchronized` guard (or `compareAndSet`) on the Java side so `close()` is idempotent and
-  the native pointer is nulled before the second caller can reach it.
-
-- **Unbounded request-body read → OOM DoS.** The HTTP handler reads the entire request body
-  into a `String`/`byte[]` before parsing it, with no size cap. A client that streams a
-  multi-gigabyte body can exhaust heap memory and crash the JVM. Fix: add a configurable
-  `maxRequestBodyBytes` limit (e.g. default 4 MB) and reject oversized requests with
-  `HTTP 413 Content Too Large` before buffering them.
-
 ### Feature backlog from similar projects (remainder: jbang example)
 
 The consolidated investigation lives in
@@ -347,50 +329,6 @@ these are what remains.
   the model-gated suite stayed silently muted for months. Summing `tests=` across
   `target/surefire-reports/TEST-*.xml` in each `test-java-*` job and failing below a pinned minimum
   is the one check that would have caught it directly, and it is cheap.
-
-### Release/build robustness gaps found by the b10679 audit (PR #403)
-
-Both are **pre-existing** and orthogonal to a version bump, so they were recorded rather than folded
-into that PR.
-
-- **Two `all-*-aarch64` fat jars are attached to releases with no smoke job.**
-  `.github/package-fatjars.sh` emits four OS/arch fat jars (`linux-x86-64`, `linux-aarch64`,
-  `windows-x86-64`, `windows-aarch64`), all uploaded as `llama-fatjars` and attached by
-  `github-release-signed` / `github-snapshot`. Only the two **x86-64** ones are smoked
-  (`smoke-fatjar-linux`, `smoke-fatjar-windows`); grepping `publish.yml` for `all-linux-aarch64` or
-  `all-windows-aarch64` returns nothing, so neither is ever downloaded or launched.
-
-  That directly violates the cross-repo rule in
-  [`../workspace/policies/fat-jar-release-assets.md`](../workspace/policies/fat-jar-release-assets.md)
-  — *"No release asset is attached that CI has not run"* — which exists because a corrupt macOS dylib
-  shipped in three releases under a fully green pipeline. The fix is cheap: the workflow **already**
-  uses the free ARM runners elsewhere (`ubuntu-24.04-arm` for the aarch64 CPU and Vulkan builds,
-  `windows-11-arm` for the Windows arm64 build), so `smoke-fatjar-linux-aarch64` and
-  `smoke-fatjar-windows-arm64` can mirror the existing smoke jobs and join both publish jobs'
-  `needs:`. Not done in the bump PR because it widens a version bump into CI work and would gate that
-  PR on a pre-existing defect if either jar turns out to be broken.
-
-- **The patch applier silently accepts a partially-reverted source tree.** The stamp file records the
-  checked-out llama.cpp commit plus each patch's SHA-256 — **nothing about the resulting file
-  contents**. Reverting one patched file after a successful apply leaves the stamp valid and the tree
-  still dirty (the other patched files are still modified), so the dirty-tree branch reports
-  "already applied — skipping", exits 0, and the build compiles unpatched code. Reproduction:
-
-  ```bash
-  # with the tree fully patched and the stamp written:
-  git -C <llama.cpp-src> checkout -- common/peg-parser.cpp     # drops patch 0011's fix
-  cmake -DPATCH_DIR=... -DLLAMA_SRC=... -P llama/cmake/apply-llama-patches.cmake
-  # -> "8 patch(es) already applied — skipping", exit 0, patch NOT restored
-  ```
-
-  Every other path is correctly fail-loud (committed-patch state, stamp/HEAD mismatch on a dirty tree,
-  and a non-git-worktree re-run all exit 1). The fix is a content oracle in the manifest — cheapest is
-  to append `git -C <src> diff --no-color | sha256`, or per-patched-file blob hashes — so a reverted or
-  hand-edited file invalidates the stamp. **CI is unaffected** (every job configures into a fresh build
-  directory); this only bites a local reconfigure, which is why it was not rushed. Note the stamp
-  format change will make every existing local build dir abort with the applier's
-  "configure into a fresh build directory" message — that is the designed fail-loud path, not a
-  regression.
 
 ### Test-coverage debt found during the b10649 review (PR #403)
 

@@ -296,7 +296,22 @@ public class LlamaLoader {
         }
     }
 
-    private static @Nullable Path extractFile(String sourceDirectory, String fileName, String targetDirectory) {
+    /**
+     * Extracts one file from the classpath into {@code targetDirectory}, reusing a byte-identical
+     * copy that is already there and replacing one that differs.
+     *
+     * <p>Package-private rather than private so its reuse-vs-replace decision can be driven
+     * directly (see {@code LlamaLoaderTest}) — the same convention the other testable statics in
+     * this class follow. Going through {@link #initialize()} cannot reach that decision: the
+     * cleanup pass it runs first deletes exactly the {@code jllama*} temp paths a test would have
+     * to seed, so the branch is never taken.
+     *
+     * @param sourceDirectory the classpath resource folder holding {@code fileName}
+     * @param fileName        the file to extract
+     * @param targetDirectory the directory to extract into; must already exist
+     * @return the extracted file, or {@code null} when the resource is absent or extraction failed
+     */
+    static @Nullable Path extractFile(String sourceDirectory, String fileName, String targetDirectory) {
         String nativeLibraryFilePath = sourceDirectory + "/" + fileName;
 
         Path extractedFilePath = Paths.get(targetDirectory, fileName);

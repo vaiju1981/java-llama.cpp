@@ -21,11 +21,14 @@ import org.junit.jupiter.api.Test;
 public class OSInfoTest {
 
     private static final String ARCH_OVERRIDE_PROP = LlamaSystemProperties.PREFIX + ".osinfo.architecture";
+    private static final String OS_ARCH_PROP = "os.arch";
     private String previousArchOverride;
+    private String previousOsArch;
 
     @BeforeEach
     public void saveProperties() {
         previousArchOverride = System.getProperty(ARCH_OVERRIDE_PROP);
+        previousOsArch = System.getProperty(OS_ARCH_PROP);
     }
 
     @AfterEach
@@ -34,6 +37,11 @@ public class OSInfoTest {
             System.clearProperty(ARCH_OVERRIDE_PROP);
         } else {
             System.setProperty(ARCH_OVERRIDE_PROP, previousArchOverride);
+        }
+        if (previousOsArch == null) {
+            System.clearProperty(OS_ARCH_PROP);
+        } else {
+            System.setProperty(OS_ARCH_PROP, previousOsArch);
         }
     }
 
@@ -152,5 +160,63 @@ public class OSInfoTest {
         String runtimeName = System.getProperty("java.runtime.name", "");
         boolean expected = runtimeName.toLowerCase().contains("android");
         assertEquals(expected, OSInfo.isAndroidRuntime());
+    }
+
+    // -------------------------------------------------------------------------
+    // getArchName: the archMapping alias table
+    //
+    // Only the NON-IDENTITY aliases are asserted. An identity entry such as
+    // s390x -> s390x is behaviourally redundant with the \W-stripping fallback,
+    // so pinning it could not detect that entry being lost. Every pair below can:
+    // the expected value differs from what translateArchNameToFolderName alone
+    // would produce, so a dropped map entry sends LlamaLoader to a resource
+    // directory that was never shipped (amd64 -> "amd64", power_pc -> "powerpc").
+    // -------------------------------------------------------------------------
+
+    @Test
+    public void testArchMappingAliasesResolveToTheCanonicalFolderName() {
+        final String[][] aliases = {
+            {"i386", OSInfo.X86},
+            {"i486", OSInfo.X86},
+            {"i586", OSInfo.X86},
+            {"i686", OSInfo.X86},
+            {"pentium", OSInfo.X86},
+            {"amd64", OSInfo.X86_64},
+            {"em64t", OSInfo.X86_64},
+            {"universal", OSInfo.X86_64},
+            {"ia64w", OSInfo.IA64},
+            {"ia64n", OSInfo.IA64_32},
+            {"power", OSInfo.PPC},
+            {"powerpc", OSInfo.PPC},
+            {"power_pc", OSInfo.PPC},
+            {"power_rs", OSInfo.PPC},
+            {"power64", OSInfo.PPC64},
+            {"powerpc64", OSInfo.PPC64},
+            {"power_pc64", OSInfo.PPC64},
+            {"power_rs64", OSInfo.PPC64},
+        };
+        System.clearProperty(ARCH_OVERRIDE_PROP);
+        for (String[] alias : aliases) {
+            System.setProperty(OS_ARCH_PROP, alias[0]);
+            assertEquals(alias[1], OSInfo.getArchName(), "os.arch=" + alias[0] + " must resolve to " + alias[1]);
+        }
+    }
+
+    @Test
+    public void testArchMappingLookupIsCaseInsensitive() {
+        // getArchName lowercases before the map lookup; a JVM reporting "AMD64" must still
+        // land on x86_64 rather than falling through to the literal folder name "AMD64".
+        System.clearProperty(ARCH_OVERRIDE_PROP);
+        System.setProperty(OS_ARCH_PROP, "AMD64");
+        assertEquals(OSInfo.X86_64, OSInfo.getArchName());
+    }
+
+    @Test
+    public void testUnmappedArchFallsThroughToTheStrippedName() {
+        // The fallback that carries aarch64 / s390x: absent from archMapping, so it is the
+        // \W-stripping translate step that produces the folder name.
+        System.clearProperty(ARCH_OVERRIDE_PROP);
+        System.setProperty(OS_ARCH_PROP, "s390x");
+        assertEquals("s390x", OSInfo.getArchName());
     }
 }

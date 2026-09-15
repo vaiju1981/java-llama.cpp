@@ -770,3 +770,223 @@ TEST(ConfigureTaskSlot, ExplicitIdPinsTask) {
     configure_task_slot_impl(task, {{"id_slot", 3}});
     EXPECT_EQ(task.id_slot, 3);
 }
+
+// ---------------------------------------------------------------------------
+// jni_guard_impl — the JNI exception boundary.
+//
+// Every Java_* entry point in this project runs its body inside this guard, so
+// what it does with an escaping exception is a shipped contract, not a detail.
+// The mock records whether ThrowNew was reached and with what message.
+// ---------------------------------------------------------------------------
+namespace {
+
+struct guard_probe {
+    bool threw = false;
+    std::string message;
+    bool exception_pending = false;
+};
+
+guard_probe g_guard_probe;
+
+JNIEnv *make_guard_env(JNIEnv_ &fake_env, JNINativeInterface_ &iface) {
+    g_guard_probe = guard_probe{};
+    iface = {};
+    iface.ExceptionCheck = [](JNIEnv *) -> jboolean { return g_guard_probe.exception_pending ? JNI_TRUE : JNI_FALSE; };
+    iface.ThrowNew = [](JNIEnv *, jclass, const char *msg) -> jint {
+        g_guard_probe.threw = true;
+        g_guard_probe.message = msg != nullptr ? msg : "";
+        return 0;
+    };
+    fake_env = {};
+    fake_env.functions = &iface;
+    return &fake_env;
+}
+
+// Any non-null value works: the mock ThrowNew never dereferences the class.
+jclass fake_exception_class() { return reinterpret_cast<jclass>(&g_guard_probe); }
+
+} // namespace
+
+TEST(JniGuard, PassesThroughTheReturnValueWhenNothingThrows) {
+    JNIEnv_ fake_env;
+    JNINativeInterface_ iface;
+    JNIEnv *env = make_guard_env(fake_env, iface);
+
+    const jint result = jni_guard_impl(env, fake_exception_class(), [&]() -> jint { return 42; });
+
+    EXPECT_EQ(result, 42);
+    EXPECT_FALSE(g_guard_probe.threw);
+}
+
+TEST(JniGuard, ConvertsStdExceptionIntoAJavaThrowAndReturnsZero) {
+    JNIEnv_ fake_env;
+    JNINativeInterface_ iface;
+    JNIEnv *env = make_guard_env(fake_env, iface);
+
+    const jint result =
+        jni_guard_impl(env, fake_exception_class(), [&]() -> jint { throw std::runtime_error("boom"); });
+
+    EXPECT_EQ(result, 0);
+    EXPECT_TRUE(g_guard_probe.threw);
+    EXPECT_EQ(g_guard_probe.message, "boom");
+}
+
+// The arm that matters: an exception NOT derived from std::exception has no other backstop
+// anywhere, and unwinding it across the JNI boundary is undefined behaviour.
+TEST(JniGuard, ConvertsANonStdExceptionInsteadOfLettingItEscape) {
+    JNIEnv_ fake_env;
+    JNINativeInterface_ iface;
+    JNIEnv *env = make_guard_env(fake_env, iface);
+
+    const jint result = jni_guard_impl(env, fake_exception_class(), [&]() -> jint { throw 17; });
+
+    EXPECT_EQ(result, 0);
+    EXPECT_TRUE(g_guard_probe.threw);
+    EXPECT_EQ(g_guard_probe.message, "unknown C++ exception crossed the JNI boundary");
+}
+
+TEST(JniGuard, PointerReturningEntryPointsYieldNullptrOnThrow) {
+    JNIEnv_ fake_env;
+    JNINativeInterface_ iface;
+    JNIEnv *env = make_guard_env(fake_env, iface);
+
+    const jstring result =
+        jni_guard_impl(env, fake_exception_class(), [&]() -> jstring { throw std::runtime_error("boom"); });
+
+    EXPECT_EQ(result, nullptr);
+    EXPECT_TRUE(g_guard_probe.threw);
+}
+
+TEST(JniGuard, VoidEntryPointsStillReportTheException) {
+    JNIEnv_ fake_env;
+    JNINativeInterface_ iface;
+    JNIEnv *env = make_guard_env(fake_env, iface);
+
+    jni_guard_impl(env, fake_exception_class(), [&]() -> void { throw std::runtime_error("boom"); });
+
+    EXPECT_TRUE(g_guard_probe.threw);
+    EXPECT_EQ(g_guard_probe.message, "boom");
+}
+
+// The JNI spec forbids most calls while a Java exception is pending, and the pending one is the
+// more precise error — so the guard must leave it alone rather than overwrite it.
+TEST(JniGuard, DoesNotThrowOverAnAlreadyPendingJavaException) {
+    JNIEnv_ fake_env;
+    JNINativeInterface_ iface;
+    JNIEnv *env = make_guard_env(fake_env, iface);
+    g_guard_probe.exception_pending = true;
+
+    const jint result =
+        jni_guard_impl(env, fake_exception_class(), [&]() -> jint { throw std::runtime_error("boom"); });
+
+    EXPECT_EQ(result, 0);
+    EXPECT_FALSE(g_guard_probe.threw);
+}
+
+// JNI_OnLoad has not cached the exception class yet and JNI_OnUnload has already released it;
+// a null class must never reach ThrowNew.
+TEST(JniGuard, DoesNotThrowWithoutAnExceptionClass) {
+    JNIEnv_ fake_env;
+    JNINativeInterface_ iface;
+    JNIEnv *env = make_guard_env(fake_env, iface);
+
+    const jint result = jni_guard_impl(env, nullptr, [&]() -> jint { throw std::runtime_error("boom"); });
+
+    EXPECT_EQ(result, 0);
+    EXPECT_FALSE(g_guard_probe.threw);
+}
+
+// ============================================================
+// acquire_jllama_context_impl / release_jllama_context_impl / jllama_context_guard
+//
+// These three ARE the close()-vs-inference use-after-free defence: close() nulls the Java
+// handle under g_ctx_mutex so no new acquire succeeds, then waits for `users` to reach 0
+// before tearing anything down. A dropped fetch_add, or a guard whose destructor stops
+// calling release, produces either a use-after-free during close() or a close() that hangs
+// forever — and LlamaModelTest#testCloseDuringInference covers the mechanism only bluntly,
+// end to end, on a model-gated platform.
+//
+// They were absent from jllama_test only because they are `inline` and never odr-used here:
+// g_ctx_mutex is declared extern in jni_helpers.hpp and defined in jllama.cpp, which this
+// binary does not compile. The test-local definition below is what unblocks them; it must
+// stay the ONLY definition in the test binary.
+// ============================================================
+
+std::mutex g_ctx_mutex;
+
+TEST_F(MockJniFixture, AcquireJllamaContext_NullHandle_ReturnsNullAndDoesNotCount) {
+    g_mock_handle = 0;
+
+    jllama_context *result = acquire_jllama_context_impl(env, nullptr, dummy_field);
+
+    EXPECT_EQ(result, nullptr);
+    EXPECT_FALSE(g_throw_called);
+}
+
+TEST_F(MockJniFixture, AcquireJllamaContext_ValidHandle_IncrementsUsers) {
+    jllama_context ctx;
+    g_mock_handle = reinterpret_cast<jlong>(&ctx);
+    ASSERT_EQ(ctx.users.load(), 0);
+
+    jllama_context *result = acquire_jllama_context_impl(env, nullptr, dummy_field);
+
+    EXPECT_EQ(result, &ctx);
+    EXPECT_EQ(ctx.users.load(), 1) << "acquire must take a user reference, or close() can free "
+                                      "the context while this call is still using it";
+    release_jllama_context_impl(result);
+}
+
+TEST_F(MockJniFixture, AcquireJllamaContext_NestedAcquires_CountUpAndBackDown) {
+    jllama_context ctx;
+    g_mock_handle = reinterpret_cast<jlong>(&ctx);
+
+    jllama_context *a = acquire_jllama_context_impl(env, nullptr, dummy_field);
+    jllama_context *b = acquire_jllama_context_impl(env, nullptr, dummy_field);
+    EXPECT_EQ(ctx.users.load(), 2);
+
+    release_jllama_context_impl(a);
+    EXPECT_EQ(ctx.users.load(), 1);
+    release_jllama_context_impl(b);
+    EXPECT_EQ(ctx.users.load(), 0) << "every acquire must be matched, or close() waits forever";
+}
+
+TEST(ReleaseJllamaContext, NullPointerIsANoOp) {
+    // delete()-style call sites release whatever acquire returned, including nullptr.
+    release_jllama_context_impl(nullptr);
+    SUCCEED();
+}
+
+TEST(JllamaContextGuard, DestructorReleasesTheReference) {
+    jllama_context ctx;
+    ctx.users.fetch_add(1, std::memory_order_relaxed);
+    {
+        jllama_context_guard guard{&ctx};
+        EXPECT_EQ(ctx.users.load(), 1);
+    }
+    EXPECT_EQ(ctx.users.load(), 0) << "the guard's destructor is what covers every early return "
+                                      "in REQUIRE_SERVER_CONTEXT-using entry points";
+}
+
+TEST(JllamaContextGuard, DestructorReleasesOnAnEarlyReturn) {
+    // The case the guard exists for: an entry point that bails out mid-body must not leak a
+    // user reference, because close() blocks until users reaches 0.
+    jllama_context ctx;
+    ctx.users.fetch_add(1, std::memory_order_relaxed);
+
+    const auto entry_point_that_returns_early = [&ctx]() -> int {
+        jllama_context_guard guard{&ctx};
+        return 42; // early return, no explicit release
+    };
+
+    EXPECT_EQ(entry_point_that_returns_early(), 42);
+    EXPECT_EQ(ctx.users.load(), 0);
+}
+
+TEST(JllamaContextGuard, NullPointerGuardIsSafe) {
+    // acquire returns nullptr for a closed model; REQUIRE_SERVER_CONTEXT still constructs the
+    // guard before testing ptr, so its destructor must tolerate a null.
+    {
+        jllama_context_guard guard{nullptr};
+    }
+    SUCCEED();
+}
