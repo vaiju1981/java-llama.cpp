@@ -895,3 +895,98 @@ TEST(JniGuard, DoesNotThrowWithoutAnExceptionClass) {
     EXPECT_EQ(result, 0);
     EXPECT_FALSE(g_guard_probe.threw);
 }
+
+// ============================================================
+// acquire_jllama_context_impl / release_jllama_context_impl / jllama_context_guard
+//
+// These three ARE the close()-vs-inference use-after-free defence: close() nulls the Java
+// handle under g_ctx_mutex so no new acquire succeeds, then waits for `users` to reach 0
+// before tearing anything down. A dropped fetch_add, or a guard whose destructor stops
+// calling release, produces either a use-after-free during close() or a close() that hangs
+// forever — and LlamaModelTest#testCloseDuringInference covers the mechanism only bluntly,
+// end to end, on a model-gated platform.
+//
+// They were absent from jllama_test only because they are `inline` and never odr-used here:
+// g_ctx_mutex is declared extern in jni_helpers.hpp and defined in jllama.cpp, which this
+// binary does not compile. The test-local definition below is what unblocks them; it must
+// stay the ONLY definition in the test binary.
+// ============================================================
+
+std::mutex g_ctx_mutex;
+
+TEST_F(MockJniFixture, AcquireJllamaContext_NullHandle_ReturnsNullAndDoesNotCount) {
+    g_mock_handle = 0;
+
+    jllama_context *result = acquire_jllama_context_impl(env, nullptr, dummy_field);
+
+    EXPECT_EQ(result, nullptr);
+    EXPECT_FALSE(g_throw_called);
+}
+
+TEST_F(MockJniFixture, AcquireJllamaContext_ValidHandle_IncrementsUsers) {
+    jllama_context ctx;
+    g_mock_handle = reinterpret_cast<jlong>(&ctx);
+    ASSERT_EQ(ctx.users.load(), 0);
+
+    jllama_context *result = acquire_jllama_context_impl(env, nullptr, dummy_field);
+
+    EXPECT_EQ(result, &ctx);
+    EXPECT_EQ(ctx.users.load(), 1) << "acquire must take a user reference, or close() can free "
+                                      "the context while this call is still using it";
+    release_jllama_context_impl(result);
+}
+
+TEST_F(MockJniFixture, AcquireJllamaContext_NestedAcquires_CountUpAndBackDown) {
+    jllama_context ctx;
+    g_mock_handle = reinterpret_cast<jlong>(&ctx);
+
+    jllama_context *a = acquire_jllama_context_impl(env, nullptr, dummy_field);
+    jllama_context *b = acquire_jllama_context_impl(env, nullptr, dummy_field);
+    EXPECT_EQ(ctx.users.load(), 2);
+
+    release_jllama_context_impl(a);
+    EXPECT_EQ(ctx.users.load(), 1);
+    release_jllama_context_impl(b);
+    EXPECT_EQ(ctx.users.load(), 0) << "every acquire must be matched, or close() waits forever";
+}
+
+TEST(ReleaseJllamaContext, NullPointerIsANoOp) {
+    // delete()-style call sites release whatever acquire returned, including nullptr.
+    release_jllama_context_impl(nullptr);
+    SUCCEED();
+}
+
+TEST(JllamaContextGuard, DestructorReleasesTheReference) {
+    jllama_context ctx;
+    ctx.users.fetch_add(1, std::memory_order_relaxed);
+    {
+        jllama_context_guard guard{&ctx};
+        EXPECT_EQ(ctx.users.load(), 1);
+    }
+    EXPECT_EQ(ctx.users.load(), 0) << "the guard's destructor is what covers every early return "
+                                      "in REQUIRE_SERVER_CONTEXT-using entry points";
+}
+
+TEST(JllamaContextGuard, DestructorReleasesOnAnEarlyReturn) {
+    // The case the guard exists for: an entry point that bails out mid-body must not leak a
+    // user reference, because close() blocks until users reaches 0.
+    jllama_context ctx;
+    ctx.users.fetch_add(1, std::memory_order_relaxed);
+
+    const auto entry_point_that_returns_early = [&ctx]() -> int {
+        jllama_context_guard guard{&ctx};
+        return 42; // early return, no explicit release
+    };
+
+    EXPECT_EQ(entry_point_that_returns_early(), 42);
+    EXPECT_EQ(ctx.users.load(), 0);
+}
+
+TEST(JllamaContextGuard, NullPointerGuardIsSafe) {
+    // acquire returns nullptr for a closed model; REQUIRE_SERVER_CONTEXT still constructs the
+    // guard before testing ptr, so its destructor must tolerate a null.
+    {
+        jllama_context_guard guard{nullptr};
+    }
+    SUCCEED();
+}

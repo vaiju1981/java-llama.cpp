@@ -2246,6 +2246,12 @@ jobs:
         run: |
           mvn -q --no-transfer-progress -f llama/pom.xml compile
           .github/build.sh -DBUILD_TESTING=ON
+      # Most patches have a runnable guard that reds this job if they go missing (a link error, or
+      # test_utils.cpp / test_model_split.cpp). patches/0010 has none — it casts one enum inside a
+      # `static` function unreachable from jllama_test, so reverting it leaves ctest fully green and
+      # only a model-gated Java test notices. This is the always-on, model-free check for it.
+      - name: Verify llama.cpp patches are applied
+        run: .github/verify-patches-applied.sh
       - name: Run C++ unit tests
         run: ctest --test-dir llama/build --output-on-failure
 

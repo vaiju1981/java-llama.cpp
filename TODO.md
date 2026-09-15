@@ -96,9 +96,11 @@ workflow in `.github/workflows/`). It contributes to the `mergeable_state: block
 
 ### Upstream PR submissions — drop the carried patches (open)
 
-Six of the seven `patches/` are upstream-submittable verbatim; each accepted PR (once the pin is
-bumped past it) deletes a patch from the bump checklist. (`0003` is a carry of an already-open
-upstream PR #22393 — it drops automatically when that merges.)
+There are **nine** patches today (`0001`–`0003`, `0006`–`0008`, `0010`–`0012`). **Eight are
+upstream-submittable verbatim**; each accepted PR (once the pin is bumped past it) deletes a patch
+from the bump checklist. The exception is **`0003`**, a carry of upstream PR #22393, which upstream
+**closed without merging** — it is permanent and will never be droppable via a bump. (`0003` used to
+be described here as "drops automatically when that merges"; it will not.)
 
 - **`0001` Windows arg-parse embed guard** (against #24779): `common_params_parse` trusts the caller's
   argv; `common_params_parse_main()` keeps the standalone tools' UTF-8 recovery. Ship with the
@@ -113,10 +115,22 @@ upstream PR #22393 — it drops automatically when that merges.)
 - **`0007` `llama_server_attach`** (HTTP frontend on an existing `server_context`).
 - **`0008` `LLAMA_SERVER_WORKER_CMD` router worker override** (also useful for containerized/wrapped
   deployments).
-- **`0009` guard `posix_spawn_file_actions_addchdir_np` on old glibc** (b10154 cross-compile break on
-  manylinux2014 / glibc 2.17 and manylinux_2_28 / glibc 2.28; adds an overridable
-  `SUBPROCESS_HAVE_CWD` probe via `__GLIBC_PREREQ(2, 29)` — submitted as sheredom/subprocess.h#104,
-  drops automatically once llama.cpp bumps the vendored pin).
+- **`0010` cast `vocab_type` for `common_json`** (one line; upstream regressed `GET /models` +
+  `GET /v1/models` to emit `true`/`false` instead of the numeric vocab type when they flipped the
+  `json` alias to `common_json` at b10585/#27511). **Not yet filed upstream.**
+- **`0011` lenient invalid-UTF-8 in the PEG parser** (one malformed byte from the model turns a
+  finished generation into an HTTP 500; the `INVALID` branch ignores leniency while the `INCOMPLETE`
+  branch beside it honours it). Ships an upstream `tests/peg-parser/test-unicode.cpp` case.
+  **Not yet filed upstream.**
+- **`0012` guard the zero split-sum and name the device index** (a GPU reporting zero free memory —
+  or a cancelling `--tensor-split` such as `-ts 1,-1` on any backend — makes every model load fail
+  with the unactionable `error loading model: vector`). Ships an upstream `tests/test-model-split.cpp`.
+  **Not yet filed upstream.**
+
+(`0009` is **not** in this list and the number is burned: upstream merged the subprocess.h fix via
+ggml-org/llama.cpp#26606, so the patch was dropped at the b10280 bump. `0013` is likewise gone —
+upstream merged this project's own PR ggml-org/llama.cpp#28775 and it was dropped at b10948. Both
+drops are recorded in `CLAUDE.md` under the patch table.)
 
 ### llama.cpp upstream feature exposure (queued, deferred by policy)
 

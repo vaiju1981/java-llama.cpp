@@ -15,8 +15,6 @@ import lombok.ToString;
 @ToString
 class ProcessRunner {
 
-    private final Java8CompatibilityHelper compatibilityHelper = new Java8CompatibilityHelper();
-
     String runAndWaitFor(String command) throws IOException, InterruptedException {
         Process p = Runtime.getRuntime().exec(splitArgs(command));
         p.waitFor();
@@ -50,7 +48,8 @@ class ProcessRunner {
             while ((readLen = in.read(buf, 0, buf.length)) >= 0) {
                 b.write(buf, 0, readLen);
             }
-            return compatibilityHelper.toString(b, StandardCharsets.UTF_8);
+            // ByteArrayOutputStream#toString(Charset) is Java 10+; this artifact targets Java 8.
+            return new String(b.toByteArray(), StandardCharsets.UTF_8);
         }
     }
 }
