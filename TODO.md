@@ -330,34 +330,6 @@ these are what remains.
   `target/surefire-reports/TEST-*.xml` in each `test-java-*` job and failing below a pinned minimum
   is the one check that would have caught it directly, and it is cheap.
 
-### Release/build robustness gaps found by the b10679 audit (PR #403)
-
-Pre-existing and orthogonal to a version bump, so it was recorded rather than folded
-into that PR. (The companion item — the two un-smoked `all-*-aarch64` fat jars — is now fixed:
-`smoke-fatjar-linux-aarch64` and `smoke-fatjar-windows-arm64` gate both publish jobs.)
-
-- **The patch applier silently accepts a partially-reverted source tree.** The stamp file records the
-  checked-out llama.cpp commit plus each patch's SHA-256 — **nothing about the resulting file
-  contents**. Reverting one patched file after a successful apply leaves the stamp valid and the tree
-  still dirty (the other patched files are still modified), so the dirty-tree branch reports
-  "already applied — skipping", exits 0, and the build compiles unpatched code. Reproduction:
-
-  ```bash
-  # with the tree fully patched and the stamp written:
-  git -C <llama.cpp-src> checkout -- common/peg-parser.cpp     # drops patch 0011's fix
-  cmake -DPATCH_DIR=... -DLLAMA_SRC=... -P llama/cmake/apply-llama-patches.cmake
-  # -> "8 patch(es) already applied — skipping", exit 0, patch NOT restored
-  ```
-
-  Every other path is correctly fail-loud (committed-patch state, stamp/HEAD mismatch on a dirty tree,
-  and a non-git-worktree re-run all exit 1). The fix is a content oracle in the manifest — cheapest is
-  to append `git -C <src> diff --no-color | sha256`, or per-patched-file blob hashes — so a reverted or
-  hand-edited file invalidates the stamp. **CI is unaffected** (every job configures into a fresh build
-  directory); this only bites a local reconfigure, which is why it was not rushed. Note the stamp
-  format change will make every existing local build dir abort with the applier's
-  "configure into a fresh build directory" message — that is the designed fail-loud path, not a
-  regression.
-
 ### Test-coverage debt found during the b10649 review (PR #403)
 
 Each item below was verified against pristine upstream tags and is real, but none is a regression

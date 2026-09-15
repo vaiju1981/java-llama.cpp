@@ -42,6 +42,12 @@ env:
   # Q4_K_M backbone (0.96 GiB), Q8_0 mmproj (0.42 GiB; no smaller mmproj quant is published).
   TTS_MODEL_NAME: "Qwen3-TTS-12Hz-1.7B-Base-Q4_K_M.gguf"
   TTS_MMPROJ_NAME: "mmproj-Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf"
+  # Fine-tuning fixture for LlamaTrainerIntegrationTest. stories260K is 1.19 MB and, unlike every
+  # other model here, is **F32** — which is the only reason it works: llama_set_param silently skips
+  # any tensor that is not GGML_TYPE_F32, so a quantized model would "train" nothing but the norm
+  # weights and still write an output GGUF that the test's assertions accept. Its small trained
+  # context also suits the test's short corpus; the test pins nCtx itself so that is belt-and-braces.
+  TRAIN_MODEL_NAME: "stories260K.gguf"
   # Test image used by MultimodalIntegrationTest is committed to the repo
   # at src/test/resources/images/test-image.jpg (see the README in that
   # directory for licensing). No download step is needed; CI just points
@@ -2358,7 +2364,15 @@ jobs:
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
             -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH} \
             -Dnet.ladenthin.llama.tts.model=models/${TTS_MODEL_NAME} \
-            -Dnet.ladenthin.llama.tts.mmproj=models/${TTS_MMPROJ_NAME}
+            -Dnet.ladenthin.llama.tts.mmproj=models/${TTS_MMPROJ_NAME} \
+            -Dnet.ladenthin.llama.train.model=models/${TRAIN_MODEL_NAME}
+      # Green tests are not the same as tests that ran. A class-level @BeforeAll assumption that
+      # fails makes Surefire record tests="0" for that class -- no entries at all, so it is
+      # invisible to a skip check. That is exactly how every model-gated class stayed silently
+      # muted on every test-java-* job for months. The floor is deliberately slack; the per-class
+      # zero check is the sensitive half.
+      - name: Verify tests actually ran
+        run: .github/verify-test-counts.sh llama/target/surefire-reports --min-total 1500
       - uses: actions/upload-artifact@v7
         if: success()
         with:
@@ -2513,7 +2527,15 @@ jobs:
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
             -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH} \
             -Dnet.ladenthin.llama.tts.model=models/${TTS_MODEL_NAME} \
-            -Dnet.ladenthin.llama.tts.mmproj=models/${TTS_MMPROJ_NAME}
+            -Dnet.ladenthin.llama.tts.mmproj=models/${TTS_MMPROJ_NAME} \
+            -Dnet.ladenthin.llama.train.model=models/${TRAIN_MODEL_NAME}
+      # Green tests are not the same as tests that ran. A class-level @BeforeAll assumption that
+      # fails makes Surefire record tests="0" for that class -- no entries at all, so it is
+      # invisible to a skip check. That is exactly how every model-gated class stayed silently
+      # muted on every test-java-* job for months. The floor is deliberately slack; the per-class
+      # zero check is the sensitive half.
+      - name: Verify tests actually ran
+        run: .github/verify-test-counts.sh llama/target/surefire-reports --min-total 1500
       - name: Memory after tests
         if: always()
         run: vm_stat && sysctl hw.memsize hw.physmem
@@ -2616,7 +2638,15 @@ jobs:
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
             -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH} \
             -Dnet.ladenthin.llama.tts.model=models/${TTS_MODEL_NAME} \
-            -Dnet.ladenthin.llama.tts.mmproj=models/${TTS_MMPROJ_NAME}
+            -Dnet.ladenthin.llama.tts.mmproj=models/${TTS_MMPROJ_NAME} \
+            -Dnet.ladenthin.llama.train.model=models/${TRAIN_MODEL_NAME}
+      # Green tests are not the same as tests that ran. A class-level @BeforeAll assumption that
+      # fails makes Surefire record tests="0" for that class -- no entries at all, so it is
+      # invisible to a skip check. That is exactly how every model-gated class stayed silently
+      # muted on every test-java-* job for months. The floor is deliberately slack; the per-class
+      # zero check is the sensitive half.
+      - name: Verify tests actually ran
+        run: .github/verify-test-counts.sh llama/target/surefire-reports --min-total 1500
       - name: Memory after tests
         if: always()
         run: vm_stat && sysctl hw.memsize hw.physmem
@@ -2719,7 +2749,15 @@ jobs:
             -Dnet.ladenthin.llama.vision.mmproj=models/${VISION_MMPROJ_NAME} \
             -Dnet.ladenthin.llama.vision.image=${VISION_IMAGE_PATH} \
             -Dnet.ladenthin.llama.tts.model=models/${TTS_MODEL_NAME} \
-            -Dnet.ladenthin.llama.tts.mmproj=models/${TTS_MMPROJ_NAME}
+            -Dnet.ladenthin.llama.tts.mmproj=models/${TTS_MMPROJ_NAME} \
+            -Dnet.ladenthin.llama.train.model=models/${TRAIN_MODEL_NAME}
+      # Green tests are not the same as tests that ran. A class-level @BeforeAll assumption that
+      # fails makes Surefire record tests="0" for that class -- no entries at all, so it is
+      # invisible to a skip check. That is exactly how every model-gated class stayed silently
+      # muted on every test-java-* job for months. The floor is deliberately slack; the per-class
+      # zero check is the sensitive half.
+      - name: Verify tests actually ran
+        run: .github/verify-test-counts.sh llama/target/surefire-reports --min-total 1500
       - name: Memory after tests
         if: always()
         run: vm_stat && sysctl hw.memsize hw.physmem
@@ -2840,7 +2878,16 @@ jobs:
             "-Dnet.ladenthin.llama.vision.mmproj=models/$env:VISION_MMPROJ_NAME" `
             "-Dnet.ladenthin.llama.vision.image=$env:VISION_IMAGE_PATH" `
             "-Dnet.ladenthin.llama.tts.model=models/$env:TTS_MODEL_NAME" `
-            "-Dnet.ladenthin.llama.tts.mmproj=models/$env:TTS_MMPROJ_NAME"
+            "-Dnet.ladenthin.llama.tts.mmproj=models/$env:TTS_MMPROJ_NAME" `
+            "-Dnet.ladenthin.llama.train.model=models/$env:TRAIN_MODEL_NAME"
+      # Green tests are not the same as tests that ran. A class-level @BeforeAll assumption that
+      # fails makes Surefire record tests="0" for that class -- no entries at all, so it is
+      # invisible to a skip check. That is exactly how every model-gated class stayed silently
+      # muted on every test-java-* job for months. The floor is deliberately slack; the per-class
+      # zero check is the sensitive half.
+      - name: Verify tests actually ran
+        shell: bash
+        run: .github/verify-test-counts.sh llama/target/surefire-reports --min-total 1500
       - name: Memory after tests
         if: always()
         run: Get-CimInstance Win32_OperatingSystem | Select-Object FreePhysicalMemory,TotalVisibleMemorySize | Format-List
@@ -2968,7 +3015,16 @@ jobs:
             "-Dnet.ladenthin.llama.vision.mmproj=models/$env:VISION_MMPROJ_NAME" `
             "-Dnet.ladenthin.llama.vision.image=$env:VISION_IMAGE_PATH" `
             "-Dnet.ladenthin.llama.tts.model=models/$env:TTS_MODEL_NAME" `
-            "-Dnet.ladenthin.llama.tts.mmproj=models/$env:TTS_MMPROJ_NAME"
+            "-Dnet.ladenthin.llama.tts.mmproj=models/$env:TTS_MMPROJ_NAME" `
+            "-Dnet.ladenthin.llama.train.model=models/$env:TRAIN_MODEL_NAME"
+      # Green tests are not the same as tests that ran. A class-level @BeforeAll assumption that
+      # fails makes Surefire record tests="0" for that class -- no entries at all, so it is
+      # invisible to a skip check. That is exactly how every model-gated class stayed silently
+      # muted on every test-java-* job for months. The floor is deliberately slack; the per-class
+      # zero check is the sensitive half.
+      - name: Verify tests actually ran
+        shell: bash
+        run: .github/verify-test-counts.sh llama/target/surefire-reports --min-total 1500
       - name: Memory after tests
         if: always()
         run: Get-CimInstance Win32_OperatingSystem | Select-Object FreePhysicalMemory,TotalVisibleMemorySize | Format-List

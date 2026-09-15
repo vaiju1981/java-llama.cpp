@@ -11,21 +11,28 @@ import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileTime;
 import net.ladenthin.llama.ClaudeGenerated;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 @ClaudeGenerated(
-        purpose = "Verify the helper statics extracted from LlamaLoader without requiring any "
-                + "native library: shouldCleanPath detects jllama/llama/ggml-prefixed files for "
-                + "cleanup (ggml covers the extracted macOS ggml-metal.metal); "
-                + "contentsEquals performs a correct byte-level stream comparison "
-                + "including BufferedInputStream wrapping and length mismatches; getTempDir "
-                + "honours the 'net.ladenthin.llama.tmpdir' system-property override; and "
-                + "getNativeResourcePath produces the expected classpath resource prefix; and "
-                + "resourceMatchesFile compares a classpath resource to an on-disk file byte-for-byte.")
+        purpose =
+                "Verify the helper statics extracted from LlamaLoader without requiring any "
+                        + "native library: shouldCleanPath detects jllama/llama/ggml-prefixed files for "
+                        + "cleanup (ggml covers the extracted macOS ggml-metal.metal); "
+                        + "contentsEquals performs a correct byte-level stream comparison "
+                        + "including BufferedInputStream wrapping and length mismatches; getTempDir "
+                        + "honours the 'net.ladenthin.llama.tmpdir' system-property override; and "
+                        + "getNativeResourcePath produces the expected classpath resource prefix; and "
+                        + "resourceMatchesFile compares a classpath resource to an on-disk file byte-for-byte; and extractFile extracts a resource, reuses an already-identical copy without rewriting it, and replaces one whose content differs.")
 public class LlamaLoaderTest {
 
     private static final String TMPDIR_PROP = LlamaSystemProperties.PREFIX + ".tmpdir";
@@ -385,5 +392,88 @@ public class LlamaLoaderTest {
                 path.contains("/loader/"),
                 "Resource path must not include the loader subpackage — the native libs live at "
                         + "/net/ladenthin/llama/<os>/<arch>, not under the loader package: " + path);
+    }
+
+    // -------------------------------------------------------------------------
+    // extractFile
+    // -------------------------------------------------------------------------
+    //
+    // These drive extractFile directly rather than through initialize(). They have to: the
+    // cleanup pass initialize() runs first deletes every temp entry whose name starts with
+    // "jllama" — which is exactly the per-backend extraction directory a test would seed — so
+    // the reuse/replace decision is unreachable from there. Measured, not assumed: seeding a
+    // byte-identical file and calling initialize() re-extracts it with a fresh mtime.
+
+    @TempDir
+    Path extractDir;
+
+    private static byte[] testResourceBytes() throws IOException {
+        try (InputStream in = LlamaLoader.class.getResourceAsStream(EXISTING_TEST_RESOURCE)) {
+            assertNotNull(in, "fixture must be on the test classpath: " + EXISTING_TEST_RESOURCE);
+            java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+            return out.toByteArray();
+        }
+    }
+
+    @Test
+    public void extractFileWritesTheResourceIntoTheTargetDirectory() throws IOException {
+        Path extracted = LlamaLoader.extractFile("/images", "test-image.jpg", extractDir.toString());
+        assertNotNull(extracted);
+        assertEquals(extractDir.resolve("test-image.jpg"), extracted);
+        assertArrayEquals(testResourceBytes(), Files.readAllBytes(extracted));
+    }
+
+    @Test
+    public void extractFileReturnsNullWhenTheResourceIsAbsent() {
+        assertNull(LlamaLoader.extractFile("/images", "no-such-file.bin", extractDir.toString()));
+    }
+
+    @Test
+    public void extractFileLeavesNoTemporaryFileBehind() throws IOException {
+        LlamaLoader.extractFile("/images", "test-image.jpg", extractDir.toString());
+        try (java.util.stream.Stream<Path> entries = Files.list(extractDir)) {
+            assertEquals(
+                    1L,
+                    entries.count(),
+                    "the per-attempt .tmp file must be consumed by the move or deleted in the finally block");
+        }
+    }
+
+    @Test
+    public void extractFileReusesAnIdenticalCopyWithoutRewritingIt() throws IOException {
+        byte[] resourceBytes = testResourceBytes();
+        Path target = extractDir.resolve("test-image.jpg");
+        Files.write(target, resourceBytes);
+        // A rewrite goes through createTempFile + move, which necessarily lands a fresh mtime, so
+        // an unchanged distinctive past value is positive evidence the fast path returned the
+        // existing file untouched. That matters beyond tidiness: on Windows a library another
+        // process has already loaded cannot be replaced at all, and an in-place rewrite would
+        // expose a half-written library to a concurrent loader.
+        FileTime seeded = FileTime.fromMillis(1_000_000_000L);
+        Files.setLastModifiedTime(target, seeded);
+
+        Path extracted = LlamaLoader.extractFile("/images", "test-image.jpg", extractDir.toString());
+
+        assertEquals(target, extracted);
+        assertEquals(seeded, Files.getLastModifiedTime(target));
+        assertArrayEquals(resourceBytes, Files.readAllBytes(target));
+    }
+
+    @Test
+    public void extractFileReplacesACopyWhoseContentDiffers() throws IOException {
+        // A same-named file whose content differs is what a previous release's extraction leaves
+        // behind in a shared tmpdir. Reusing it would load a stale library forever.
+        Path target = extractDir.resolve("test-image.jpg");
+        Files.write(target, "stale content from an older release".getBytes(StandardCharsets.UTF_8));
+
+        Path extracted = LlamaLoader.extractFile("/images", "test-image.jpg", extractDir.toString());
+
+        assertEquals(target, extracted);
+        assertArrayEquals(testResourceBytes(), Files.readAllBytes(target));
     }
 }

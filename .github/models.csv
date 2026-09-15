@@ -19,3 +19,4 @@ SmolVLM-500M-Instruct-Q8_0.gguf,https://huggingface.co/ggml-org/SmolVLM-500M-Ins
 mmproj-SmolVLM-500M-Instruct-Q8_0.gguf,https://huggingface.co/ggml-org/SmolVLM-500M-Instruct-GGUF/resolve/main/mmproj-SmolVLM-500M-Instruct-Q8_0.gguf
 Qwen3-TTS-12Hz-1.7B-Base-Q4_K_M.gguf,https://huggingface.co/ggml-org/Qwen3-TTS-12Hz-1.7B-Base-GGUF/resolve/main/Qwen3-TTS-12Hz-1.7B-Base-Q4_K_M.gguf
 mmproj-Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf,https://huggingface.co/ggml-org/Qwen3-TTS-12Hz-1.7B-Base-GGUF/resolve/main/mmproj-Qwen3-TTS-12Hz-1.7B-Base-Q8_0.gguf
+stories260K.gguf,https://huggingface.co/ggml-org/tiny-llamas/resolve/main/stories260K.gguf
