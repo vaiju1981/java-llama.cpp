@@ -318,25 +318,9 @@ these are what remains.
 
 ### Release/build robustness gaps found by the b10679 audit (PR #403)
 
-Both are **pre-existing** and orthogonal to a version bump, so they were recorded rather than folded
-into that PR.
-
-- **Two `all-*-aarch64` fat jars are attached to releases with no smoke job.**
-  `.github/package-fatjars.sh` emits four OS/arch fat jars (`linux-x86-64`, `linux-aarch64`,
-  `windows-x86-64`, `windows-aarch64`), all uploaded as `llama-fatjars` and attached by
-  `github-release-signed` / `github-snapshot`. Only the two **x86-64** ones are smoked
-  (`smoke-fatjar-linux`, `smoke-fatjar-windows`); grepping `publish.yml` for `all-linux-aarch64` or
-  `all-windows-aarch64` returns nothing, so neither is ever downloaded or launched.
-
-  That directly violates the cross-repo rule in
-  [`../workspace/policies/fat-jar-release-assets.md`](../workspace/policies/fat-jar-release-assets.md)
-  — *"No release asset is attached that CI has not run"* — which exists because a corrupt macOS dylib
-  shipped in three releases under a fully green pipeline. The fix is cheap: the workflow **already**
-  uses the free ARM runners elsewhere (`ubuntu-24.04-arm` for the aarch64 CPU and Vulkan builds,
-  `windows-11-arm` for the Windows arm64 build), so `smoke-fatjar-linux-aarch64` and
-  `smoke-fatjar-windows-arm64` can mirror the existing smoke jobs and join both publish jobs'
-  `needs:`. Not done in the bump PR because it widens a version bump into CI work and would gate that
-  PR on a pre-existing defect if either jar turns out to be broken.
+Pre-existing and orthogonal to a version bump, so it was recorded rather than folded
+into that PR. (The companion item — the two un-smoked `all-*-aarch64` fat jars — is now fixed:
+`smoke-fatjar-linux-aarch64` and `smoke-fatjar-windows-arm64` gate both publish jobs.)
 
 - **The patch applier silently accepts a partially-reverted source tree.** The stamp file records the
   checked-out llama.cpp commit plus each patch's SHA-256 — **nothing about the resulting file

@@ -3232,6 +3232,26 @@ jobs:
           compression-level: 0
           retention-days: 7
           if-no-files-found: error
+      # The two aarch64 fat jars are release assets exactly like the x86-64 pair, so they get the
+      # same treatment: package-fatjars emits four, and for a long time only the two x86-64 ones
+      # were ever launched. GitHub's free ARM runners (ubuntu-24.04-arm / windows-11-arm) are
+      # already used by the aarch64 build jobs, so there is no reason to leave these unrun.
+      - name: Upload Linux aarch64 smoke jar
+        uses: actions/upload-artifact@v7
+        with:
+          name: llama-fatjar-smoke-linux-aarch64
+          path: fatjars/llama-*-all-linux-aarch64-jar-with-dependencies.jar
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+      - name: Upload Windows arm64 smoke jar
+        uses: actions/upload-artifact@v7
+        with:
+          name: llama-fatjar-smoke-windows-arm64
+          path: fatjars/llama-*-all-windows-aarch64-jar-with-dependencies.jar
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
 
   # GPU-less runners: every manifest backend must fail its load cleanly (missing vendor
   # runtimes) and the server must come up on the default CPU natives — this exercises
@@ -3314,6 +3334,94 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: fatjar-smoke-windows-logs
+          path: |
+            server-out.log
+            server-err.log
+          if-no-files-found: warn
+
+  # The aarch64 halves of the same convention. Identical in shape to the two jobs above — the only
+  # differences are the runner and the jar glob — and they exist because `all-linux-aarch64` and
+  # `all-windows-aarch64` were built, GPG-signed and attached to every release without CI ever
+  # launching them, which is exactly what workspace/policies/fat-jar-release-assets.md forbids
+  # ("No release asset is attached that CI has not run"). That rule exists because a corrupt macOS
+  # dylib shipped in three releases under a fully green pipeline; these two jars were the remaining
+  # assets in the same blind spot.
+  smoke-fatjar-linux-aarch64:
+    name: Smoke test all-backends fat jar (Linux aarch64)
+    needs: [package-fatjars, verify-model-cache]
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: llama-fatjar-smoke-linux-aarch64
+          path: fatjars/
+      - name: Restore shared GGUF model cache (populated by download-models; no re-download)
+        # Restore-only: consumer jobs can NEVER write the cache, so a job running on a
+        # cache miss cannot re-save an empty/partial entry under the immutable key.
+        # download-models is the single writer; enableCrossOsArchive matches its
+        # cross-OS entry version so every consumer restores the same ubuntu-built entry.
+        uses: actions/cache/restore@v6
+        with:
+          path: models/
+          key: gguf-models-${{ hashFiles('.github/models.csv') }}
+          enableCrossOsArchive: true
+      - name: Validate model files
+        run: .github/validate-models.sh
+      - uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      # Same floor, re-checked on this assembled release asset: package-fatjars rewrites the zip
+      # per OS/arch, so the aarch64 jar is a different artifact from the one smoke-fatjar-linux
+      # verifies even though the classes are identical.
+      - name: Verify Java 8 bytecode (no class newer than major 52)
+        run: .github/verify-bytecode-version.sh --max-major 52 fatjars
+      - name: Run fat-jar server smoke test
+        run: .github/smoke-test-fatjar.sh fatjars 'llama-*-all-linux-aarch64-jar-with-dependencies.jar' "models/${DRAFT_MODEL_NAME}"
+      - name: Upload server logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fatjar-smoke-linux-aarch64-logs
+          path: |
+            server-out.log
+            server-err.log
+          if-no-files-found: warn
+
+  smoke-fatjar-windows-arm64:
+    name: Smoke test all-backends fat jar (Windows arm64)
+    needs: [package-fatjars, verify-model-cache]
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: llama-fatjar-smoke-windows-arm64
+          path: fatjars/
+      - name: Restore shared GGUF model cache (populated by download-models; no re-download)
+        # Restore-only: see the note on the Linux job above.
+        uses: actions/cache/restore@v6
+        with:
+          path: models/
+          key: gguf-models-${{ hashFiles('.github/models.csv') }}
+          enableCrossOsArchive: true
+      - name: Validate model files
+        run: .github\validate-models.bat
+      # temurin publishes a Windows/AArch64 JDK for this java-version; the build-windows-arm64
+      # job already resolves it on this same runner.
+      - uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Run fat-jar server smoke test
+        shell: pwsh
+        run: .github/smoke-test-fatjar.ps1 -JarDir fatjars -JarGlob 'llama-*-all-windows-aarch64-jar-with-dependencies.jar' -Model "models/$env:DRAFT_MODEL_NAME"
+      - name: Upload server logs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fatjar-smoke-windows-arm64-logs
           path: |
             server-out.log
             server-err.log
@@ -3407,7 +3515,7 @@ jobs:
 
   publish-snapshot:
     name: Publish Snapshot to Central
-    needs: [check-snapshot, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, package-android-aar, test-android-emulator, code-style, test-java-llama-langchain4j, test-java-llama-kotlin, package-fatjars, smoke-fatjar-linux, smoke-fatjar-windows, smoke-fatjar-macos]
+    needs: [check-snapshot, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, package-android-aar, test-android-emulator, code-style, test-java-llama-langchain4j, test-java-llama-kotlin, package-fatjars, smoke-fatjar-linux, smoke-fatjar-windows, smoke-fatjar-linux-aarch64, smoke-fatjar-windows-arm64, smoke-fatjar-macos]
     if: needs.check-snapshot.result == 'success' && inputs.publish_to_central
     runs-on: ubuntu-latest
     environment: maven-central
@@ -3674,7 +3782,7 @@ jobs:
   publish-release:
     name: Publish Release to Central
     if: needs.check-tag.result == 'success' && inputs.publish_to_central
-    needs: [check-tag, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, package-android-aar, test-android-emulator, code-style, test-java-llama-langchain4j, test-java-llama-kotlin, package-fatjars, smoke-fatjar-linux, smoke-fatjar-windows, smoke-fatjar-macos]
+    needs: [check-tag, crosscompile-linux-x86_64-cuda, crosscompile-android-aarch64-opencl, package-android-aar, test-android-emulator, code-style, test-java-llama-langchain4j, test-java-llama-kotlin, package-fatjars, smoke-fatjar-linux, smoke-fatjar-windows, smoke-fatjar-linux-aarch64, smoke-fatjar-windows-arm64, smoke-fatjar-macos]
     runs-on: ubuntu-latest
     environment: maven-central
     permissions:

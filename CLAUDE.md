@@ -438,11 +438,19 @@ Mechanism (three pieces):
    property `net.ladenthin.llama.backend` forces one backend (fail-loud) or `default`/`cpu`.
    Jars without a manifest take the unchanged legacy path. A backend whose extra module is
    already resident from a previously failed attempt is skipped (by-name import cross-wiring).
-3. **`publish.yml` wiring** — `smoke-fatjar-linux` / `smoke-fatjar-windows` run the
-   `all-<os>-x86-64` jar via real `java -jar` on GPU-less runners (cached draft model,
-   `--chat-template chatml`): poll `/health` to 200, assert a `/v1/chat/completions` choice,
-   and require the loader's backend-selection log line. `publish-snapshot`/`publish-release`
-   `need` `package-fatjars` + both smokes (fail-loud gating); `github-release-signed` and
+3. **`publish.yml` wiring** — **all four** OS/arch fat jars are launched, one smoke job each:
+   `smoke-fatjar-linux` / `smoke-fatjar-windows` (x86-64) plus `smoke-fatjar-linux-aarch64`
+   (`ubuntu-24.04-arm`) / `smoke-fatjar-windows-arm64` (`windows-11-arm`). Each runs its jar via
+   real `java -jar` on a GPU-less runner (cached draft model, `--chat-template chatml`): poll
+   `/health` to 200, assert a `/v1/chat/completions` choice, and require the loader's
+   backend-selection log line — so every manifest backend failing its load and falling back to the
+   CPU natives is exercised on the actual release asset. The four jobs consume four small
+   single-jar artifacts (`llama-fatjar-smoke-{linux,windows,linux-aarch64,windows-arm64}`) rather
+   than the multi-GB `llama-fatjars` set. **The two aarch64 jobs close a real gap**: those jars were
+   built, GPG-signed and attached to every release while `publish.yml` referenced them zero times,
+   which is exactly what the cross-repo rule forbids — and that rule exists because a corrupt macOS
+   dylib shipped in three releases under a fully green pipeline. `publish-snapshot`/`publish-release`
+   `need` `package-fatjars` + **all four** smokes (fail-loud gating); `github-release-signed` and
    `github-snapshot` additionally download `llama-fatjars` into their asset directory, then
    **GPG-sign each fat jar** via `.github/sign-fatjars.sh` (a detached `.asc` alongside the
    `.sha256`), so the fat jars land signed on the tag release and the rolling `snapshot`
