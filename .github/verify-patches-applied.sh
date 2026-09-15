@@ -43,8 +43,11 @@ fail() {
 [ -f "$STAMP" ] || fail "patch stamp not found: $STAMP — the applier never ran, so the tree is unpatched"
 
 # --- 1. every patch on disk is named in the stamp -----------------------------------------------
-# Self-maintaining on purpose: adding a patch file needs no edit here. The stamp's first line is
-# the checked-out llama.cpp commit; every other line is "<patch filename> <sha256>".
+# Self-maintaining on purpose: adding a patch file needs no edit here. The stamp carries metadata
+# lines ("head <commit>", "tree <fingerprint>") plus one "<patch filename> <sha256>" line per patch.
+# Count the patch lines by their own shape rather than by subtracting a fixed number of metadata
+# lines: that subtraction was "- 1" and silently went stale the moment the applier gained its
+# "tree" line, failing every correct build with "the build dir is stale".
 on_disk=0
 for p in "$PATCH_DIR"/*.patch; do
     [ -e "$p" ] || fail "no *.patch files in $PATCH_DIR"
@@ -53,7 +56,7 @@ for p in "$PATCH_DIR"/*.patch; do
     grep -qF "$name" "$STAMP" || fail "patch '$name' is on disk but absent from the stamp $STAMP"
 done
 
-in_stamp="$(($(wc -l < "$STAMP") - 1))"
+in_stamp="$(grep -cE '^[^[:space:]]+\.(patch|diff)[[:space:]]' "$STAMP" || true)"
 [ "$in_stamp" -eq "$on_disk" ] \
     || fail "stamp lists $in_stamp patch(es) but $on_disk are on disk — the build dir is stale; configure into a fresh one"
 
